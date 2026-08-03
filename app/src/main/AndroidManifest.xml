@@ -1,0 +1,38 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application
+        android:allowBackup="true"
+        android:label="Kiko"
+        android:theme="@style/Theme.Kiko"
+        android:supportsRtl="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round" >
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.kiko.tracker" android:host="oauth" android:path="/callback" />
+            </intent-filter>
+            <!-- Lets MAL title links (myanimelist.net/anime/{id}/... or /manga/{id}/...) open directly
+                 in Kiko. autoVerify can't be confirmed since Kiko doesn't own myanimelist.net's
+                 assetlinks.json, so on some devices the person may need to pick Kiko once from the
+                 "Open with" chooser, or set it under Settings > Apps > Kiko > Open by default. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="myanimelist.net" />
+                <data android:host="www.myanimelist.net" />
+                <data android:pathPrefix="/anime" />
+                <data android:pathPrefix="/manga" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

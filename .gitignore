@@ -1,0 +1,30 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Keystores — never commit these
+*.jks
+*.keystore
+keystore.properties
+
+# Gradle
+.gradle
+build/
+
+# Android Studio
+*.hprof
+
+.kotlin/

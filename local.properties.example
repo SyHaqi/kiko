@@ -1,0 +1,3 @@
+# Copy this file to local.properties and enter the Client ID from MAL API Config.
+# Do not add a Client Secret to the Android app.
+MAL_CLIENT_ID=PASTE_YOUR_CLIENT_ID_HERE
