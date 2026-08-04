@@ -2,12 +2,22 @@
 
 package com.kiko.tracker
 
+import android.Manifest
 import android.app.Activity
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -77,6 +87,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -476,6 +491,65 @@ class LibraryViewModel : ViewModel() {
     var malProfile by mutableStateOf<MalProfile?>(null); private set
     var profileLoading by mutableStateOf(false); private set
 
+    // ---- App updates (Profile > Check for updates, plus the auto background check) ----
+    // Newest release known to be newer than this build, if any — populated from cache instantly on
+    // launch, then refreshed by a real GitHub check. null means "nothing newer that we know of".
+    var updateInfo by mutableStateOf<AppUpdateInfo?>(null); private set
+    var updateChecking by mutableStateOf(false); private set
+    // Set right after a manual check finishes with nothing newer, so the Profile row can say "You're
+    // up to date" once — cleared as soon as the row's tapped again so it doesn't linger stale.
+    var updateUpToDateMessage by mutableStateOf(false)
+    var updateDialogOpen by mutableStateOf(false)
+    var updateDownloadProgress by mutableStateOf<Float?>(null); private set
+    var updateNeedsInstallPermission by mutableStateOf(false)
+    var updateError by mutableStateOf<String?>(null)
+
+    // Instant, no-network read of whatever the last successful check found — call on launch so the
+    // Profile badge and (if due) auto-check both have something to work with right away.
+    fun loadCachedUpdate(context: Context) {
+        val checker = AppUpdateChecker(context)
+        val cached = checker.cached() ?: return
+        if (cached.version != checker.skippedVersion()) updateInfo = cached
+    }
+    // manual = true (the Profile row) always hits the network and reports "up to date" when there's
+    // nothing new. manual = false (the launch-time auto-check) checks quietly and only surfaces a
+    // result when there's actually something new to show, via onFound — used to fire a notification.
+    fun checkForUpdate(context: Context, manual: Boolean = false, onFound: (AppUpdateInfo) -> Unit = {}) {
+        if (updateChecking) return
+        updateChecking = true; updateUpToDateMessage = false; updateError = null
+        viewModelScope.launch {
+            val checker = AppUpdateChecker(context)
+            checker.checkLatest()
+                .onSuccess { found ->
+                    val skipped = checker.skippedVersion()
+                    val shown = found?.takeIf { it.version != skipped }
+                    updateInfo = shown
+                    if (shown != null) { onFound(shown); if (manual) updateDialogOpen = true } else if (manual) updateUpToDateMessage = true
+                }
+                .onFailure { if (manual) updateError = it.message ?: "Couldn't check for updates" }
+            updateChecking = false
+        }
+    }
+    fun skipUpdate(context: Context) {
+        val version = updateInfo?.version ?: return
+        AppUpdateChecker(context).skipVersion(version)
+        updateInfo = null; updateDialogOpen = false
+    }
+    // Downloads the release APK with live progress, then hands straight off to the system installer
+    // — checks REQUEST_INSTALL_PACKAGES first since a wasted download just to hit that wall is a bad
+    // experience on a slow connection.
+    fun downloadAndInstallUpdate(context: Context) {
+        val info = updateInfo ?: return
+        val checker = AppUpdateChecker(context)
+        if (!checker.canRequestInstall()) { updateNeedsInstallPermission = true; return }
+        updateDownloadProgress = 0f; updateError = null
+        viewModelScope.launch {
+            checker.downloadApk(info) { progress -> updateDownloadProgress = progress }
+                .onSuccess { file -> updateDownloadProgress = null; updateDialogOpen = false; checker.installApk(file) }
+                .onFailure { updateDownloadProgress = null; updateError = it.message ?: "Download failed" }
+        }
+    }
+
     // Every list-of-titles surface, filtered by the current NSFW preference — composables should
     // read these instead of the raw fields below so toggling the setting updates every screen at once.
     val visibleItems get() = items.nsfwFiltered(nsfwEnabled)
@@ -687,18 +761,52 @@ class LibraryViewModel : ViewModel() {
             val api = MalApi(context)
             runCatching {
                 if (query.isNotBlank()) api.search(query, t)
-                // Filter-only browse (no title typed): there's no MAL search param for
-                // genre/studio/source/year/season/rating (or theme — e.g. "Villainess"), so pull a
-                // broad candidate pool per type and let visibleDiscoverResults narrow it with the
-                // filters instead. Pulling only "all" (score) and "bypopularity" wasn't enough —
-                // both are essentially the same top-of-chart titles reordered, so anything niche
-                // (a themed tag like Villainess that's spread across mid-tier isekai/romance titles,
-                // or a whole format like Manhwa/Light Novel) was simply never in the pool to begin
-                // with, no matter how the filters were combined. Instead this pulls from every one
-                // of MAL's own ranking charts per type — which each partition the database along a
-                // different axis (popularity, airing status, format) — and merges/dedupes the union,
-                // giving a far wider and more varied candidate set for the same idea. Fetched in
-                // parallel so the extra charts don't multiply wait time.
+                // Filter-only browse with a genre/theme/demographic chip selected (e.g. the theme-only
+                // case this whole branch exists for — "Villainess" with no title typed): MAL's own API
+                // has no genre/theme/demographic search param at all (see DiscoverFilters above), so
+                // this goes through Tenrai (tenrai.org) — an unofficial, authless MAL mirror that does
+                // expose real genre-id search — to build the candidate pool instead of the generic
+                // ranking-chart pool below. visibleDiscoverResults still re-applies the exact same
+                // matches() filtering afterwards, so this only ever needs to be a superset.
+                else if (filters.genres.isNotEmpty() || filters.themes.isNotEmpty() || filters.demographics.isNotEmpty()) {
+                    val tenrai = TenraiApi()
+                    val kinds = t?.let { listOf(if (it == MediaType.Anime) "anime" else "manga") } ?: listOf("anime", "manga")
+                    // Any single selected facet's own id set is already a valid (if imperfect) superset
+                    // of the true match set once matches() runs locally afterwards — no need to query
+                    // every facet. Themes preferred first since that's specifically the facet with no
+                    // other server-side way to search it at all.
+                    val names = filters.themes.ifEmpty { filters.genres.ifEmpty { filters.demographics } }
+                    runCatching {
+                        coroutineScope {
+                            kinds.map { kind -> async { tenrai.searchByGenreIds(kind, tenrai.resolveGenreIds(kind, names), includeAdult = nsfwEnabled) } }
+                                .awaitAll().flatten()
+                        }
+                    }.getOrElse {
+                        // Tenrai unreachable — fall back to the old ranking-chart pool so filtering
+                        // still works, just without the extra theme/demographic recall.
+                        coroutineScope {
+                            (t?.let { listOf(it) } ?: MediaType.entries.toList()).flatMap { mt ->
+                                listOf("all", "bypopularity", "favorite").map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
+                            }.awaitAll().flatten()
+                        }
+                    }
+                        .distinctBy { it.id }
+                        // Tenrai has no concept of the signed-in account, so every title it returns
+                        // starts as untracked (see TenraiApi.parseJikanEntry) — swap in the person's own
+                        // library entry wherever one already exists, the same way a title search result
+                        // that's already on their MAL list would come back with list_status attached.
+                        .map { candidate -> items.find { it.id == candidate.id && it.type == candidate.type } ?: candidate }
+                }
+                // Filter-only browse with no genre/theme/demographic chip (just studio/source/year/
+                // season/rating/format): pull a broad candidate pool per type and let
+                // visibleDiscoverResults narrow it with the filters instead. Pulling only "all" (score)
+                // and "bypopularity" wasn't enough — both are essentially the same top-of-chart titles
+                // reordered, so anything niche (a whole format like Manhwa/Light Novel) was simply never
+                // in the pool to begin with. Instead this pulls from every one of MAL's own ranking
+                // charts per type — which each partition the database along a different axis
+                // (popularity, airing status, format) — and merges/dedupes the union, giving a far wider
+                // and more varied candidate set for the same idea. Fetched in parallel so the extra
+                // charts don't multiply wait time.
                 else coroutineScope {
                     (t?.let { listOf(it) } ?: MediaType.entries.toList()).flatMap { mt ->
                         val rankTypes = if (mt == MediaType.Anime)
@@ -941,22 +1049,93 @@ class LibraryViewModel : ViewModel() {
 }
 private fun settingsPrefs(context: Context) = context.getSharedPreferences("kiko_settings", Context.MODE_PRIVATE)
 
+// ---------- App update notification ----------
+private const val UPDATE_NOTIFICATION_CHANNEL = "app_updates"
+private const val UPDATE_NOTIFICATION_ID = 4201
+private fun ensureUpdateChannel(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+    val manager = context.getSystemService(NotificationManager::class.java) ?: return
+    if (manager.getNotificationChannel(UPDATE_NOTIFICATION_CHANNEL) != null) return
+    manager.createNotificationChannel(
+        NotificationChannel(UPDATE_NOTIFICATION_CHANNEL, "App updates", NotificationManager.IMPORTANCE_DEFAULT)
+            .apply { description = "Lets you know when a new version of Kiko is ready to install" }
+    )
+}
+// Tapping the notification just reopens the app — Profile's "Check for updates" row picks the
+// release straight back up from AppUpdateChecker's cache, no re-fetch needed.
+private fun postUpdateNotification(context: Context, info: AppUpdateInfo) {
+    ensureUpdateChannel(context)
+    val openIntent = Intent(context, MainActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+    val pendingIntent = PendingIntent.getActivity(context, 0, openIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    val notification = NotificationCompat.Builder(context, UPDATE_NOTIFICATION_CHANNEL)
+        .setSmallIcon(android.R.drawable.stat_sys_download_done)
+        .setContentTitle("Kiko ${info.version} is available")
+        .setContentText("Tap to update, from Profile > Check for updates.")
+        .setAutoCancel(true)
+        .setContentIntent(pendingIntent)
+        .build()
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+        NotificationManagerCompat.from(context).notify(UPDATE_NOTIFICATION_ID, notification)
+    }
+}
+
 // ---------- Activity ----------
 class MainActivity : ComponentActivity() {
     private var callback by mutableStateOf<Uri?>(null)
     // Set when the app is opened via a myanimelist.net link (as opposed to the OAuth redirect,
     // which uses the app's own com.kiko.tracker:// scheme) — routed to KikoApp to open Detail directly.
     private var malLink by mutableStateOf<Uri?>(null)
+    // Holds an update the launch-time auto-check found while the POST_NOTIFICATIONS prompt below is
+    // in flight, so the permission callback can still post it once the person answers either way.
+    private var pendingUpdateNotification: AppUpdateInfo? = null
+    private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val info = pendingUpdateNotification; pendingUpdateNotification = null
+        if (granted && info != null) { postUpdateNotification(this, info); AppUpdateChecker(this).markNotified(info.version) }
+    }
+    // Only called from the silent launch-time auto-check — the manual Profile button never needs a
+    // system notification since the person is already looking straight at the result on screen.
+    private fun notifyUpdateAvailable(info: AppUpdateInfo) {
+        if (info.version == AppUpdateChecker(this).notifiedVersion()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            pendingUpdateNotification = info
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+        postUpdateNotification(this, info)
+        AppUpdateChecker(this).markNotified(info.version)
+    }
     private fun routeIntentUri(uri: Uri?) {
         if (uri == null) return
         if (uri.scheme == "com.kiko.tracker") callback = uri else malLink = uri
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Coil's default ImageLoader only decodes a GIF's first frame — every AsyncImage in the app
+        // (forum post images, avatars, covers) otherwise renders an animated GIF as a static picture.
+        // Registering the actual GIF decoders here (once, on Coil's app-wide singleton loader) is what
+        // makes them play instead. ImageDecoderDecoder is the modern platform decoder (API 28+); GifDecoder
+        // is the software fallback for the 26/27 range Kiko still supports (see minSdk in build.gradle.kts).
+        coil.Coil.setImageLoader(
+            coil.ImageLoader.Builder(this)
+                .components {
+                    if (Build.VERSION.SDK_INT >= 28) add(coil.decode.ImageDecoderDecoder.Factory()) else add(coil.decode.GifDecoder.Factory())
+                }
+                .build()
+        )
         routeIntentUri(intent?.data)
         setContent {
             val vm: LibraryViewModel = viewModel()
             LaunchedEffect(Unit) { vm.loadTheme(this@MainActivity); vm.loadColorSource(this@MainActivity); vm.loadPaletteStyle(this@MainActivity); vm.loadCustomColor(this@MainActivity); vm.loadTitleLanguage(this@MainActivity); vm.loadListFilter(this@MainActivity); vm.loadListSort(this@MainActivity); vm.loadNsfwPref(this@MainActivity); vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity); vm.loadHomeExtras(this@MainActivity) }
+            // Shows whatever the last check already knew about instantly, then — throttled to at most
+            // once every 12h so relaunching the app repeatedly doesn't hammer GitHub's API — quietly
+            // checks again in the background and, only if that turns up something new, notifies.
+            LaunchedEffect(Unit) {
+                vm.loadCachedUpdate(this@MainActivity)
+                val staleAfterMs = 12 * 60 * 60 * 1000L
+                if (System.currentTimeMillis() - AppUpdateChecker(this@MainActivity).lastCheckedAt() > staleAfterMs) {
+                    vm.checkForUpdate(this@MainActivity, manual = false, onFound = ::notifyUpdateAvailable)
+                }
+            }
             LaunchedEffect(callback) {
                 callback?.let { uri ->
                     vm.loading = true
@@ -1159,7 +1338,9 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                                 Destination.List -> ListScreen(vm, onOpenDetail = ::openDetail, onIncrement = { vm.saveLive(context, it) })
                                 Destination.Discover -> DiscoverScreen(vm, onOpenDetail = ::openDetail)
                                 Destination.Forums -> ForumsScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title })
-                                Destination.Profile -> ProfileScreen(vm.signedIn, vm.malProfile, vm.items, vm.themeMode, vm.colorSource, vm.paletteStyle, vm.titleLanguage, vm.nsfwEnabled, onNsfwChange = { vm.setNsfw(context, it) }, onConnect = onSignIn, onSignOut = onSignOut, onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true })
+                                Destination.Profile -> ProfileScreen(vm.signedIn, vm.malProfile, vm.items, vm.themeMode, vm.colorSource, vm.paletteStyle, vm.titleLanguage, vm.nsfwEnabled, onNsfwChange = { vm.setNsfw(context, it) }, onConnect = onSignIn, onSignOut = onSignOut, onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true },
+                                    updateInfo = vm.updateInfo, updateChecking = vm.updateChecking, updateUpToDate = vm.updateUpToDateMessage,
+                                    onCheckForUpdate = { if (vm.updateInfo != null) vm.updateDialogOpen = true else vm.checkForUpdate(context, manual = true) })
                             }
                         }
                     }
@@ -1174,6 +1355,18 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
             if (colorSourceOpen) ColorSourceSheet(vm.colorSource, vm.customColorHex, onDismiss = { colorSourceOpen = false }, onSelect = { vm.setColorSource(context, it) }, onCustomHexChange = { vm.setCustomColor(context, it) })
             if (paletteStyleOpen) PaletteStyleSheet(vm.paletteStyle, onDismiss = { paletteStyleOpen = false }, onSelect = { vm.setPaletteStyle(context, it); paletteStyleOpen = false })
             if (titleLangOpen) TitleLanguageSheet(vm.titleLanguage, onDismiss = { titleLangOpen = false }, onSelect = { vm.setTitleLanguage(context, it); titleLangOpen = false })
+            if (vm.updateDialogOpen) vm.updateInfo?.let { info ->
+                UpdateDialog(
+                    info = info,
+                    downloadProgress = vm.updateDownloadProgress,
+                    needsInstallPermission = vm.updateNeedsInstallPermission,
+                    error = vm.updateError,
+                    onDownload = { vm.downloadAndInstallUpdate(context) },
+                    onOpenInstallSettings = { vm.updateNeedsInstallPermission = false; context.startActivity(AppUpdateChecker(context).installPermissionSettingsIntent()) },
+                    onSkip = { vm.skipUpdate(context) },
+                    onDismiss = { vm.updateDialogOpen = false; vm.updateNeedsInstallPermission = false; vm.updateError = null },
+                )
+            }
         }
     }
 }
@@ -2421,8 +2614,18 @@ private fun decodeHtmlEntities(text: String): String = htmlEntityRegex.replace(t
 // Only the *bare* form ([url]href[/url], no separate "=" attribute/label) is rewritten — a genuine
 // [url=https://...png]click here[/url] still has real link text to show and is left as a link.
 private val bareImageLinkRegex = Regex("""\[url\]\s*(https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?|https?://cdn\.myanimelist\.net/s/common/bbcode/\S+?)\s*\[/url\]""", RegexOption.IGNORE_CASE)
+// Some posts (MAL's own event/announcement threads included — pasted straight from a desktop editor)
+// open an [img] tag and never close it, e.g. "[img width=500]https://cdn.myanimelist.net/...".
+// bbBlockRegex below requires a matching [/img] to recognize an image at all, so without this pass
+// that whole fragment — brackets, attribute, and URL — fell straight through as visible literal text
+// instead of becoming a picture. This finds an [img ...] opening tag whose URL isn't already followed
+// by a real [/img] (optionally after whitespace) and inserts one right after the URL, which ends at
+// the first whitespace or "[" or the end of the string — same boundary a properly closed tag would use.
+private val unclosedImgRegex = Regex("""\[img(?:[^\]]*)\]\s*(https?://[^\s\[\]]+)(?!\s*\[/img\])""", RegexOption.IGNORE_CASE)
 private fun normalizeMalMarkup(raw: String): String =
-    decodeHtmlEntities(brTagRegex.replace(raw, "\n")).let { bareImageLinkRegex.replace(it) { m -> "[img]${m.groupValues[1]}[/img]" } }
+    decodeHtmlEntities(brTagRegex.replace(raw, "\n"))
+        .let { bareImageLinkRegex.replace(it) { m -> "[img]${m.groupValues[1]}[/img]" } }
+        .let { unclosedImgRegex.replace(it) { m -> "[img]${m.groupValues[1]}[/img]" } }
 
 private fun parseBBCode(rawIn: String, linkColor: Color): List<ForumBlock> {
     if (rawIn.isBlank()) return emptyList()
@@ -2447,13 +2650,59 @@ private fun parseBBCode(rawIn: String, linkColor: Color): List<ForumBlock> {
     if (pos < raw.length) blocks += paragraphsFrom(raw.substring(pos), linkColor)
     return blocks
 }
+// Fullscreen single-image viewer opened by tapping any image in a forum post (see ForumBody below) —
+// pinch to zoom, drag to pan once zoomed, double-tap to toggle between fit and a fixed zoomed-in level,
+// tap the scrim (at 1x only, so a pan gesture at higher zoom doesn't also dismiss) or the close button
+// to leave. Deliberately its own dialog rather than reusing Detail's cover pager (showFullCover above):
+// that one is a fixed-aspect-ratio gallery over a title's own covers, this is a single arbitrary-shaped
+// image with real zoom, which is what "zoom in" on a forum picture actually needs.
+@Composable private fun ZoomableImageDialog(url: String, onDismiss: () -> Unit) {
+    var scale by remember(url) { mutableStateOf(1f) }
+    var offset by remember(url) { mutableStateOf(Offset.Zero) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = .95f))
+                .pointerInput(url) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        val newScale = (scale * zoom).coerceIn(1f, 6f)
+                        scale = newScale
+                        offset = if (newScale <= 1f) Offset.Zero else offset + pan
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth(0.95f)
+                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y)
+                    .pointerInput(url) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                if (scale > 1f) { scale = 1f; offset = Offset.Zero } else scale = 2.5f
+                            },
+                            onTap = { if (scale <= 1f) onDismiss() },
+                        )
+                    },
+            )
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = .15f)),
+            ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
+        }
+    }
+}
 // Renders a post body's BBCode as an actual Column of styled text/images/lists/quotes instead of raw
 // markup — images sit as their own bordered box between paragraphs (matching how MAL's own site frames
-// them), links are tappable and open in the system browser via LocalUriHandler.
+// them), links are tappable and open in the system browser via LocalUriHandler; each image is itself
+// tappable to open ZoomableImageDialog above.
 @Composable private fun ForumBody(body: String, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     val uriHandler = LocalUriHandler.current
     val blocks = remember(body, c.primary) { parseBBCode(body, c.primary) }
+    // Tapped image's URL, or null when no viewer is open — a post can have several images, so this
+    // tracks which one rather than a plain boolean, same pattern as Detail's showFullCover.
+    var fullscreenImage by remember { mutableStateOf<String?>(null) }
+    fullscreenImage?.let { url -> ZoomableImageDialog(url, onDismiss = { fullscreenImage = null }) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         blocks.forEach { block ->
             when (block) {
@@ -2473,7 +2722,9 @@ private fun parseBBCode(rawIn: String, linkColor: Color): List<ForumBlock> {
                 ) {
                     AsyncImage(
                         model = block.url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                        modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 340.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(8.dp)),
+                        modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 340.dp).clip(RoundedCornerShape(8.dp))
+                            .border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(8.dp))
+                            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fullscreenImage = block.url },
                     )
                 }
                 is ForumBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -2570,6 +2821,7 @@ private fun formatForumDate(raw: String): String {
     connected: Boolean, profile: MalProfile?, items: List<MediaItem>, themeMode: ThemeMode, colorSource: ColorSource, paletteStyle: PaletteStyle, titleLanguage: TitleLanguage,
     nsfwEnabled: Boolean, onNsfwChange: (Boolean) -> Unit,
     onConnect: () -> Unit, onSignOut: () -> Unit, onThemeClick: () -> Unit, onColorClick: () -> Unit, onPaletteClick: () -> Unit, onTitleLanguageClick: () -> Unit,
+    updateInfo: AppUpdateInfo? = null, updateChecking: Boolean = false, updateUpToDate: Boolean = false, onCheckForUpdate: () -> Unit = {},
 ) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
@@ -2742,6 +2994,32 @@ private fun formatForumDate(raw: String): String {
             ListItem(headlineContent = { Text("Color palette", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(paletteStyle.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Gradient, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onPaletteClick))
             ListItem(headlineContent = { Text("Title language", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(titleLanguage.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Translate, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onTitleLanguageClick))
             ListItem(headlineContent = { Text("Adult content", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(if (nsfwEnabled) "Hentai-rated titles are shown" else "Hentai-rated titles are hidden", color = c.muted) }, leadingContent = { Icon(Icons.Default.VisibilityOff, null, tint = c.primary) }, trailingContent = { Switch(checked = nsfwEnabled, onCheckedChange = onNsfwChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
+            // Manual check, plus wherever the auto-check (or a cached result from last launch) already
+            // found something newer — tapping it then just reopens UpdateDialog instead of re-fetching.
+            ListItem(
+                headlineContent = { Text("Check for updates", fontWeight = FontWeight.Bold, color = c.ink) },
+                supportingContent = {
+                    Text(
+                        when {
+                            updateChecking -> "Checking…"
+                            updateInfo != null -> "Update available — ${updateInfo.version}"
+                            updateUpToDate -> "You're up to date — v${BuildConfig.VERSION_NAME}"
+                            else -> "v${BuildConfig.VERSION_NAME}"
+                        },
+                        color = if (updateInfo != null) c.primary else c.muted,
+                        fontWeight = if (updateInfo != null) FontWeight.Bold else FontWeight.Normal,
+                    )
+                },
+                leadingContent = {
+                    Box {
+                        Icon(Icons.Default.SystemUpdate, null, tint = c.primary)
+                        if (updateInfo != null) Box(Modifier.size(8.dp).align(Alignment.TopEnd).clip(CircleShape).background(c.danger))
+                    }
+                },
+                trailingContent = { if (updateChecking) CircularProgressIndicator(Modifier.size(18.dp), color = c.primary, strokeWidth = 2.dp) else Icon(Icons.Default.ChevronRight, null, tint = c.muted) },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(enabled = !updateChecking, onClick = onCheckForUpdate),
+            )
             // Sign out lives on its own at the very bottom of the page, away from the rest of Preferences.
             if (connected) {
                 Spacer(Modifier.height(24.dp))
@@ -3515,6 +3793,54 @@ private fun formatUserDate(raw: String): String {
         val out = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
         out.format(parser.parse(raw)!!)
     } catch (e: Exception) { raw }
+}
+// Shown from Profile's "Check for updates" row whenever a newer release is known — either just
+// fetched by the manual check, or already sitting in AppUpdateChecker's cache after the silent
+// launch-time auto-check (or a tap on the update notification) found one. Skip/Later stay available
+// mid-download; the destructive "close mid-download" case is deliberately allowed since the file is
+// just re-downloaded from cache next time — not worth a second confirmation dialog on top of this one.
+@Composable private fun UpdateDialog(
+    info: AppUpdateInfo, downloadProgress: Float?, needsInstallPermission: Boolean, error: String?,
+    onDownload: () -> Unit, onOpenInstallSettings: () -> Unit, onSkip: () -> Unit, onDismiss: () -> Unit,
+) {
+    val c = LocalKikoColors.current
+    val downloading = downloadProgress != null
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surface,
+        title = { Text("Kiko ${info.version} is available", color = c.ink) },
+        text = {
+            Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+                if (needsInstallPermission) {
+                    Text("Kiko needs permission to install updates. Allow it from Settings, then try again.", color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
+                } else if (error != null) {
+                    Text(error, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
+                }
+                if (downloading) {
+                    val progress = downloadProgress ?: 0f
+                    Text("Downloading update…", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(50)), color = c.primary, trackColor = c.surfaceLow)
+                    Text("${(progress * 100).toInt()}%", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                } else {
+                    Text(info.notes.ifBlank { "No release notes provided." }, color = c.muted, fontSize = 13.sp)
+                }
+            }
+        },
+        confirmButton = {
+            when {
+                needsInstallPermission -> TextButton(onClick = onOpenInstallSettings, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("Open settings") }
+                else -> TextButton(onClick = onDownload, enabled = !downloading, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text(if (downloading) "Downloading…" else "Update now") }
+            }
+        },
+        dismissButton = {
+            if (!downloading) {
+                Row {
+                    TextButton(onClick = onSkip, colors = ButtonDefaults.textButtonColors(contentColor = c.muted)) { Text("Skip") }
+                    TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = c.muted)) { Text("Later") }
+                }
+            }
+        },
+    )
 }
 @Composable private fun ThemeSheet(current: ThemeMode, onDismiss: () -> Unit, onSelect: (ThemeMode) -> Unit) {
     val c = LocalKikoColors.current

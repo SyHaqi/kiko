@@ -37,6 +37,10 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.foundation:foundation")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    // Adds animated GIF/WebP decoding to Coil — without this, AsyncImage silently only ever
+    // decodes and shows a GIF's first frame instead of playing it (see MainActivity.onCreate,
+    // which registers the actual decoders with Coil's singleton ImageLoader).
+    implementation("io.coil-kt:coil-gif:2.7.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.browser:browser:1.8.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
