@@ -2,8 +2,8 @@
   <style name="Theme.Kiko" parent="android:style/Theme.Material.Light.NoActionBar">
     <item name="android:fontFamily">sans</item>
     <item name="android:windowLightStatusBar">true</item>
-    <item name="android:windowBackground">#F8F8FF</item>
-    <item name="android:statusBarColor">#F8F8FF</item>
-    <item name="android:navigationBarColor">#F8F8FF</item>
+    <item name="android:windowBackground">#FFFFFF</item>
+    <item name="android:statusBarColor">#FFFFFF</item>
+    <item name="android:navigationBarColor">#FFFFFF</item>
   </style>
 </resources>

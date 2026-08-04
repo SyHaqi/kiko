@@ -31,6 +31,13 @@ private fun prettifyRating(raw: String) = when (raw.lowercase()) {
     "rx" -> "Rx - Hentai"
     else -> prettify(raw)
 }
+// "4_koma_manga" would otherwise come out of prettify() as "4 Koma Manga" (plain underscore-to-space
+// split), which never matches Discover's "4-Koma Manga" filter chip — that facet would silently
+// return zero results no matter what else was selected alongside it.
+private fun prettifySource(raw: String) = when (raw.lowercase()) {
+    "4_koma_manga" -> "4-Koma Manga"
+    else -> prettify(raw)
+}
 
 /** Thrown internally when the access token is rejected so [authorized] can refresh and retry once. */
 private class AuthExpired : IOException()
@@ -343,6 +350,14 @@ class MalApi(private val context: Context) {
         authorized { form(endpoint, fields, method = "PATCH") }
     }
 
+    // Removes the entry from the person's MAL list entirely (MAL's `my_list_status` DELETE endpoint) —
+    // this is a real delete, not a status change, so it's called from the Edit sheet's Delete button
+    // rather than folded into update() above.
+    suspend fun deleteEntry(item: MediaItem): Unit = withContext(Dispatchers.IO) {
+        val endpoint = "$API/${if (item.type == MediaType.Anime) "anime" else "manga"}/${item.id}/my_list_status"
+        authorized { delete(endpoint) }
+    }
+
     // The `fields` query param shared by both "my list" fetches and full-database search.
     private fun fields(kind: String): String {
         // related_anime/related_manga are list-of-object fields — like authors below, MAL only
@@ -350,7 +365,7 @@ class MalApi(private val context: Context) {
         // explicitly; requesting the bare field name silently comes back empty.
         // themes/demographics (e.g. "Isekai", "Shounen") are finer-grained than genres alone and
         // are what the Detail screen's "Recommended" row scores similarity on.
-        val common = "list_status,genres,themes,demographics,main_picture,synopsis,background,mean,rank,popularity,num_list_users," +
+        val common = "list_status,genres,explicit_genres,themes,demographics,main_picture,synopsis,background,mean,rank,popularity,num_list_users," +
                 "start_date,end_date,media_type,status,alternative_titles,nsfw," +
                 "related_anime{node{id,title,main_picture},relation_type},related_manga{node{id,title,main_picture},relation_type}," +
                 "recommendations{node{id,title,main_picture},num_recommendations}"
@@ -398,11 +413,13 @@ class MalApi(private val context: Context) {
             "dropped" -> WatchStatus.Dropped
             else -> WatchStatus.Plan
         }
-        val genresArr = n.optJSONArray("genres")
-        val genresList = genresArr?.let { arr2 -> (0 until arr2.length()).map { arr2.getJSONObject(it).optString("name") } } ?: emptyList()
         // MAL's finer-grained categorization below genre level — e.g. "Isekai" or "Time Travel" as
         // a theme, "Shounen" or "Seinen" as a demographic — used only to score Recommended-row matches.
         fun tagList(field: String) = n.optJSONArray(field)?.let { arr2 -> (0 until arr2.length()).map { arr2.getJSONObject(it).optString("name") } } ?: emptyList()
+        // "explicit_genres" (Ecchi/Erotica/Hentai) is a separate array on MAL's API from plain
+        // "genres" — folded together here since the app treats them as one genre list everywhere
+        // else (Detail screen's chips, isAdultContent(), the Discover genre filter).
+        val genresList = tagList("genres") + tagList("explicit_genres")
         val contentThemes = tagList("themes")
         val demographics = tagList("demographics")
         val picture = n.optJSONObject("main_picture")
@@ -505,7 +522,7 @@ class MalApi(private val context: Context) {
             season = season,
             format = prettifyFormat(n.optString("media_type")),
             airStatus = prettify(n.optString("status")),
-            source = prettify(n.optString("source")),
+            source = prettifySource(n.optString("source")),
             rating = prettifyRating(n.optString("rating")),
             volumes = n.optInt("num_volumes", 0),
             titleEnglish = titleEnglish,
@@ -561,6 +578,19 @@ class MalApi(private val context: Context) {
 
     private fun get(url: String): String {
         val request = Request.Builder().url(url)
+            .addHeader("Authorization", "Bearer ${prefs.getString("access_token", "")}")
+            .addHeader("X-MAL-CLIENT-ID", BuildConfig.MAL_CLIENT_ID)
+            .build()
+        client.newCall(request).execute().use { resp ->
+            if (resp.code == 401) throw AuthExpired()
+            val text = resp.body?.string() ?: ""
+            if (!resp.isSuccessful) throw IOException("MAL request failed (${resp.code}): ${text.take(300)}")
+            return text
+        }
+    }
+
+    private fun delete(url: String): String {
+        val request = Request.Builder().url(url).delete()
             .addHeader("Authorization", "Bearer ${prefs.getString("access_token", "")}")
             .addHeader("X-MAL-CLIENT-ID", BuildConfig.MAL_CLIENT_ID)
             .build()

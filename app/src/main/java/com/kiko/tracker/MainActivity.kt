@@ -12,6 +12,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.RepeatMode
@@ -98,6 +99,9 @@ import coil.request.ImageRequest
 import coil.size.Size
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import java.util.UUID
 import kotlin.math.roundToInt
 
@@ -110,15 +114,19 @@ data class KikoColors(
     val background: Color, val surface: Color, val surfaceLow: Color, val muted: Color,
     val lavender: Color, val warm: Color, val danger: Color
 )
+// MAL-brand palette: the header/primary blue (#2E51A2) is the same fixed hue in both light and
+// dark mode, matching the real site (its header bar never changes with theme). Backgrounds and
+// surfaces are lifted straight from MAL's own light (#FFFFFF/#F8F8F8) and dark (#121212/#181818)
+// site colors.
 private val LightKiko = KikoColors(
-    ink = Color(0xFF1B1B22), onPrimary = Color.White, primary = Color(0xFF4B61C8), primaryContainer = Color(0xFFDEE4FF),
-    background = Color(0xFFF8F8FF), surface = Color(0xFFFFFFFF), surfaceLow = Color(0xFFF0F2FA), muted = Color(0xFF666876),
-    lavender = Color(0xFFECE8FF), warm = Color(0xFFFFE9C7), danger = Color(0xFFB3261E)
+    ink = Color(0xFF1B1B1F), onPrimary = Color.White, primary = Color(0xFF2E51A2), primaryContainer = Color(0xFFE1E7F5),
+    background = Color(0xFFFFFFFF), surface = Color(0xFFF8F8F8), surfaceLow = Color(0xFFEDEDED), muted = Color(0xFF6D6D6D),
+    lavender = Color(0xFFEAF0FF), warm = Color(0xFFFFE9C7), danger = Color(0xFFB3261E)
 )
 private val DarkKiko = KikoColors(
-    ink = Color(0xFFEDEDF5), onPrimary = Color(0xFF16182B), primary = Color(0xFF8FA1FF), primaryContainer = Color(0xFF32406E),
-    background = Color(0xFF121218), surface = Color(0xFF1C1C25), surfaceLow = Color(0xFF25252F), muted = Color(0xFFA0A3B4),
-    lavender = Color(0xFF272639), warm = Color(0xFF463A28), danger = Color(0xFFFFB4AB)
+    ink = Color(0xFFEDEDED), onPrimary = Color(0xFF14203D), primary = Color(0xFFABC4ED), primaryContainer = Color(0xFF24365E),
+    background = Color(0xFF121212), surface = Color(0xFF181818), surfaceLow = Color(0xFF222222), muted = Color(0xFFA3A3A3),
+    lavender = Color(0xFF1F2A44), warm = Color(0xFF463A28), danger = Color(0xFFFFB4AB)
 )
 private val LocalKikoColors = staticCompositionLocalOf { LightKiko }
 private val AppFont = FontFamily.SansSerif
@@ -130,7 +138,7 @@ private val AppFont = FontFamily.SansSerif
 // style never breaks contrast. Monochrome forces saturation to zero everywhere, which is also why
 // it's the one style that looks the same no matter which seed (App default/Dynamic/Custom) produced
 // it — with zero saturation, hue has nothing left to influence.
-private val AppDefaultSeed = Color(0xFF4B61C8)
+private val AppDefaultSeed = Color(0xFF2E51A2)
 private fun normHue(h: Float) = ((h % 360f) + 360f) % 360f
 private fun hslColor(hue: Float, saturation: Float, lightness: Float): Color =
     Color(ColorUtils.HSLToColor(floatArrayOf(normHue(hue), saturation.coerceIn(0f, 1f), lightness.coerceIn(0f, 1f))))
@@ -301,15 +309,6 @@ enum class ThemeMode(val label: String) { System("System"), Light("Light"), Dark
 enum class ColorSource(val label: String) { AppDefault("App default"), Dynamic("Dynamic"), Custom("Custom") }
 enum class PaletteStyle(val label: String) { TonalSpot("Tonal Spot"), Neutral("Neutral"), Monochrome("Monochrome") }
 
-private fun seedItems() = listOf(
-    MediaItem(title = "Sousou no Frieren", type = MediaType.Anime, status = WatchStatus.Watching, progress = 19, total = 28, genre = "Fantasy", genres = listOf("Adventure", "Drama", "Fantasy"), color = 0xFFAEC6B5, score = 9.3, rank = 3, popularity = 200, listUsers = 850_000, creator = "Madhouse", startDate = "2023", season = "Fall", format = "TV", airStatus = "Finished Airing", source = "Manga", rating = "PG-13", titleEnglish = "Frieren: Beyond Journey's End", background = "Winner of the 2021 Manga Taisho Award before its anime adaptation aired.", synopsis = "The hero's party defeats the Demon King and returns home. Elf mage Frieren, who has lived for centuries, must now reckon with how brief her companions' lives were as she sets out to understand humanity.", startDateFull = "2023-09-29", endDateFull = "2024-03-22", synonyms = listOf("葬送のフリーレン"), openingThemes = listOf("\"Yuusha\" by YOASOBI"), endingThemes = listOf("\"Anytime Anywhere\" by MICHI"), related = listOf(RelatedEntry("Sequel", "Frieren: Beyond Journey's End Season 2", 60543, "anime")), myRating = 9, watchStartDate = "2024-06-02", updatedAt = "2024-05-20T10:00:00+00:00", broadcastDay = "Friday"),
-    MediaItem(title = "Tongari Boushi no Atelier", type = MediaType.Manga, status = WatchStatus.Reading, progress = 54, total = 85, genre = "Fantasy", genres = listOf("Adventure", "Fantasy"), color = 0xFFCABAF0, score = 8.9, rank = 45, popularity = 900, listUsers = 95_000, creator = "Kamome Shirahama", startDate = "2016", format = "Manga", airStatus = "Publishing", source = "Original", titleEnglish = "Witch Hat Atelier", synopsis = "Coco dreamed magic was something you were born with, until a chance encounter reveals it's a technique anyone can learn to draw — if they're willing to work for it.", startDateFull = "2016-06-30", synonyms = listOf("とんがり帽子のアトリエ"), watchStartDate = "2024-01-15", updatedAt = "2024-03-01T08:00:00+00:00"),
-    MediaItem(title = "Kusuriya no Hitorigoto", type = MediaType.Anime, status = WatchStatus.Plan, total = 24, genre = "Mystery", genres = listOf("Drama", "Mystery"), color = 0xFFE6C4A0, score = 8.7, rank = 20, popularity = 150, listUsers = 700_000, creator = "OLM", startDate = "2023", season = "Fall", format = "TV", airStatus = "Finished Airing", source = "Light Novel", rating = "PG-13", titleEnglish = "The Apothecary Diaries", synopsis = "Sold into servitude, apothecary Maomao uses her sharp mind to solve the mysteries and poisonings that plague the inner palace, catching the eye of a handsome eunuch official.", startDateFull = "2023-10-22", endDateFull = "2023-12-24", synonyms = listOf("薬屋のひとりごと"), openingThemes = listOf("\"Wasuremete\" by Ano"), endingThemes = listOf("\"Betsu ni Ii kedo\" by Uru"), related = listOf(RelatedEntry("Sequel", "The Apothecary Diaries Season 2", 55836, "anime"))),
-    MediaItem(title = "Ao no Hako", type = MediaType.Manga, status = WatchStatus.Reading, progress = 121, genre = "Romance", genres = listOf("Romance", "Sports"), color = 0xFFA9D5E5, score = 8.4, rank = 120, popularity = 600, listUsers = 60_000, creator = "Kouji Miura", startDate = "2021", format = "Manga", airStatus = "Publishing", source = "Original", titleEnglish = "Blue Box", synopsis = "Badminton player Taiki has a crush on basketball ace Chinatsu, his upperclassman who's just moved in with his family. A gentle, slow-burn sports romance.", startDateFull = "2021-08-02", synonyms = listOf("青のフラッグ"), related = listOf(RelatedEntry("Adaptation", "Blue Box", 58567, "anime")), watchStartDate = "2024-04-10", updatedAt = "2024-06-10T09:30:00+00:00"),
-    MediaItem(title = "Dungeon Meshi", type = MediaType.Anime, status = WatchStatus.Completed, progress = 24, total = 24, genre = "Adventure", genres = listOf("Adventure", "Comedy", "Fantasy"), color = 0xFFE4B989, score = 8.6, rank = 15, popularity = 250, listUsers = 500_000, creator = "Trigger", startDate = "2024", season = "Winter", format = "TV", airStatus = "Finished Airing", source = "Manga", rating = "PG-13", titleEnglish = "Delicious in Dungeon", synopsis = "After losing their supplies — and a party member — to a dragon, Laios and his friends decide the fastest way back down is to eat the monsters standing in their way.", startDateFull = "2024-01-04", endDateFull = "2024-03-28", openingThemes = listOf("\"Sincerely\" by Iori"), endingThemes = listOf("\"Su-Teki\" by Genic"), related = listOf(RelatedEntry("Sequel", "Delicious in Dungeon: Golden City", 0, "anime")), myRating = 10, watchStartDate = "2024-01-06", watchEndDate = "2024-03-30"),
-    MediaItem(title = "Kaijuu 8-gou", type = MediaType.Manga, status = WatchStatus.OnHold, progress = 76, genre = "Action", genres = listOf("Action", "Sci-Fi"), color = 0xFFD5C0C1, score = 8.3, rank = 60, popularity = 400, listUsers = 150_000, creator = "Naoya Matsumoto", startDate = "2020", format = "Manga", airStatus = "Publishing", source = "Original", titleEnglish = "Kaiju No. 8", synopsis = "Kafka Hibino cleans up kaiju corpses for a living, until a strange parasite turns him into a kaiju himself — just as he's about to take the Defense Force exam.", startDateFull = "2020-07-03", synonyms = listOf("怪獣8号"), related = listOf(RelatedEntry("Adaptation", "Kaiju No. 8", 55692, "anime")), watchStartDate = "2023-11-20")
-)
-
 // ---------- ViewModel ----------
 enum class DiscoverMode { Browse, Results }
 // Discover's advanced filters — combined and applied together against whatever candidate pool the
@@ -321,35 +320,61 @@ enum class DiscoverMode { Browse, Results }
 data class DiscoverFilters(
     val genres: Set<String> = emptySet(),
     val themes: Set<String> = emptySet(),
+    val demographics: Set<String> = emptySet(),
     val studio: String = "",
     val source: String = "",
     val year: String = "",
     val season: SeasonName? = null,
     val rating: String = "",
+    // Sub-type within Anime/Manga — TV/OVA/Movie/... for anime, Manga/Manhwa/One Shot/... for manga.
+    // Named "format" (not "type") to avoid confusion with the Anime/Manga/All toggle, which is a
+    // separate, coarser filter (discoverTypeFilter) that lives outside DiscoverFilters entirely.
+    val format: String = "",
 ) {
-    fun isActive() = genres.isNotEmpty() || themes.isNotEmpty() || studio.isNotBlank() || source.isNotBlank() || year.isNotBlank() || season != null || rating.isNotBlank()
+    fun isActive() = genres.isNotEmpty() || themes.isNotEmpty() || demographics.isNotEmpty() || studio.isNotBlank() || source.isNotBlank() || year.isNotBlank() || season != null || rating.isNotBlank() || format.isNotBlank()
 }
 private fun MediaItem.matches(f: DiscoverFilters): Boolean {
     if (f.genres.isNotEmpty() && genres.none { g -> f.genres.any { it.equals(g, ignoreCase = true) } }) return false
     if (f.themes.isNotEmpty() && contentThemes.none { t -> f.themes.any { it.equals(t, ignoreCase = true) } }) return false
+    if (f.demographics.isNotEmpty() && demographics.none { d -> f.demographics.any { it.equals(d, ignoreCase = true) } }) return false
     if (f.studio.isNotBlank() && !creator.contains(f.studio, ignoreCase = true)) return false
     if (f.source.isNotBlank() && !source.equals(f.source, ignoreCase = true)) return false
     if (f.year.isNotBlank() && startDate != f.year) return false
     if (f.season != null && !season.equals(f.season.label, ignoreCase = true)) return false
     if (f.rating.isNotBlank() && !rating.equals(f.rating, ignoreCase = true)) return false
+    if (f.format.isNotBlank() && !format.equals(f.format, ignoreCase = true)) return false
     return true
 }
-// Curated common values for the Advanced Filters sheet — MAL's own genre/theme/source/rating vocab
-// is larger than this, but these cover the vast majority of titles and keep the sheet from turning
-// into its own scrollable database.
-val CommonGenres = listOf("Action", "Adventure", "Comedy", "Drama", "Ecchi", "Fantasy", "Horror", "Mecha", "Music", "Mystery", "Psychological", "Romance", "Sci-Fi", "Slice of Life", "Sports", "Supernatural", "Suspense")
+// MAL's full genre taxonomy (myanimelist.net/anime.php / manga.php sidebar), split into the same
+// four facets MAL itself uses. Genre/Explicit Genre both match against MediaItem.genres (MAL's API
+// returns explicit genres — Ecchi/Erotica/Hentai — as part of the same "genres" list, see
+// MalApi.fields/parseEntry), kept as separate sections here only so the sheet doesn't bury three
+// adult-content tags inside sixteen ordinary ones.
+val CommonGenres = listOf("Action", "Adventure", "Avant Garde", "Award Winning", "Boys Love", "Comedy", "Drama", "Fantasy", "Girls Love", "Gourmet", "Horror", "Mystery", "Romance", "Sci-Fi", "Slice of Life", "Sports", "Supernatural", "Suspense")
+val CommonExplicitGenres = listOf("Ecchi", "Erotica", "Hentai")
 // MAL's "themes" facet — a finer-grained tag sitting below genre (e.g. an Isekai can be Action,
 // Adventure, or Comedy genre-wise, but Isekai itself is the theme) — already fetched into
 // MediaItem.contentThemes (see MalApi.fields/parseEntry) for the Detail screen's Recommended-row
 // scoring, just not previously surfaced as its own filter.
-val CommonThemes = listOf("Isekai", "Iyashikei", "School", "Military", "Historical", "Mahou Shoujo", "Super Power", "Team Sports", "Time Travel", "Video Game", "Vampire", "Samurai", "Reincarnation", "Detective", "Adult Cast", "Anthropomorphic", "Gore")
+val CommonThemes = listOf("Adult Cast", "Anthropomorphic", "CGDCT", "Childcare", "Combat Sports", "Crossdressing", "Delinquents", "Detective", "Educational", "Gag Humor", "Gore", "Harem", "High Stakes Game", "Historical", "Idols (Female)", "Idols (Male)", "Isekai", "Iyashikei", "Love Polygon", "Magical Sex Shift", "Mahou Shoujo", "Martial Arts", "Mecha", "Medical", "Military", "Music", "Mythology", "Organized Crime", "Otaku Culture", "Parody", "Performing Arts", "Pets", "Psychological", "Racing", "Reincarnation", "Reverse Harem", "Romantic Subtext", "Samurai", "School", "Showbiz", "Space", "Strategy Game", "Super Power", "Survival", "Team Sports", "Time Travel", "Vampire", "Video Game", "Villainess", "Visual Arts", "Workplace")
+// MAL's "demographics" facet — the intended readership/audience (Shounen, Seinen, ...), matched
+// against MediaItem.demographics.
+val CommonDemographics = listOf("Josei", "Kids", "Seinen", "Shoujo", "Shounen")
 val CommonSources = listOf("Original", "Manga", "Light Novel", "Novel", "Visual Novel", "Game", "Web Manga", "Web Novel", "4-Koma Manga", "Other")
 val CommonRatings = listOf("G - All Ages", "PG - Children", "PG-13", "R - 17+ (violence & profanity)", "R+ - Mild Nudity", "Rx - Hentai")
+// Sub-type ("format") options, split by media kind since they don't overlap — matched against
+// MediaItem.format (MalApi.prettifyFormat's output, e.g. "TV", "One Shot").
+val CommonAnimeFormats = listOf("TV", "OVA", "Movie", "Special", "ONA", "Music")
+val CommonMangaFormats = listOf("Manga", "Novel", "Light Novel", "One Shot", "Doujinshi", "Manhwa", "Manhua", "OEL")
+// Discover search-result sort order. Newest compares full start dates (falling back to just the
+// year when that's all a title has) so titles are ordered the same way regardless of which they have.
+enum class DiscoverSort(val label: String) { Members("Members"), Score("Score"), Newest("Newest"), Title("Title") }
+private fun List<MediaItem>.sortedForDiscover(sort: DiscoverSort, titleLanguage: TitleLanguage): List<MediaItem> = when (sort) {
+    DiscoverSort.Members -> sortedByDescending { it.listUsers }
+    DiscoverSort.Score -> sortedByDescending { it.score }
+    DiscoverSort.Newest -> sortedByDescending { it.startDateFull.ifBlank { it.startDate } }
+    DiscoverSort.Title -> sortedBy { it.resolvedTitle(titleLanguage).lowercase() }
+}
 enum class ForumMode { Boards, Topics }
 // Anime/manga ranking chart filters — maps to MAL's ranking_type query param. Manga has no "upcoming" chart.
 enum class RankingSort(val label: String) {
@@ -420,13 +445,16 @@ private fun localizedTimeLabel(time: java.time.LocalTime): String =
     time.format(java.time.format.DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT).withLocale(java.util.Locale.getDefault()))
 
 class LibraryViewModel : ViewModel() {
-    var items by mutableStateOf(seedItems()); private set
+    // Starts empty rather than pre-populated with seedItems()'s sample titles — a signed-out (or
+    // genuinely list-less) person should see the real "No titles here yet." empty state, not fake
+    // entries like Frieren/Dungeon Meshi that were never actually on anyone's MAL list.
+    var items by mutableStateOf(emptyList<MediaItem>()); private set
     var destination by mutableStateOf(Destination.Home)
     var signedIn by mutableStateOf(false); var loading by mutableStateOf(false); var error by mutableStateOf<String?>(null)
     var themeMode by mutableStateOf(ThemeMode.System)
     var colorSource by mutableStateOf(ColorSource.AppDefault); private set
     var paletteStyle by mutableStateOf(PaletteStyle.TonalSpot); private set
-    var customColorHex by mutableStateOf("4B61C8"); private set
+    var customColorHex by mutableStateOf("2E51A2"); private set
     var titleLanguage by mutableStateOf(TitleLanguage.Romaji)
     var listFilter by mutableStateOf("All")
     // Also hoisted (rather than left as local `remember` state inside ListScreen) for the same
@@ -451,7 +479,7 @@ class LibraryViewModel : ViewModel() {
     // Every list-of-titles surface, filtered by the current NSFW preference — composables should
     // read these instead of the raw fields below so toggling the setting updates every screen at once.
     val visibleItems get() = items.nsfwFiltered(nsfwEnabled)
-    val visibleDiscoverResults get() = discoverResults.nsfwFiltered(nsfwEnabled).filter { it.matches(discoverFilters) }
+    val visibleDiscoverResults get() = discoverResults.nsfwFiltered(nsfwEnabled).filter { it.matches(discoverFilters) }.sortedForDiscover(discoverSort, titleLanguage)
     val visibleDiscoverNewSeason get() = discoverNewSeason.nsfwFiltered(nsfwEnabled)
     val visibleDiscoverUpcoming get() = discoverUpcoming.nsfwFiltered(nsfwEnabled)
     val visibleRecommendations get() = recommendations.nsfwFiltered(nsfwEnabled)
@@ -469,9 +497,11 @@ class LibraryViewModel : ViewModel() {
     // screen and back — that round trip disposes and recreates DiscoverScreen's composition.
     var discoverMode by mutableStateOf(DiscoverMode.Browse); private set
     var discoverQuery by mutableStateOf(""); private set
-    var discoverTypeFilter by mutableStateOf("All"); private set
+    var discoverTypeFilter by mutableStateOf("Anime"); private set
     var discoverResults by mutableStateOf<List<MediaItem>>(emptyList()); private set
     var discoverFilters by mutableStateOf(DiscoverFilters()); private set
+    var discoverSort by mutableStateOf(DiscoverSort.Members); private set
+    fun selectDiscoverSort(sort: DiscoverSort) { discoverSort = sort }
     var discoverSearching by mutableStateOf(false); private set
     var discoverError by mutableStateOf<String?>(null); private set
     var discoverNewSeason by mutableStateOf<List<MediaItem>>(emptyList()); private set
@@ -532,7 +562,7 @@ class LibraryViewModel : ViewModel() {
 
     fun save(item: MediaItem) { items = if (items.any { it.id == item.id }) items.map { if (it.id == item.id) item else it } else listOf(item) + items }
     fun delete(id: String) { items = items.filterNot { it.id == id } }
-    fun reset() { items = seedItems() }
+    fun reset() { items = emptyList() }
 
     fun loadTheme(context: Context) { themeMode = runCatching { ThemeMode.valueOf(settingsPrefs(context).getString("theme_mode", ThemeMode.System.name)!!) }.getOrDefault(ThemeMode.System) }
     fun setTheme(context: Context, mode: ThemeMode) { themeMode = mode; settingsPrefs(context).edit().putString("theme_mode", mode.name).apply() }
@@ -540,7 +570,7 @@ class LibraryViewModel : ViewModel() {
     fun setColorSource(context: Context, source: ColorSource) { colorSource = source; settingsPrefs(context).edit().putString("color_source", source.name).apply() }
     fun loadPaletteStyle(context: Context) { paletteStyle = runCatching { PaletteStyle.valueOf(settingsPrefs(context).getString("palette_style", PaletteStyle.TonalSpot.name)!!) }.getOrDefault(PaletteStyle.TonalSpot) }
     fun setPaletteStyle(context: Context, style: PaletteStyle) { paletteStyle = style; settingsPrefs(context).edit().putString("palette_style", style.name).apply() }
-    fun loadCustomColor(context: Context) { customColorHex = settingsPrefs(context).getString("custom_color_hex", "4B61C8") ?: "4B61C8" }
+    fun loadCustomColor(context: Context) { customColorHex = settingsPrefs(context).getString("custom_color_hex", "2E51A2") ?: "2E51A2" }
     // Only persists (and applies) a hex string once it's actually a valid 6-digit color, so a person
     // mid-typing never flashes an invalid/fallback color while they're still entering it.
     fun setCustomColor(context: Context, hex: String) {
@@ -572,7 +602,16 @@ class LibraryViewModel : ViewModel() {
         save(stamped)
         if (signedIn) viewModelScope.launch { runCatching { MalApi(context).update(stamped) }.onFailure { error = "MAL sync failed: ${it.message ?: "unknown error"}" } }
     }
-    fun signOut(context: Context) { MalApi(context).signOut(); signedIn = false; items = seedItems(); malProfile = null }
+    // Mirrors saveLive above: removes it from the local list immediately (so the UI feels instant),
+    // then — if signed in — deletes it from the person's actual MAL list too. On failure the entry
+    // stays deleted locally (matching saveLive's "local change always wins" behavior) but surfaces
+    // the same error banner, since silently leaving it on MAL after the app "deleted" it would just
+    // recreate this same bug on the next full sync from the server.
+    fun deleteLive(context: Context, item: MediaItem) {
+        delete(item.id)
+        if (signedIn) viewModelScope.launch { runCatching { MalApi(context).deleteEntry(item) }.onFailure { error = "MAL sync failed: ${it.message ?: "unknown error"}" } }
+    }
+    fun signOut(context: Context) { MalApi(context).signOut(); signedIn = false; items = emptyList(); malProfile = null }
 
     // Loads the two browse rows once (per sign-in); cheap to call repeatedly from LaunchedEffect(Unit).
     fun loadDiscoverBrowse(context: Context) {
@@ -581,7 +620,7 @@ class LibraryViewModel : ViewModel() {
         discoverBrowseLoading = true
         viewModelScope.launch {
             val api = MalApi(context)
-            runCatching { api.seasonalAnime(10) to api.upcomingAnime(10) }
+            runCatching { api.seasonalAnime(100) to api.upcomingAnime(10) }
                 .onSuccess { (season, up) -> discoverNewSeason = season; discoverUpcoming = up; discoverBrowseError = null }
                 .onFailure { discoverBrowseError = it.message ?: "Could not load Discover" }
             discoverBrowseLoading = false
@@ -649,9 +688,26 @@ class LibraryViewModel : ViewModel() {
             runCatching {
                 if (query.isNotBlank()) api.search(query, t)
                 // Filter-only browse (no title typed): there's no MAL search param for
-                // genre/studio/source/year/season/rating, so pull a broad top-ranked pool per type
-                // and let visibleDiscoverResults narrow it with the filters instead.
-                else (t?.let { listOf(it) } ?: MediaType.entries.toList()).flatMap { api.ranking(it, "all", limit = 500) }
+                // genre/studio/source/year/season/rating (or theme — e.g. "Villainess"), so pull a
+                // broad candidate pool per type and let visibleDiscoverResults narrow it with the
+                // filters instead. Pulling only "all" (score) and "bypopularity" wasn't enough —
+                // both are essentially the same top-of-chart titles reordered, so anything niche
+                // (a themed tag like Villainess that's spread across mid-tier isekai/romance titles,
+                // or a whole format like Manhwa/Light Novel) was simply never in the pool to begin
+                // with, no matter how the filters were combined. Instead this pulls from every one
+                // of MAL's own ranking charts per type — which each partition the database along a
+                // different axis (popularity, airing status, format) — and merges/dedupes the union,
+                // giving a far wider and more varied candidate set for the same idea. Fetched in
+                // parallel so the extra charts don't multiply wait time.
+                else coroutineScope {
+                    (t?.let { listOf(it) } ?: MediaType.entries.toList()).flatMap { mt ->
+                        val rankTypes = if (mt == MediaType.Anime)
+                            listOf("all", "bypopularity", "favorite", "airing", "upcoming", "tv", "ova", "movie", "special")
+                        else
+                            listOf("all", "bypopularity", "favorite", "manga", "novels", "oneshots", "doujin", "manhwa", "manhua")
+                        rankTypes.map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
+                    }.awaitAll().flatten()
+                }.distinctBy { it.id }
             }
                 .onSuccess { discoverResults = it; discoverError = null }
                 .onFailure { discoverError = it.message ?: "Search failed" }
@@ -660,6 +716,7 @@ class LibraryViewModel : ViewModel() {
     }
     // Leaves the Results page and returns to Discover's default browse view.
     fun exitDiscoverSearch() {
+        discoverSort = DiscoverSort.Members
         discoverSearchJob?.cancel()
         discoverMode = DiscoverMode.Browse; discoverQuery = ""; discoverResults = emptyList(); discoverFilters = DiscoverFilters(); discoverError = null
     }
@@ -1088,7 +1145,11 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                         label = "topScreen",
                     ) { screen ->
                         when (screen) {
-                            is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) })
+                            is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) }, onGenreClick = { genre ->
+                                selectedItem = null; detailStack = emptyList()
+                                vm.destination = Destination.Discover
+                                vm.runDiscoverSearch(context, "", if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
+                            })
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Seasonal -> SeasonalScreen(vm, onBack = { seasonalOpen = false }, onOpenDetail = ::openDetail)
                             is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)
@@ -1108,7 +1169,7 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
             // These three sheets must stay inside this MaterialTheme/CompositionLocalProvider block —
             // moved outside, they'd fall back to LocalKikoColors' light-mode default and ignore dark mode
             // (this is what previously made the edit sheet render light even with dark theme selected).
-            editorItem?.let { EditSheet(it, onDismiss = { editor = null }, onSave = { vm.saveLive(context, it); editor = null }, onDelete = { vm.delete(it.id); editor = null; if (selectedItem?.id == it.id) { selectedItem = null; detailStack = emptyList() } }) }
+            editorItem?.let { EditSheet(it, onDismiss = { editor = null }, onSave = { vm.saveLive(context, it); editor = null }, onDelete = { vm.deleteLive(context, it); editor = null; if (selectedItem?.id == it.id) { selectedItem = null; detailStack = emptyList() } }) }
             if (themeOpen) ThemeSheet(vm.themeMode, onDismiss = { themeOpen = false }, onSelect = { vm.setTheme(context, it); themeOpen = false })
             if (colorSourceOpen) ColorSourceSheet(vm.colorSource, vm.customColorHex, onDismiss = { colorSourceOpen = false }, onSelect = { vm.setColorSource(context, it) }, onCustomHexChange = { vm.setCustomColor(context, it) })
             if (paletteStyleOpen) PaletteStyleSheet(vm.paletteStyle, onDismiss = { paletteStyleOpen = false }, onSelect = { vm.setPaletteStyle(context, it); paletteStyleOpen = false })
@@ -1295,6 +1356,28 @@ private fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: Ti
         }
     }
 }
+// Same dropdown pattern as SortMenu above, for Discover's search-results sort (Members/Score/Newest/Title).
+@Composable private fun DiscoverSortMenu(current: DiscoverSort, onSelect: (DiscoverSort) -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    var open by remember { mutableStateOf(false) }
+    Box(modifier) {
+        Row(
+            Modifier.clip(RoundedCornerShape(12.dp)).background(c.surface).clickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.Sort, "Sort", tint = c.primary, modifier = Modifier.size(16.dp))
+            Text(current.label, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surface) {
+            DiscoverSort.entries.forEach { s ->
+                DropdownMenuItem(
+                    text = { Text(s.label, color = if (s == current) c.primary else c.ink, fontWeight = if (s == current) FontWeight.Bold else FontWeight.Normal) },
+                    onClick = { onSelect(s); open = false },
+                )
+            }
+        }
+    }
+}
 
 @Composable private fun ListScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onIncrement: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
@@ -1337,9 +1420,13 @@ private fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: Ti
     }
 }
 // Two-segment Anime/Manga switch, styled like the rest of the app instead of a stock Material TabRow.
-@Composable private fun TypeToggle(current: MediaType, set: (MediaType) -> Unit) {
+// trackColor defaults to c.surface (right against the screen's c.background on List/Ranking, so the
+// pill reads clearly) — but wherever this sits inside a c.surface Card (the Profile Stats card), that
+// default would blend invisibly into its own container, so callers there pass c.surfaceLow instead to
+// keep the same visible contrast everywhere the switch appears.
+@Composable private fun TypeToggle(current: MediaType, trackColor: Color = LocalKikoColors.current.surface, set: (MediaType) -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).padding(4.dp)) {
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(16.dp)).background(trackColor).padding(4.dp)) {
         MediaType.entries.forEach { t ->
             val selected = current == t
             Box(
@@ -1734,11 +1821,11 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
             // Typing here hands off to the separate Results page — this page itself never shows results inline.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
-                    SearchField(query, { query = it }, "Search MAL library", onSearch = { if (query.isNotBlank() || vm.discoverFilters.isActive()) vm.runDiscoverSearch(context, query, "All") })
+                    SearchField(query, { query = it }, "Search MAL library", onSearch = { if (query.isNotBlank() || vm.discoverFilters.isActive()) vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) })
                 }
                 FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
             }
-            if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, "All", it) })
+            if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, vm.discoverTypeFilter, it) })
         }
         if (!vm.signedIn) {
             item { Text("Sign in from Profile to browse MyAnimeList", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
@@ -1778,15 +1865,19 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                 }
                 FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
             }
-            if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, vm.discoverTypeFilter, it) })
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-                items(listOf("All", "Anime", "Manga")) { label -> FilterChip(selected = vm.discoverTypeFilter == label, onClick = { vm.runDiscoverSearch(context, query, label) }, label = { Text(label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+            if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, vm.discoverTypeFilter, it) })
+            Row(Modifier.fillMaxWidth().padding(top = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                    items(listOf("Anime", "Manga")) { label -> FilterChip(selected = vm.discoverTypeFilter == label, onClick = { vm.runDiscoverSearch(context, query, label) }, label = { Text(label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                }
+                DiscoverSortMenu(current = vm.discoverSort, onSelect = vm::selectDiscoverSort, modifier = Modifier.padding(start = 8.dp))
             }
             if (vm.discoverSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
             vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
         }
         if (!vm.discoverSearching && vm.visibleDiscoverResults.isEmpty() && vm.discoverError == null) {
-            item { Text("No results for \"${vm.discoverQuery}\".", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+            val emptyMessage = if (vm.discoverQuery.isBlank()) "No results match your filters." else "No results for \"${vm.discoverQuery}\"."
+            item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
         }
         itemsIndexed(vm.visibleDiscoverResults, key = { _, it -> it.id }) { index, result ->
             SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id) { vm.openDiscoverDetail(context, result, onOpenDetail) }
@@ -1803,37 +1894,78 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
         contentAlignment = Alignment.Center,
     ) { Icon(Icons.Default.Tune, "Advanced filters", tint = if (active) c.onPrimary else c.ink) }
 }
-// Discover's advanced filters sheet — genre (multi-select), studio, source, year, season, and rating,
-// all combined into one DiscoverFilters and applied together (see MediaItem.matches). Selections are
-// held locally until Apply, same pattern as SeasonalBrowseSheet above.
-@Composable private fun AdvancedFilterSheet(current: DiscoverFilters, onDismiss: () -> Unit, onApply: (DiscoverFilters) -> Unit) {
+// One collapsible multi-select facet (Genre / Explicit Genre / Themes / Demographics) — collapsed
+// by default (auto-expanded only if it already has a selection) so a sheet covering MAL's full
+// ~80-tag taxonomy doesn't turn into one long wall of chips. The header doubles as an at-a-glance
+// summary: a count badge shows how many are picked without needing to expand.
+@Composable private fun ExpandableFilterSection(title: String, options: List<String>, selected: Set<String>, onToggle: (String) -> Unit) {
     val c = LocalKikoColors.current
-    var genres by remember { mutableStateOf(current.genres) }
+    var expanded by remember(title) { mutableStateOf(selected.isNotEmpty()) }
+    Column(Modifier.fillMaxWidth().padding(top = 18.dp).animateContentSize()) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { expanded = !expanded }.padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                if (selected.isNotEmpty()) {
+                    Box(Modifier.padding(start = 8.dp).clip(CircleShape).background(c.primary).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                        Text(selected.size.toString(), color = c.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+                }
+            }
+            Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "Collapse $title" else "Expand $title", tint = c.muted)
+        }
+        if (expanded) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 9.dp)) {
+                options.forEach { o -> FilterChip(selected = o in selected, onClick = { onToggle(o) }, label = { Text(o) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+            }
+        }
+    }
+}
+// Discover's advanced filters sheet — genre/explicit-genre/themes/demographics (each an
+// ExpandableFilterSection, multi-select), a format ("Type") row, studio, source, year, season, and
+// rating, all combined into one DiscoverFilters and applied together (see MediaItem.matches).
+// Selections are held locally until Apply, same pattern as SeasonalBrowseSheet above. `type` is the
+// Discover Anime/Manga/All toggle (not part of DiscoverFilters itself, see discoverTypeFilter) —
+// narrows the format row to the sub-types that actually apply (Anime -> TV/OVA/..., Manga -> Manhwa/...).
+@Composable private fun AdvancedFilterSheet(current: DiscoverFilters, type: String, onDismiss: () -> Unit, onApply: (DiscoverFilters) -> Unit) {
+    val c = LocalKikoColors.current
+    // current.genres holds both facets combined (see Apply below) — split back apart here so each
+    // section's chips reflect only the selections that belong to it.
+    var genres by remember { mutableStateOf(current.genres.filter { it !in CommonExplicitGenres }.toSet()) }
+    var explicitGenres by remember { mutableStateOf(current.genres.filter { it in CommonExplicitGenres }.toSet()) }
     var themes by remember { mutableStateOf(current.themes) }
+    var demographics by remember { mutableStateOf(current.demographics) }
     var studio by remember { mutableStateOf(current.studio) }
     var source by remember { mutableStateOf(current.source) }
     var year by remember { mutableStateOf(current.year) }
     var season by remember { mutableStateOf(current.season) }
     var rating by remember { mutableStateOf(current.rating) }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.background) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).heightIn(max = 560.dp).verticalScroll(rememberScrollState())) {
+    var format by remember { mutableStateOf(current.format) }
+    val formatOptions = when (type) { "Anime" -> CommonAnimeFormats; "Manga" -> CommonMangaFormats; else -> CommonAnimeFormats + CommonMangaFormats }
+    // skipPartiallyExpanded: without this, focusing a text field (Studio/Year) shrinks the
+    // available height for the IME, and the sheet re-settles at its "partially expanded" anchor
+    // instead of staying fully open — this removes that middle state entirely so the sheet only
+    // ever sits fully expanded (or hidden), regardless of keyboard visibility.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.background) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).heightIn(max = 620.dp).verticalScroll(rememberScrollState())) {
             Text("Discover", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Advanced filters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 18.dp))
+            Text("Advanced filters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 4.dp))
 
-            Text("Genre", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(bottom = 9.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                CommonGenres.forEach { g ->
-                    FilterChip(selected = g in genres, onClick = { genres = if (g in genres) genres - g else genres + g }, label = { Text(g) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary))
-                }
-            }
-
+            ExpandableFilterSection("Genre", CommonGenres, genres, onToggle = { g -> genres = if (g in genres) genres - g else genres + g })
+            // Kept as its own section instead of folded into Genre above — three adult-content tags
+            // sitting apart from the other sixteen is easier to scan (and skip) than mixed in.
+            ExpandableFilterSection("Explicit genre", CommonExplicitGenres, explicitGenres, onToggle = { g -> explicitGenres = if (g in explicitGenres) explicitGenres - g else explicitGenres + g })
             // MAL's finer-grained "themes" facet, below genre — an Isekai or Iyashikei title can be
             // any genre, so this is kept as its own section rather than folded into Genre above.
-            Text("Themes", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+            ExpandableFilterSection("Themes", CommonThemes, themes, onToggle = { t -> themes = if (t in themes) themes - t else themes + t })
+            ExpandableFilterSection("Demographics", CommonDemographics, demographics, onToggle = { d -> demographics = if (d in demographics) demographics - d else demographics + d })
+
+            Text("Type", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                CommonThemes.forEach { t ->
-                    FilterChip(selected = t in themes, onClick = { themes = if (t in themes) themes - t else themes + t }, label = { Text(t) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary))
-                }
+                formatOptions.forEach { f -> FilterChip(selected = format == f, onClick = { format = if (format == f) "" else f }, label = { Text(f) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
             }
 
             Text("Studio", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
@@ -1874,9 +2006,12 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
             }
 
             Row(Modifier.fillMaxWidth().padding(top = 26.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                TextButton(onClick = { genres = emptySet(); themes = emptySet(); studio = ""; source = ""; year = ""; season = null; rating = "" }, modifier = Modifier.weight(1f)) { Text("Reset", color = c.muted, fontWeight = FontWeight.Bold) }
+                TextButton(
+                    onClick = { genres = emptySet(); explicitGenres = emptySet(); themes = emptySet(); demographics = emptySet(); studio = ""; source = ""; year = ""; season = null; rating = ""; format = "" },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Reset", color = c.muted, fontWeight = FontWeight.Bold) }
                 Button(
-                    onClick = { onApply(DiscoverFilters(genres, themes, studio.trim(), source, year, season, rating)) },
+                    onClick = { onApply(DiscoverFilters(genres + explicitGenres, themes, demographics, studio.trim(), source, year, season, rating, format)) },
                     colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
                     modifier = Modifier.weight(2f),
                 ) { Text("Apply filters", fontWeight = FontWeight.Bold) }
@@ -1974,7 +2109,6 @@ private fun formatExact(n: Int): String = "%,d".format(n)
     LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
         item {
             AppHeader("Forums")
-            Text("What's everyone\ntalking about.", style = MaterialTheme.typography.displaySmall, color = c.ink, modifier = Modifier.padding(top = 17.dp, bottom = 22.dp))
             // Typing here hands off to the shared Topics page as a cross-board search — this page
             // itself never shows topic results inline, same as Discover's own search box above.
             SearchField(query, { query = it }, "Search topics", onSearch = { if (query.isNotBlank()) vm.runForumSearch(context, query) })
@@ -1986,30 +2120,54 @@ private fun formatExact(n: Int): String = "%,d".format(n)
                 if (vm.forumBoardsLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
                 vm.forumBoardsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
             }
+            // Each category is one grouped card (board-index style, like a real forum's landing page)
+            // instead of a stack of separate floating rows — dividers between boards read as one
+            // organized section rather than a generic repeated list.
             vm.forumCategories.forEach { category ->
                 item { Text(category.title.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp)) }
-                items(category.boards, key = { it.id }) { board -> ForumBoardRow(board) { vm.openForumBoard(context, board) } }
+                item {
+                    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            category.boards.forEachIndexed { index, board ->
+                                ForumBoardRow(board) { vm.openForumBoard(context, board) }
+                                if (index < category.boards.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
-// One board in the landing page's list — its subboards (if any) are listed underneath as a quick
-// preview, rather than requiring a tap-in just to see whether "Series Discussion" has an Anime/Manga split.
+// One board in the landing page's grouped card — its subboards (if any) surface as a small count
+// pill rather than a truncated joined-title line, so "this board has sub-sections" reads at a glance.
 @Composable private fun ForumBoardRow(board: ForumBoard, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(19.dp)).background(c.surface).clickable(onClick = onClick).padding(14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Forum, null, tint = c.primary, modifier = Modifier.size(20.dp))
-            }
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(board.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
-                if (board.description.isNotBlank()) Text(board.description, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-            }
-            Icon(Icons.Default.ChevronRight, null, tint = c.muted)
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.Forum, null, tint = c.primary, modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(board.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+            if (board.description.isNotBlank()) Text(board.description, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         }
         if (board.subboards.isNotEmpty()) {
-            Text(board.subboards.joinToString(" · ") { it.title }, color = c.muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp, start = 52.dp))
+            Box(Modifier.padding(end = 8.dp).clip(RoundedCornerShape(50)).background(c.surfaceLow).padding(horizontal = 9.dp, vertical = 4.dp)) {
+                Text("${board.subboards.size} boards", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+            }
+        }
+        Icon(Icons.Default.ChevronRight, null, tint = c.muted)
+    }
+}
+// Small floating "back to top" button — mirrors the "Back to top" link MAL's own forum pages show
+// at the bottom of a topic list/thread. Only appears once scrolled a few rows down (no point showing
+// it right at the top), and animates the list back to its first row on tap rather than jumping
+// instantly, so the person doesn't lose their sense of place.
+@Composable private fun GoToTopButton(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+        FloatingActionButton(onClick = onClick, containerColor = c.primary, contentColor = c.onPrimary, modifier = Modifier.size(46.dp)) {
+            Icon(Icons.Default.KeyboardArrowUp, "Back to top")
         }
     }
 }
@@ -2021,6 +2179,8 @@ private fun formatExact(n: Int): String = "%,d".format(n)
     val headerTitle = vm.forumBoardTitle.ifBlank { "Search results" }
     BackHandler(onBack = vm::exitForumTopics)
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 3 } }
     // Fetches the next page once scrolled within a few rows of the end of what's currently loaded —
     // same pattern SeasonalScreen uses for its grid, just against a plain list here.
     LaunchedEffect(listState) {
@@ -2028,44 +2188,64 @@ private fun formatExact(n: Int): String = "%,d".format(n)
             .distinctUntilChanged()
             .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 6) vm.loadMoreForumTopics(context) }
     }
-    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-        item {
-            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = vm::exitForumTopics, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back to Forums", tint = c.ink) }
-                Text(headerTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
-            }
-            if (vm.forumSubboards.isNotEmpty()) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 15.dp)) {
-                    item { FilterChip(selected = vm.forumSubboardId == null, onClick = { vm.openForumSubboard(context, null) }, label = { Text("All") }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
-                    items(vm.forumSubboards, key = { it.id }) { sub -> FilterChip(selected = vm.forumSubboardId == sub.id, onClick = { vm.openForumSubboard(context, sub.id) }, label = { Text(sub.title) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = vm::exitForumTopics, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back to Forums", tint = c.ink) }
+                    Text(headerTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
                 }
+                if (vm.forumSubboards.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 15.dp)) {
+                        item { FilterChip(selected = vm.forumSubboardId == null, onClick = { vm.openForumSubboard(context, null) }, label = { Text("All") }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                        items(vm.forumSubboards, key = { it.id }) { sub -> FilterChip(selected = vm.forumSubboardId == sub.id, onClick = { vm.openForumSubboard(context, sub.id) }, label = { Text(sub.title) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                    }
+                }
+                if (vm.forumTopicsLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                vm.forumTopicsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
             }
-            if (vm.forumTopicsLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-            vm.forumTopicsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+            if (!vm.forumTopicsLoading && vm.forumTopics.isEmpty() && vm.forumTopicsError == null) {
+                item { Text("No topics found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+            }
+            itemsIndexed(vm.forumTopics, key = { _, it -> it.id }) { index, topic ->
+                ForumTopicRow(topic) { onOpenTopic(topic.id, topic.title) }
+                if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+            }
+            if (vm.forumLoadingMore) {
+                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+            }
         }
-        if (!vm.forumTopicsLoading && vm.forumTopics.isEmpty() && vm.forumTopicsError == null) {
-            item { Text("No topics found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
-        }
-        itemsIndexed(vm.forumTopics, key = { _, it -> it.id }) { index, topic ->
-            ForumTopicRow(topic) { onOpenTopic(topic.id, topic.title) }
-            if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.muted.copy(alpha = .12f))
-        }
-        if (vm.forumLoadingMore) {
-            item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
-        }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
     }
 }
-// One row in a topic list: title (with a lock glyph if MAL has it closed to new replies), who
-// started it and when, and its reply count on the trailing edge.
+// One row in a topic list — the OP's little avatar circle up front (like a real thread list, not
+// just a text row), title with a lock glyph if MAL has it closed to new replies, who started it, and
+// who most recently replied and when (topic.lastPostAt/lastPostAuthor, previously fetched but never
+// shown) — the "is this thread still active" signal any forum list leads with. Reply count sits in
+// its own pill on the trailing edge instead of a bare icon+number.
 @Composable private fun ForumTopicRow(topic: ForumTopic, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.Top) {
-        Column(Modifier.weight(1f)) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
+        if (topic.author.avatar.isNotBlank()) {
+            AsyncImage(model = topic.author.avatar, contentDescription = topic.author.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(36.dp).clip(CircleShape).background(c.warm))
+        } else {
+            Box(Modifier.size(36.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                Text(topic.author.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
+            }
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (topic.isLocked) Icon(Icons.Default.Lock, null, tint = c.muted, modifier = Modifier.size(13.dp).padding(end = 4.dp))
                 Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Text("by ${topic.author.name.ifBlank { "Unknown" }} · ${formatForumDate(topic.createdAt)}", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+            if (topic.lastPostAuthor.name.isNotBlank()) {
+                Text("Last reply by ${topic.lastPostAuthor.name} · ${formatForumDate(topic.lastPostAt)}", color = c.primary, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 3.dp))
+            }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp)) {
             Icon(Icons.Default.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
@@ -2094,39 +2274,48 @@ private fun formatExact(n: Int): String = "%,d".format(n)
             .onFailure { error = it.message ?: "Could not load topic" }
         loading = false
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-        item {
-            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-                Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
-            }
-            if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-            error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
-            poll?.let { ForumPollCard(it, Modifier.padding(top = 6.dp, bottom = 6.dp)) }
-        }
-        itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
-            ForumPostCard(post)
-            if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
-        }
-        if (hasMore) {
+    val listState = rememberLazyListState()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 3 } }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
-                Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
-                    if (loadingMore) {
-                        CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
-                    } else {
-                        TextButton(onClick = {
-                            scope.launch {
-                                loadingMore = true
-                                runCatching { MalApi(context).forumTopic(topicId, offset = posts.size) }
-                                    .onSuccess { posts = posts + it.posts; hasMore = it.hasMore }
-                                    .onFailure { hasMore = false }
-                                loadingMore = false
-                            }
-                        }) { Text("Load more replies", color = c.primary, fontWeight = FontWeight.Bold) }
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
+                }
+                if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                poll?.let { ForumPollCard(it, Modifier.padding(top = 6.dp, bottom = 6.dp)) }
+            }
+            itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
+                ForumPostCard(post, isOriginalPost = post.number == 1)
+                if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+            }
+            if (hasMore) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+                        if (loadingMore) {
+                            CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                        } else {
+                            TextButton(onClick = {
+                                scope.launch {
+                                    loadingMore = true
+                                    runCatching { MalApi(context).forumTopic(topicId, offset = posts.size) }
+                                        .onSuccess { posts = posts + it.posts; hasMore = it.hasMore }
+                                        .onFailure { hasMore = false }
+                                    loadingMore = false
+                                }
+                            }) { Text("Load more replies", color = c.primary, fontWeight = FontWeight.Bold) }
+                        }
                     }
                 }
             }
         }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
     }
 }
 // MAL forum posts are written in BBCode, not HTML or Markdown — e.g. [b]bold[/b], [url=https://...]
@@ -2147,7 +2336,10 @@ private sealed class BbToken {
     data class Close(val name: String) : BbToken()
 }
 private val bbTagRegex = Regex("""\[(/?)([a-zA-Z*]+)(=[^\]]*)?\]""")
-private val bbBlockRegex = Regex("""\[(img|list|quote|center)(?:=[^\]]*)?\](.*?)\[/\1\]""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+// MAL's editor emits [img] with either an "=value" attribute or a space-separated one like
+// "[img width=500]" — the old pattern only matched the "=" form, so width-attributed images fell
+// straight through as unrendered literal text instead of becoming an ImageBlock.
+private val bbBlockRegex = Regex("""\[(img|list|quote|center)(?:[^\]]*)?\](.*?)\[/\1\]""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
 
 private fun tokenizeBb(raw: String): List<BbToken> {
     val tokens = mutableListOf<BbToken>()
@@ -2221,7 +2413,16 @@ private fun decodeHtmlEntities(text: String): String = htmlEntityRegex.replace(t
         else -> namedHtmlEntities[body] ?: m.value
     }
 }
-private fun normalizeMalMarkup(raw: String): String = decodeHtmlEntities(brTagRegex.replace(raw, "\n"))
+// A link whose own href is just an image file — MAL's forum editor drops an inserted picture (its
+// "Stack" banners, its own badge icons, etc.) in as a bare [url]https://...png[/url] around the
+// image's own CDN link, rather than wrapping it in [img]...[/img]. MAL's own site auto-embeds these
+// as images instead of showing the raw link; without this pass the app rendered them as a plain
+// clickable link showing the raw CDN URL (see ForumBody) instead of the picture the link points to.
+// Only the *bare* form ([url]href[/url], no separate "=" attribute/label) is rewritten — a genuine
+// [url=https://...png]click here[/url] still has real link text to show and is left as a link.
+private val bareImageLinkRegex = Regex("""\[url\]\s*(https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?|https?://cdn\.myanimelist\.net/s/common/bbcode/\S+?)\s*\[/url\]""", RegexOption.IGNORE_CASE)
+private fun normalizeMalMarkup(raw: String): String =
+    decodeHtmlEntities(brTagRegex.replace(raw, "\n")).let { bareImageLinkRegex.replace(it) { m -> "[img]${m.groupValues[1]}[/img]" } }
 
 private fun parseBBCode(rawIn: String, linkColor: Color): List<ForumBlock> {
     if (rawIn.isBlank()) return emptyList()
@@ -2262,12 +2463,17 @@ private fun parseBBCode(rawIn: String, linkColor: Color): List<ForumBlock> {
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { offset -> block.text.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { runCatching { uriHandler.openUri(it.item) } } },
                 )
+                // MAL posts often specify a fixed pixel width (meant for a desktop-width page) — that's
+                // deliberately ignored here rather than honored, since a "width=500" or "width=1200"
+                // value would either overflow or look tiny depending on the phone. Instead the image is
+                // capped to fit the screen: bounded width, a max height so a tall image can't dominate
+                // the whole scroll, and Fit scaling so it's never stretched or cropped out of proportion.
                 is ForumBlock.ImageBlock -> Box(
                     Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center,
                 ) {
                     AsyncImage(
-                        model = block.url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.FillWidth,
-                        modifier = Modifier.fillMaxWidth(0.9f).clip(RoundedCornerShape(8.dp)).border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(8.dp)),
+                        model = block.url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 340.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(8.dp)),
                     )
                 }
                 is ForumBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -2296,7 +2502,9 @@ private fun parseBBCode(rawIn: String, linkColor: Color): List<ForumBlock> {
 }
 // One reply in a topic thread — avatar, name, post number (the original post is #1), timestamp,
 // then the body rendered from its BBCode markup (see ForumBody below) rather than shown as raw text.
-@Composable private fun ForumPostCard(post: ForumPost) {
+// isOriginalPost just swaps the "#N" label for an "OP" badge — no extra container or tinting,
+// same row treatment as every other post.
+@Composable private fun ForumPostCard(post: ForumPost, isOriginalPost: Boolean = false) {
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
         if (post.author.avatar.isNotBlank()) {
@@ -2309,7 +2517,13 @@ private fun parseBBCode(rawIn: String, linkColor: Color): List<ForumBlock> {
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(post.author.name.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink)
-                Text("#${post.number}", color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp))
+                if (isOriginalPost) {
+                    Box(Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50)).background(c.primary).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                        Text("OP", color = c.onPrimary, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    }
+                } else {
+                    Text("#${post.number}", color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp))
+                }
             }
             Text(formatForumDate(post.createdAt), color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 1.dp))
             ForumBody(post.body, Modifier.padding(top = 8.dp))
@@ -2391,7 +2605,6 @@ private fun formatForumDate(raw: String): String {
                         val details = listOfNotNull(
                             profile.location.takeIf { it.isNotBlank() },
                             profile.gender.takeIf { it.isNotBlank() },
-                            profile.birthday.takeIf { it.isNotBlank() }?.let { "Born ${formatFullDate(it)}" },
                         )
                         if (details.isNotEmpty()) {
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 14.dp)) {
@@ -2434,20 +2647,36 @@ private fun formatForumDate(raw: String): String {
                 Card(shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                     Column(Modifier.padding(22.dp)) {
                         Text("STATS", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                        TypeToggle(statsTab) { statsTab = it }
+                        TypeToggle(statsTab, trackColor = c.surfaceLow) { statsTab = it }
                         Spacer(Modifier.height(18.dp))
                         if (statsTab == MediaType.Anime) {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                HeroStat(Modifier.weight(1f), Icons.Default.Schedule, "Days watched", "%.1f".format(animeDaysWatched), c.lavender, c.primary)
-                                HeroStat(Modifier.weight(1f), Icons.Default.Star, "Mean score", (profile?.animeMeanScore ?: 0.0).let { if (it > 0) "%.2f".format(it) else "—" }, c.warm, c.ink)
-                                HeroStat(Modifier.weight(1f), Icons.Default.PlayCircle, "Episodes", formatExact(profile?.animeEpisodesWatched ?: 0), c.primaryContainer, c.primary)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                LabeledStat("Days:", "%.1f".format(animeDaysWatched), c)
+                                LabeledStat("Mean Score:", (profile?.animeMeanScore ?: 0.0).let { if (it > 0) "%.2f".format(it) else "—" }, c)
                             }
+                            Spacer(Modifier.height(12.dp))
+                            SegmentedStatBar(listOf(
+                                (profile?.animeWatching ?: 0) to statusColor("Watching"),
+                                (profile?.animeCompleted ?: 0) to statusColor("Completed"),
+                                (profile?.animeOnHold ?: 0) to statusColor("On hold"),
+                                (profile?.animeDropped ?: 0) to statusColor("Dropped"),
+                                (profile?.animePlanToWatch ?: 0) to statusColor("Plan to watch"),
+                            ), c)
                             Spacer(Modifier.height(20.dp))
-                            StatBar("Watching", profile?.animeWatching ?: 0, profile?.animeTotalEntries ?: 0, c, statusColor("Watching"))
-                            StatBar("Completed", profile?.animeCompleted ?: 0, profile?.animeTotalEntries ?: 0, c, statusColor("Completed"))
-                            StatBar("On hold", profile?.animeOnHold ?: 0, profile?.animeTotalEntries ?: 0, c, statusColor("On hold"))
-                            StatBar("Dropped", profile?.animeDropped ?: 0, profile?.animeTotalEntries ?: 0, c, statusColor("Dropped"))
-                            StatBar("Plan to watch", profile?.animePlanToWatch ?: 0, profile?.animeTotalEntries ?: 0, c, statusColor("Plan to watch"))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                Column(Modifier.weight(1f)) {
+                                    StatusLegendRow("Watching", profile?.animeWatching ?: 0, statusColor("Watching"), c)
+                                    StatusLegendRow("Completed", profile?.animeCompleted ?: 0, statusColor("Completed"), c)
+                                    StatusLegendRow("On-Hold", profile?.animeOnHold ?: 0, statusColor("On hold"), c)
+                                    StatusLegendRow("Dropped", profile?.animeDropped ?: 0, statusColor("Dropped"), c)
+                                    StatusLegendRow("Plan to Watch", profile?.animePlanToWatch ?: 0, statusColor("Plan to watch"), c)
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    SummaryRow("Total Entries", formatExact(profile?.animeTotalEntries ?: 0), c)
+                                    SummaryRow("Rewatched", formatExact(animeItems.sumOf { it.timesRewatched }), c)
+                                    SummaryRow("Episodes", formatExact(profile?.animeEpisodesWatched ?: 0), c)
+                                }
+                            }
                             if (animeItems.isNotEmpty()) {
                                 Spacer(Modifier.height(24.dp))
                                 Text("GENRE BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
@@ -2457,17 +2686,33 @@ private fun formatForumDate(raw: String): String {
                                 ScoreDistributionChart(animeItems, c)
                             }
                         } else {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                HeroStat(Modifier.weight(1f), Icons.Default.Star, "Mean score", if (mangaMeanScore > 0) "%.2f".format(mangaMeanScore) else "—", c.warm, c.ink)
-                                HeroStat(Modifier.weight(1f), Icons.Default.MenuBook, "Chapters read", formatExact(mangaChaptersRead), c.primaryContainer, c.primary)
-                                HeroStat(Modifier.weight(1f), Icons.Default.CollectionsBookmark, "Entries", formatExact(mangaTotal), c.lavender, c.primary)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                LabeledStat("Days:", "%.1f".format(mangaDaysReadEst) + " (est.)", c)
+                                LabeledStat("Mean Score:", if (mangaMeanScore > 0) "%.2f".format(mangaMeanScore) else "—", c)
                             }
+                            Spacer(Modifier.height(12.dp))
+                            SegmentedStatBar(listOf(
+                                mangaItems.count { it.status == WatchStatus.Reading } to statusColor("Reading"),
+                                mangaItems.count { it.status == WatchStatus.Completed } to statusColor("Completed"),
+                                mangaItems.count { it.status == WatchStatus.OnHold } to statusColor("On hold"),
+                                mangaItems.count { it.status == WatchStatus.Dropped } to statusColor("Dropped"),
+                                mangaItems.count { it.status == WatchStatus.Plan } to statusColor("Plan to read"),
+                            ), c)
                             Spacer(Modifier.height(20.dp))
-                            StatBar("Reading", mangaItems.count { it.status == WatchStatus.Reading }, mangaTotal, c, statusColor("Reading"))
-                            StatBar("Completed", mangaItems.count { it.status == WatchStatus.Completed }, mangaTotal, c, statusColor("Completed"))
-                            StatBar("On hold", mangaItems.count { it.status == WatchStatus.OnHold }, mangaTotal, c, statusColor("On hold"))
-                            StatBar("Dropped", mangaItems.count { it.status == WatchStatus.Dropped }, mangaTotal, c, statusColor("Dropped"))
-                            StatBar("Plan to read", mangaItems.count { it.status == WatchStatus.Plan }, mangaTotal, c, statusColor("Plan to read"))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                Column(Modifier.weight(1f)) {
+                                    StatusLegendRow("Reading", mangaItems.count { it.status == WatchStatus.Reading }, statusColor("Reading"), c)
+                                    StatusLegendRow("Completed", mangaItems.count { it.status == WatchStatus.Completed }, statusColor("Completed"), c)
+                                    StatusLegendRow("On-Hold", mangaItems.count { it.status == WatchStatus.OnHold }, statusColor("On hold"), c)
+                                    StatusLegendRow("Dropped", mangaItems.count { it.status == WatchStatus.Dropped }, statusColor("Dropped"), c)
+                                    StatusLegendRow("Plan to Read", mangaItems.count { it.status == WatchStatus.Plan }, statusColor("Plan to read"), c)
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    SummaryRow("Total Entries", formatExact(mangaTotal), c)
+                                    SummaryRow("Reread", formatExact(mangaItems.sumOf { it.timesRewatched }), c)
+                                    SummaryRow("Chapters", formatExact(mangaChaptersRead), c)
+                                }
+                            }
                             if (mangaItems.isNotEmpty()) {
                                 Spacer(Modifier.height(24.dp))
                                 Text("GENRE BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
@@ -2529,6 +2774,40 @@ private fun formatForumDate(raw: String): String {
         }
     }
 }
+// MAL's own profile stats look: "Days: X   Mean Score: X" above a single stacked bar (each status's
+// share of the total, side by side in one bar rather than five separate ones), then a status legend
+// (dot + name + count) beside a plain summary column (Total Entries/Rewatched/Episodes) — see MAL's
+// own "Anime Stats"/"Manga Stats" cards on a profile page.
+@Composable private fun LabeledStat(label: String, value: String, c: KikoColors) {
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text("$label ", color = c.muted, fontSize = 13.sp)
+        Text(value, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    }
+}
+@Composable private fun SegmentedStatBar(segments: List<Pair<Int, Color>>, c: KikoColors) {
+    val total = segments.sumOf { it.first }
+    Box(Modifier.fillMaxWidth().height(9.dp).clip(RoundedCornerShape(50)).background(c.surfaceLow)) {
+        if (total > 0) {
+            Row(Modifier.fillMaxSize()) {
+                segments.forEach { (value, color) -> if (value > 0) Box(Modifier.weight(value.toFloat()).fillMaxHeight().background(color)) }
+            }
+        }
+    }
+}
+@Composable private fun StatusLegendRow(label: String, value: Int, color: Color, c: KikoColors) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.width(9.dp))
+        Text(label, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text(value.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+    }
+}
+@Composable private fun SummaryRow(label: String, value: String, c: KikoColors) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = c.muted, fontSize = 13.sp)
+        Text(value, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+    }
+}
 // Top genres across the given list (anime or manga, whichever tab is selected), each as a
 // proportional bar out of the list's total size — reuses StatBar's exact look so this reads as part
 // of the same stats language rather than a separate chart widget.
@@ -2541,19 +2820,27 @@ private fun formatForumDate(raw: String): String {
 // A histogram of the person's own 1-10 scores (myRating) across the given list — bar height scales
 // to whichever score is most common, so the shape of someone's rating habits (harsh grader vs. easy
 // scorer) is visible at a glance.
+// Each bar sits in its own fixed-height slot (bar always bottom-anchored inside it, growing up
+// from a shared baseline) instead of letting bar height push around the whole column's total
+// height — that's what was shoving the "7" label out of line with the others: the tallest bar
+// (score 7 usually has the most entries) left less room in the fixed-height Row for its own
+// label, while every shorter bar had plenty of slack, so only that one column's text got squeezed.
 @Composable private fun ScoreDistributionChart(items: List<MediaItem>, c: KikoColors) {
     val counts = (1..10).associateWith { s -> items.count { it.myRating == s } }
     if (counts.values.all { it == 0 }) { Text("No scored titles yet.", color = c.muted, fontSize = 12.sp); return }
     val maxCount = counts.values.max()
-    Row(Modifier.fillMaxWidth().height(96.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+    val barSlotHeight = 56.dp
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
         (1..10).forEach { score ->
             val count = counts.getValue(score)
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).padding(horizontal = 2.dp)) {
                 Text(if (count > 0) count.toString() else "", color = c.muted, fontSize = 9.sp)
-                Box(
-                    Modifier.fillMaxWidth().height((count.toFloat() / maxCount * 56).dp.coerceAtLeast(if (count > 0) 4.dp else 1.dp))
-                        .clip(RoundedCornerShape(4.dp)).background(if (count > 0) c.primary else c.surfaceLow)
-                )
+                Box(Modifier.fillMaxWidth().height(barSlotHeight), contentAlignment = Alignment.BottomCenter) {
+                    Box(
+                        Modifier.fillMaxWidth().height((count.toFloat() / maxCount * barSlotHeight.value).dp.coerceAtLeast(if (count > 0) 4.dp else 1.dp))
+                            .clip(RoundedCornerShape(4.dp)).background(if (count > 0) c.primary else c.surfaceLow)
+                    )
+                }
                 Spacer(Modifier.height(4.dp))
                 Text(score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 10.sp)
             }
@@ -2564,11 +2851,11 @@ private fun formatForumDate(raw: String): String {
 // once completed, yellow on hold, red when dropped, grey for plan-to-watch), but now hardcoded rather
 // than pulled from KikoColors: the person's chosen color theme/palette changes everything else in the
 // app, but this meaning should read the same regardless, so it's deliberately NOT theme-aware.
-private val StatusWatchingColor = Color(0xFF43A047)
-private val StatusCompletedColor = Color(0xFF1E88E5)
-private val StatusOnHoldColor = Color(0xFFFBC02D)
-private val StatusDroppedColor = Color(0xFFE53935)
-private val StatusPlanColor = Color(0xFF9E9E9E)
+private val StatusWatchingColor = Color(0xFF2DB039)
+private val StatusCompletedColor = Color(0xFF26448F)
+private val StatusOnHoldColor = Color(0xFFE7B715)
+private val StatusDroppedColor = Color(0xFFA12F31)
+private val StatusPlanColor = Color(0xFF8F8F8F)
 private fun statusColor(status: WatchStatus): Color = when (status) {
     WatchStatus.Watching, WatchStatus.Reading -> StatusWatchingColor
     WatchStatus.Completed -> StatusCompletedColor
@@ -2596,7 +2883,7 @@ private fun statusColor(label: String): Color = when {
 }
 
 // ---------- Detail ----------
-@Composable private fun DetailScreen(item: MediaItem, onBack: () -> Unit, onEdit: (MediaItem) -> Unit, onOpenRelated: (RelatedEntry) -> Unit, relatedLoadingId: Int? = null, onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenRecommended: (RecommendedEntry) -> Unit = {}, recommendedLoadingId: Int? = null, onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }) {
+@Composable private fun DetailScreen(item: MediaItem, onBack: () -> Unit, onEdit: (MediaItem) -> Unit, onOpenRelated: (RelatedEntry) -> Unit, relatedLoadingId: Int? = null, onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenRecommended: (RecommendedEntry) -> Unit = {}, recommendedLoadingId: Int? = null, onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onGenreClick: (String) -> Unit = {}) {
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
     // The list-fetch this item came from sometimes omits Related even when MAL has it — quietly
@@ -2767,7 +3054,7 @@ private fun statusColor(label: String): Color = when {
                             }
                             if (gallery.size > 1) {
                                 Row(
-                                    Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp),
+                                    Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
                                     gallery.indices.forEach { i ->
@@ -2822,7 +3109,7 @@ private fun statusColor(label: String): Color = when {
                     if (item.genres.isNotEmpty()) {
                         Text("GENRES", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            item.genres.forEach { g -> GenreChip(g) }
+                            item.genres.forEach { g -> GenreChip(g, onClick = { onGenreClick(g) }) }
                         }
                     }
                     val meta = listOfNotNull(item.creator.takeIf { it.isNotBlank() }, aired.takeIf { it.isNotBlank() })
@@ -3022,9 +3309,15 @@ private fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 }
 // Deliberately understated vs. Pill: an outline instead of a solid fill, so genres read as
 // tags on the title rather than as status/score badges.
-@Composable private fun GenreChip(text: String) {
+@Composable private fun GenreChip(text: String, onClick: (() -> Unit)? = null) {
     val c = LocalKikoColors.current
-    Box(Modifier.clip(RoundedCornerShape(10.dp)).border(1.dp, c.muted.copy(alpha = .35f), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 6.dp)) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .border(1.dp, c.muted.copy(alpha = .35f), RoundedCornerShape(10.dp))
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
         Text(text, color = c.ink, fontWeight = FontWeight.Medium, fontSize = 12.sp)
     }
 }
@@ -3096,10 +3389,21 @@ private fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     var timesRewatched by remember { mutableStateOf(item.timesRewatched) }
     val rewatchWord = if (item.type == MediaType.Anime) "Rewatch" else "Reread"
     val rewatchedWord = if (item.type == MediaType.Anime) "rewatched" else "reread"
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = c.surface,
+            title = { Text("Remove from your list?", color = c.ink) },
+            text = { Text("Are you sure you want to remove \"${item.title}\" from your list? This also removes it from your MyAnimeList account.", color = c.muted) },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Remove") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }, colors = ButtonDefaults.textButtonColors(contentColor = c.muted)) { Text("Cancel") } },
+        )
+    }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.background) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 22.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = onDelete, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Delete") }
+                TextButton(onClick = { confirmDelete = true }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Delete") }
                 Button(
                     onClick = { onSave(item.copy(status = status, progress = progress, myRating = rating, watchStartDate = startDate, watchEndDate = endDate, isRewatching = rewatching, timesRewatched = timesRewatched)) },
                     colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
@@ -3262,7 +3566,7 @@ private fun formatUserDate(raw: String): String {
                                 modifier = Modifier.weight(1f).padding(start = 12.dp),
                                 singleLine = true, prefix = { Text("#", color = c.muted) },
                                 isError = !valid,
-                                supportingText = { if (!valid) Text("6-digit hex, e.g. 4B61C8", color = c.danger, fontSize = 11.sp) },
+                                supportingText = { if (!valid) Text("6-digit hex, e.g. 2E51A2", color = c.danger, fontSize = 11.sp) },
                                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
                             )
                         }
