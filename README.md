@@ -1,4 +1,3 @@
-```md
 # Kiko for Android
 
 > MAL reimagined Android client for tracking anime and manga.
@@ -55,16 +54,6 @@ Kiko is a yet another MAL Client android app.
 - Improved search experience.
 - Enhanced forum media viewing.
 - Various UI refinements and performance improvements.
-
----
-
-## 📸 Screenshots
-
-| Home | Details | Forums | Library |
-|------|---------|--------|---------|
-| Add screenshots here | Add screenshots here | Add screenshots here | Add screenshots here |
-
----
 
 ## 📦 Installation
 
