@@ -12,7 +12,7 @@ Kiko is a yet another MAL Client android app.
 - Browse anime and manga from MyAnimeList.
 - View detailed information, including:
   - Synopsis ✅
-  - Characters & Staff ❌
+  - Characters & Staff ✅
   - Recommendations ✅
   - Reviews ❌
   - Statistics ✅
@@ -40,26 +40,19 @@ Kiko is a yet another MAL Client android app.
 
 ---
 
-## 🚀 What's New in v2.1.0
+## 🖼️ Screenshots
 
-### New
-- Added Tenrai API-powered search.
-- Added image rendering in forum discussions.
-- Added GIF rendering support.
-- Added pinch-to-zoom for forum images.
-- Added clickable genres on detail pages.
-- Added automatic update checking.
-
-### Improvements
-- Improved search experience.
-- Enhanced forum media viewing.
-- Various UI refinements and performance improvements.
-
+![Home](screenshots/home.jpg)
+![Home](screenshots/home.jpg)
+![Home](screenshots/home.jpg)
+![Home](screenshots/home.jpg)
+![Home](screenshots/home.jpg)
+---
 ## 📦 Installation
 
 Download the latest APK from the **Releases** page and install it on any Android device running the supported Android version.
 
-> You may need to enable **Install unknown apps** if installing outside of Google Play.
+> You may need to enable **Install unknown apps** if PlayProtect is stopping you from installing it.
 
 ---
 

@@ -12,10 +12,7 @@ import java.io.IOException
 
 private const val TENRAI = "https://api.tenrai.org/v1"
 
-// Jikan (and so Tenrai) spells a few facet values slightly differently than MAL's official v2 API
-// does — normalized here so titles pulled from Tenrai still match Discover's existing filter chips
-// (CommonRatings/CommonSources/CommonMangaFormats in MainActivity.kt), which were written against
-// the official API's raw values via MalApi.kt's prettify helpers.
+// Normalize Jikan facet values
 private fun normalizeRating(jikanRating: String) = when {
     jikanRating.startsWith("PG-13") -> "PG-13"
     jikanRating.isBlank() || jikanRating == "null" -> ""
@@ -30,20 +27,17 @@ private fun normalizeMangaFormat(jikanType: String) = when (jikanType.lowercase(
     "one-shot", "oneshot" -> "One Shot"
     else -> jikanType
 }
+// "Last, First" to "First Last"
+private fun reorderName(raw: String): String {
+    val parts = raw.split(", ")
+    return if (parts.size == 2) "${parts[1]} ${parts[0]}" else raw
+}
 
-// Tenrai (tenrai.org) is an unofficial, authless MAL mirror that follows the Jikan v4 schema — used
-// here purely to plug the one hole MAL's own official API leaves open: there is no server-side way
-// to search by genre/theme/demographic (see DiscoverFilters in MainActivity.kt). Everything else in
-// Discover (title search, ranking, seasonal, the user's own list) still goes through the real MalApi;
-// this is only ever used to build a *candidate pool* that LibraryViewModel.visibleDiscoverResults then
-// narrows with the exact same client-side `matches()` filtering it already applies to every other pool.
+// Genre search via Tenrai
 class TenraiApi {
     private val client = OkHttpClient()
 
-    // name (lowercased) -> MAL genre id, combining all four of MAL's facets (genres, explicit_genres,
-    // themes, demographics) into one map per media kind — the id space is shared across facets, and
-    // Tenrai/Jikan's /anime and /manga search endpoints take any of them through the same `genres` param.
-    // Fetched once and cached for the process lifetime since this taxonomy is effectively static.
+    // Build genre name-id map
     private object Cache {
         val byKind = mutableMapOf<String, Map<String, Int>>()
     }
@@ -70,21 +64,14 @@ class TenraiApi {
         }.toMap()
     }
 
-    // Resolves the Discover chip labels (e.g. "Villainess", "Ecchi", "Shounen") the user picked into
-    // Tenrai/MAL genre ids for the given media kind. Unknown names are silently dropped rather than
-    // failing the whole search — a label that doesn't resolve just contributes nothing to the pool.
+    // Resolve labels to ids
     suspend fun resolveGenreIds(kind: String, names: Set<String>): List<Int> {
         if (names.isEmpty()) return emptyList()
         val map = genreNameMap(kind)
         return names.mapNotNull { map[it.lowercase()] }
     }
 
-    // Builds a candidate pool of titles tagged with ANY of the given genre/theme/demographic ids —
-    // deliberately a broad OR across ids (not Jikan's own AND-within-one-call `genres=1,10` semantics),
-    // because the caller (runDiscoverSearch) still runs the exact AND-across-facets/OR-within-facet
-    // logic locally via MediaItem.matches() afterwards. This only needs to be a superset.
-    // `pages` is per id, fetched in parallel — 2 pages (up to 100 titles) per id sorted by member count
-    // is enough to surface a niche tag's actual titles instead of just whatever's in the top overall charts.
+    // Build broad candidate pool
     suspend fun searchByGenreIds(kind: String, ids: List<Int>, pages: Int = 2, limit: Int = 50, includeAdult: Boolean): List<MediaItem> {
         if (ids.isEmpty()) return emptyList()
         return withContext(Dispatchers.IO) {
@@ -104,6 +91,43 @@ class TenraiApi {
         return (0 until arr.length()).map { parseJikanEntry(kind, arr.getJSONObject(it)) }
     }
 
+    // Fetch characters row for detail page
+    suspend fun fetchCharacters(kind: String, malId: Int): List<CharacterEntry> = withContext(Dispatchers.IO) {
+        runCatching {
+            val arr = JSONObject(getRaw("$TENRAI/$kind/$malId/characters")).optJSONArray("data") ?: return@runCatching emptyList()
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.getJSONObject(i)
+                val ch = o.optJSONObject("character") ?: return@mapNotNull null
+                CharacterEntry(
+                    malId = ch.optInt("mal_id"),
+                    name = reorderName(ch.optString("name")),
+                    image = ch.optJSONObject("images")?.optJSONObject("jpg")?.optString("image_url").orEmpty(),
+                    role = o.optString("role").ifBlank { "Supporting" },
+                    url = ch.optString("url"),
+                )
+            }
+        }.getOrElse { emptyList() }
+    }
+
+    // Fetch staff row for detail page
+    suspend fun fetchStaff(kind: String, malId: Int): List<StaffEntry> = withContext(Dispatchers.IO) {
+        runCatching {
+            val arr = JSONObject(getRaw("$TENRAI/$kind/$malId/staff")).optJSONArray("data") ?: return@runCatching emptyList()
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.getJSONObject(i)
+                val person = o.optJSONObject("person") ?: return@mapNotNull null
+                val positions = o.optJSONArray("positions")
+                StaffEntry(
+                    malId = person.optInt("mal_id"),
+                    name = reorderName(person.optString("name")),
+                    image = person.optJSONObject("images")?.optJSONObject("jpg")?.optString("image_url").orEmpty(),
+                    role = positions?.let { p -> (0 until p.length()).joinToString(", ") { p.getString(it) } }.orEmpty(),
+                    url = person.optString("url"),
+                )
+            }
+        }.getOrElse { emptyList() }
+    }
+
     private fun getRaw(url: String): String {
         val request = Request.Builder().url(url).build()
         client.newCall(request).execute().use { resp ->
@@ -113,12 +137,7 @@ class TenraiApi {
         }
     }
 
-    // Parses one Jikan-v4-shaped anime/manga object (Tenrai's schema) into the app's own MediaItem.
-    // Deliberately conservative: `inUserList` always starts false and myRating/progress/status always
-    // start blank/Plan, since Tenrai has no concept of a signed-in MAL account — the caller reconciles
-    // against the user's already-loaded library (LibraryViewModel.items) afterwards to restore those
-    // for any title the person already tracks, the same way a fresh MAL search result would look before
-    // that reconciliation.
+    // Parse Tenrai into MediaItem
     private fun parseJikanEntry(kind: String, n: JSONObject): MediaItem {
         fun tagList(field: String) = n.optJSONArray(field)?.let { arr -> (0 until arr.length()).map { arr.getJSONObject(it).optString("name") } } ?: emptyList()
         val genresList = tagList("genres") + tagList("explicit_genres")

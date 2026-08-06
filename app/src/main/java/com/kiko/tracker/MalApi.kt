@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -31,62 +32,63 @@ private fun prettifyRating(raw: String) = when (raw.lowercase()) {
     "rx" -> "Rx - Hentai"
     else -> prettify(raw)
 }
-// "4_koma_manga" would otherwise come out of prettify() as "4 Koma Manga" (plain underscore-to-space
-// split), which never matches Discover's "4-Koma Manga" filter chip — that facet would silently
-// return zero results no matter what else was selected alongside it.
+// Fix underscore genre names
 private fun prettifySource(raw: String) = when (raw.lowercase()) {
     "4_koma_manga" -> "4-Koma Manga"
     else -> prettify(raw)
 }
 
-/** Thrown internally when the access token is rejected so [authorized] can refresh and retry once. */
+/** Thrown for token refresh */
 private class AuthExpired : IOException()
 
-// One entry from a title's user-submitted "Recommendations" (the tab MAL's website shows below a
-// title's own page, e.g. myanimelist.net/anime/{id}/{slug}/userrecs) — other titles that people who
-// watched/read this one suggested, ranked by how many people recommended each. `votes` is how many
-// users submitted that particular recommendation.
+// Extract first forum image
+private val firstImgTagRegex = Regex("""\[img(?:[^\]]*)\]\s*(https?://[^\s\[\]]+?)\s*\[/img\]""", RegexOption.IGNORE_CASE)
+private val firstBareImageUrlRegex = Regex("""https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?""", RegexOption.IGNORE_CASE)
+private fun firstImageUrl(body: String): String? =
+    firstImgTagRegex.find(body)?.groupValues?.get(1)
+        ?: firstBareImageUrlRegex.find(body)?.value
+
+// User-submitted title recommendation
 data class RecommendedEntry(val malId: Int, val title: String, val cover: String, val votes: Int, val malType: String = "anime")
 
-// One page of a season's anime chart, plus whether MAL indicated another page follows it.
+// One season chart page
 data class SeasonalPage(val items: List<MediaItem>, val hasMore: Boolean)
 
-// One subboard nested under a forum board (e.g. "Anime DB" under "DB Modification Requests") —
-// topics can be scoped to just a subboard the same way they can to a whole board.
+// Forum subboard entry
 data class ForumSubboard(val id: Int, val title: String)
 
-// One forum board, optionally containing subboards.
+// One forum board
 data class ForumBoard(val id: Int, val title: String, val description: String = "", val subboards: List<ForumSubboard> = emptyList())
 
-// A top-level grouping of boards — e.g. "MyAnimeList", "Anime & Manga", "General" — mirrors the
-// section headers on myanimelist.net/forum.
+// Top-level board category
 data class ForumCategory(val title: String, val boards: List<ForumBoard>)
 
-// Whoever created a topic or post. MAL's own field for the avatar is spelled "forum_avator" (not a
-// typo on this end — that's the actual API field name).
+// Topic or post author
 data class ForumUser(val id: Int = 0, val name: String = "", val avatar: String = "")
 
-// One row in a board's topic list, or in a cross-board search result list — same shape either way.
+// One topic list row
 data class ForumTopic(
     val id: Int, val title: String, val createdAt: String, val author: ForumUser,
     val postCount: Int, val lastPostAt: String, val lastPostAuthor: ForumUser, val isLocked: Boolean = false,
+    val imageUrl: String? = null,
 )
 
-// One page of a topic listing, plus whether MAL indicated another page follows it — same idea as SeasonalPage.
+// One topic listing page
 data class ForumTopicsPage(val items: List<ForumTopic>, val hasMore: Boolean)
 
-// A single reply within a topic — the topic's own original post is just post #1.
+// Single topic reply
 data class ForumPost(val id: Int, val number: Int, val createdAt: String, val author: ForumUser, val body: String, val signature: String = "")
 
 data class ForumPollOption(val text: String, val votes: Int)
 data class ForumPoll(val question: String, val closed: Boolean, val options: List<ForumPollOption>)
 
-// A topic's posts (paginated — MAL caps this well under a long thread's full length) plus its
-// optional poll. The poll only ever comes back on this endpoint, never on the plain topics listing.
+// Topic posts and poll
 data class ForumTopicDetail(val title: String, val posts: List<ForumPost>, val poll: ForumPoll?, val hasMore: Boolean)
 
-// The signed-in person's own MAL account details plus their anime list statistics — MAL's API only
-// exposes aggregate stats for anime, not manga, so the manga side has no equivalent numbers to show.
+// Home snapshot card
+data class NewsSnapshot(val topicId: Int, val title: String, val imageUrl: String)
+
+// User profile and stats
 data class MalProfile(
     val name: String = "",
     val picture: String = "",
@@ -108,16 +110,14 @@ data class MalProfile(
 class MalApi(private val context: Context) {
     private val prefs = context.getSharedPreferences("mal_session", Context.MODE_PRIVATE)
     val signedIn get() = !prefs.getString("access_token", null).isNullOrBlank()
-    // MAL's `my_list_status` update endpoint requires PATCH. java.net.HttpURLConnection refuses
-    // to send that method at all (its built-in whitelist has no PATCH, only GET/POST/PUT/DELETE/...),
-    // which is why saves were silently failing to reach MAL — OkHttp sends whatever method you ask for.
+    // Use OkHttp for PATCH
     private val client = OkHttpClient()
 
     fun authUrl(): String {
         val verifier = randomToken(48)
         val state = randomToken(18)
         prefs.edit().putString("verifier", verifier).putString("state", state).apply()
-        // MAL's OAuth only supports the "plain" PKCE method, so the challenge is the verifier itself.
+        // PKCE plain challenge
         return Uri.parse("https://myanimelist.net/v1/oauth2/authorize").buildUpon()
             .appendQueryParameter("response_type", "code")
             .appendQueryParameter("client_id", BuildConfig.MAL_CLIENT_ID)
@@ -153,8 +153,7 @@ class MalApi(private val context: Context) {
         anime.await() + manga.await()
     }
 
-    // The signed-in person's own MAL profile — avatar, account details, and anime list stats — for
-    // the Profile tab. `anime_statistics` is the one optional field MAL will actually expand here.
+    // Signed-in user profile
     suspend fun profile(): MalProfile = withContext(Dispatchers.IO) {
         val body = authorized { get("$API/users/@me?fields=name,picture,gender,birthday,location,joined_at,anime_statistics") }
         val j = JSONObject(body)
@@ -178,16 +177,14 @@ class MalApi(private val context: Context) {
         )
     }
 
-    // Searches MAL's full anime/manga database (not just the signed-in user's list) by title.
-    // type == null searches both anime and manga and merges the results (the Discover "All" filter).
+    // Search anime and manga
     suspend fun search(query: String, type: MediaType?): List<MediaItem> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
         if (type == null) return@withContext listOf(searchKind(query, "anime"), searchKind(query, "manga")).flatten()
         searchKind(query, if (type == MediaType.Anime) "anime" else "manga")
     }
 
-    // Anime premiering in the current MAL season — the closest honest signal MAL's API exposes for
-    // "recently added" (the API has no direct added-to-database-date field or endpoint).
+    // Current season anime list
     suspend fun seasonalAnime(limit: Int = 10): List<MediaItem> = withContext(Dispatchers.IO) {
         val (year, season) = currentSeason()
         val body = authorized { get("$API/anime/season/$year/$season?limit=$limit&nsfw=true&fields=${fields("anime")}") }
@@ -201,8 +198,7 @@ class MalApi(private val context: Context) {
         (0 until arr.length()).map { parseEntry("anime", arr.getJSONObject(it)) }
     }
 
-    // Anime or manga ranking chart. rankingType is a MAL ranking_type value — "all" (score), "bypopularity",
-    // "favorite", or (anime only) "upcoming" — powers the Home "Ranking" screen.
+    // Anime or manga ranking
     suspend fun ranking(type: MediaType, rankingType: String, limit: Int = 25): List<MediaItem> = withContext(Dispatchers.IO) {
         val kind = if (type == MediaType.Anime) "anime" else "manga"
         val body = authorized { get("$API/$kind/ranking?ranking_type=$rankingType&limit=$limit&nsfw=true&fields=${fields(kind)}") }
@@ -210,13 +206,7 @@ class MalApi(private val context: Context) {
         (0 until arr.length()).map { parseEntry(kind, arr.getJSONObject(it)) }
     }
 
-    // Anime airing/announced in an arbitrary season/year, optionally sorted by member count or start
-    // date — powers the Home "Seasonal Chart" screen (the year/season the person picks, not just now).
-    // MAL's season chart mixes anime that premiered that season with ones still airing from an earlier
-    // season (the website itself splits these into "New" and "Continuing" sections) — this endpoint
-    // doesn't distinguish them itself, so the caller filters by each item's own start_season when it
-    // only wants premieres. `offset` pages through the chart (MAL caps `limit` well under its full
-    // size), and `hasMore` reflects whether MAL's own paging info says there's a next page.
+    // Seasonal anime chart data
     suspend fun seasonalAnime(year: Int, season: String, limit: Int = 25, offset: Int = 0, sort: String = "anime_num_list_users"): SeasonalPage = withContext(Dispatchers.IO) {
         val body = authorized { get("$API/anime/season/$year/$season?limit=$limit&offset=$offset&sort=$sort&nsfw=true&fields=${fields("anime")}") }
         val json = JSONObject(body)
@@ -225,23 +215,17 @@ class MalApi(private val context: Context) {
         SeasonalPage(items, json.optJSONObject("paging")?.has("next") == true)
     }
 
-    // Personalized "because you're tracking X" anime suggestions for the signed-in user — powers the
-    // Home "Recommendations" row. MAL has no equivalent manga endpoint.
+    // Personalized anime recommendations
     suspend fun animeSuggestions(limit: Int = 10): List<MediaItem> = withContext(Dispatchers.IO) {
         val body = authorized { get("$API/anime/suggestions?limit=$limit&nsfw=true&fields=${fields("anime")}") }
         val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
         (0 until arr.length()).map { parseEntry("anime", arr.getJSONObject(it)) }
     }
 
-    // Fetches full details for a single title by id — used to open a Related-row entry inside Kiko's
-    // own Detail screen instead of sending the person out to the MAL website. The details endpoint
-    // returns the title's fields flat (not wrapped in "node") and names the viewer's own list entry
-    // "my_list_status" rather than "list_status", so both are adapted here to reuse parseEntry as-is.
+    // Fetch single title detail
     suspend fun detail(id: Int, type: MediaType): MediaItem = withContext(Dispatchers.IO) {
         val kind = if (type == MediaType.Anime) "anime" else "manga"
-        // "statistics" (anime only — see parseEntry) is the official status-distribution field
-        // powering the Detail screen's bottom-of-page "Status distribution" section; same as
-        // "pictures", the bulk list/ranking/season/search endpoints don't request it.
+        // Status distribution statistics
         val detailFields = fields(kind).replace("list_status", "my_list_status") + ",pictures,statistics"
         val body = authorized { get("$API/$kind/$id?fields=$detailFields") }
         val flat = JSONObject(body)
@@ -250,17 +234,12 @@ class MalApi(private val context: Context) {
         parseEntry(kind, wrapped)
     }
 
-    // The website's user-submitted "Recommendations" for a title. MAL's official API does expose
-    // this on the single-title endpoint via the `recommendations` field (see `fields()` and
-    // `parseEntry` above) — it's just not returned by the bulk list/ranking/season/suggestions
-    // endpoints, the same gap `related`/opening/ending themes have, so this reuses `detail()`
-    // to backfill it the same way `backfillRelated`/`backfillThemes` do in the view model.
+    // Website user recommendations
     suspend fun userRecommendations(id: Int, type: MediaType): List<RecommendedEntry> = withContext(Dispatchers.IO) {
         detail(id, type).recommended
     }
 
-    // The forum's full board hierarchy (categories -> boards -> subboards) — powers the Forums tab's
-    // landing page. MAL doesn't page this; it's a small, mostly-static tree, unlike topics/posts below.
+    // Forum board hierarchy
     suspend fun forumBoards(): List<ForumCategory> = withContext(Dispatchers.IO) {
         val body = authorized { get("$API/forum/boards") }
         val categories = JSONObject(body).optJSONArray("categories") ?: return@withContext emptyList()
@@ -280,9 +259,8 @@ class MalApi(private val context: Context) {
 
     private fun parseForumUser(o: JSONObject?) = ForumUser(o?.optInt("id") ?: 0, o?.optString("name") ?: "", o?.optString("forum_avator") ?: "")
 
-    // A board or subboard's topic list, or a cross-board keyword search when query is non-blank and
-    // boardId/subboardId are both null — MAL's /forum/topics endpoint handles both with the same params.
-    suspend fun forumTopics(boardId: Int? = null, subboardId: Int? = null, query: String = "", limit: Int = 25, offset: Int = 0): ForumTopicsPage = withContext(Dispatchers.IO) {
+    // Board topics or search
+    suspend fun forumTopics(boardId: Int? = null, subboardId: Int? = null, query: String = "", limit: Int = 25, offset: Int = 0, withThumbnails: Boolean = false): ForumTopicsPage = withContext(Dispatchers.IO) {
         val params = buildString {
             append("limit=$limit&offset=$offset&sort=recent")
             boardId?.let { append("&board_id=$it") }
@@ -301,10 +279,19 @@ class MalApi(private val context: Context) {
                 isLocked = t.optBoolean("is_locked"),
             )
         }
-        ForumTopicsPage(items, json.optJSONObject("paging")?.has("next") == true)
+        val withCovers = if (!withThumbnails) items else items.map { topic ->
+            async {
+                if (topic.isLocked) topic
+                else runCatching { forumTopic(topic.id, limit = 1) }.getOrNull()
+                    ?.posts?.firstOrNull()?.body
+                    ?.let { firstImageUrl(it) }
+                    ?.let { topic.copy(imageUrl = it) } ?: topic
+            }
+        }.awaitAll()
+        ForumTopicsPage(withCovers, json.optJSONObject("paging")?.has("next") == true)
     }
 
-    // A topic's posts (paginated) plus its poll, if it has one.
+    // Topic posts and poll
     suspend fun forumTopic(topicId: Int, limit: Int = 30, offset: Int = 0): ForumTopicDetail = withContext(Dispatchers.IO) {
         val body = authorized { get("$API/forum/topic/$topicId?limit=$limit&offset=$offset") }
         val json = JSONObject(body)
@@ -323,19 +310,32 @@ class MalApi(private val context: Context) {
         ForumTopicDetail(title = data.optString("title"), posts = posts, poll = poll, hasMore = json.optJSONObject("paging")?.has("next") == true)
     }
 
+    // Latest news snapshots
+    suspend fun newsSnapshots(limit: Int = 6): List<NewsSnapshot> = withContext(Dispatchers.IO) {
+        val newsBoardId = forumBoards()
+            .flatMap { it.boards }
+            .firstOrNull { it.title.equals("News Discussion", ignoreCase = true) }
+            ?.id ?: return@withContext emptyList()
+        val topics = forumTopics(boardId = newsBoardId, limit = limit + 6).items.filterNot { it.isLocked }
+        topics.map { topic ->
+            async {
+                runCatching { forumTopic(topic.id, limit = 1) }.getOrNull()
+                    ?.posts?.firstOrNull()?.body
+                    ?.let { firstImageUrl(it) }
+                    ?.let { NewsSnapshot(topicId = topic.id, title = topic.title, imageUrl = it) }
+            }
+        }.awaitAll().filterNotNull().take(limit)
+    }
+
     suspend fun update(item: MediaItem): Unit = withContext(Dispatchers.IO) {
         val endpoint = "$API/${if (item.type == MediaType.Anime) "anime" else "manga"}/${item.id}/my_list_status"
         val status = when (item.status) {
             WatchStatus.Watching -> "watching"; WatchStatus.Reading -> "reading"; WatchStatus.Completed -> "completed"
             WatchStatus.OnHold -> "on_hold"; WatchStatus.Dropped -> "dropped"; WatchStatus.Plan -> "plan_to_watch"
         }
-        // MAL uses a different key for this field on write than it does on read: the list-fetch
-        // response calls it "num_episodes_watched" (see parseEntry above), but the update endpoint
-        // expects "num_watched_episodes" — sending the read-side name here meant this field was
-        // silently dropped on every save.
+        // Fix episode write key
         val progressField = if (item.type == MediaType.Anime) "num_watched_episodes" else "num_chapters_read"
-        // MAL splits rewatch tracking by media type too: "is_rewatching"/"num_times_rewatched" for
-        // anime, "is_rereading"/"num_times_reread" for manga — same idea as progressField above.
+        // Rewatch tracking by type
         val rewatchingField = if (item.type == MediaType.Anime) "is_rewatching" else "is_rereading"
         val timesRewatchedField = if (item.type == MediaType.Anime) "num_times_rewatched" else "num_times_reread"
         val fields = buildMap {
@@ -350,21 +350,15 @@ class MalApi(private val context: Context) {
         authorized { form(endpoint, fields, method = "PATCH") }
     }
 
-    // Removes the entry from the person's MAL list entirely (MAL's `my_list_status` DELETE endpoint) —
-    // this is a real delete, not a status change, so it's called from the Edit sheet's Delete button
-    // rather than folded into update() above.
+    // Delete list entry
     suspend fun deleteEntry(item: MediaItem): Unit = withContext(Dispatchers.IO) {
         val endpoint = "$API/${if (item.type == MediaType.Anime) "anime" else "manga"}/${item.id}/my_list_status"
         authorized { delete(endpoint) }
     }
 
-    // The `fields` query param shared by both "my list" fetches and full-database search.
+    // Shared fields query param
     private fun fields(kind: String): String {
-        // related_anime/related_manga are list-of-object fields — like authors below, MAL only
-        // returns usable data (title, picture) for these if the node sub-fields are spelled out
-        // explicitly; requesting the bare field name silently comes back empty.
-        // themes/demographics (e.g. "Isekai", "Shounen") are finer-grained than genres alone and
-        // are what the Detail screen's "Recommended" row scores similarity on.
+        // Related and theme fields
         val common = "list_status,genres,explicit_genres,themes,demographics,main_picture,synopsis,background,mean,rank,popularity,num_list_users," +
                 "start_date,end_date,media_type,status,alternative_titles,nsfw," +
                 "related_anime{node{id,title,main_picture},relation_type},related_manga{node{id,title,main_picture},relation_type}," +
@@ -384,7 +378,7 @@ class MalApi(private val context: Context) {
         (0 until arr.length()).map { parseEntry(kind, arr.getJSONObject(it)) }
     }
 
-    // The current MAL "season" (winter/spring/summer/fall) by today's date, for the season-anime endpoint.
+    // Compute current MAL season
     private fun currentSeason(): Pair<Int, String> {
         val cal = java.util.Calendar.getInstance()
         val season = when (cal.get(java.util.Calendar.MONTH) + 1) {
@@ -399,9 +393,7 @@ class MalApi(private val context: Context) {
         return (0 until arr.length()).map { parseEntry(kind, arr.getJSONObject(it)) }
     }
 
-    // Parses one {node, list_status} entry — the shape returned by both the user-list and search endpoints.
-    // list_status is present (with the user's own progress/score/dates) when signed in and already tracking
-    // the title; absent for a title found via search that isn't on the user's list yet.
+    // Parse node and status
     private fun parseEntry(kind: String, e: JSONObject): MediaItem {
         val n = e.getJSONObject("node")
         val s = e.optJSONObject("list_status") ?: JSONObject()
@@ -413,12 +405,9 @@ class MalApi(private val context: Context) {
             "dropped" -> WatchStatus.Dropped
             else -> WatchStatus.Plan
         }
-        // MAL's finer-grained categorization below genre level — e.g. "Isekai" or "Time Travel" as
-        // a theme, "Shounen" or "Seinen" as a demographic — used only to score Recommended-row matches.
+        // Themes and demographics data
         fun tagList(field: String) = n.optJSONArray(field)?.let { arr2 -> (0 until arr2.length()).map { arr2.getJSONObject(it).optString("name") } } ?: emptyList()
-        // "explicit_genres" (Ecchi/Erotica/Hentai) is a separate array on MAL's API from plain
-        // "genres" — folded together here since the app treats them as one genre list everywhere
-        // else (Detail screen's chips, isAdultContent(), the Discover genre filter).
+        // Merge explicit genres in
         val genresList = tagList("genres") + tagList("explicit_genres")
         val contentThemes = tagList("themes")
         val demographics = tagList("demographics")
@@ -437,8 +426,7 @@ class MalApi(private val context: Context) {
                 (synonymsArr?.let { arr2 -> (0 until arr2.length()).map { arr2.getString(it) } } ?: emptyList())
         val season = n.optJSONObject("start_season")?.optString("season")?.takeIf { it.isNotBlank() }?.let(::prettify) ?: ""
         val broadcastDay = n.optJSONObject("broadcast")?.optString("day_of_the_week")?.takeIf { it.isNotBlank() }?.let(::prettify) ?: ""
-        // "HH:mm" in JST, as MAL reports it — converted to the device's local day/time by
-        // MediaItem.localBroadcast() wherever it's shown (Home's "Today's release", the Schedule screen).
+        // Broadcast time in JST
         val broadcastTime = n.optJSONObject("broadcast")?.optString("start_time")?.takeIf { it.isNotBlank() } ?: ""
         fun themeList(field: String) = n.optJSONArray(field)?.let { arr2 -> (0 until arr2.length()).map { arr2.getJSONObject(it).optString("text") } } ?: emptyList()
         fun relatedList(field: String, malType: String) = n.optJSONArray(field)?.let { arr2 ->
@@ -456,9 +444,7 @@ class MalApi(private val context: Context) {
             }
         } ?: emptyList()
         val related = relatedList("related_anime", "anime") + relatedList("related_manga", "manga")
-        // Community status breakdown across every member tracking this anime — only present when
-        // "statistics" was requested (detail()'s single-title fetch, not the bulk list/ranking/
-        // season/search endpoints) and only for anime (MAL doesn't expose this for manga).
+        // Anime status breakdown
         val statusDistribution = if (kind == "anime") {
             n.optJSONObject("statistics")?.optJSONObject("status")?.let { s2 ->
                 StatusDistribution(
@@ -471,9 +457,7 @@ class MalApi(private val context: Context) {
             } ?: StatusDistribution()
         } else StatusDistribution()
         val mainCover = picture?.optString("large")?.takeIf { it.isNotBlank() } ?: picture?.optString("medium") ?: ""
-        // Only present when "pictures" was requested (the single-title detail() fetch, not the bulk
-        // list/ranking/season endpoints) — every other cover MAL has on file for this title, so the
-        // Detail screen's fullscreen viewer can be swiped through instead of showing just the one.
+        // All title cover pictures
         val extraCovers = n.optJSONArray("pictures")?.let { arr2 ->
             (0 until arr2.length()).mapNotNull { i ->
                 val p = arr2.getJSONObject(i)
@@ -481,9 +465,7 @@ class MalApi(private val context: Context) {
             }
         } ?: emptyList()
         val covers = (listOf(mainCover) + extraCovers).filter { it.isNotBlank() }.distinct()
-        // Recommendations are always same-media-type on MAL (an anime's recs are other anime, a
-        // manga's are other manga) — unlike related_anime/related_manga there's no cross-type array
-        // to merge, so `kind` (this entry's own type) is used directly as malType below.
+        // Same-type recommendations only
         val recommended = n.optJSONArray("recommendations")?.let { arr2 ->
             (0 until arr2.length()).mapNotNull { i ->
                 val r = arr2.getJSONObject(i)
@@ -548,7 +530,7 @@ class MalApi(private val context: Context) {
         )
     }
 
-    // Runs an authorized call; if the access token has expired, refreshes it once and retries.
+    // Retry once if expired
     private suspend fun <T> authorized(block: () -> T): T = try {
         block()
     } catch (_: AuthExpired) {
