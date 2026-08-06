@@ -187,13 +187,13 @@ class MalApi(private val context: Context) {
     // Current season anime list
     suspend fun seasonalAnime(limit: Int = 10): List<MediaItem> = withContext(Dispatchers.IO) {
         val (year, season) = currentSeason()
-        val body = authorized { get("$API/anime/season/$year/$season?limit=$limit&nsfw=true&fields=${fields("anime")}") }
+        val body = authorized { get("$API/anime/season/$year/$season?limit=$limit&nsfw=true&fields=${browseFields("anime")}") }
         val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
         (0 until arr.length()).map { parseEntry("anime", arr.getJSONObject(it)) }
     }
 
     suspend fun upcomingAnime(limit: Int = 10): List<MediaItem> = withContext(Dispatchers.IO) {
-        val body = authorized { get("$API/anime/ranking?ranking_type=upcoming&limit=$limit&nsfw=true&fields=${fields("anime")}") }
+        val body = authorized { get("$API/anime/ranking?ranking_type=upcoming&limit=$limit&nsfw=true&fields=${browseFields("anime")}") }
         val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
         (0 until arr.length()).map { parseEntry("anime", arr.getJSONObject(it)) }
     }
@@ -201,14 +201,14 @@ class MalApi(private val context: Context) {
     // Anime or manga ranking
     suspend fun ranking(type: MediaType, rankingType: String, limit: Int = 25): List<MediaItem> = withContext(Dispatchers.IO) {
         val kind = if (type == MediaType.Anime) "anime" else "manga"
-        val body = authorized { get("$API/$kind/ranking?ranking_type=$rankingType&limit=$limit&nsfw=true&fields=${fields(kind)}") }
+        val body = authorized { get("$API/$kind/ranking?ranking_type=$rankingType&limit=$limit&nsfw=true&fields=${browseFields(kind)}") }
         val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
         (0 until arr.length()).map { parseEntry(kind, arr.getJSONObject(it)) }
     }
 
     // Seasonal anime chart data
     suspend fun seasonalAnime(year: Int, season: String, limit: Int = 25, offset: Int = 0, sort: String = "anime_num_list_users"): SeasonalPage = withContext(Dispatchers.IO) {
-        val body = authorized { get("$API/anime/season/$year/$season?limit=$limit&offset=$offset&sort=$sort&nsfw=true&fields=${fields("anime")}") }
+        val body = authorized { get("$API/anime/season/$year/$season?limit=$limit&offset=$offset&sort=$sort&nsfw=true&fields=${browseFields("anime")}") }
         val json = JSONObject(body)
         val arr = json.optJSONArray("data") ?: return@withContext SeasonalPage(emptyList(), false)
         val items = (0 until arr.length()).map { parseEntry("anime", arr.getJSONObject(it)) }
@@ -217,7 +217,7 @@ class MalApi(private val context: Context) {
 
     // Personalized anime recommendations
     suspend fun animeSuggestions(limit: Int = 10): List<MediaItem> = withContext(Dispatchers.IO) {
-        val body = authorized { get("$API/anime/suggestions?limit=$limit&nsfw=true&fields=${fields("anime")}") }
+        val body = authorized { get("$API/anime/suggestions?limit=$limit&nsfw=true&fields=${browseFields("anime")}") }
         val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
         (0 until arr.length()).map { parseEntry("anime", arr.getJSONObject(it)) }
     }
@@ -311,7 +311,7 @@ class MalApi(private val context: Context) {
     }
 
     // Latest news snapshots
-    suspend fun newsSnapshots(limit: Int = 6): List<NewsSnapshot> = withContext(Dispatchers.IO) {
+    suspend fun newsSnapshots(limit: Int = 10): List<NewsSnapshot> = withContext(Dispatchers.IO) {
         val newsBoardId = forumBoards()
             .flatMap { it.boards }
             .firstOrNull { it.title.equals("News Discussion", ignoreCase = true) }
@@ -357,6 +357,8 @@ class MalApi(private val context: Context) {
     }
 
     // Shared fields query param
+    // Browse endpoints need my_list_status
+    private fun browseFields(kind: String) = fields(kind).replace("list_status", "my_list_status")
     private fun fields(kind: String): String {
         // Related and theme fields
         val common = "list_status,genres,explicit_genres,themes,demographics,main_picture,synopsis,background,mean,rank,popularity,num_list_users," +
@@ -373,7 +375,7 @@ class MalApi(private val context: Context) {
 
     private suspend fun searchKind(query: String, kind: String): List<MediaItem> = withContext(Dispatchers.IO) {
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val body = authorized { get("$API/$kind?q=$encoded&limit=25&nsfw=true&fields=${fields(kind)}") }
+        val body = authorized { get("$API/$kind?q=$encoded&limit=25&nsfw=true&fields=${browseFields(kind)}") }
         val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
         (0 until arr.length()).map { parseEntry(kind, arr.getJSONObject(it)) }
     }
@@ -396,7 +398,8 @@ class MalApi(private val context: Context) {
     // Parse node and status
     private fun parseEntry(kind: String, e: JSONObject): MediaItem {
         val n = e.getJSONObject("node")
-        val s = e.optJSONObject("list_status") ?: JSONObject()
+        // Browse uses my_list_status
+        val s = e.optJSONObject("list_status") ?: e.optJSONObject("my_list_status") ?: JSONObject()
         val status = when (s.optString("status")) {
             "watching" -> WatchStatus.Watching
             "reading" -> WatchStatus.Reading
@@ -525,7 +528,7 @@ class MalApi(private val context: Context) {
             broadcastDay = broadcastDay,
             broadcastTime = broadcastTime,
             nsfw = n.optString("nsfw", "white"),
-            inUserList = e.has("list_status"),
+            inUserList = e.has("list_status") || e.has("my_list_status"),
             covers = covers,
         )
     }

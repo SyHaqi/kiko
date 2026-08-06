@@ -304,8 +304,17 @@ data class DiscoverFilters(
     val rating: String = "",
     // Sub-type format field
     val format: String = "",
+    // Finished, Ongoing, Upcoming
+    val airingStatus: String = "",
 ) {
-    fun isActive() = genres.isNotEmpty() || themes.isNotEmpty() || demographics.isNotEmpty() || studio.isNotBlank() || source.isNotBlank() || year.isNotBlank() || season != null || rating.isNotBlank() || format.isNotBlank()
+    fun isActive() = genres.isNotEmpty() || themes.isNotEmpty() || demographics.isNotEmpty() || studio.isNotBlank() || source.isNotBlank() || year.isNotBlank() || season != null || rating.isNotBlank() || format.isNotBlank() || airingStatus.isNotBlank()
+}
+// Groups raw airing/publishing text
+private fun airingBucket(raw: String): String = when {
+    raw.contains("Finished", ignoreCase = true) -> "Finished"
+    raw.contains("Not yet", ignoreCase = true) -> "Upcoming"
+    raw.isNotBlank() -> "Ongoing"
+    else -> ""
 }
 private fun MediaItem.matches(f: DiscoverFilters): Boolean {
     if (f.genres.isNotEmpty() && genres.none { g -> f.genres.any { it.equals(g, ignoreCase = true) } }) return false
@@ -317,6 +326,7 @@ private fun MediaItem.matches(f: DiscoverFilters): Boolean {
     if (f.season != null && !season.equals(f.season.label, ignoreCase = true)) return false
     if (f.rating.isNotBlank() && !rating.equals(f.rating, ignoreCase = true)) return false
     if (f.format.isNotBlank() && !format.equals(f.format, ignoreCase = true)) return false
+    if (f.airingStatus.isNotBlank() && airingBucket(airStatus) != f.airingStatus) return false
     return true
 }
 // Full genre taxonomy
@@ -683,7 +693,8 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             seasonalLoading = true
             runCatching { MalApi(context).seasonalAnime(year, season.api, sort = sort.api) }
-                .onSuccess { seasonalResults = it.items; seasonalHasMore = it.hasMore; seasonalError = null }
+                // Reconcile against user's library
+                .onSuccess { seasonalResults = it.items.map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }; seasonalHasMore = it.hasMore; seasonalError = null }
                 .onFailure { seasonalError = it.message ?: "Could not load season"; seasonalHasMore = false }
             seasonalLoading = false
         }
@@ -697,7 +708,8 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             seasonalLoadingMore = true
             runCatching { api.seasonalAnime(seasonalYear, seasonalSeason.api, offset = seasonalResults.size, sort = seasonalSort.api) }
-                .onSuccess { seasonalResults = seasonalResults + it.items; seasonalHasMore = it.hasMore }
+                // Reconcile against user's library
+                .onSuccess { seasonalResults = seasonalResults + it.items.map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }; seasonalHasMore = it.hasMore }
                 .onFailure { seasonalHasMore = false }
             seasonalLoadingMore = false
         }
@@ -715,7 +727,7 @@ class LibraryViewModel : ViewModel() {
             val t = when (type) { "Anime" -> MediaType.Anime; "Manga" -> MediaType.Manga; else -> null }
             val api = MalApi(context)
             runCatching {
-                if (query.isNotBlank()) api.search(query, t)
+                val results = if (query.isNotBlank()) api.search(query, t)
                 // Search via Tenrai filters
                 else if (filters.genres.isNotEmpty() || filters.themes.isNotEmpty() || filters.demographics.isNotEmpty()) {
                     val tenrai = TenraiApi()
@@ -736,8 +748,6 @@ class LibraryViewModel : ViewModel() {
                         }
                     }
                         .distinctBy { it.id }
-                        // Reconcile against user's library
-                        .map { candidate -> items.find { it.id == candidate.id && it.type == candidate.type } ?: candidate }
                 }
                 // Merge multiple ranking charts
                 else coroutineScope {
@@ -749,6 +759,8 @@ class LibraryViewModel : ViewModel() {
                         rankTypes.map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
                     }.awaitAll().flatten()
                 }.distinctBy { it.id }
+                // Reconcile against user's library
+                results.map { candidate -> items.find { it.id == candidate.id && it.type == candidate.type } ?: candidate }
             }
                 .onSuccess { discoverResults = it; discoverError = null }
                 .onFailure { discoverError = it.message ?: "Search failed" }
@@ -1098,7 +1110,8 @@ class MainActivity : ComponentActivity() {
                 callback?.let { uri ->
                     vm.loading = true
                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                        MalApi(this@MainActivity).finishAuth(uri).onSuccess { vm.load(this@MainActivity) }.onFailure { vm.error = it.message }
+                        // Reload full homepage
+                        MalApi(this@MainActivity).finishAuth(uri).onSuccess { vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity); vm.loadHomeExtras(this@MainActivity) }.onFailure { vm.error = it.message }
                         vm.loading = false
                     }
                     callback = null
@@ -1261,7 +1274,7 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                         label = "topScreen",
                     ) { screen ->
                         when (screen) {
-                            is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) }, onLoadCharactersStaff = { forItem, onFound, onDone -> vm.loadCharactersStaff(forItem, onFound, onDone) }, initialScroll = vm.getDetailScroll(screen.item.id), onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) }, onGenreClick = { genre ->
+                            is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) }, onLoadCharactersStaff = { forItem, onFound, onDone -> vm.loadCharactersStaff(forItem, onFound, onDone) }, initialScroll = vm.getDetailScroll(screen.item.id), onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) }, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { it to li.status } }.toMap(), onGenreClick = { genre ->
                                 selectedItem = null; detailStack = emptyList()
                                 vm.destination = Destination.Discover
                                 vm.runDiscoverSearch(context, "", if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
@@ -1373,7 +1386,7 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
     val time = item.localBroadcast()?.second
     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = c.surface), elevation = CardDefaults.cardElevation(4.dp), modifier = Modifier.width(250.dp).clickable { onOpenDetail(item) }) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Cover(item, Modifier.size(width = 62.dp, height = 88.dp))
+            Cover(item, Modifier.size(width = 62.dp, height = 88.dp), showStatus = true)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(item.displayTitle(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(8.dp))
@@ -1491,17 +1504,37 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
 @Composable private fun MiniCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
     Column(Modifier.width(118.dp).clickable { onOpenDetail(item) }) {
-        Cover(item, Modifier.fillMaxWidth().height(150.dp))
+        Cover(item, Modifier.fillMaxWidth().height(150.dp), showStatus = true)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         Text(if (item.status == WatchStatus.Plan) "Saved for later" else progressLabel(item), color = c.primary, fontWeight = FontWeight.Medium, fontSize = 11.sp)
     }
 }
-@Composable private fun Cover(item: MediaItem, modifier: Modifier = Modifier) {
+@Composable private fun Cover(item: MediaItem, modifier: Modifier = Modifier, showStatus: Boolean = false, statusAlignment: Alignment = Alignment.TopStart) {
     val displayTitle = item.displayTitle()
     Box(modifier.clip(RoundedCornerShape(16.dp)).background(Color(item.color)), contentAlignment = Alignment.Center) {
         if (item.cover.isNotBlank()) AsyncImage(model = item.cover, contentDescription = displayTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
         else Text(displayTitle.take(1), fontWeight = FontWeight.Bold, fontSize = 36.sp, color = Color.White.copy(.85f))
+        // Optional tracking mark
+        if (showStatus) trackedBadgeStatus(item)?.let { CoverStatusMark(it, Modifier.align(statusAlignment).padding(6.dp)) }
     }
+}
+// All 5 states shown
+private fun trackedBadgeStatus(item: MediaItem): WatchStatus? =
+    if (item.inUserList) item.status else null
+// Icon per tracking status
+private fun WatchStatus.badgeIcon(): ImageVector = when (this) {
+    WatchStatus.Watching, WatchStatus.Reading -> Icons.Default.PlayArrow
+    WatchStatus.Completed -> Icons.Default.Check
+    WatchStatus.OnHold -> Icons.Default.Pause
+    WatchStatus.Dropped -> Icons.Default.Close
+    WatchStatus.Plan -> Icons.Default.Bookmark
+}
+// Small color coded dot
+@Composable private fun CoverStatusMark(status: WatchStatus, modifier: Modifier = Modifier) {
+    Box(
+        modifier.size(22.dp).clip(CircleShape).background(statusColor(status)).border(1.5.dp, Color.White.copy(alpha = .9f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { Icon(status.badgeIcon(), status.label, tint = Color.White, modifier = Modifier.size(13.dp)) }
 }
 private fun progressLabel(i: MediaItem) = if (i.progress == 0) i.status.label else "${i.progress}${if (i.total > 0) " of ${i.total}" else ""} ${if (i.type == MediaType.Anime) "episodes" else "chapters"}"
 // Format field fallback
@@ -1713,7 +1746,7 @@ private fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: Ti
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(19.dp)).background(c.surface).clickable { onOpenDetail(item) }.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(32.dp), contentAlignment = Alignment.Center) { Text("#$position", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.primary) }
-        Cover(item, Modifier.size(width = 54.dp, height = 76.dp))
+        Cover(item, Modifier.size(width = 54.dp, height = 76.dp), showStatus = true)
         Column(Modifier.weight(1f).padding(horizontal = 13.dp)) {
             Text(item.displayTitle(), fontWeight = FontWeight.Bold, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("${item.type} · ${item.genre}", color = c.muted, fontSize = 12.sp)
@@ -1834,7 +1867,7 @@ private fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: Ti
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(19.dp)).background(c.surface).clickable { onOpenDetail(item) }.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
-        Cover(item, Modifier.size(width = 54.dp, height = 76.dp))
+        Cover(item, Modifier.size(width = 54.dp, height = 76.dp), showStatus = true)
         Column(Modifier.weight(1f).padding(horizontal = 13.dp)) {
             Text(item.displayTitle(), fontWeight = FontWeight.Bold, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(localizedTimeLabel(time, is24Hour), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
@@ -1920,7 +1953,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 @Composable private fun SeasonalGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
     Column(Modifier.fillMaxWidth().clickable { onOpenDetail(item) }) {
-        Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f))
+        Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f), showStatus = true)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         if (item.score > 0) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
@@ -2132,7 +2165,8 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                 }
                 FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
             }
-            if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, vm.discoverTypeFilter, it) })
+            // Fixes type/format mismatch
+            if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) })
             Row(Modifier.fillMaxWidth().padding(top = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
                     items(listOf("Anime", "Manga")) { label -> FilterChip(selected = vm.discoverTypeFilter == label, onClick = { vm.runDiscoverSearch(context, query, label) }, label = { Text(label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
@@ -2200,6 +2234,8 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
     var season by remember { mutableStateOf(current.season) }
     var rating by remember { mutableStateOf(current.rating) }
     var format by remember { mutableStateOf(current.format) }
+    var airingStatus by remember { mutableStateOf(current.airingStatus) }
+    val airingOptions = listOf("Ongoing", "Finished", "Upcoming")
     val formatOptions = when (type) { "Anime" -> CommonAnimeFormats; "Manga" -> CommonMangaFormats; else -> CommonAnimeFormats + CommonMangaFormats }
     // Skip partially-expanded sheet state
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -2218,6 +2254,11 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
             Text("Type", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 formatOptions.forEach { f -> FilterChip(selected = format == f, onClick = { format = if (format == f) "" else f }, label = { Text(f) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+            }
+
+            Text("Status", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                airingOptions.forEach { s -> FilterChip(selected = airingStatus == s, onClick = { airingStatus = if (airingStatus == s) "" else s }, label = { Text(s) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
             }
 
             Text("Studio", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
@@ -2259,11 +2300,11 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 
             Row(Modifier.fillMaxWidth().padding(top = 26.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 TextButton(
-                    onClick = { genres = emptySet(); explicitGenres = emptySet(); themes = emptySet(); demographics = emptySet(); studio = ""; source = ""; year = ""; season = null; rating = ""; format = "" },
+                    onClick = { genres = emptySet(); explicitGenres = emptySet(); themes = emptySet(); demographics = emptySet(); studio = ""; source = ""; year = ""; season = null; rating = ""; format = ""; airingStatus = "" },
                     modifier = Modifier.weight(1f),
                 ) { Text("Reset", color = c.muted, fontWeight = FontWeight.Bold) }
                 Button(
-                    onClick = { onApply(DiscoverFilters(genres + explicitGenres, themes, demographics, studio.trim(), source, year, season, rating, format)) },
+                    onClick = { onApply(DiscoverFilters(genres + explicitGenres, themes, demographics, studio.trim(), source, year, season, rating, format, airingStatus)) },
                     colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
                     modifier = Modifier.weight(2f),
                 ) { Text("Apply filters", fontWeight = FontWeight.Bold) }
@@ -2275,7 +2316,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 @Composable private fun BrowseCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, subtitle: String? = null) {
     val c = LocalKikoColors.current
     Column(Modifier.width(118.dp).clickable { onOpenDetail(item) }) {
-        Cover(item, Modifier.fillMaxWidth().height(150.dp))
+        Cover(item, Modifier.fillMaxWidth().height(150.dp), showStatus = true)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         Text(subtitle ?: (if (item.score > 0) "★ ${"%.1f".format(item.score)}" else item.genre), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
@@ -2288,7 +2329,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
         verticalAlignment = Alignment.Top,
     ) {
         Box(Modifier.width(84.dp).height(118.dp)) {
-            Cover(item, Modifier.fillMaxSize())
+            Cover(item, Modifier.fillMaxSize(), showStatus = true)
             if (item.score > 0) {
                 Row(
                     Modifier.align(Alignment.BottomStart).padding(6.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 6.dp, vertical = 3.dp),
@@ -3311,7 +3352,7 @@ private fun statusColor(label: String): Color = when {
 }
 
 // Detail section
-@Composable private fun DetailScreen(item: MediaItem, onBack: () -> Unit, onEdit: (MediaItem) -> Unit, onOpenRelated: (RelatedEntry) -> Unit, relatedLoadingId: Int? = null, onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenRecommended: (RecommendedEntry) -> Unit = {}, recommendedLoadingId: Int? = null, onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadCharactersStaff: (MediaItem, (List<CharacterEntry>, List<StaffEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onGenreClick: (String) -> Unit = {}, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }) {
+@Composable private fun DetailScreen(item: MediaItem, onBack: () -> Unit, onEdit: (MediaItem) -> Unit, onOpenRelated: (RelatedEntry) -> Unit, relatedLoadingId: Int? = null, onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenRecommended: (RecommendedEntry) -> Unit = {}, recommendedLoadingId: Int? = null, onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadCharactersStaff: (MediaItem, (List<CharacterEntry>, List<StaffEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onGenreClick: (String) -> Unit = {}, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, myListStatus: Map<Int, WatchStatus> = emptyMap()) {
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
     // Track related backfill completion
@@ -3630,7 +3671,7 @@ private fun statusColor(label: String): Color = when {
                         Text("Related", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             items(related) { rel ->
-                                RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId) {
+                                RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId, myStatus = myListStatus[rel.malId]) {
                                     // Fallback to web search
                                     if (rel.malId > 0) onOpenRelated(rel) else uriHandler.openUri(malUrl(rel))
                                 }
@@ -3643,7 +3684,7 @@ private fun statusColor(label: String): Color = when {
                         Text("Recommended", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             items(recommended, key = { it.malId }) { rec ->
-                                RecommendedCard(rec, loading = recommendedLoadingId == rec.malId) { onOpenRecommended(rec) }
+                                RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId]) { onOpenRecommended(rec) }
                             }
                         }
                     }
@@ -3755,6 +3796,7 @@ private fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     imageUrl: String, fallbackLetter: String, title: String,
     label: String? = null, subtitle: String? = null,
     loading: Boolean = false, onClick: (() -> Unit)? = null,
+    myStatus: WatchStatus? = null,
 ) {
     val c = LocalKikoColors.current
     Column(
@@ -3772,6 +3814,8 @@ private fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
                     CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
                 }
             }
+            // Own tracking mark
+            myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopStart).padding(6.dp)) }
         }
         // Fixed height text block
         Column(Modifier.fillMaxWidth().height(112.dp).padding(10.dp)) {
@@ -3781,14 +3825,14 @@ private fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
         }
     }
 }
-@Composable private fun RelatedCard(entry: RelatedEntry, loading: Boolean = false, onClick: () -> Unit) {
-    DetailRowCard(imageUrl = entry.cover, fallbackLetter = entry.title.take(1), title = entry.title, label = entry.relation, loading = loading, onClick = onClick)
+@Composable private fun RelatedCard(entry: RelatedEntry, loading: Boolean = false, myStatus: WatchStatus? = null, onClick: () -> Unit) {
+    DetailRowCard(imageUrl = entry.cover, fallbackLetter = entry.title.take(1), title = entry.title, label = entry.relation, loading = loading, myStatus = myStatus, onClick = onClick)
 }
 
 // Recommended card same style
-@Composable private fun RecommendedCard(entry: RecommendedEntry, loading: Boolean = false, onClick: () -> Unit) {
+@Composable private fun RecommendedCard(entry: RecommendedEntry, loading: Boolean = false, myStatus: WatchStatus? = null, onClick: () -> Unit) {
     val subtitle = if (entry.votes > 0) "${entry.votes} recommend${if (entry.votes == 1) "s" else ""}" else "Recommended"
-    DetailRowCard(imageUrl = entry.cover, fallbackLetter = entry.title.take(1), title = entry.title, subtitle = subtitle, loading = loading, onClick = onClick)
+    DetailRowCard(imageUrl = entry.cover, fallbackLetter = entry.title.take(1), title = entry.title, subtitle = subtitle, loading = loading, myStatus = myStatus, onClick = onClick)
 }
 // Compact card for characters/staff rows
 @Composable private fun PersonCard(imageUrl: String, fallbackLetter: String, name: String, role: String, onClick: (() -> Unit)?) {
