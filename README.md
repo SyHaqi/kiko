@@ -43,7 +43,9 @@ Kiko is a yet another MAL Client android app.
 ## 🖼️ Screenshots
 
 ![Screenshots](screenshots/screenshots.png)
+
 ---
+
 ## 📦 Installation
 
 Download the latest APK from the **Releases** page and install it on any Android device running the supported Android version.
