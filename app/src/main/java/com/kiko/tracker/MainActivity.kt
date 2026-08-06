@@ -2128,7 +2128,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
-                    SearchField(query, { query = it }, "Search MAL library", onSearch = { vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) })
+                    SearchField(query, { query = it }, "Search in MAL", onSearch = { vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) })
                 }
                 FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
             }
