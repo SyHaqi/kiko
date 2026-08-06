@@ -42,11 +42,11 @@ Kiko is a yet another MAL Client android app.
 
 ## 🖼️ Screenshots
 
-![Home](screenshots/home.jpg)
-![MyList](screenshots/mylist.jpg)
-![Discover](screenshots/discover.jpg)
-![Forums](screenshots/forums.jpg)
-![Profile](screenshots/profile.jpg)
+[Home](screenshots/home.jpg)
+[MyList](screenshots/mylist.jpg)
+[Discover](screenshots/discover.jpg)
+[Forums](screenshots/forums.jpg)
+[Profile](screenshots/profile.jpg)
 ---
 ## 📦 Installation
 
