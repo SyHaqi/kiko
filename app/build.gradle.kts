@@ -14,7 +14,7 @@ plugins {
 }
 
 android { namespace = "com.kiko.tracker"; compileSdk = 35
-    defaultConfig { applicationId = "com.kiko.tracker"; minSdk = 26; targetSdk = 35; versionCode = 1; versionName = "1.0.0"; buildConfigField("String", "MAL_CLIENT_ID", "\"$malClientId\"") }
+    defaultConfig { applicationId = "com.kiko.tracker"; minSdk = 26; targetSdk = 35; versionCode = 3; versionName = "2.2.0"; buildConfigField("String", "MAL_CLIENT_ID", "\"$malClientId\"") }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
