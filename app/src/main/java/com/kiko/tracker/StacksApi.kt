@@ -1,0 +1,199 @@
+package com.kiko.tracker
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+import java.io.IOException
+
+private const val MAL = "https://myanimelist.net"
+
+// One row in a stacks browse/search list
+data class StackSummary(
+    val id: Int,
+    val title: String,
+    val type: String = "",
+    val author: String = "",
+    val description: String = "",
+    val entryCount: Int = 0,
+    val restacks: Int = 0,
+    val updatedLabel: String = "",
+    val covers: List<String> = emptyList(),
+    // Display tags e.g. ["Manga", "Challenge"] — type plus any special badges (Challenge, MyAnimeList)
+    val tags: List<String> = emptyList(),
+)
+// One title inside a stack — cosmetic fields are best-effort scrape;
+// the full MediaItem is fetched via MalApi only when tapped (see openStackEntry)
+data class StackTitleEntry(
+    val malId: Int,
+    val type: MediaType,
+    val title: String,
+    val cover: String = "",
+    val format: String = "",
+    val year: String = "",
+    val score: Double = 0.0,
+)
+data class StackDetail(
+    val id: Int,
+    val title: String,
+    val type: String = "",
+    val author: String = "",
+    val description: String = "",
+    val restacks: Int = 0,
+    val entries: List<StackTitleEntry> = emptyList(),
+)
+
+// Browse tabs, mirrors MAL's own type= filter and tab order/labels
+enum class StackBrowseKind(val param: String, val label: String) {
+    All("", "All"),
+    Challenges("challenges", "Challenges"),
+    Anime("anime", "Anime"),
+    Manga("manga", "Manga"),
+    MyAnimeList("myanimelist", "MyAnimeList"),
+}
+
+// Scrapes MAL's Interest Stacks pages — there is no public API for this
+// feature (Jikan/Tenrai don't cover it), so parsing leans on href patterns
+// (/stacks/{id}, /anime|manga/{id}) rather than CSS classes, since those
+// URL shapes are far less likely to change than markup/class names.
+class StacksApi {
+    private val client = OkHttpClient()
+
+    private fun fetchDoc(url: String): Document {
+        val request = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0 (Android) Kiko/1.0").build()
+        client.newCall(request).execute().use { resp ->
+            val body = resp.body?.string() ?: ""
+            if (!resp.isSuccessful) throw IOException("MAL request failed (${resp.code})")
+            return Jsoup.parse(body, url)
+        }
+    }
+
+    // Browse or search stacks by type
+    suspend fun search(kind: StackBrowseKind, query: String = "", page: Int = 1): List<StackSummary> = withContext(Dispatchers.IO) {
+        val typeParam = if (kind.param.isBlank()) "" else "type=${kind.param}&"
+        val q = if (query.isBlank()) "" else "q=" + java.net.URLEncoder.encode(query, "UTF-8") + "&"
+        val url = "$MAL/stacks/search?$typeParam${q}page=$page"
+        parseSummaries(fetchDoc(url))
+    }
+
+    // First usable image URLs under an element, preferring MAL's own CDN paths
+    // and lazy-load attributes (data-src) over a blank/placeholder src.
+    // Resolved via absUrl so relative or protocol-relative srcs still load.
+    private fun coverUrls(el: Element, limit: Int = 3): List<String> {
+        val out = LinkedHashSet<String>()
+        el.select("img").forEach { img ->
+            if (out.size >= limit) return@forEach
+            for (attr in listOf("data-src", "data-srcset", "src")) {
+                val raw = img.attr(attr)
+                if (raw.isBlank() || raw.startsWith("data:")) continue
+                val url = img.absUrl(attr).substringBefore(" ").ifBlank { raw.substringBefore(" ") }
+                if (url.contains("/images/anime/") || url.contains("/images/manga/")) { out.add(url); break }
+            }
+        }
+        return out.toList()
+    }
+
+    // Flattened element text with non-breaking spaces folded to regular spaces —
+    // MAL renders separators like "N Entries" with &nbsp;, which plain \s won't match
+    private fun normText(el: Element): String = el.text().replace('\u00A0', ' ')
+
+    // Climbs from a title anchor to the nearest ancestor whose flattened text
+    // already contains "N Entries" — i.e. the tightest wrapper around this
+    // one stack's card/row. A single closest("div, li, article") call proved
+    // unreliable across MAL's actual markup (some rows land on a wrapper that
+    // excludes the sibling cover/author/stats text entirely), so climb level
+    // by level and stop at the first ancestor that clearly holds the full row.
+    private fun rowContainer(a: Element, maxLevels: Int = 8): Element {
+        var el: Element = a
+        repeat(maxLevels) {
+            if (Regex("\\d+\\s+Entries").containsMatchIn(normText(el))) return el
+            el = el.parent() ?: return el
+        }
+        return el
+    }
+
+    // Title anchors that point straight at a stack, deduped by id
+    private fun parseSummaries(doc: Document): List<StackSummary> {
+        val seen = LinkedHashMap<Int, StackSummary>()
+        doc.select("a[href~=(?i)^https?://myanimelist\\.net/stacks/\\d+$]").forEach { a ->
+            val id = a.attr("href").substringAfterLast("/stacks/").substringBefore("?").toIntOrNull() ?: return@forEach
+            val title = a.text().trim().takeIf { it.isNotBlank() } ?: return@forEach
+            if (seen.containsKey(id)) return@forEach
+            val container = rowContainer(a)
+            val text = normText(container)
+            val type = Regex("\\b(Anime|Manga)\\b").find(text)?.groupValues?.get(1).orEmpty()
+            val author = Regex("by\\s+([\\w\\-.]+)").find(text)?.groupValues?.get(1).orEmpty()
+            val entryCount = Regex("(\\d+)\\s+Entries").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val restacks = Regex("(\\d+)\\s+Restacks").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            // Covers relative "N ago"/"N left" as well as an absolute "Aug 2, 3:26 AM" timestamp fallback
+            val updatedLabel = Regex(
+                "(\\d+\\s+(?:hours?|days?|minutes?)\\s+ago|\\d+\\s+days?\\s+left|Time ended|[A-Za-z]{3}\\s+\\d{1,2},\\s*\\d{1,2}:\\d{2}\\s*[AP]M)"
+            ).find(text)?.value.orEmpty()
+            val description = if (author.isNotBlank()) {
+                Regex(Regex.escape("by $author") + "\\s*(.*?)\\s*\\d+\\s+Entries", RegexOption.DOT_MATCHES_ALL)
+                    .find(text)?.groupValues?.get(1)?.trim().orEmpty()
+            } else ""
+            // "Challenge" shows as its own badge alongside the type pill on MAL's curated stacks
+            val tags = listOfNotNull(type.takeIf { it.isNotBlank() }, "Challenge".takeIf { Regex("\\bChallenge\\b").containsMatchIn(text) })
+            seen[id] = StackSummary(id, title, type, author, description, entryCount, restacks, updatedLabel, coverUrls(container), tags)
+        }
+        return seen.values.toList()
+    }
+
+    // Full entry list for one stack — force list view: tile/seasonal lazy-load
+    // covers via JS and leave the <img> src empty in the raw HTML we scrape,
+    // while list view ships real cdn.myanimelist.net src attributes upfront
+    suspend fun detail(stackId: Int): StackDetail = withContext(Dispatchers.IO) {
+        val doc = fetchDoc("$MAL/stacks/$stackId?view_style=list")
+        val title = doc.select("meta[property=og:title]").attr("content")
+            .ifBlank { doc.title().substringBefore(" - Interest Stacks").trim() }
+        val ogDescription = doc.select("meta[property=og:description]").attr("content")
+        // "MyAnimeList - Interest Stacks - 9 Entries, 14 Restacks"
+        val restacks = Regex("(\\d+)\\s+Restacks").find(ogDescription)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val author = doc.select("a[href~=(?i)^https?://myanimelist\\.net/profile/[^/]+$]").firstOrNull()?.text().orEmpty()
+        val bodyText = doc.body().text()
+        val type = Regex("\\b(Anime|Manga)\\b").find(bodyText)?.groupValues?.get(1).orEmpty()
+        // Description sits between the "by AUTHOR ... AM/PM" byline and the entries grid
+        val description = if (author.isNotBlank()) {
+            Regex(Regex.escape("by $author") + "\\s*[^|]*?[AP]M\\s*(.*?)\\s*(?:Start tracking|Search Interest Stacks)", RegexOption.DOT_MATCHES_ALL)
+                .find(bodyText)?.groupValues?.get(1)?.trim().orEmpty()
+        } else ""
+        StackDetail(stackId, title, type, author, description, restacks, parseEntries(doc))
+    }
+
+    // First few entry covers for a stack — the browse/search rows never ship
+    // cover images themselves (unlike a single stack's own list view), so the
+    // browse screen calls this per row to fill in a banner on demand
+    suspend fun topCovers(stackId: Int, limit: Int = 3): List<String> =
+        detail(stackId).entries.mapNotNull { it.cover.takeIf(String::isNotBlank) }.take(limit)
+
+    // Title anchors inside a stack, deduped by malId. Title text and cover img
+    // often live under separate sibling anchors sharing the same href, so we
+    // match on the resolved absolute href (not the raw attribute — some
+    // stack templates emit relative hrefs) and group every anchor for an id
+    // together instead of trusting one "closest" container to hold both.
+    private fun parseEntries(doc: Document): List<StackTitleEntry> {
+        data class Hit(val type: MediaType, val id: Int, val a: Element)
+        val idHref = Regex("https?://myanimelist\\.net/(anime|manga)/(\\d+)")
+        val hits = doc.select("a[href]").mapNotNull { a ->
+            val m = idHref.find(a.absUrl("href")) ?: return@mapNotNull null
+            val id = m.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+            Hit(if (m.groupValues[1] == "anime") MediaType.Anime else MediaType.Manga, id, a)
+        }
+        val out = LinkedHashMap<Int, StackTitleEntry>()
+        hits.groupBy { it.id }.forEach { (id, group) ->
+            val title = group.map { it.a.text().trim() }.firstOrNull { it.isNotBlank() } ?: return@forEach
+            // Best-effort cosmetic fields only — anything missing gets
+            // backfilled accurately from MalApi the moment the entry opens
+            val text = group.joinToString(" ") { (it.a.closest("div, li, article") ?: it.a.parent() ?: it.a).text() }
+            val formatYear = Regex("([A-Za-z][A-Za-z\\- ]*),\\s*(\\d{4})").find(text)
+            val score = Regex("\\b(\\d\\.\\d{2})\\b").find(text)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+            val cover = group.firstNotNullOfOrNull { coverUrls(it.a, limit = 1).firstOrNull() }.orEmpty()
+            out[id] = StackTitleEntry(id, group.first().type, title, cover, formatYear?.groupValues?.get(1)?.trim().orEmpty(), formatYear?.groupValues?.get(2).orEmpty(), score)
+        }
+        return out.values.toList()
+    }
+}

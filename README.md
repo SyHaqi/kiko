@@ -16,9 +16,11 @@ Join our [discord](https://discord.gg/KZYQHpDWKH) server!
   - Synopsis ✅
   - Characters & Staff ✅
   - Recommendations ✅
-  - Reviews ❌
+  - Reviews ✅
   - Statistics ✅
   - Related entries ✅
+  - Forums ✅
+  - Interest Stack (in development) 🛠️
 - Manage your anime and manga lists.
 - Search using the **Tenrai API** for faster and more flexible results.
 - Tap any genre to instantly discover similar entries.

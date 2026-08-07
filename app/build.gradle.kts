@@ -61,5 +61,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.browser:browser:1.8.0")
     implementation("androidx.webkit:webkit:1.12.1")
+    implementation("org.jsoup:jsoup:1.17.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

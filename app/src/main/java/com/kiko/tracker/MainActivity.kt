@@ -952,6 +952,20 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    // Stack entry row loading id
+    var stackEntryLoadingId by mutableStateOf<Int?>(null); private set
+
+    // Open a title tapped from inside a stack
+    fun openStackEntry(context: Context, entry: StackTitleEntry, onLoaded: (MediaItem) -> Unit) {
+        stackEntryLoadingId = entry.malId
+        viewModelScope.launch {
+            runCatching { MalApi(context).detail(entry.malId, entry.type) }
+                .onSuccess { onLoaded(it) }
+                .onFailure { error = it.message ?: "Could not load title" }
+            stackEntryLoadingId = null
+        }
+    }
+
     // Backfill empty related row
     fun backfillRelated(context: Context, id: String, type: MediaType, onFound: (List<RelatedEntry>) -> Unit, onDone: () -> Unit = {}) {
         val intId = id.toIntOrNull()
@@ -1201,6 +1215,12 @@ private sealed class TopScreen {
     data class Review(val review: ReviewEntry, val itemTitle: String) : TopScreen()
     // Reviews page in webview
     data class ReviewList(val url: String, val itemTitle: String) : TopScreen()
+    // Interest stacks homepage — curated challenge/manga/anime picks + recent list
+    object StacksHome : TopScreen()
+    // Interest stacks full browse/search, seeded with a starting tab
+    data class StacksBrowse(val initialKind: StackBrowseKind) : TopScreen()
+    // One stack's entries
+    data class StackDetail(val stackId: Int, val title: String) : TopScreen()
     data class Tab(val destination: Destination) : TopScreen()
 }
 // Same screen vs navigation
@@ -1213,9 +1233,12 @@ private fun TopScreen.navKey(): Any = when (this) {
     TopScreen.About -> "about"
     is TopScreen.Review -> "review:${review.malId}"
     is TopScreen.ReviewList -> "reviewList:$url"
+    TopScreen.StacksHome -> "stacksHome"
+    is TopScreen.StacksBrowse -> "stacksBrowse"
+    is TopScreen.StackDetail -> "stackDetail:$stackId"
     is TopScreen.Tab -> "tab:$destination"
 }
-private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Seasonal || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.ReviewList
+private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Seasonal || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.ReviewList || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}) {
     val context = LocalContext.current
@@ -1257,12 +1280,18 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
     var reviewOpen by remember { mutableStateOf<Pair<ReviewEntry, String>?>(null) }
     // Reviews webview state
     var reviewListOpen by remember { mutableStateOf<Pair<String, String>?>(null) }
+    // Interest stacks nav state: home -> browse (seeded tab) -> detail
+    var stacksHomeOpen by remember { mutableStateOf(false) }
+    var stacksBrowseKind by remember { mutableStateOf<StackBrowseKind?>(null) }
+    var stackDetailOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    fun openStacks() { stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = true }
+    fun openStacksBrowse(kind: StackBrowseKind) { stackDetailOpen = null; stacksBrowseKind = kind }
     // Live-merge search result
     val editorItem = editor?.let { ed -> vm.visibleItems.find { it.id == ed.id } ?: vm.items.find { it.id == ed.id } ?: ed }
     // Prefer live item copy
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && reviewListOpen == null && vm.destination != Destination.Home) {
+    BackHandler(enabled = detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && reviewListOpen == null && !stacksHomeOpen && vm.destination != Destination.Home) {
         vm.destination = Destination.Home
     }
     val darkTheme = when (vm.themeMode) { ThemeMode.System -> isSystemInDarkTheme(); ThemeMode.Light -> false; ThemeMode.Dark -> true }
@@ -1291,7 +1320,7 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
         ) {
             Scaffold(
                 containerColor = c.background,
-                bottomBar = { if (detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && reviewListOpen == null) BottomBar(vm.destination) { vm.destination = it } }
+                bottomBar = { if (detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && reviewListOpen == null && !stacksHomeOpen) BottomBar(vm.destination) { vm.destination = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val topScreen = when {
@@ -1301,6 +1330,9 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                         rankingOpen -> TopScreen.Ranking
                         seasonalOpen -> TopScreen.Seasonal
                         scheduleOpen -> TopScreen.Schedule(scheduleInitialDay)
+                        stackDetailOpen != null -> TopScreen.StackDetail(stackDetailOpen!!.first, stackDetailOpen!!.second)
+                        stacksBrowseKind != null -> TopScreen.StacksBrowse(stacksBrowseKind!!)
+                        stacksHomeOpen -> TopScreen.StacksHome
                         forumTopicOpen != null -> TopScreen.Topic(forumTopicOpen!!.first, forumTopicOpen!!.second)
                         aboutOpen -> TopScreen.About
                         else -> TopScreen.Tab(vm.destination)
@@ -1334,6 +1366,9 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                             )
                             is TopScreen.Review -> ReviewScreen(screen.review, screen.itemTitle, onBack = { reviewOpen = null })
                             is TopScreen.ReviewList -> WebPageScreen(screen.url, screen.itemTitle, darkTheme = darkTheme, onBack = { reviewListOpen = null })
+                            TopScreen.StacksHome -> StacksHomeScreen(onBack = { stacksHomeOpen = false }, onOpenBrowse = { kind -> openStacksBrowse(kind) }, onOpenStack = { id, title -> stackDetailOpen = id to title })
+                            is TopScreen.StacksBrowse -> StacksScreen(initialKind = screen.initialKind, onBack = { stacksBrowseKind = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
+                            is TopScreen.StackDetail -> StackDetailScreen(screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, onBack = { stackDetailOpen = null }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } })
                             is TopScreen.Tab -> when (screen.destination) {
                                 Destination.Home -> HomeScreen(vm, onOpenDetail = ::openDetail, onList = { vm.destination = Destination.List }, onDiscover = { vm.destination = Destination.Discover }, onRanking = { rankingOpen = true }, onSeasonal = { seasonalOpen = true }, onSchedule = ::openSchedule, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onSeeNews = { vm.destination = Destination.Forums; vm.openNewsBoard(context) })
                                 Destination.List -> ListScreen(vm, onOpenDetail = ::openDetail, onIncrement = { vm.saveLive(context, it) })
@@ -1341,7 +1376,8 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                                     vm,
                                     onOpenDetail = ::openDetail,
                                     onRanking = { rankingOpen = true },
-                                    onSeasonal = { seasonalOpen = true }
+                                    onSeasonal = { seasonalOpen = true },
+                                    onStacks = ::openStacks
                                 )
                                 Destination.Forums -> ForumsScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title })
                                 Destination.Profile -> ProfileScreen(vm.signedIn, vm.malProfile, vm.items, vm.themeMode, vm.colorSource, vm.paletteStyle, vm.titleLanguage, vm.nsfwEnabled, onNsfwChange = { vm.setNsfw(context, it) }, onConnect = onSignIn, onSignOut = onSignOut, onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true },
@@ -2103,7 +2139,8 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
     vm: LibraryViewModel,
     onOpenDetail: (MediaItem) -> Unit,
     onRanking: () -> Unit,
-    onSeasonal: () -> Unit
+    onSeasonal: () -> Unit,
+    onStacks: () -> Unit
 ) {
     val context = LocalContext.current
     LaunchedEffect(vm.signedIn) { vm.loadDiscoverBrowse(context) }
@@ -2113,7 +2150,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
         label = "discover-mode",
     ) { mode ->
         if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail)
-        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal)
+        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks)
     }
 }
 // Discover landing page
@@ -2122,7 +2159,8 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
     context: Context,
     onOpenDetail: (MediaItem) -> Unit,
     onRanking: () -> Unit,
-    onSeasonal: () -> Unit
+    onSeasonal: () -> Unit,
+    onStacks: () -> Unit
 ) {
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf("") }
@@ -2152,7 +2190,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 
             Spacer(Modifier.height(14.dp))
 
-            // Ranking and Seasonal buttons
+            // Ranking, Seasonal, and Stacks buttons
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -2168,6 +2206,12 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                     icon = Icons.Default.DateRange,
                     label = "Seasonal",
                     onClick = onSeasonal
+                )
+                DiscoverActionButton(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Default.Layers,
+                    label = "Stacks",
+                    onClick = onStacks
                 )
             }
 
@@ -2263,6 +2307,334 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
             Spacer(Modifier.width(8.dp))
             Text(label, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink)
         }
+    }
+}
+
+// Interest Stacks homepage — curated Challenge/Manga/Anime picks up top, Recent Interest Stacks below.
+// Greets the user when they tap the Stacks button, mirroring myanimelist.net/stacks.
+@Composable private fun StacksHomeScreen(onBack: () -> Unit, onOpenBrowse: (StackBrowseKind) -> Unit, onOpenStack: (Int, String) -> Unit) {
+    val c = LocalKikoColors.current
+    BackHandler(onBack = onBack)
+    var challenges by remember { mutableStateOf<List<StackSummary>>(emptyList()) }
+    var mangaPicks by remember { mutableStateOf<List<StackSummary>>(emptyList()) }
+    var animePicks by remember { mutableStateOf<List<StackSummary>>(emptyList()) }
+    var recent by remember { mutableStateOf<List<StackSummary>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var recentLoadingMore by remember { mutableStateOf(false) }
+    var recentPage by remember { mutableStateOf(1) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        loading = true
+        val api = StacksApi()
+        coroutineScope {
+            val ch = async { runCatching { api.search(StackBrowseKind.Challenges).take(2) }.getOrElse { emptyList() } }
+            val mg = async { runCatching { api.search(StackBrowseKind.Manga).take(1) }.getOrElse { emptyList() } }
+            val an = async { runCatching { api.search(StackBrowseKind.Anime).take(1) }.getOrElse { emptyList() } }
+            val rc = async { runCatching { api.search(StackBrowseKind.All) }.getOrElse { emptyList() } }
+            challenges = ch.await(); mangaPicks = mg.await(); animePicks = an.await(); recent = rc.await()
+        }
+        recentPage = 1
+        loading = false
+    }
+    fun loadMoreRecent() {
+        recentLoadingMore = true
+        scope.launch {
+            val targetPage = recentPage + 1
+            val more = runCatching { StacksApi().search(StackBrowseKind.All, page = targetPage) }.getOrElse { emptyList() }
+            recent = recent + more
+            recentPage = targetPage
+            recentLoadingMore = false
+        }
+    }
+
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                IconButton(onClick = { onOpenBrowse(StackBrowseKind.All) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.Search, "Search stacks", tint = c.ink) }
+            }
+        }
+        if (loading) {
+            item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(26.dp)) } }
+        }
+        if (challenges.isNotEmpty()) {
+            item { StackSectionHeader("Challenge Interest Stacks", onSeeAll = { onOpenBrowse(StackBrowseKind.Challenges) }) }
+            items(challenges, key = { "ch-${it.id}" }) { s -> StackFeaturedCard(s) { onOpenStack(s.id, s.title) } }
+        }
+        if (mangaPicks.isNotEmpty()) {
+            item { StackSectionHeader("Manga Interest Stacks", onSeeAll = { onOpenBrowse(StackBrowseKind.Manga) }) }
+            items(mangaPicks, key = { "mg-${it.id}" }) { s -> StackFeaturedCard(s) { onOpenStack(s.id, s.title) } }
+        }
+        if (animePicks.isNotEmpty()) {
+            item { StackSectionHeader("Anime Interest Stacks", onSeeAll = { onOpenBrowse(StackBrowseKind.Anime) }) }
+            items(animePicks, key = { "an-${it.id}" }) { s -> StackFeaturedCard(s) { onOpenStack(s.id, s.title) } }
+        }
+        if (recent.isNotEmpty()) {
+            item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { onOpenBrowse(StackBrowseKind.All) }) }
+            items(recent, key = { "rc-${it.id}" }) { s -> StackListRow(s) { onOpenStack(s.id, s.title) } }
+            if (recentLoadingMore) {
+                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+            } else {
+                item { TextButton(onClick = ::loadMoreRecent, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Load more", fontWeight = FontWeight.Bold, color = c.primary) } }
+            }
+        }
+    }
+}
+// Section title + "See all" link shared across the stacks homepage
+@Composable private fun StackSectionHeader(title: String, onSeeAll: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.weight(1f))
+        TextButton(onClick = onSeeAll, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+            Text("See all", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.primary)
+        }
+    }
+}
+
+// Interest Stacks full browse/search screen — tabs, search field, Recent-style rows
+@Composable private fun StacksScreen(initialKind: StackBrowseKind, onBack: () -> Unit, onOpenStack: (Int, String) -> Unit) {
+    val c = LocalKikoColors.current
+    BackHandler(onBack = onBack)
+    var kind by remember { mutableStateOf(initialKind) }
+    var query by remember { mutableStateOf("") }
+    var stacks by remember { mutableStateOf<List<StackSummary>>(emptyList()) }
+    var loading by remember { mutableStateOf(false) }
+    var page by remember { mutableStateOf(1) }
+    val scope = rememberCoroutineScope()
+
+    fun load(reset: Boolean) {
+        val targetPage = if (reset) 1 else page + 1
+        loading = true
+        scope.launch {
+            val result = runCatching { StacksApi().search(kind, query.trim(), targetPage) }.getOrElse { emptyList() }
+            stacks = if (reset) result else stacks + result
+            page = targetPage
+            loading = false
+        }
+    }
+    LaunchedEffect(kind) { load(reset = true) }
+
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+        }
+        Column(Modifier.padding(horizontal = 20.dp)) {
+            SearchField(value = query, change = { query = it }, hint = "Search stacks", onSearch = { load(reset = true) })
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)) {
+            items(StackBrowseKind.entries.toList()) { k ->
+                FilterChip(
+                    selected = kind == k,
+                    onClick = { kind = k },
+                    label = { Text(k.label) },
+                    colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),
+                )
+            }
+        }
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            if (stacks.isEmpty() && !loading) {
+                item { Text("No stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+            }
+            itemsIndexed(stacks, key = { _, it -> it.id }) { index, s ->
+                StackListRow(s) { onOpenStack(s.id, s.title) }
+                if (index < stacks.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+            }
+            if (loading) {
+                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+            } else if (stacks.isNotEmpty()) {
+                item { TextButton(onClick = { load(reset = false) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Load more", fontWeight = FontWeight.Bold, color = c.primary) } }
+            }
+        }
+    }
+}
+// Up to 3 covers side by side as a banner, or a plain icon tile when none scraped
+@Composable private fun StackCoverBanner(covers: List<String>, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    if (covers.isEmpty()) {
+        Box(modifier.background(c.primaryContainer), contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.Layers, null, tint = c.primary, modifier = Modifier.size(26.dp))
+        }
+    } else {
+        Row(modifier) {
+            covers.forEach { url ->
+                AsyncImage(model = url, contentDescription = null, modifier = Modifier.weight(1f).fillMaxHeight(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            }
+        }
+    }
+}
+// Small poster-sized cover — the top 1-2 entry covers side by side, mimicking MAL's
+// auto-generated stack thumbnail collage, for use in compact list rows
+@Composable private fun StackCoverCollage(covers: List<String>, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    Box(modifier.clip(RoundedCornerShape(14.dp))) {
+        if (covers.isEmpty()) {
+            Box(Modifier.fillMaxSize().background(c.primaryContainer), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Layers, null, tint = c.primary, modifier = Modifier.size(22.dp))
+            }
+        } else {
+            Row(Modifier.fillMaxSize()) {
+                covers.take(2).forEach { url ->
+                    AsyncImage(model = url, contentDescription = null, modifier = Modifier.weight(1f).fillMaxHeight(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                }
+            }
+        }
+    }
+}
+// Type/Challenge badges shared by featured cards and list rows
+@Composable private fun StackTagsRow(tags: List<String>) {
+    val c = LocalKikoColors.current
+    if (tags.isEmpty()) return
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        tags.forEach { tag -> if (tag == "Challenge") Pill(tag, c.warm, c.ink) else Pill(tag, c.primaryContainer, c.primary) }
+    }
+}
+// Small "N Entries · Restacks" meta pill row shared by browse row and detail header
+@Composable private fun StackStatsRow(entryCount: Int, restacks: Int, updatedLabel: String) {
+    val c = LocalKikoColors.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (entryCount > 0) Text("$entryCount Entries", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        if (updatedLabel.isNotBlank()) {
+            if (entryCount > 0) Text(" · ", color = c.muted, fontSize = 12.sp)
+            Text(updatedLabel, color = c.muted, fontSize = 12.sp)
+        }
+        if (restacks > 0) {
+            Spacer(Modifier.weight(1f))
+            Row(
+                Modifier.clip(RoundedCornerShape(50)).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.Layers, null, tint = c.primary, modifier = Modifier.size(11.dp))
+                Text(restacks.toString(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+            }
+        }
+    }
+}
+// Featured stacks-homepage card — big cover banner, tags, description, stats
+@Composable private fun StackFeaturedCard(stack: StackSummary, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    var covers by remember(stack.id) { mutableStateOf(stack.covers) }
+    LaunchedEffect(stack.id) {
+        if (covers.isEmpty()) covers = runCatching { StacksApi().topCovers(stack.id) }.getOrElse { emptyList() }
+    }
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = c.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable(onClick = onClick),
+    ) {
+        Column {
+            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)))
+            Column(Modifier.padding(16.dp)) {
+                Text(stack.title, style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (stack.tags.isNotEmpty()) Box(Modifier.padding(top = 9.dp)) { StackTagsRow(stack.tags) }
+                if (stack.author.isNotBlank()) Text("by ${stack.author}", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
+                if (stack.description.isNotBlank()) {
+                    Text(stack.description, color = c.muted, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+                }
+                Box(Modifier.padding(top = 12.dp)) { StackStatsRow(stack.entryCount, stack.restacks, stack.updatedLabel) }
+            }
+        }
+    }
+}
+// Recent-stacks list row — mirrors SearchResultRow's discover layout (cover left, tags/description/stats right)
+@Composable private fun StackListRow(stack: StackSummary, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    // Browse/search rows don't ship cover images themselves, so fetch the
+    // top entry covers from the stack's own page once this row is visible
+    var covers by remember(stack.id) { mutableStateOf(stack.covers) }
+    LaunchedEffect(stack.id) {
+        if (covers.isEmpty()) covers = runCatching { StacksApi().topCovers(stack.id, limit = 2) }.getOrElse { emptyList() }
+    }
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        StackCoverCollage(covers, modifier = Modifier.width(84.dp).height(118.dp))
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
+            Text(stack.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (stack.tags.isNotEmpty()) Box(Modifier.padding(top = 7.dp)) { StackTagsRow(stack.tags) }
+            if (stack.author.isNotBlank()) Text("by ${stack.author}", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 5.dp))
+            if (stack.description.isNotBlank()) {
+                Text(stack.description, color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+            }
+            Box(Modifier.padding(top = 8.dp)) { StackStatsRow(stack.entryCount, stack.restacks, stack.updatedLabel) }
+        }
+    }
+}
+// One stack's entries — cover banner header, description, then a numbered title list
+@Composable private fun StackDetailScreen(stackId: Int, initialTitle: String, loadingId: Int?, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit) {
+    val c = LocalKikoColors.current
+    BackHandler(onBack = onBack)
+    var detail by remember(stackId) { mutableStateOf<StackDetail?>(null) }
+    var loadFailed by remember(stackId) { mutableStateOf(false) }
+    LaunchedEffect(stackId) {
+        loadFailed = false
+        detail = runCatching { StacksApi().detail(stackId) }.getOrNull()
+        if (detail == null) loadFailed = true
+    }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
+        }
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            if (detail == null && !loadFailed) {
+                item { Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(24.dp)) } }
+            } else if (loadFailed) {
+                item { Text("Couldn't load this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+            }
+            detail?.let { d ->
+                item {
+                    Column(Modifier.padding(bottom = 16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (d.type.isNotBlank()) Pill(d.type, c.primaryContainer, c.primary)
+                            if (d.author.isNotBlank()) Text("by ${d.author}", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 9.dp))
+                        }
+                        if (d.description.isNotBlank()) {
+                            Text(d.description, color = c.ink, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 10.dp))
+                        }
+                        Box(Modifier.padding(top = 12.dp)) { StackStatsRow(d.entries.size, d.restacks, "") }
+                    }
+                }
+                if (d.entries.isEmpty()) {
+                    item { Text("No entries in this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 20.dp), textAlign = TextAlign.Center) }
+                }
+                itemsIndexed(d.entries, key = { _, e -> e.malId }) { i, entry ->
+                    StackEntryRow(i + 1, entry, loading = loadingId == entry.malId) { onOpenEntry(entry) }
+                }
+            }
+        }
+    }
+}
+// Numbered title row inside a stack, with cover thumbnail
+@Composable private fun StackEntryRow(number: Int, entry: StackTitleEntry, loading: Boolean, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(
+        Modifier.fillMaxWidth().clickable(enabled = !loading, onClick = onClick).padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(number.toString(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.width(24.dp))
+        Box(Modifier.size(width = 44.dp, height = 62.dp).clip(RoundedCornerShape(9.dp)).background(c.surfaceLow)) {
+            if (entry.cover.isNotBlank()) {
+                AsyncImage(model = entry.cover, contentDescription = entry.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            } else {
+                Text(entry.title.take(1), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+            }
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
+            Text(entry.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val meta = buildString {
+                val fmt = listOfNotNull(entry.format.takeIf { it.isNotBlank() }, entry.year.takeIf { it.isNotBlank() }).joinToString(", ")
+                if (fmt.isNotBlank()) append(fmt)
+                if (entry.score > 0) { if (isNotEmpty()) append(" · "); append("★ %.2f".format(entry.score)) }
+            }
+            if (meta.isNotBlank()) Text(meta, color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+        }
+        if (loading) CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+        else Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(18.dp))
     }
 }
 
