@@ -58,6 +58,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -966,6 +967,83 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    // Interest Stacks browsing state hoisted here (not just local `remember`) so the
+    // fetched lists AND scroll position both survive navigating into a stack's
+    // entries and back out — otherwise every return trip re-fetches from MAL
+    // and drops the user back at the top of the list.
+    var stacksHomeChallenges by mutableStateOf<List<StackSummary>>(emptyList()); private set
+    var stacksHomeManga by mutableStateOf<List<StackSummary>>(emptyList()); private set
+    var stacksHomeAnime by mutableStateOf<List<StackSummary>>(emptyList()); private set
+    var stacksHomeRecent by mutableStateOf<List<StackSummary>>(emptyList()); private set
+    var stacksHomeLoading by mutableStateOf(false); private set
+    var stacksHomeRecentLoadingMore by mutableStateOf(false); private set
+    private var stacksHomeRecentPage = 1
+    private var stacksHomeLoaded = false
+    var stacksHomeScrollIndex by mutableStateOf(0); private set
+    var stacksHomeScrollOffset by mutableStateOf(0); private set
+    fun saveStacksHomeScroll(index: Int, offset: Int) { stacksHomeScrollIndex = index; stacksHomeScrollOffset = offset }
+    // Loads once — cached in this VM for the rest of the process, so returning from
+    // a stack's detail page shows the same rows at the same scroll offset
+    fun loadStacksHome() {
+        if (stacksHomeLoaded) return
+        stacksHomeLoaded = true
+        stacksHomeLoading = true
+        viewModelScope.launch {
+            val api = StacksApi()
+            coroutineScope {
+                val ch = async { runCatching { api.search(StackBrowseKind.Challenges).take(2) }.getOrElse { emptyList() } }
+                val mg = async { runCatching { api.search(StackBrowseKind.Manga).take(1) }.getOrElse { emptyList() } }
+                val an = async { runCatching { api.search(StackBrowseKind.Anime).take(1) }.getOrElse { emptyList() } }
+                val rc = async { runCatching { api.search(StackBrowseKind.All) }.getOrElse { emptyList() } }
+                stacksHomeChallenges = ch.await(); stacksHomeManga = mg.await(); stacksHomeAnime = an.await(); stacksHomeRecent = rc.await()
+            }
+            stacksHomeRecentPage = 1
+            stacksHomeLoading = false
+        }
+    }
+    fun loadMoreStacksHomeRecent() {
+        stacksHomeRecentLoadingMore = true
+        viewModelScope.launch {
+            val targetPage = stacksHomeRecentPage + 1
+            val more = runCatching { StacksApi().search(StackBrowseKind.All, page = targetPage) }.getOrElse { emptyList() }
+            stacksHomeRecent = stacksHomeRecent + more
+            stacksHomeRecentPage = targetPage
+            stacksHomeRecentLoadingMore = false
+        }
+    }
+
+    // Interest Stacks browse/search screen state — same hoisting reasoning as above
+    var stacksBrowseResults by mutableStateOf<List<StackSummary>>(emptyList()); private set
+    var stacksBrowseLoading by mutableStateOf(false); private set
+    var stacksBrowseQuery by mutableStateOf(""); private set
+    var stacksBrowseActiveKind by mutableStateOf<StackBrowseKind?>(null); private set
+    private var stacksBrowsePage = 1
+    var stacksBrowseScrollIndex by mutableStateOf(0); private set
+    var stacksBrowseScrollOffset by mutableStateOf(0); private set
+    fun saveStacksBrowseScroll(index: Int, offset: Int) { stacksBrowseScrollIndex = index; stacksBrowseScrollOffset = offset }
+    fun updateStacksBrowseQuery(q: String) { stacksBrowseQuery = q }
+    private fun loadStacksBrowse(reset: Boolean) {
+        val kind = stacksBrowseActiveKind ?: return
+        val targetPage = if (reset) 1 else stacksBrowsePage + 1
+        stacksBrowseLoading = true
+        viewModelScope.launch {
+            val result = runCatching { StacksApi().search(kind, stacksBrowseQuery.trim(), targetPage) }.getOrElse { emptyList() }
+            stacksBrowseResults = if (reset) result else stacksBrowseResults + result
+            stacksBrowsePage = targetPage
+            stacksBrowseLoading = false
+        }
+    }
+    // Switches tab and reloads only when the kind actually changes — returning to
+    // the same tab after visiting a stack's detail page keeps the existing results
+    fun setStacksBrowseKind(kind: StackBrowseKind) {
+        if (stacksBrowseActiveKind == kind) return
+        stacksBrowseActiveKind = kind
+        stacksBrowseScrollIndex = 0; stacksBrowseScrollOffset = 0
+        loadStacksBrowse(reset = true)
+    }
+    fun searchStacksBrowse() { stacksBrowseScrollIndex = 0; stacksBrowseScrollOffset = 0; loadStacksBrowse(reset = true) }
+    fun loadMoreStacksBrowse() = loadStacksBrowse(reset = false)
+
     // Backfill empty related row
     fun backfillRelated(context: Context, id: String, type: MediaType, onFound: (List<RelatedEntry>) -> Unit, onDone: () -> Unit = {}) {
         val intId = id.toIntOrNull()
@@ -1366,9 +1444,9 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                             )
                             is TopScreen.Review -> ReviewScreen(screen.review, screen.itemTitle, onBack = { reviewOpen = null })
                             is TopScreen.ReviewList -> WebPageScreen(screen.url, screen.itemTitle, darkTheme = darkTheme, onBack = { reviewListOpen = null })
-                            TopScreen.StacksHome -> StacksHomeScreen(onBack = { stacksHomeOpen = false }, onOpenBrowse = { kind -> openStacksBrowse(kind) }, onOpenStack = { id, title -> stackDetailOpen = id to title })
-                            is TopScreen.StacksBrowse -> StacksScreen(initialKind = screen.initialKind, onBack = { stacksBrowseKind = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
-                            is TopScreen.StackDetail -> StackDetailScreen(screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, onBack = { stackDetailOpen = null }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } })
+                            TopScreen.StacksHome -> StacksHomeScreen(vm, onBack = { stacksHomeOpen = false }, onOpenBrowse = { kind -> openStacksBrowse(kind) }, onOpenStack = { id, title -> stackDetailOpen = id to title })
+                            is TopScreen.StacksBrowse -> StacksScreen(vm, initialKind = screen.initialKind, onBack = { stacksBrowseKind = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
+                            is TopScreen.StackDetail -> StackDetailScreen(screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { it to li.status } }.toMap(), onBack = { stackDetailOpen = null }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } })
                             is TopScreen.Tab -> when (screen.destination) {
                                 Destination.Home -> HomeScreen(vm, onOpenDetail = ::openDetail, onList = { vm.destination = Destination.List }, onDiscover = { vm.destination = Destination.Discover }, onRanking = { rankingOpen = true }, onSeasonal = { seasonalOpen = true }, onSchedule = ::openSchedule, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onSeeNews = { vm.destination = Destination.Forums; vm.openNewsBoard(context) })
                                 Destination.List -> ListScreen(vm, onOpenDetail = ::openDetail, onIncrement = { vm.saveLive(context, it) })
@@ -2190,7 +2268,8 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 
             Spacer(Modifier.height(14.dp))
 
-            // Ranking, Seasonal, and Stacks buttons
+            // Ranking and Seasonal share the top row; Interest Stacks gets its own
+            // full-width button below, edge-to-edge within the screen's padding
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -2207,13 +2286,14 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                     label = "Seasonal",
                     onClick = onSeasonal
                 )
-                DiscoverActionButton(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.Layers,
-                    label = "Stacks",
-                    onClick = onStacks
-                )
             }
+            Spacer(Modifier.height(12.dp))
+            DiscoverActionButton(
+                modifier = Modifier.fillMaxWidth(),
+                icon = Icons.Default.Layers,
+                label = "Interest Stacks",
+                onClick = onStacks
+            )
 
             Spacer(Modifier.height(12.dp))
         }
@@ -2312,72 +2392,48 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 
 // Interest Stacks homepage — curated Challenge/Manga/Anime picks up top, Recent Interest Stacks below.
 // Greets the user when they tap the Stacks button, mirroring myanimelist.net/stacks.
-@Composable private fun StacksHomeScreen(onBack: () -> Unit, onOpenBrowse: (StackBrowseKind) -> Unit, onOpenStack: (Int, String) -> Unit) {
+@Composable private fun StacksHomeScreen(vm: LibraryViewModel, onBack: () -> Unit, onOpenBrowse: (StackBrowseKind) -> Unit, onOpenStack: (Int, String) -> Unit) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
-    var challenges by remember { mutableStateOf<List<StackSummary>>(emptyList()) }
-    var mangaPicks by remember { mutableStateOf<List<StackSummary>>(emptyList()) }
-    var animePicks by remember { mutableStateOf<List<StackSummary>>(emptyList()) }
-    var recent by remember { mutableStateOf<List<StackSummary>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-    var recentLoadingMore by remember { mutableStateOf(false) }
-    var recentPage by remember { mutableStateOf(1) }
-    val scope = rememberCoroutineScope()
+    // Data is cached in the ViewModel — loads once, so navigating into a stack's
+    // entries and back doesn't re-fetch or reset this list
+    LaunchedEffect(Unit) { vm.loadStacksHome() }
+    // Restore scroll position on return
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.stacksHomeScrollIndex, initialFirstVisibleItemScrollOffset = vm.stacksHomeScrollOffset)
+    val saveScroll = { vm.saveStacksHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
+    val openStack: (StackSummary) -> Unit = { s -> saveScroll(); onOpenStack(s.id, s.title) }
+    val openBrowse: (StackBrowseKind) -> Unit = { k -> saveScroll(); onOpenBrowse(k) }
 
-    LaunchedEffect(Unit) {
-        loading = true
-        val api = StacksApi()
-        coroutineScope {
-            val ch = async { runCatching { api.search(StackBrowseKind.Challenges).take(2) }.getOrElse { emptyList() } }
-            val mg = async { runCatching { api.search(StackBrowseKind.Manga).take(1) }.getOrElse { emptyList() } }
-            val an = async { runCatching { api.search(StackBrowseKind.Anime).take(1) }.getOrElse { emptyList() } }
-            val rc = async { runCatching { api.search(StackBrowseKind.All) }.getOrElse { emptyList() } }
-            challenges = ch.await(); mangaPicks = mg.await(); animePicks = an.await(); recent = rc.await()
-        }
-        recentPage = 1
-        loading = false
-    }
-    fun loadMoreRecent() {
-        recentLoadingMore = true
-        scope.launch {
-            val targetPage = recentPage + 1
-            val more = runCatching { StacksApi().search(StackBrowseKind.All, page = targetPage) }.getOrElse { emptyList() }
-            recent = recent + more
-            recentPage = targetPage
-            recentLoadingMore = false
-        }
-    }
-
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
         item {
             Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                 Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                IconButton(onClick = { onOpenBrowse(StackBrowseKind.All) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.Search, "Search stacks", tint = c.ink) }
+                IconButton(onClick = { openBrowse(StackBrowseKind.All) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.Search, "Search stacks", tint = c.ink) }
             }
         }
-        if (loading) {
+        if (vm.stacksHomeLoading) {
             item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(26.dp)) } }
         }
-        if (challenges.isNotEmpty()) {
-            item { StackSectionHeader("Challenge Interest Stacks", onSeeAll = { onOpenBrowse(StackBrowseKind.Challenges) }) }
-            items(challenges, key = { "ch-${it.id}" }) { s -> StackFeaturedCard(s) { onOpenStack(s.id, s.title) } }
+        if (vm.stacksHomeChallenges.isNotEmpty()) {
+            item { StackSectionHeader("Challenge Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Challenges) }) }
+            items(vm.stacksHomeChallenges, key = { "ch-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
         }
-        if (mangaPicks.isNotEmpty()) {
-            item { StackSectionHeader("Manga Interest Stacks", onSeeAll = { onOpenBrowse(StackBrowseKind.Manga) }) }
-            items(mangaPicks, key = { "mg-${it.id}" }) { s -> StackFeaturedCard(s) { onOpenStack(s.id, s.title) } }
+        if (vm.stacksHomeManga.isNotEmpty()) {
+            item { StackSectionHeader("Manga Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Manga) }) }
+            items(vm.stacksHomeManga, key = { "mg-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
         }
-        if (animePicks.isNotEmpty()) {
-            item { StackSectionHeader("Anime Interest Stacks", onSeeAll = { onOpenBrowse(StackBrowseKind.Anime) }) }
-            items(animePicks, key = { "an-${it.id}" }) { s -> StackFeaturedCard(s) { onOpenStack(s.id, s.title) } }
+        if (vm.stacksHomeAnime.isNotEmpty()) {
+            item { StackSectionHeader("Anime Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Anime) }) }
+            items(vm.stacksHomeAnime, key = { "an-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
         }
-        if (recent.isNotEmpty()) {
-            item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { onOpenBrowse(StackBrowseKind.All) }) }
-            items(recent, key = { "rc-${it.id}" }) { s -> StackListRow(s) { onOpenStack(s.id, s.title) } }
-            if (recentLoadingMore) {
+        if (vm.stacksHomeRecent.isNotEmpty()) {
+            item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
+            items(vm.stacksHomeRecent, key = { "rc-${it.id}" }) { s -> StackListRow(s) { openStack(s) } }
+            if (vm.stacksHomeRecentLoadingMore) {
                 item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
             } else {
-                item { TextButton(onClick = ::loadMoreRecent, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Load more", fontWeight = FontWeight.Bold, color = c.primary) } }
+                item { TextButton(onClick = { vm.loadMoreStacksHomeRecent() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Load more", fontWeight = FontWeight.Bold, color = c.primary) } }
             }
         }
     }
@@ -2394,58 +2450,46 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 }
 
 // Interest Stacks full browse/search screen — tabs, search field, Recent-style rows
-@Composable private fun StacksScreen(initialKind: StackBrowseKind, onBack: () -> Unit, onOpenStack: (Int, String) -> Unit) {
+@Composable private fun StacksScreen(vm: LibraryViewModel, initialKind: StackBrowseKind, onBack: () -> Unit, onOpenStack: (Int, String) -> Unit) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
-    var kind by remember { mutableStateOf(initialKind) }
-    var query by remember { mutableStateOf("") }
-    var stacks by remember { mutableStateOf<List<StackSummary>>(emptyList()) }
-    var loading by remember { mutableStateOf(false) }
-    var page by remember { mutableStateOf(1) }
-    val scope = rememberCoroutineScope()
-
-    fun load(reset: Boolean) {
-        val targetPage = if (reset) 1 else page + 1
-        loading = true
-        scope.launch {
-            val result = runCatching { StacksApi().search(kind, query.trim(), targetPage) }.getOrElse { emptyList() }
-            stacks = if (reset) result else stacks + result
-            page = targetPage
-            loading = false
-        }
-    }
-    LaunchedEffect(kind) { load(reset = true) }
+    // Only (re)loads when the tab actually changes — returning here from a
+    // stack's detail page reuses the cached results and scroll position
+    LaunchedEffect(initialKind) { vm.setStacksBrowseKind(initialKind) }
+    val activeKind = vm.stacksBrowseActiveKind ?: initialKind
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.stacksBrowseScrollIndex, initialFirstVisibleItemScrollOffset = vm.stacksBrowseScrollOffset)
+    val openStack: (StackSummary) -> Unit = { s -> vm.saveStacksBrowseScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenStack(s.id, s.title) }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         Column(Modifier.padding(horizontal = 20.dp)) {
-            SearchField(value = query, change = { query = it }, hint = "Search stacks", onSearch = { load(reset = true) })
+            SearchField(value = vm.stacksBrowseQuery, change = { vm.updateStacksBrowseQuery(it) }, hint = "Search stacks", onSearch = { vm.searchStacksBrowse() })
         }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)) {
             items(StackBrowseKind.entries.toList()) { k ->
                 FilterChip(
-                    selected = kind == k,
-                    onClick = { kind = k },
+                    selected = activeKind == k,
+                    onClick = { vm.setStacksBrowseKind(k) },
                     label = { Text(k.label) },
                     colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),
                 )
             }
         }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-            if (stacks.isEmpty() && !loading) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            if (vm.stacksBrowseResults.isEmpty() && !vm.stacksBrowseLoading) {
                 item { Text("No stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
             }
-            itemsIndexed(stacks, key = { _, it -> it.id }) { index, s ->
-                StackListRow(s) { onOpenStack(s.id, s.title) }
-                if (index < stacks.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+            itemsIndexed(vm.stacksBrowseResults, key = { _, it -> it.id }) { index, s ->
+                StackListRow(s) { openStack(s) }
+                if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
             }
-            if (loading) {
+            if (vm.stacksBrowseLoading) {
                 item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
-            } else if (stacks.isNotEmpty()) {
-                item { TextButton(onClick = { load(reset = false) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Load more", fontWeight = FontWeight.Bold, color = c.primary) } }
+            } else if (vm.stacksBrowseResults.isNotEmpty()) {
+                item { TextButton(onClick = { vm.loadMoreStacksBrowse() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Load more", fontWeight = FontWeight.Bold, color = c.primary) } }
             }
         }
     }
@@ -2564,8 +2608,9 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
         }
     }
 }
-// One stack's entries — cover banner header, description, then a numbered title list
-@Composable private fun StackDetailScreen(stackId: Int, initialTitle: String, loadingId: Int?, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit) {
+// One stack's entries — header (back button + title), description, "my progress"
+// breakdown against the signed-in user's list, then a seasonal-chart-style grid
+@Composable private fun StackDetailScreen(stackId: Int, initialTitle: String, loadingId: Int?, myListStatus: Map<Int, WatchStatus>, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
     var detail by remember(stackId) { mutableStateOf<StackDetail?>(null) }
@@ -2575,66 +2620,101 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
         detail = runCatching { StacksApi().detail(stackId) }.getOrNull()
         if (detail == null) loadFailed = true
     }
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-            Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
-        }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-            if (detail == null && !loadFailed) {
-                item { Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(24.dp)) } }
-            } else if (loadFailed) {
-                item { Text("Couldn't load this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-            }
-            detail?.let { d ->
-                item {
-                    Column(Modifier.padding(bottom = 16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (d.type.isNotBlank()) Pill(d.type, c.primaryContainer, c.primary)
-                            if (d.author.isNotBlank()) Text("by ${d.author}", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 9.dp))
-                        }
-                        if (d.description.isNotBlank()) {
-                            Text(d.description, color = c.ink, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 10.dp))
-                        }
-                        Box(Modifier.padding(top = 12.dp)) { StackStatsRow(d.entries.size, d.restacks, "") }
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Column {
+                // Back button gets real breathing room below it before the type pill,
+                // matching the spacing every other detail header in the app uses
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                }
+                if (detail == null && !loadFailed) {
+                    Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(24.dp)) }
+                } else if (loadFailed) {
+                    Text("Couldn't load this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center)
+                }
+                detail?.let { d ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (d.type.isNotBlank()) Pill(d.type, c.primaryContainer, c.primary)
+                        if (d.author.isNotBlank()) Text("by ${d.author}", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 9.dp))
                     }
+                    // Description sits above the entries, right under the byline
+                    if (d.description.isNotBlank()) {
+                        Text(d.description, color = c.ink, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 10.dp))
+                    }
+                    Box(Modifier.padding(top = 12.dp)) { StackStatsRow(d.entries.size, d.restacks, "") }
+                    StackMyProgressBar(d.entries, myListStatus, c, Modifier.padding(top = 16.dp))
+                    Spacer(Modifier.height(4.dp))
                 }
-                if (d.entries.isEmpty()) {
-                    item { Text("No entries in this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 20.dp), textAlign = TextAlign.Center) }
-                }
-                itemsIndexed(d.entries, key = { _, e -> e.malId }) { i, entry ->
-                    StackEntryRow(i + 1, entry, loading = loadingId == entry.malId) { onOpenEntry(entry) }
+            }
+        }
+        detail?.let { d ->
+            if (d.entries.isEmpty() && !loadFailed) {
+                item(span = { GridItemSpan(maxLineSpan) }) { Text("No entries in this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 20.dp), textAlign = TextAlign.Center) }
+            }
+            itemsIndexed(d.entries, key = { _, e -> e.malId }) { i, entry ->
+                StackEntryGridCard(i + 1, entry, loading = loadingId == entry.malId, myStatus = myListStatus[entry.malId]) { onOpenEntry(entry) }
+            }
+        }
+    }
+}
+// "My progress" breakdown for a stack — same segmented-bar + legend shown on the profile
+// tab's stats card, scoped to just the titles from the signed-in user's list that
+// also appear in this stack (Watching/Reading, Completed, On-Hold, Dropped, Plan)
+@Composable private fun StackMyProgressBar(entries: List<StackTitleEntry>, myListStatus: Map<Int, WatchStatus>, c: KikoColors, modifier: Modifier = Modifier) {
+    val tracked = entries.mapNotNull { myListStatus[it.malId] }
+    if (tracked.isEmpty()) return
+    Column(modifier.fillMaxWidth()) {
+        Text("MY PROGRESS", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
+        SegmentedStatBar(WatchStatus.entries.map { st -> tracked.count { it == st } to statusColor(st) }, c)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp)) {
+            WatchStatus.entries.forEach { st ->
+                val n = tracked.count { it == st }
+                if (n > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(9.dp).clip(CircleShape).background(statusColor(st)))
+                        Text("${st.label} $n", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
+                    }
                 }
             }
         }
     }
 }
-// Numbered title row inside a stack, with cover thumbnail
-@Composable private fun StackEntryRow(number: Int, entry: StackTitleEntry, loading: Boolean, onClick: () -> Unit) {
+// Grid card for a title inside a stack — cover with rank badge + tracking status mark,
+// title, and format/score meta, styled to match SeasonalGridCard
+@Composable private fun StackEntryGridCard(number: Int, entry: StackTitleEntry, loading: Boolean, myStatus: WatchStatus?, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Row(
-        Modifier.fillMaxWidth().clickable(enabled = !loading, onClick = onClick).padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(number.toString(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.width(24.dp))
-        Box(Modifier.size(width = 44.dp, height = 62.dp).clip(RoundedCornerShape(9.dp)).background(c.surfaceLow)) {
+    Column(Modifier.fillMaxWidth().clickable(enabled = !loading, onClick = onClick)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(0.72f).clip(RoundedCornerShape(16.dp)).background(c.surfaceLow)) {
             if (entry.cover.isNotBlank()) {
                 AsyncImage(model = entry.cover, contentDescription = entry.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
-                Text(entry.title.take(1), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                Text(entry.title.take(1), fontWeight = FontWeight.Bold, fontSize = 30.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+            }
+            Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
+                Text(number.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            }
+            myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopEnd).padding(6.dp)) }
+            if (loading) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .35f)), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                }
             }
         }
-        Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
-            Text(entry.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            val meta = buildString {
-                val fmt = listOfNotNull(entry.format.takeIf { it.isNotBlank() }, entry.year.takeIf { it.isNotBlank() }).joinToString(", ")
-                if (fmt.isNotBlank()) append(fmt)
-                if (entry.score > 0) { if (isNotEmpty()) append(" · "); append("★ %.2f".format(entry.score)) }
-            }
-            if (meta.isNotBlank()) Text(meta, color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+        Text(entry.title, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
+        val meta = buildString {
+            val fmt = listOfNotNull(entry.format.takeIf { it.isNotBlank() }, entry.year.takeIf { it.isNotBlank() }).joinToString(", ")
+            if (fmt.isNotBlank()) append(fmt)
+            if (entry.score > 0) { if (isNotEmpty()) append(" · "); append("★ %.2f".format(entry.score)) }
         }
-        if (loading) CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-        else Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(18.dp))
+        if (meta.isNotBlank()) Text(meta, color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
     }
 }
 
