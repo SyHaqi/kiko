@@ -86,5 +86,5 @@ Kiko is an unofficial third-party client and is **not affiliated with or endorse
 
 ## 📄 License
 
-This project is licensed under the GPL-3.0 License unless stated otherwise.
-```
+``` This source code is provided for educational and portfolio purposes only. You may view and study the code, but you may not redistribute, modify, or publish derivative versions without prior permission from the author.
+
