@@ -974,6 +974,7 @@ class LibraryViewModel : ViewModel() {
     var stacksHomeChallenges by mutableStateOf<List<StackSummary>>(emptyList()); private set
     var stacksHomeManga by mutableStateOf<List<StackSummary>>(emptyList()); private set
     var stacksHomeAnime by mutableStateOf<List<StackSummary>>(emptyList()); private set
+    var stacksHomeMal by mutableStateOf<List<StackSummary>>(emptyList()); private set
     var stacksHomeRecent by mutableStateOf<List<StackSummary>>(emptyList()); private set
     var stacksHomeLoading by mutableStateOf(false); private set
     var stacksHomeRecentLoadingMore by mutableStateOf(false); private set
@@ -994,8 +995,9 @@ class LibraryViewModel : ViewModel() {
                 val ch = async { runCatching { api.search(StackBrowseKind.Challenges).take(2) }.getOrElse { emptyList() } }
                 val mg = async { runCatching { api.search(StackBrowseKind.Manga).take(1) }.getOrElse { emptyList() } }
                 val an = async { runCatching { api.search(StackBrowseKind.Anime).take(1) }.getOrElse { emptyList() } }
+                val mal = async { runCatching { api.search(StackBrowseKind.MyAnimeList).take(1) }.getOrElse { emptyList() } }
                 val rc = async { runCatching { api.search(StackBrowseKind.All) }.getOrElse { emptyList() } }
-                stacksHomeChallenges = ch.await(); stacksHomeManga = mg.await(); stacksHomeAnime = an.await(); stacksHomeRecent = rc.await()
+                stacksHomeChallenges = ch.await(); stacksHomeManga = mg.await(); stacksHomeAnime = an.await(); stacksHomeMal = mal.await(); stacksHomeRecent = rc.await()
             }
             stacksHomeRecentPage = 1
             stacksHomeLoading = false
@@ -2427,6 +2429,10 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
             item { StackSectionHeader("Anime Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Anime) }) }
             items(vm.stacksHomeAnime, key = { "an-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
         }
+        if (vm.stacksHomeMal.isNotEmpty()) {
+            item { StackSectionHeader("MyAnimeList Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.MyAnimeList) }) }
+            items(vm.stacksHomeMal, key = { "mal-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
+        }
         if (vm.stacksHomeRecent.isNotEmpty()) {
             item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
             items(vm.stacksHomeRecent, key = { "rc-${it.id}" }) { s -> StackListRow(s) { openStack(s) } }
@@ -2667,20 +2673,31 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 }
 // "My progress" breakdown for a stack — same segmented-bar + legend shown on the profile
 // tab's stats card, scoped to just the titles from the signed-in user's list that
-// also appear in this stack (Watching/Reading, Completed, On-Hold, Dropped, Plan)
+// also appear in this stack (Watching/Reading, Completed, On-Hold, Dropped, Plan).
+// Always rendered — even at 0 tracked — so the stack detail screen always shows how many
+// of the stack's entries the user has already watched/read out of the total, alongside
+// the segmented bar (which just renders as an empty track when there's nothing tracked yet).
 @Composable private fun StackMyProgressBar(entries: List<StackTitleEntry>, myListStatus: Map<Int, WatchStatus>, c: KikoColors, modifier: Modifier = Modifier) {
     val tracked = entries.mapNotNull { myListStatus[it.malId] }
-    if (tracked.isEmpty()) return
+    // Mixed-type stacks are rare, but pick the verb matching whichever type dominates
+    val verb = if (entries.count { it.type == MediaType.Manga } > entries.count { it.type == MediaType.Anime }) "Read" else "Watched"
     Column(modifier.fillMaxWidth()) {
-        Text("MY PROGRESS", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
-        SegmentedStatBar(WatchStatus.entries.map { st -> tracked.count { it == st } to statusColor(st) }, c)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp)) {
-            WatchStatus.entries.forEach { st ->
-                val n = tracked.count { it == st }
-                if (n > 0) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(9.dp).clip(CircleShape).background(statusColor(st)))
-                        Text("${st.label} $n", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("MY PROGRESS", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
+            Text("${tracked.size} of ${entries.size} $verb", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        }
+        Box(Modifier.padding(top = 10.dp)) {
+            SegmentedStatBar(WatchStatus.entries.map { st -> tracked.count { it == st } to statusColor(st) }, c)
+        }
+        if (tracked.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp)) {
+                WatchStatus.entries.forEach { st ->
+                    val n = tracked.count { it == st }
+                    if (n > 0) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(9.dp).clip(CircleShape).background(statusColor(st)))
+                            Text("${st.label} $n", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
+                        }
                     }
                 }
             }

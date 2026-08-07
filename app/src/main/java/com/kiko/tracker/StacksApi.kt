@@ -100,16 +100,31 @@ class StacksApi {
     // MAL renders separators like "N Entries" with &nbsp;, which plain \s won't match
     private fun normText(el: Element): String = el.text().replace('\u00A0', ' ')
 
+    // Marks the end of a stack's descriptive text. Browse/search rows print
+    // "N Entries" (e.g. "50 Entries"). The single-stack detail page's stop
+    // phrase depends on the *viewer's own* MAL session: someone logged in
+    // and already tracking that stack sees "My List: 2/114" / "Mean Score:
+    // 7.00" there instead. But our OkHttpClient sends no session cookie at
+    // all, so the anonymous HTML we actually fetch never contains either of
+    // those — it prints "Start tracking this stack!" (and, when the stack
+    // has tags, a "Tags:" line before that) in their place. Missing that
+    // phrase meant rowContainer never found a stop point on the page we
+    // really scrape, so the description regex matched nothing and came back
+    // blank even though the text was right there. Recognize all the shapes
+    // this can take.
+    private val descriptionStop = Regex("\\d+\\s+Entries|My List:|Mean Score:|Start tracking this stack!|Tags:")
+
     // Climbs from a title anchor to the nearest ancestor whose flattened text
-    // already contains "N Entries" — i.e. the tightest wrapper around this
-    // one stack's card/row. A single closest("div, li, article") call proved
-    // unreliable across MAL's actual markup (some rows land on a wrapper that
-    // excludes the sibling cover/author/stats text entirely), so climb level
-    // by level and stop at the first ancestor that clearly holds the full row.
+    // already contains one of the descriptionStop markers — i.e. the tightest
+    // wrapper around this one stack's card/row. A single closest("div, li,
+    // article") call proved unreliable across MAL's actual markup (some rows
+    // land on a wrapper that excludes the sibling cover/author/stats text
+    // entirely), so climb level by level and stop at the first ancestor that
+    // clearly holds the full row.
     private fun rowContainer(a: Element, maxLevels: Int = 8): Element {
         var el: Element = a
         repeat(maxLevels) {
-            if (Regex("\\d+\\s+Entries").containsMatchIn(normText(el))) return el
+            if (descriptionStop.containsMatchIn(normText(el))) return el
             el = el.parent() ?: return el
         }
         return el
@@ -133,7 +148,7 @@ class StacksApi {
                 "(\\d+\\s+(?:hours?|days?|minutes?)\\s+ago|\\d+\\s+days?\\s+left|Time ended|[A-Za-z]{3}\\s+\\d{1,2},\\s*\\d{1,2}:\\d{2}\\s*[AP]M)"
             ).find(text)?.value.orEmpty()
             val description = if (author.isNotBlank()) {
-                Regex(Regex.escape("by $author") + "\\s*(.*?)\\s*\\d+\\s+Entries", RegexOption.DOT_MATCHES_ALL)
+                Regex(Regex.escape("by $author") + "\\s*(.*?)\\s*(?:${descriptionStop.pattern})", RegexOption.DOT_MATCHES_ALL)
                     .find(text)?.groupValues?.get(1)?.trim().orEmpty()
             } else ""
             // "Challenge" shows as its own badge alongside the type pill on MAL's curated stacks
@@ -151,15 +166,55 @@ class StacksApi {
         val title = doc.select("meta[property=og:title]").attr("content")
             .ifBlank { doc.title().substringBefore(" - Interest Stacks").trim() }
         val ogDescription = doc.select("meta[property=og:description]").attr("content")
-        // "MyAnimeList - Interest Stacks - 9 Entries, 14 Restacks"
+        // "MyAnimeList - Interest Stacks - 9 Entries, 14 Restacks" — this meta tag never
+        // carries the actual stack description, only the entry/restack counts
         val restacks = Regex("(\\d+)\\s+Restacks").find(ogDescription)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        val author = doc.select("a[href~=(?i)^https?://myanimelist\\.net/profile/[^/]+$]").firstOrNull()?.text().orEmpty()
-        val bodyText = doc.body().text()
+        // Byline element ("by AUTHOR") located by its own text, not by requiring a
+        // profile link — MAL's official "MyAnimeList" account (used on curated/
+        // challenge stacks) renders "by MyAnimeList" as plain text with no
+        // <a href=".../profile/..."> at all, so anchoring on that link left this
+        // branch skipped entirely for every official stack. Pick the most specific
+        // (shortest-text) element whose own flattened text starts with "by " —
+        // that's the byline itself, whether or not the name inside is a link.
+        // "More Like This" sidebar rows are also "N Entries · N Restacks by AUTHOR"
+        // cards, and their author names are frequently shorter than the real
+        // stack owner's — e.g. "by Sylicone" (11 chars) beats "by MyAnimeList"
+        // (14 chars) — so picking by shortest text alone grabbed a sidebar
+        // byline instead of the page's own, leaving description blank because
+        // the extraction regex never matched inside the wrong container.
+        // Sidebar cards always carry "Restacks" in the same small block right
+        // next to their byline; the real page byline never does (that count
+        // lives elsewhere, next to the stack icon). Drop any candidate whose
+        // nearby ancestors mention "Restacks" before ranking by length.
+        val bylineEl = doc.select("*")
+            .filter { el -> normText(el).trim().let { it.startsWith("by ") && it.length in 4..80 } }
+            .filterNot { el ->
+                var anc: Element? = el
+                var hit = false
+                repeat(4) {
+                    anc = anc?.parent()
+                    if (anc != null && Regex("\\bRestacks\\b").containsMatchIn(normText(anc!!))) hit = true
+                }
+                hit
+            }
+            .minByOrNull { normText(it).trim().length }
+        val author = bylineEl?.let { el ->
+            el.selectFirst("a")?.text()?.trim()?.takeIf { it.isNotBlank() }
+                ?: normText(el).trim().removePrefix("by ").trim()
+        }.orEmpty()
+        val bodyText = normText(doc.body())
         val type = Regex("\\b(Anime|Manga)\\b").find(bodyText)?.groupValues?.get(1).orEmpty()
-        // Description sits between the "by AUTHOR ... AM/PM" byline and the entries grid
-        val description = if (author.isNotBlank()) {
-            Regex(Regex.escape("by $author") + "\\s*[^|]*?[AP]M\\s*(.*?)\\s*(?:Start tracking|Search Interest Stacks)", RegexOption.DOT_MATCHES_ALL)
-                .find(bodyText)?.groupValues?.get(1)?.trim().orEmpty()
+        // Description sits between the "by AUTHOR" byline and the next stat marker,
+        // same shape as a browse row's card — reuse the row-container climb +
+        // extraction that already works for parseSummaries instead of matching
+        // against the whole page body
+        val description = if (bylineEl != null && author.isNotBlank()) {
+            // Wider climb than the default: on the detail page the byline and
+            // the "Start tracking this stack!" stop marker can sit further
+            // apart in the DOM than a compact browse-row card ever does.
+            val text = normText(rowContainer(bylineEl, maxLevels = 14))
+            Regex(Regex.escape("by $author") + "\\s*(.*?)\\s*(?:${descriptionStop.pattern})", RegexOption.DOT_MATCHES_ALL)
+                .find(text)?.groupValues?.get(1)?.trim().orEmpty()
         } else ""
         StackDetail(stackId, title, type, author, description, restacks, parseEntries(doc))
     }
