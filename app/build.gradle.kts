@@ -13,8 +13,25 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Version from git tag
+val gitTagOutput = providers.exec {
+    commandLine("git", "describe", "--tags", "--abbrev=0")
+    isIgnoreExitValue = true
+}.standardOutput.asText.get().trim()
+val appVersionName = gitTagOutput.removePrefix("v").ifBlank { "0.0.0" }
+val appVersionCode = appVersionName.split(".")
+    .map { it.toIntOrNull() ?: 0 }
+    .let { (maj, min, patch) -> maj * 10000 + min * 100 + patch }
+
 android { namespace = "com.kiko.tracker"; compileSdk = 35
-    defaultConfig { applicationId = "com.kiko.tracker"; minSdk = 26; targetSdk = 35; versionCode = 3; versionName = "2.2.0"; buildConfigField("String", "MAL_CLIENT_ID", "\"$malClientId\"") }
+    defaultConfig {
+        applicationId = "com.kiko.tracker"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = appVersionCode
+        versionName = appVersionName
+        buildConfigField("String", "MAL_CLIENT_ID", "\"$malClientId\"")
+    }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

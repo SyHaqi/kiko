@@ -277,6 +277,16 @@ data class RelatedEntry(val relation: String, val title: String, val malId: Int 
 // Characters/staff row entries
 data class CharacterEntry(val malId: Int, val name: String, val image: String, val role: String, val url: String = "")
 data class StaffEntry(val malId: Int, val name: String, val image: String, val role: String, val url: String = "")
+// Reviews row entry
+data class ReviewEntry(val malId: Int, val username: String, val userImage: String, val review: String, val score: Int, val tags: List<String> = emptyList(), val reactionScore: Int = 0, val isSpoiler: Boolean = false, val url: String = "")
+// MAL's three recommendation verdicts
+private val ReviewVerdictTags = setOf("Recommended", "Mixed Feelings", "Not Recommended")
+private fun ReviewEntry.verdict(): String? = tags.firstOrNull { it in ReviewVerdictTags }
+private fun verdictColor(verdict: String, c: KikoColors): Color = when (verdict) {
+    "Recommended" -> c.primary
+    "Not Recommended" -> c.danger
+    else -> c.muted
+}
 // Status breakdown counts
 data class StatusDistribution(
     val watching: Int = 0, val completed: Int = 0, val onHold: Int = 0, val dropped: Int = 0, val planToWatch: Int = 0,
@@ -407,6 +417,8 @@ enum class SeasonalSort(val api: String, val label: String) {
 }
 // My list sort order
 enum class ListSort(val label: String) { Title("Title"), Score("Score"), LastUpdated("Last Updated"), StartDate("Start Date") }
+// My list display mode
+enum class ListViewMode { List, Grid }
 private fun nowIso(): String = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'+00:00'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date())
 // Convert broadcast to local
 private fun MediaItem.localBroadcast(): Pair<java.time.DayOfWeek, java.time.LocalTime>? {
@@ -460,6 +472,7 @@ class LibraryViewModel : ViewModel() {
     // Hoisted scroll state
     var listTypeTab by mutableStateOf(MediaType.Anime); private set
     var listSort by mutableStateOf(ListSort.Title); private set
+    var listViewMode by mutableStateOf(ListViewMode.List); private set
     var listScrollIndex by mutableStateOf(0); private set
     var listScrollOffset by mutableStateOf(0); private set
     fun saveListScroll(index: Int, offset: Int) { listScrollIndex = index; listScrollOffset = offset }
@@ -475,6 +488,8 @@ class LibraryViewModel : ViewModel() {
     fun selectListTypeTab(t: MediaType) { listTypeTab = t; listScrollIndex = 0; listScrollOffset = 0 }
     fun setListSort(context: Context, sort: ListSort) { listSort = sort; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_sort", sort.name).apply() }
     fun loadListSort(context: Context) { listSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("list_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
+    fun setListViewMode(context: Context, mode: ListViewMode) { listViewMode = mode; settingsPrefs(context).edit().putString("list_view_mode", mode.name).apply() }
+    fun loadListViewMode(context: Context) { listViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("list_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
     // NSFW off by default
     var nsfwEnabled by mutableStateOf(false); private set
     // User profile stats
@@ -983,6 +998,18 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    // Load reviews row
+    fun loadReviews(item: MediaItem, onFound: (List<ReviewEntry>) -> Unit, onDone: () -> Unit = {}) {
+        val intId = item.id.toIntOrNull()
+        if (intId == null) { onDone(); return }
+        val kind = if (item.type == MediaType.Anime) "anime" else "manga"
+        viewModelScope.launch {
+            runCatching { TenraiApi().fetchReviews(kind, intId) }
+                .onSuccess { if (it.isNotEmpty()) onFound(it) }
+            onDone()
+        }
+    }
+
     // Backfill recommended row
     fun loadUserRecommendations(context: Context, item: MediaItem, onFound: (List<RecommendedEntry>) -> Unit, onDone: () -> Unit = {}) {
         val intId = item.id.toIntOrNull()
@@ -1097,7 +1124,7 @@ class MainActivity : ComponentActivity() {
         routeIntentUri(intent?.data)
         setContent {
             val vm: LibraryViewModel = viewModel()
-            LaunchedEffect(Unit) { vm.loadTheme(this@MainActivity); vm.loadColorSource(this@MainActivity); vm.loadPaletteStyle(this@MainActivity); vm.loadCustomColor(this@MainActivity); vm.loadTitleLanguage(this@MainActivity); vm.loadListFilter(this@MainActivity); vm.loadListSort(this@MainActivity); vm.loadNsfwPref(this@MainActivity); vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity); vm.loadHomeExtras(this@MainActivity) }
+            LaunchedEffect(Unit) { vm.loadTheme(this@MainActivity); vm.loadColorSource(this@MainActivity); vm.loadPaletteStyle(this@MainActivity); vm.loadCustomColor(this@MainActivity); vm.loadTitleLanguage(this@MainActivity); vm.loadListFilter(this@MainActivity); vm.loadListSort(this@MainActivity); vm.loadListViewMode(this@MainActivity); vm.loadNsfwPref(this@MainActivity); vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity); vm.loadHomeExtras(this@MainActivity) }
             // Throttled background update check
             LaunchedEffect(Unit) {
                 vm.loadCachedUpdate(this@MainActivity)
@@ -1165,6 +1192,8 @@ private sealed class TopScreen {
     data class Topic(val topicId: Int, val title: String) : TopScreen()
     // App info page
     object About : TopScreen()
+    // Full review readout
+    data class Review(val review: ReviewEntry, val itemTitle: String) : TopScreen()
     data class Tab(val destination: Destination) : TopScreen()
 }
 // Same screen vs navigation
@@ -1175,9 +1204,10 @@ private fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.Schedule -> "schedule"
     is TopScreen.Topic -> "topic:$topicId"
     TopScreen.About -> "about"
+    is TopScreen.Review -> "review:${review.malId}"
     is TopScreen.Tab -> "tab:$destination"
 }
-private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Seasonal || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About
+private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Seasonal || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}) {
     val context = LocalContext.current
@@ -1215,12 +1245,14 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
     var forumTopicOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
     // About page open state
     var aboutOpen by remember { mutableStateOf(false) }
+    // Full review readout state
+    var reviewOpen by remember { mutableStateOf<Pair<ReviewEntry, String>?>(null) }
     // Live-merge search result
     val editorItem = editor?.let { ed -> vm.visibleItems.find { it.id == ed.id } ?: vm.items.find { it.id == ed.id } ?: ed }
     // Prefer live item copy
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && vm.destination != Destination.Home) {
+    BackHandler(enabled = detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && vm.destination != Destination.Home) {
         vm.destination = Destination.Home
     }
     val darkTheme = when (vm.themeMode) { ThemeMode.System -> isSystemInDarkTheme(); ThemeMode.Light -> false; ThemeMode.Dark -> true }
@@ -1249,10 +1281,11 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
         ) {
             Scaffold(
                 containerColor = c.background,
-                bottomBar = { if (detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen) BottomBar(vm.destination) { vm.destination = it } }
+                bottomBar = { if (detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null) BottomBar(vm.destination) { vm.destination = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val topScreen = when {
+                        reviewOpen != null -> TopScreen.Review(reviewOpen!!.first, reviewOpen!!.second)
                         detailItem != null -> TopScreen.Detail(detailItem)
                         rankingOpen -> TopScreen.Ranking
                         seasonalOpen -> TopScreen.Seasonal
@@ -1274,7 +1307,7 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                         label = "topScreen",
                     ) { screen ->
                         when (screen) {
-                            is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) }, onLoadCharactersStaff = { forItem, onFound, onDone -> vm.loadCharactersStaff(forItem, onFound, onDone) }, initialScroll = vm.getDetailScroll(screen.item.id), onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) }, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { it to li.status } }.toMap(), onGenreClick = { genre ->
+                            is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) }, onLoadCharactersStaff = { forItem, onFound, onDone -> vm.loadCharactersStaff(forItem, onFound, onDone) }, onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) }, onOpenReview = { rev -> reviewOpen = rev to screen.item.title }, initialScroll = vm.getDetailScroll(screen.item.id), onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) }, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { it to li.status } }.toMap(), onGenreClick = { genre ->
                                 selectedItem = null; detailStack = emptyList()
                                 vm.destination = Destination.Discover
                                 vm.runDiscoverSearch(context, "", if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
@@ -1288,6 +1321,7 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                                 updateInfo = vm.updateInfo, updateChecking = vm.updateChecking, updateUpToDate = vm.updateUpToDateMessage,
                                 onCheckForUpdate = { if (vm.updateInfo != null) vm.updateDialogOpen = true else vm.checkForUpdate(context, manual = true) },
                             )
+                            is TopScreen.Review -> ReviewScreen(screen.review, screen.itemTitle, onBack = { reviewOpen = null })
                             is TopScreen.Tab -> when (screen.destination) {
                                 Destination.Home -> HomeScreen(vm, onOpenDetail = ::openDetail, onList = { vm.destination = Destination.List }, onDiscover = { vm.destination = Destination.Discover }, onRanking = { rankingOpen = true }, onSeasonal = { seasonalOpen = true }, onSchedule = ::openSchedule, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onSeeNews = { vm.destination = Destination.Forums; vm.openNewsBoard(context) })
                                 Destination.List -> ListScreen(vm, onOpenDetail = ::openDetail, onIncrement = { vm.saveLive(context, it) })
@@ -1509,13 +1543,14 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
         Text(if (item.status == WatchStatus.Plan) "Saved for later" else progressLabel(item), color = c.primary, fontWeight = FontWeight.Medium, fontSize = 11.sp)
     }
 }
-@Composable private fun Cover(item: MediaItem, modifier: Modifier = Modifier, showStatus: Boolean = false, statusAlignment: Alignment = Alignment.TopStart) {
+@Composable private fun Cover(item: MediaItem, modifier: Modifier = Modifier, showStatus: Boolean = false, statusAlignment: Alignment = Alignment.TopStart, overrideStatus: WatchStatus? = null) {
     val displayTitle = item.displayTitle()
     Box(modifier.clip(RoundedCornerShape(16.dp)).background(Color(item.color)), contentAlignment = Alignment.Center) {
         if (item.cover.isNotBlank()) AsyncImage(model = item.cover, contentDescription = displayTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
         else Text(displayTitle.take(1), fontWeight = FontWeight.Bold, fontSize = 36.sp, color = Color.White.copy(.85f))
-        // Optional tracking mark
-        if (showStatus) trackedBadgeStatus(item)?.let { CoverStatusMark(it, Modifier.align(statusAlignment).padding(6.dp)) }
+        // Optional tracking mark — overrideStatus lets callers supply the real list status for
+        // items that weren't sourced from the user's own list (item.inUserList would be false)
+        if (showStatus) (overrideStatus ?: trackedBadgeStatus(item))?.let { CoverStatusMark(it, Modifier.align(statusAlignment).padding(6.dp)) }
     }
 }
 // All 5 states shown
@@ -1608,29 +1643,89 @@ private fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: Ti
     val filtered = vm.visibleItems
         .filter { it.type == typeTab && (effectiveFilter == "All" || it.status.label == effectiveFilter) && it.title.contains(submittedQuery, true) }
         .sortedWithListSort(vm.listSort, vm.titleLanguage)
-    // Restore list scroll position
+    val isGrid = vm.listViewMode == ListViewMode.Grid
+    // Restore list scroll position (shared between list/grid since both are single-column-index scroll states)
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.listScrollIndex, initialFirstVisibleItemScrollOffset = vm.listScrollOffset)
-    val openItem: (MediaItem) -> Unit = remember(onOpenDetail) {
-        { item -> vm.saveListScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenDetail(item) }
+    val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = vm.listScrollIndex, initialFirstVisibleItemScrollOffset = vm.listScrollOffset)
+    val openItem: (MediaItem) -> Unit = remember(onOpenDetail, isGrid) {
+        {
+                item ->
+            if (isGrid) vm.saveListScroll(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+            else vm.saveListScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+            onOpenDetail(item)
+        }
     }
-    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-        item {
-            AppHeader("My list")
-            if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-            SearchField(query, { query = it }, "Search your list", onSearch = { submittedQuery = query }, onClear = { query = ""; submittedQuery = "" })
-            // Reset scroll on change
-            TypeToggle(typeTab) { vm.selectListTypeTab(it) }
-            FilterRow(effectiveFilter, { vm.setListFilter(context, it) }, typeTab)
-            Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
+    val header: @Composable () -> Unit = {
+        AppHeader("My list")
+        if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+        SearchField(query, { query = it }, "Search your list", onSearch = { submittedQuery = query }, onClear = { query = ""; submittedQuery = "" })
+        // Reset scroll on change
+        TypeToggle(typeTab) { vm.selectListTypeTab(it) }
+        FilterRow(effectiveFilter, { vm.setListFilter(context, it) }, typeTab)
+        Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ListViewModeToggle(vm.listViewMode) { vm.setListViewMode(context, it) }
                 SortMenu(vm.listSort) { vm.setListSort(context, it) }
             }
         }
-        itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-            ListRow(it, openItem, onIncrement, showType = false)
-            if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+    }
+    if (isGrid) {
+        LazyVerticalGrid(
+            state = gridState,
+            columns = GridCells.Fixed(3),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
+            items(filtered, key = { it.id }) { item -> ListGridCard(item, openItem, onIncrement) }
+            if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
         }
-        if (filtered.isEmpty()) item { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+    } else {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            item { header() }
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
+                ListRow(it, openItem, onIncrement, showType = false)
+                if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+            }
+            if (filtered.isEmpty()) item { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+        }
+    }
+}
+// List/grid switcher
+@Composable private fun ListViewModeToggle(current: ListViewMode, onSelect: (ListViewMode) -> Unit) {
+    val c = LocalKikoColors.current
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(c.surface)
+            .clickable { onSelect(if (current == ListViewMode.List) ListViewMode.Grid else ListViewMode.List) }
+            .padding(horizontal = 9.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (current == ListViewMode.List) Icons.Default.GridView else Icons.Default.ViewList,
+            contentDescription = if (current == ListViewMode.List) "Switch to grid view" else "Switch to list view",
+            tint = c.primary, modifier = Modifier.size(16.dp),
+        )
+    }
+}
+// Compact grid tile — cover, title, and the same progress bar as the list row
+@Composable private fun ListGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null) {
+    val c = LocalKikoColors.current
+    Column(Modifier.fillMaxWidth().clickable { onOpenDetail(item) }) {
+        Cover(item, Modifier.fillMaxWidth().aspectRatio(2f / 3f))
+        // Fixed to 2 lines so every tile's progress bar lines up regardless of title length
+        Text(
+            item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, color = c.ink,
+            minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp),
+        )
+        if (onIncrement != null && item.total > 0) {
+            LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp).clip(RoundedCornerShape(4.dp)), color = statusColor(item.status), trackColor = c.surfaceLow)
+        }
+        Text(progressLabel(item), color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
     }
 }
 // Anime/Manga segmented switch
@@ -2005,6 +2100,9 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf("") }
     var filterSheetOpen by remember { mutableStateOf(false) }
+    // Map MAL id -> the user's tracked status, so browse rows (which come straight from
+    // Tenrai/MAL search results, not the user's own list) can still show the status badge
+    val myListStatus = remember(vm.items) { vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { it to li.status } }.toMap() }
 
     LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
         item {
@@ -2066,7 +2164,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                         // Cap row at 7
                         items(vm.visibleDiscoverNewSeason.take(7), key = { it.id }) { item ->
-                            BrowseCard(item, onOpenDetail)
+                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it] })
                         }
                     }
                 }
@@ -2078,7 +2176,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                     SectionTitle("Top 10 upcoming", "", {})
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                         items(vm.visibleDiscoverUpcoming, key = { it.id }) { item ->
-                            BrowseCard(item, onOpenDetail)
+                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it] })
                         }
                     }
                 }
@@ -2090,7 +2188,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                     SectionTitle("You might like", "", {})
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                         items(vm.visibleRecommendations, key = { it.id }) { item ->
-                            BrowseCard(item, onOpenDetail)
+                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it] })
                         }
                     }
                 }
@@ -2313,10 +2411,10 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
     }
 }
 // Browse row cover card
-@Composable private fun BrowseCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, subtitle: String? = null) {
+@Composable private fun BrowseCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, subtitle: String? = null, myStatus: WatchStatus? = null) {
     val c = LocalKikoColors.current
     Column(Modifier.width(118.dp).clickable { onOpenDetail(item) }) {
-        Cover(item, Modifier.fillMaxWidth().height(150.dp), showStatus = true)
+        Cover(item, Modifier.fillMaxWidth().height(150.dp), showStatus = true, overrideStatus = myStatus)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         Text(subtitle ?: (if (item.score > 0) "★ ${"%.1f".format(item.score)}" else item.genre), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
@@ -2629,6 +2727,59 @@ private fun formatExact(n: Int): String = "%,d".format(n)
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
         )
+    }
+}
+// Full review readout page
+@Composable private fun ReviewScreen(entry: ReviewEntry, itemTitle: String, onBack: () -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    BackHandler(onBack = onBack)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
+            if (entry.url.isNotBlank()) {
+                // Open review in browser
+                IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(entry.url)) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) {
+                    Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (entry.userImage.isNotBlank()) {
+                AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(40.dp).clip(CircleShape).background(c.warm))
+            } else {
+                Box(Modifier.size(40.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                    Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+                }
+            }
+            Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
+            if (entry.score > 0) {
+                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp))
+                Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
+            }
+        }
+        if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 14.dp))
+        if (entry.tags.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 14.dp)) {
+                entry.tags.forEach { tag ->
+                    val verdict = tag in ReviewVerdictTags
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (verdict) Icon(Icons.Default.Star, null, tint = verdictColor(tag, c), modifier = Modifier.size(13.dp))
+                        Text(
+                            tag, color = if (verdict) verdictColor(tag, c) else c.muted, fontWeight = if (verdict) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 12.sp, modifier = Modifier.padding(start = if (verdict) 4.dp else 0.dp),
+                        )
+                    }
+                }
+            }
+        }
+        SelectionContainer {
+            Text(
+                entry.review, color = c.ink, fontSize = 14.sp, lineHeight = 22.sp,
+                modifier = Modifier.padding(top = 18.dp, bottom = 28.dp),
+            )
+        }
     }
 }
 // BBCode tag renderer
@@ -3352,7 +3503,7 @@ private fun statusColor(label: String): Color = when {
 }
 
 // Detail section
-@Composable private fun DetailScreen(item: MediaItem, onBack: () -> Unit, onEdit: (MediaItem) -> Unit, onOpenRelated: (RelatedEntry) -> Unit, relatedLoadingId: Int? = null, onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenRecommended: (RecommendedEntry) -> Unit = {}, recommendedLoadingId: Int? = null, onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadCharactersStaff: (MediaItem, (List<CharacterEntry>, List<StaffEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onGenreClick: (String) -> Unit = {}, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, myListStatus: Map<Int, WatchStatus> = emptyMap()) {
+@Composable private fun DetailScreen(item: MediaItem, onBack: () -> Unit, onEdit: (MediaItem) -> Unit, onOpenRelated: (RelatedEntry) -> Unit, relatedLoadingId: Int? = null, onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenRecommended: (RecommendedEntry) -> Unit = {}, recommendedLoadingId: Int? = null, onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadCharactersStaff: (MediaItem, (List<CharacterEntry>, List<StaffEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenReview: (ReviewEntry) -> Unit = {}, onGenreClick: (String) -> Unit = {}, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, myListStatus: Map<Int, WatchStatus> = emptyMap()) {
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
     // Track related backfill completion
@@ -3375,6 +3526,8 @@ private fun statusColor(label: String): Color = when {
     var characters by remember(item.id) { mutableStateOf<List<CharacterEntry>>(emptyList()) }
     var staffList by remember(item.id) { mutableStateOf<List<StaffEntry>>(emptyList()) }
     LaunchedEffect(item.id) { onLoadCharactersStaff(item, { chars, stf -> characters = chars; staffList = stf }, {}) }
+    var reviews by remember(item.id) { mutableStateOf<List<ReviewEntry>>(emptyList()) }
+    LaunchedEffect(item.id) { onLoadReviews(item, { reviews = it }, {}) }
     // Recheck cover gallery non-blocking
     var backfilledCovers by remember(item.id) { mutableStateOf<List<String>?>(null) }
     LaunchedEffect(item.id) {
@@ -3667,6 +3820,13 @@ private fun statusColor(label: String): Color = when {
                         }
                     }
 
+                    if (reviews.isNotEmpty()) {
+                        Text("Reviews", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(reviews, key = { it.malId }) { rev -> ReviewCard(rev, onClick = { onOpenReview(rev) }) }
+                        }
+                    }
+
                     if (related.isNotEmpty()) {
                         Text("Related", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -3862,6 +4022,47 @@ private fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 @Composable private fun StaffCard(entry: StaffEntry, uriHandler: androidx.compose.ui.platform.UriHandler) {
     PersonCard(entry.image, entry.name.take(1), entry.name, entry.role.ifBlank { "Staff" }) { entry.url.takeIf { it.isNotBlank() }?.let { runCatching { uriHandler.openUri(it) } } }
 }
+// Review card opens full text
+@Composable private fun ReviewCard(entry: ReviewEntry, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Column(
+        Modifier.width(260.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).clickable(onClick = onClick).padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (entry.userImage.isNotBlank()) {
+                AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(30.dp).clip(CircleShape).background(c.warm))
+            } else {
+                Box(Modifier.size(30.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                    Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink)
+                }
+            }
+            Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 9.dp))
+            if (entry.score > 0) {
+                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
+                Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 3.dp))
+            }
+        }
+        val verdict = entry.verdict()
+        val otherTags = entry.tags.filterNot { it in ReviewVerdictTags }
+        if (verdict != null || otherTags.isNotEmpty()) {
+            Row(Modifier.padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                verdict?.let {
+                    Icon(Icons.Default.Star, null, tint = verdictColor(it, c), modifier = Modifier.size(11.dp))
+                    Text(it, color = verdictColor(it, c), fontWeight = FontWeight.Bold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
+                }
+                otherTags.firstOrNull()?.let {
+                    Text(it, color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = if (verdict != null) 8.dp else 0.dp))
+                }
+            }
+        }
+        if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+        Text(
+            entry.review, color = c.muted, fontSize = 12.sp, lineHeight = 17.sp,
+            maxLines = 5, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
 
 // Sheets section
 @Composable private fun EditSheet(item: MediaItem, onDismiss: () -> Unit, onSave: (MediaItem) -> Unit, onDelete: () -> Unit) {
@@ -3898,7 +4099,20 @@ private fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 
             Text("Status", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink)
             val statusOptions = remember(item.type) { WatchStatus.entries.filterNot { it == if (item.type == MediaType.Anime) WatchStatus.Reading else WatchStatus.Watching } }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 9.dp)) { items(statusOptions) { s -> FilterChip(selected = status == s, onClick = { status = s }, label = { Text(s.label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) } }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 9.dp)) {
+                items(statusOptions) { s ->
+                    FilterChip(
+                        selected = status == s,
+                        onClick = {
+                            status = s
+                            // Auto-fill progress to the max when marking as completed
+                            if (s == WatchStatus.Completed && item.total > 0) progress = item.total
+                        },
+                        label = { Text(s.label) },
+                        colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),
+                    )
+                }
+            }
 
             Text(if (item.type == MediaType.Anime) "Episodes watched" else "Chapters read", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
             Row(

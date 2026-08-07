@@ -128,6 +128,34 @@ class TenraiApi {
         }.getOrElse { emptyList() }
     }
 
+    // Fetch reviews row for detail page
+    suspend fun fetchReviews(kind: String, malId: Int): List<ReviewEntry> = withContext(Dispatchers.IO) {
+        runCatching {
+            // MAL's own most-helpful order (Tenrai's sort values are newest|oldest|most_helpful)
+            val arr = JSONObject(getRaw("$TENRAI/$kind/$malId/reviews?sort=most_helpful")).optJSONArray("data") ?: return@runCatching emptyList()
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.getJSONObject(i)
+                val text = o.optString("review").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val user = o.optJSONObject("user")
+                val tagsArr = o.optJSONArray("tags")
+                val tags = tagsArr?.let { t -> (0 until t.length()).map { t.getString(it) } } ?: emptyList()
+                val reactionScore = o.optJSONObject("reactions")?.optInt("overall", 0) ?: 0
+                ReviewEntry(
+                    malId = o.optInt("mal_id"),
+                    username = user?.optString("username")?.takeIf { it.isNotBlank() } ?: "Anonymous",
+                    userImage = user?.optJSONObject("images")?.optJSONObject("jpg")?.optString("image_url").orEmpty(),
+                    review = text.trim(),
+                    score = o.optInt("score", 0),
+                    tags = tags,
+                    reactionScore = reactionScore,
+                    isSpoiler = o.optBoolean("is_spoiler", false),
+                    url = o.optString("url"),
+                )
+                // Keep the API's most-helpful order as-is
+            }
+        }.getOrElse { emptyList() }
+    }
+
     private fun getRaw(url: String): String {
         val request = Request.Builder().url(url).build()
         client.newCall(request).execute().use { resp ->
