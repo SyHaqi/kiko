@@ -20,7 +20,7 @@ Join our [discord](https://discord.gg/KZYQHpDWKH) server!
   - Statistics ✅
   - Related entries ✅
   - Forums ✅
-  - Interest Stack (in development) 🛠️
+  - Interest Stack ✅
 - Manage your anime and manga lists.
 - Search using the **Tenrai API** for faster and more flexible results.
 - Tap any genre to instantly discover similar entries.
@@ -86,5 +86,5 @@ Kiko is an unofficial third-party client and is **not affiliated with or endorse
 
 ## 📄 License
 
-This project is licensed under the MIT License unless stated otherwise.
+This project is licensed under the GPL-3.0 License unless stated otherwise.
 ```
