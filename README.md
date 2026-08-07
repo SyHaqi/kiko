@@ -4,6 +4,8 @@
 
 Kiko is a yet another MAL Client android app. 
 
+Join our [discord](https://discord.gg/KZYQHpDWKH) server!
+
 ---
 
 ## ✨ Features
