@@ -610,6 +610,22 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    // Continue mini player dismiss state — lives only in memory, so it resets to shown
+    // (false) whenever the app is freshly opened (this ViewModel is recreated on process
+    // start), but stays dismissed for the rest of the session once the user swipes it away
+    var continueMiniPlayerDismissed by mutableStateOf(false); private set
+    fun dismissContinueMiniPlayer() { continueMiniPlayerDismissed = true }
+
+    // Whether the Continue card is pinned in place — unlike the dismiss flag above,
+    // this is a deliberate user preference so it's persisted and survives app restarts.
+    // While pinned, the card ignores swipe-to-dismiss entirely (see ContinueMiniPlayer).
+    var continueMiniPlayerPinned by mutableStateOf(false); private set
+    fun loadContinuePinnedPref(context: Context) { continueMiniPlayerPinned = settingsPrefs(context).getBoolean("continue_pinned", false) }
+    fun setContinuePinned(context: Context, pinned: Boolean) {
+        continueMiniPlayerPinned = pinned
+        settingsPrefs(context).edit().putBoolean("continue_pinned", pinned).apply()
+    }
+
     // Related row loading id
     var relatedLoadingId by mutableStateOf<Int?>(null); private set
 
@@ -692,6 +708,18 @@ class LibraryViewModel : ViewModel() {
             }
             stacksHomeRecentPage = 1
             stacksHomeLoading = false
+        }
+    }
+    // Single freshest stack for the Home screen's "Interest Stacks" teaser — a
+    // lighter-weight cousin of loadStacksHome() above, since Home only ever
+    // needs the one most-recent card, not the full curated homepage.
+    var homeLatestStack by mutableStateOf<StackSummary?>(null); private set
+    private var homeLatestStackLoaded = false
+    fun loadHomeLatestStack() {
+        if (homeLatestStackLoaded) return
+        homeLatestStackLoaded = true
+        viewModelScope.launch {
+            homeLatestStack = runCatching { StacksApi().search(StackBrowseKind.All).firstOrNull() }.getOrNull()
         }
     }
     fun loadMoreStacksHomeRecent() {
