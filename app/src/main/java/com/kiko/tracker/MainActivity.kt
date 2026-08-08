@@ -628,8 +628,12 @@ class LibraryViewModel : ViewModel() {
         seasonalError = null
     }
 
-    fun save(item: MediaItem) { items = if (items.any { it.id == item.id }) items.map { if (it.id == item.id) item else it } else listOf(item) + items }
-    fun delete(id: String) { items = items.filterNot { it.id == id } }
+    // Match on id AND type — MAL anime and manga ids are separate numbering spaces
+    // and can collide (e.g. anime id 11577 vs manga id 11577), so id alone isn't
+    // a safe key here: matching by id only could silently overwrite or delete an
+    // unrelated title of the other type.
+    fun save(item: MediaItem) { items = if (items.any { it.id == item.id && it.type == item.type }) items.map { if (it.id == item.id && it.type == item.type) item else it } else listOf(item) + items }
+    fun delete(id: String, type: MediaType) { items = items.filterNot { it.id == id && it.type == type } }
     fun reset() { items = emptyList() }
 
     fun loadTheme(context: Context) { themeMode = runCatching { ThemeMode.valueOf(settingsPrefs(context).getString("theme_mode", ThemeMode.System.name)!!) }.getOrDefault(ThemeMode.System) }
@@ -671,7 +675,7 @@ class LibraryViewModel : ViewModel() {
     }
     // Delete mirrors local-first save
     fun deleteLive(context: Context, item: MediaItem) {
-        delete(item.id)
+        delete(item.id, item.type)
         if (signedIn) viewModelScope.launch { runCatching { MalApi(context).deleteEntry(item) }.onFailure { error = "MAL sync failed: ${it.message ?: "unknown error"}" } }
     }
     fun signOut(context: Context) { MalApi(context).signOut(); signedIn = false; items = emptyList(); malProfile = null }
@@ -1004,6 +1008,7 @@ class LibraryViewModel : ViewModel() {
         }
     }
     fun loadMoreStacksHomeRecent() {
+        if (stacksHomeRecentLoadingMore) return
         stacksHomeRecentLoadingMore = true
         viewModelScope.launch {
             val targetPage = stacksHomeRecentPage + 1
@@ -1026,6 +1031,7 @@ class LibraryViewModel : ViewModel() {
     fun updateStacksBrowseQuery(q: String) { stacksBrowseQuery = q }
     private fun loadStacksBrowse(reset: Boolean) {
         val kind = stacksBrowseActiveKind ?: return
+        if (!reset && stacksBrowseLoading) return
         val targetPage = if (reset) 1 else stacksBrowsePage + 1
         stacksBrowseLoading = true
         viewModelScope.launch {
@@ -1366,10 +1372,12 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
     var stackDetailOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
     fun openStacks() { stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = true }
     fun openStacksBrowse(kind: StackBrowseKind) { stackDetailOpen = null; stacksBrowseKind = kind }
-    // Live-merge search result
-    val editorItem = editor?.let { ed -> vm.visibleItems.find { it.id == ed.id } ?: vm.items.find { it.id == ed.id } ?: ed }
-    // Prefer live item copy
-    val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id } ?: sel }
+    // Live-merge search result — must match on id AND type, since MAL anime and
+    // manga ids are separate numbering spaces and can collide (e.g. anime id 11577 is
+    // Steins;Gate Movie: Fuka Ryouiki no Déjà vu, manga id 11577 is Stardust★Wink)
+    val editorItem = editor?.let { ed -> vm.visibleItems.find { it.id == ed.id && it.type == ed.type } ?: vm.items.find { it.id == ed.id && it.type == ed.type } ?: ed }
+    // Prefer live item copy — same id+type requirement as above
+    val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
     BackHandler(enabled = detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && reviewListOpen == null && !stacksHomeOpen && vm.destination != Destination.Home) {
         vm.destination = Destination.Home
@@ -1430,7 +1438,7 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                         label = "topScreen",
                     ) { screen ->
                         when (screen) {
-                            is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) }, onLoadCharactersStaff = { forItem, onFound, onDone -> vm.loadCharactersStaff(forItem, onFound, onDone) }, onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) }, onOpenReview = { rev -> reviewOpen = rev to screen.item.title }, onOpenReviewList = { url, title -> reviewListOpen = url to title }, initialScroll = vm.getDetailScroll(screen.item.id), onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) }, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { it to li.status } }.toMap(), onGenreClick = { genre ->
+                            is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) }, onLoadCharactersStaff = { forItem, onFound, onDone -> vm.loadCharactersStaff(forItem, onFound, onDone) }, onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) }, onOpenReview = { rev -> reviewOpen = rev to screen.item.title }, onOpenReviewList = { url, title -> reviewListOpen = url to title }, initialScroll = vm.getDetailScroll(screen.item.id), onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) }, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), onGenreClick = { genre ->
                                 selectedItem = null; detailStack = emptyList()
                                 vm.destination = Destination.Discover
                                 vm.runDiscoverSearch(context, "", if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
@@ -1448,7 +1456,7 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                             is TopScreen.ReviewList -> WebPageScreen(screen.url, screen.itemTitle, darkTheme = darkTheme, onBack = { reviewListOpen = null })
                             TopScreen.StacksHome -> StacksHomeScreen(vm, onBack = { stacksHomeOpen = false }, onOpenBrowse = { kind -> openStacksBrowse(kind) }, onOpenStack = { id, title -> stackDetailOpen = id to title })
                             is TopScreen.StacksBrowse -> StacksScreen(vm, initialKind = screen.initialKind, onBack = { stacksBrowseKind = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
-                            is TopScreen.StackDetail -> StackDetailScreen(screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { it to li.status } }.toMap(), onBack = { stackDetailOpen = null }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } })
+                            is TopScreen.StackDetail -> StackDetailScreen(screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), onBack = { stackDetailOpen = null }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } })
                             is TopScreen.Tab -> when (screen.destination) {
                                 Destination.Home -> HomeScreen(vm, onOpenDetail = ::openDetail, onList = { vm.destination = Destination.List }, onDiscover = { vm.destination = Destination.Discover }, onRanking = { rankingOpen = true }, onSeasonal = { seasonalOpen = true }, onSchedule = ::openSchedule, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onSeeNews = { vm.destination = Destination.Forums; vm.openNewsBoard(context) })
                                 Destination.List -> ListScreen(vm, onOpenDetail = ::openDetail, onIncrement = { vm.saveLive(context, it) })
@@ -1469,7 +1477,7 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                 }
             }
             // Keep sheets inside theme
-            editorItem?.let { EditSheet(it, onDismiss = { editor = null }, onSave = { vm.saveLive(context, it); editor = null }, onDelete = { vm.deleteLive(context, it); editor = null; if (selectedItem?.id == it.id) { selectedItem = null; detailStack = emptyList() } }) }
+            editorItem?.let { EditSheet(it, onDismiss = { editor = null }, onSave = { vm.saveLive(context, it); editor = null }, onDelete = { vm.deleteLive(context, it); editor = null; if (selectedItem?.id == it.id && selectedItem?.type == it.type) { selectedItem = null; detailStack = emptyList() } }) }
             if (themeOpen) ThemeSheet(vm.themeMode, onDismiss = { themeOpen = false }, onSelect = { vm.setTheme(context, it); themeOpen = false })
             if (colorSourceOpen) ColorSourceSheet(vm.colorSource, vm.customColorHex, onDismiss = { colorSourceOpen = false }, onSelect = { vm.setColorSource(context, it) }, onCustomHexChange = { vm.setCustomColor(context, it) })
             if (paletteStyleOpen) PaletteStyleSheet(vm.paletteStyle, onDismiss = { paletteStyleOpen = false }, onSelect = { vm.setPaletteStyle(context, it); paletteStyleOpen = false })
@@ -1798,28 +1806,37 @@ private fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: Ti
             }
         }
     }
-    if (isGrid) {
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-            items(filtered, key = { it.id }) { item -> ListGridCard(item, openItem, onIncrement) }
-            if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
-        }
-    } else {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-            item { header() }
-            itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                ListRow(it, openItem, onIncrement, showType = false)
-                if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { if (isGrid) gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 else listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    Box(Modifier.fillMaxSize()) {
+        if (isGrid) {
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
+                items(filtered, key = { it.id }) { item -> ListGridCard(item, openItem, onIncrement) }
+                if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             }
-            if (filtered.isEmpty()) item { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+        } else {
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+                item { header() }
+                itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
+                    ListRow(it, openItem, onIncrement, showType = false)
+                    if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                }
+                if (filtered.isEmpty()) item { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+            }
         }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { if (isGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
     }
 }
 // List/grid switcher
@@ -1945,23 +1962,33 @@ private fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: Ti
     BackHandler(onBack = onBack)
     LaunchedEffect(vm.rankingType, vm.rankingSort) { vm.loadRanking(context, vm.rankingType, vm.rankingSort) }
     val sorts = if (vm.rankingType == MediaType.Anime) RankingSort.entries.toList() else RankingSort.entries.filterNot { it == RankingSort.Upcoming }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-        item {
-            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-                Text("Ranking", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    Text("Ranking", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+                }
+                TypeToggle(vm.rankingType) { vm.loadRanking(context, it, vm.rankingSort) }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
+                    items(sorts) { sort -> FilterChip(selected = vm.rankingSort == sort, onClick = { vm.loadRanking(context, vm.rankingType, sort) }, label = { Text(sort.label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                }
+                if (vm.rankingLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
             }
-            TypeToggle(vm.rankingType) { vm.loadRanking(context, it, vm.rankingSort) }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-                items(sorts) { sort -> FilterChip(selected = vm.rankingSort == sort, onClick = { vm.loadRanking(context, vm.rankingType, sort) }, label = { Text(sort.label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+            itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it -> RankingRow(index + 1, it, onOpenDetail) }
+            if (!vm.rankingLoading && vm.visibleRankingResults.isEmpty() && vm.rankingError == null) {
+                item { Text("No results.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             }
-            if (vm.rankingLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-            vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
         }
-        itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it -> RankingRow(index + 1, it, onOpenDetail) }
-        if (!vm.rankingLoading && vm.visibleRankingResults.isEmpty() && vm.rankingError == null) {
-            item { Text("No results.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
-        }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
     }
 }
 // Ranking chart row
@@ -2005,6 +2032,8 @@ private fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: Ti
             .distinctUntilChanged()
             .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 6) vm.loadMoreSeasonal(context) }
     }
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 } }
 
     Box(Modifier.fillMaxSize()) {
         LazyVerticalGrid(
@@ -2041,6 +2070,11 @@ private fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: Ti
                 }
             }
         }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { gridState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, bottom = 20.dp),
+        )
         ExtendedFloatingActionButton(
             onClick = { browseOpen = true },
             containerColor = c.primary,
@@ -2245,9 +2279,10 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf("") }
     var filterSheetOpen by remember { mutableStateOf(false) }
-    // Map MAL id -> the user's tracked status, so browse rows (which come straight from
-    // Tenrai/MAL search results, not the user's own list) can still show the status badge
-    val myListStatus = remember(vm.items) { vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { it to li.status } }.toMap() }
+    // Map (MAL id, type) -> the user's tracked status, so browse rows (which come straight from
+    // Tenrai/MAL search results, not the user's own list) can still show the status badge.
+    // Keyed by id+type since anime and manga IDs are independent and can collide.
+    val myListStatus = remember(vm.items) { vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap() }
 
     LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
         item {
@@ -2317,7 +2352,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                         // Cap row at 7
                         items(vm.visibleDiscoverNewSeason.take(7), key = { it.id }) { item ->
-                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it] })
+                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
                         }
                     }
                 }
@@ -2329,7 +2364,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                     SectionTitle("Top 10 upcoming", "", {})
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                         items(vm.visibleDiscoverUpcoming, key = { it.id }) { item ->
-                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it] })
+                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
                         }
                     }
                 }
@@ -2341,7 +2376,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                     SectionTitle("You might like", "", {})
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                         items(vm.visibleRecommendations, key = { it.id }) { item ->
-                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it] })
+                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
                         }
                     }
                 }
@@ -2405,43 +2440,58 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
     val saveScroll = { vm.saveStacksHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
     val openStack: (StackSummary) -> Unit = { s -> saveScroll(); onOpenStack(s.id, s.title) }
     val openBrowse: (StackBrowseKind) -> Unit = { k -> saveScroll(); onOpenBrowse(k) }
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    // Auto-load more of the "Recent" section as the user nears the bottom, same as
+    // every other paginated list — only that section is paginated; the curated
+    // Challenge/Manga/Anime/MyAnimeList rows above load in full once, so leave those alone
+    LaunchedEffect(listState, vm.stacksHomeRecent.size) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
+            .distinctUntilChanged()
+            .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 6 && vm.stacksHomeRecent.isNotEmpty()) vm.loadMoreStacksHomeRecent() }
+    }
 
-    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-        item {
-            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-                Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                IconButton(onClick = { openBrowse(StackBrowseKind.All) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.Search, "Search stacks", tint = c.ink) }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                    IconButton(onClick = { openBrowse(StackBrowseKind.All) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.Search, "Search stacks", tint = c.ink) }
+                }
+            }
+            if (vm.stacksHomeLoading) {
+                item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(26.dp)) } }
+            }
+            if (vm.stacksHomeChallenges.isNotEmpty()) {
+                item { StackSectionHeader("Challenge Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Challenges) }) }
+                items(vm.stacksHomeChallenges, key = { "ch-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
+            }
+            if (vm.stacksHomeManga.isNotEmpty()) {
+                item { StackSectionHeader("Manga Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Manga) }) }
+                items(vm.stacksHomeManga, key = { "mg-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
+            }
+            if (vm.stacksHomeAnime.isNotEmpty()) {
+                item { StackSectionHeader("Anime Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Anime) }) }
+                items(vm.stacksHomeAnime, key = { "an-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
+            }
+            if (vm.stacksHomeMal.isNotEmpty()) {
+                item { StackSectionHeader("MyAnimeList Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.MyAnimeList) }) }
+                items(vm.stacksHomeMal, key = { "mal-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
+            }
+            if (vm.stacksHomeRecent.isNotEmpty()) {
+                item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
+                items(vm.stacksHomeRecent, key = { "rc-${it.id}" }) { s -> StackListRow(s) { openStack(s) } }
+                if (vm.stacksHomeRecentLoadingMore) {
+                    item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+                }
             }
         }
-        if (vm.stacksHomeLoading) {
-            item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(26.dp)) } }
-        }
-        if (vm.stacksHomeChallenges.isNotEmpty()) {
-            item { StackSectionHeader("Challenge Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Challenges) }) }
-            items(vm.stacksHomeChallenges, key = { "ch-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
-        }
-        if (vm.stacksHomeManga.isNotEmpty()) {
-            item { StackSectionHeader("Manga Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Manga) }) }
-            items(vm.stacksHomeManga, key = { "mg-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
-        }
-        if (vm.stacksHomeAnime.isNotEmpty()) {
-            item { StackSectionHeader("Anime Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Anime) }) }
-            items(vm.stacksHomeAnime, key = { "an-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
-        }
-        if (vm.stacksHomeMal.isNotEmpty()) {
-            item { StackSectionHeader("MyAnimeList Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.MyAnimeList) }) }
-            items(vm.stacksHomeMal, key = { "mal-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
-        }
-        if (vm.stacksHomeRecent.isNotEmpty()) {
-            item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
-            items(vm.stacksHomeRecent, key = { "rc-${it.id}" }) { s -> StackListRow(s) { openStack(s) } }
-            if (vm.stacksHomeRecentLoadingMore) {
-                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
-            } else {
-                item { TextButton(onClick = { vm.loadMoreStacksHomeRecent() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Load more", fontWeight = FontWeight.Bold, color = c.primary) } }
-            }
-        }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
     }
 }
 // Section title + "See all" link shared across the stacks homepage
@@ -2465,6 +2515,14 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
     val activeKind = vm.stacksBrowseActiveKind ?: initialKind
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.stacksBrowseScrollIndex, initialFirstVisibleItemScrollOffset = vm.stacksBrowseScrollOffset)
     val openStack: (StackSummary) -> Unit = { s -> vm.saveStacksBrowseScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenStack(s.id, s.title) }
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    // Auto-load the next page as the user nears the bottom instead of requiring a manual tap
+    LaunchedEffect(listState, activeKind, vm.stacksBrowseResults.size) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
+            .distinctUntilChanged()
+            .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 6 && vm.stacksBrowseResults.isNotEmpty() && !vm.stacksBrowseLoading) vm.loadMoreStacksBrowse() }
+    }
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2484,19 +2542,24 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                 )
             }
         }
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-            if (vm.stacksBrowseResults.isEmpty() && !vm.stacksBrowseLoading) {
-                item { Text("No stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+        Box(Modifier.fillMaxSize()) {
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+                if (vm.stacksBrowseResults.isEmpty() && !vm.stacksBrowseLoading) {
+                    item { Text("No stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                }
+                itemsIndexed(vm.stacksBrowseResults, key = { _, it -> it.id }) { index, s ->
+                    StackListRow(s) { openStack(s) }
+                    if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                }
+                if (vm.stacksBrowseLoading) {
+                    item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+                }
             }
-            itemsIndexed(vm.stacksBrowseResults, key = { _, it -> it.id }) { index, s ->
-                StackListRow(s) { openStack(s) }
-                if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
-            }
-            if (vm.stacksBrowseLoading) {
-                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
-            } else if (vm.stacksBrowseResults.isNotEmpty()) {
-                item { TextButton(onClick = { vm.loadMoreStacksBrowse() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Load more", fontWeight = FontWeight.Bold, color = c.primary) } }
-            }
+            GoToTopButton(
+                visible = showGoToTop,
+                onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            )
         }
     }
 }
@@ -2616,7 +2679,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 }
 // One stack's entries — header (back button + title), description, "my progress"
 // breakdown against the signed-in user's list, then a seasonal-chart-style grid
-@Composable private fun StackDetailScreen(stackId: Int, initialTitle: String, loadingId: Int?, myListStatus: Map<Int, WatchStatus>, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit) {
+@Composable private fun StackDetailScreen(stackId: Int, initialTitle: String, loadingId: Int?, myListStatus: Map<Pair<Int, MediaType>, WatchStatus>, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
     var detail by remember(stackId) { mutableStateOf<StackDetail?>(null) }
@@ -2626,49 +2689,60 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
         detail = runCatching { StacksApi().detail(stackId) }.getOrNull()
         if (detail == null) loadFailed = true
     }
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(11.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column {
-                // Back button gets real breathing room below it before the type pill,
-                // matching the spacing every other detail header in the app uses
-                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-                    Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                }
-                if (detail == null && !loadFailed) {
-                    Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(24.dp)) }
-                } else if (loadFailed) {
-                    Text("Couldn't load this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center)
-                }
-                detail?.let { d ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (d.type.isNotBlank()) Pill(d.type, c.primaryContainer, c.primary)
-                        if (d.author.isNotBlank()) Text("by ${d.author}", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 9.dp))
+    val gridState = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 } }
+    Box(Modifier.fillMaxSize()) {
+        LazyVerticalGrid(
+            state = gridState,
+            columns = GridCells.Fixed(3),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column {
+                    // Back button gets real breathing room below it before the type pill,
+                    // matching the spacing every other detail header in the app uses
+                    Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                        Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
                     }
-                    // Description sits above the entries, right under the byline
-                    if (d.description.isNotBlank()) {
-                        Text(d.description, color = c.ink, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 10.dp))
+                    if (detail == null && !loadFailed) {
+                        Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(24.dp)) }
+                    } else if (loadFailed) {
+                        Text("Couldn't load this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center)
                     }
-                    Box(Modifier.padding(top = 12.dp)) { StackStatsRow(d.entries.size, d.restacks, "") }
-                    StackMyProgressBar(d.entries, myListStatus, c, Modifier.padding(top = 16.dp))
-                    Spacer(Modifier.height(4.dp))
+                    detail?.let { d ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (d.type.isNotBlank()) Pill(d.type, c.primaryContainer, c.primary)
+                            if (d.author.isNotBlank()) Text("by ${d.author}", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 9.dp))
+                        }
+                        // Description sits above the entries, right under the byline
+                        if (d.description.isNotBlank()) {
+                            Text(d.description, color = c.ink, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 10.dp))
+                        }
+                        Box(Modifier.padding(top = 12.dp)) { StackStatsRow(d.entries.size, d.restacks, "") }
+                        StackMyProgressBar(d.entries, myListStatus, c, Modifier.padding(top = 16.dp))
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+            }
+            detail?.let { d ->
+                if (d.entries.isEmpty() && !loadFailed) {
+                    item(span = { GridItemSpan(maxLineSpan) }) { Text("No entries in this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 20.dp), textAlign = TextAlign.Center) }
+                }
+                itemsIndexed(d.entries, key = { _, e -> e.malId }) { i, entry ->
+                    StackEntryGridCard(i + 1, entry, loading = loadingId == entry.malId, myStatus = myListStatus[entry.malId to entry.type]) { onOpenEntry(entry) }
                 }
             }
         }
-        detail?.let { d ->
-            if (d.entries.isEmpty() && !loadFailed) {
-                item(span = { GridItemSpan(maxLineSpan) }) { Text("No entries in this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 20.dp), textAlign = TextAlign.Center) }
-            }
-            itemsIndexed(d.entries, key = { _, e -> e.malId }) { i, entry ->
-                StackEntryGridCard(i + 1, entry, loading = loadingId == entry.malId, myStatus = myListStatus[entry.malId]) { onOpenEntry(entry) }
-            }
-        }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { gridState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
     }
 }
 // "My progress" breakdown for a stack — same segmented-bar + legend shown on the profile
@@ -2677,8 +2751,8 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 // Always rendered — even at 0 tracked — so the stack detail screen always shows how many
 // of the stack's entries the user has already watched/read out of the total, alongside
 // the segmented bar (which just renders as an empty track when there's nothing tracked yet).
-@Composable private fun StackMyProgressBar(entries: List<StackTitleEntry>, myListStatus: Map<Int, WatchStatus>, c: KikoColors, modifier: Modifier = Modifier) {
-    val tracked = entries.mapNotNull { myListStatus[it.malId] }
+@Composable private fun StackMyProgressBar(entries: List<StackTitleEntry>, myListStatus: Map<Pair<Int, MediaType>, WatchStatus>, c: KikoColors, modifier: Modifier = Modifier) {
+    val tracked = entries.mapNotNull { myListStatus[it.malId to it.type] }
     // Mixed-type stacks are rare, but pick the verb matching whichever type dominates
     val verb = if (entries.count { it.type == MediaType.Manga } > entries.count { it.type == MediaType.Anime }) "Read" else "Watched"
     Column(modifier.fillMaxWidth()) {
@@ -2747,37 +2821,46 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
         vm.saveDiscoverScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
         vm.openDiscoverDetail(context, result, onOpenDetail)
     }
-    LazyColumn(state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-        item {
-            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = vm::exitDiscoverSearch, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink) }
-                Text("Search results", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) {
-                    SearchField(query, { query = it }, "Search in MAL", onSearch = { vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) })
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = vm::exitDiscoverSearch, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink) }
+                    Text("Search results", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
                 }
-                FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
-            }
-            // Fixes type/format mismatch
-            if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) })
-            Row(Modifier.fillMaxWidth().padding(top = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
-                    items(listOf("Anime", "Manga")) { label -> FilterChip(selected = vm.discoverTypeFilter == label, onClick = { vm.runDiscoverSearch(context, query, label) }, label = { Text(label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {
+                        SearchField(query, { query = it }, "Search in MAL", onSearch = { vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) })
+                    }
+                    FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
                 }
-                DiscoverSortMenu(current = vm.discoverSort, onSelect = vm::selectDiscoverSort, modifier = Modifier.padding(start = 8.dp))
+                // Fixes type/format mismatch
+                if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) })
+                Row(Modifier.fillMaxWidth().padding(top = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                        items(listOf("Anime", "Manga")) { label -> FilterChip(selected = vm.discoverTypeFilter == label, onClick = { vm.runDiscoverSearch(context, query, label) }, label = { Text(label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                    }
+                    DiscoverSortMenu(current = vm.discoverSort, onSelect = vm::selectDiscoverSort, modifier = Modifier.padding(start = 8.dp))
+                }
+                if (vm.discoverSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
             }
-            if (vm.discoverSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-            vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+            if (!vm.discoverSearching && vm.visibleDiscoverResults.isEmpty() && vm.discoverError == null) {
+                val emptyMessage = if (vm.discoverQuery.isBlank()) "No results match your filters." else "No results for \"${vm.discoverQuery}\"."
+                item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+            }
+            itemsIndexed(vm.visibleDiscoverResults, key = { _, it -> it.id }) { index, result ->
+                SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id) { openResult(result) }
+                if (index < vm.visibleDiscoverResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+            }
         }
-        if (!vm.discoverSearching && vm.visibleDiscoverResults.isEmpty() && vm.discoverError == null) {
-            val emptyMessage = if (vm.discoverQuery.isBlank()) "No results match your filters." else "No results for \"${vm.discoverQuery}\"."
-            item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-        }
-        itemsIndexed(vm.visibleDiscoverResults, key = { _, it -> it.id }) { index, result ->
-            SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id) { openResult(result) }
-            if (index < vm.visibleDiscoverResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
-        }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
     }
 }
 // Filters button with indicator
@@ -2986,34 +3069,43 @@ private fun formatExact(n: Int): String = "%,d".format(n)
     // Restore board list scroll
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.forumBoardsScrollIndex, initialFirstVisibleItemScrollOffset = vm.forumBoardsScrollOffset)
     val saveScroll = { vm.saveForumBoardsScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
-    LazyColumn(state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-        item {
-            AppHeader("Forums")
-            // Search hands off topics
-            SearchField(query, { query = it }, "Search topics", onSearch = { if (query.isNotBlank()) { saveScroll(); vm.runForumSearch(context, query) } })
-        }
-        if (!vm.signedIn) {
-            item { Text("Sign in from Profile to browse the MAL forums", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-        } else {
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
-                if (vm.forumBoardsLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-                vm.forumBoardsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                AppHeader("Forums")
+                // Search hands off topics
+                SearchField(query, { query = it }, "Search topics", onSearch = { if (query.isNotBlank()) { saveScroll(); vm.runForumSearch(context, query) } })
             }
-            // Grouped category board card
-            vm.forumCategories.forEach { category ->
-                item { Text(category.title.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp)) }
+            if (!vm.signedIn) {
+                item { Text("Sign in from Profile to browse the MAL forums", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+            } else {
                 item {
-                    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
-                        Column {
-                            category.boards.forEachIndexed { index, board ->
-                                ForumBoardRow(board) { saveScroll(); vm.openForumBoard(context, board) }
-                                if (index < category.boards.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                    if (vm.forumBoardsLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                    vm.forumBoardsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                }
+                // Grouped category board card
+                vm.forumCategories.forEach { category ->
+                    item { Text(category.title.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp)) }
+                    item {
+                        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                            Column {
+                                category.boards.forEachIndexed { index, board ->
+                                    ForumBoardRow(board) { saveScroll(); vm.openForumBoard(context, board) }
+                                    if (index < category.boards.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                                }
                             }
                         }
                     }
                 }
             }
         }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
     }
 }
 // Subboard count pill
@@ -3056,7 +3148,9 @@ private fun formatExact(n: Int): String = "%,d".format(n)
         onOpenTopic(topic.id, topic.title)
     }
     val scope = rememberCoroutineScope()
-    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 3 } }
+    // Item-index alone misses cases where a single tall item (e.g. a long post) is
+    // scrolled through without the index ever advancing, so also trigger off pixel offset
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     // Load more forum topics
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
@@ -3178,7 +3272,25 @@ private fun formatExact(n: Int): String = "%,d".format(n)
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex, initialFirstVisibleItemScrollOffset = initialOffset)
     val goBack = { vm.saveForumTopicScroll(topicId, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onBack() }
     BackHandler(onBack = goBack)
-    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 3 } }
+    // Item-index alone misses cases where a single tall item (e.g. a long OP post) is
+    // scrolled through without the index ever advancing, so also trigger off pixel offset
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    // Auto-load the next page of replies as the user nears the bottom, instead of
+    // requiring a manual tap — matches ForumTopicsScreen's behavior so replies appear
+    // as you scroll rather than needing to be requested explicitly
+    LaunchedEffect(listState, topicId, hasMore) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
+            .distinctUntilChanged()
+            .collect { (lastVisible, total) ->
+                if (lastVisible != null && total > 0 && lastVisible >= total - 6 && hasMore && !loadingMore && !loading) {
+                    loadingMore = true
+                    runCatching { MalApi(context).forumTopic(topicId, offset = posts.size) }
+                        .onSuccess { posts = posts + it.posts; hasMore = it.hasMore }
+                        .onFailure { hasMore = false }
+                    loadingMore = false
+                }
+            }
+    }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
@@ -3198,22 +3310,10 @@ private fun formatExact(n: Int): String = "%,d".format(n)
                 ForumPostCard(post, isOriginalPost = post.number == 1)
                 if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
             }
-            if (hasMore) {
+            if (loadingMore) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
-                        if (loadingMore) {
-                            CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
-                        } else {
-                            TextButton(onClick = {
-                                scope.launch {
-                                    loadingMore = true
-                                    runCatching { MalApi(context).forumTopic(topicId, offset = posts.size) }
-                                        .onSuccess { posts = posts + it.posts; hasMore = it.hasMore }
-                                        .onFailure { hasMore = false }
-                                    loadingMore = false
-                                }
-                            }) { Text("Load more replies", color = c.primary, fontWeight = FontWeight.Bold) }
-                        }
+                        CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
                     }
                 }
             }
@@ -3230,52 +3330,62 @@ private fun formatExact(n: Int): String = "%,d".format(n)
     val c = LocalKikoColors.current
     val context = LocalContext.current
     BackHandler(onBack = onBack)
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-            Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
-            if (entry.url.isNotBlank()) {
-                // Open review in browser
-                IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(entry.url)) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) {
-                    Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
-                }
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (entry.userImage.isNotBlank()) {
-                AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(40.dp).clip(CircleShape).background(c.warm))
-            } else {
-                Box(Modifier.size(40.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
-                    Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
-                }
-            }
-            Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
-            if (entry.score > 0) {
-                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp))
-                Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
-            }
-        }
-        if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 14.dp))
-        if (entry.tags.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 14.dp)) {
-                entry.tags.forEach { tag ->
-                    val verdict = tag in ReviewVerdictTags
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (verdict) Icon(Icons.Default.Star, null, tint = verdictColor(tag, c), modifier = Modifier.size(13.dp))
-                        Text(
-                            tag, color = if (verdict) verdictColor(tag, c) else c.muted, fontWeight = if (verdict) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 12.sp, modifier = Modifier.padding(start = if (verdict) 4.dp else 0.dp),
-                        )
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { scrollState.value > 600 } }
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 20.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                if (entry.url.isNotBlank()) {
+                    // Open review in browser
+                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(entry.url)) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) {
+                        Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
                     }
                 }
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (entry.userImage.isNotBlank()) {
+                    AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(40.dp).clip(CircleShape).background(c.warm))
+                } else {
+                    Box(Modifier.size(40.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                        Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+                    }
+                }
+                Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
+                if (entry.score > 0) {
+                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp))
+                    Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
+                }
+            }
+            if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 14.dp))
+            if (entry.tags.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 14.dp)) {
+                    entry.tags.forEach { tag ->
+                        val verdict = tag in ReviewVerdictTags
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (verdict) Icon(Icons.Default.Star, null, tint = verdictColor(tag, c), modifier = Modifier.size(13.dp))
+                            Text(
+                                tag, color = if (verdict) verdictColor(tag, c) else c.muted, fontWeight = if (verdict) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp, modifier = Modifier.padding(start = if (verdict) 4.dp else 0.dp),
+                            )
+                        }
+                    }
+                }
+            }
+            SelectionContainer {
+                Text(
+                    entry.review, color = c.ink, fontSize = 14.sp, lineHeight = 22.sp,
+                    modifier = Modifier.padding(top = 18.dp, bottom = 28.dp),
+                )
+            }
         }
-        SelectionContainer {
-            Text(
-                entry.review, color = c.ink, fontSize = 14.sp, lineHeight = 22.sp,
-                modifier = Modifier.padding(top = 18.dp, bottom = 28.dp),
-            )
-        }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { scrollState.animateScrollTo(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
     }
 }
 // BBCode tag renderer
@@ -4046,7 +4156,7 @@ private fun applyForcedDarkMode(settings: android.webkit.WebSettings, darkTheme:
         WebSettingsCompat.setForceDark(settings, if (darkTheme) WebSettingsCompat.FORCE_DARK_ON else WebSettingsCompat.FORCE_DARK_OFF)
     }
 }
-@Composable private fun DetailScreen(item: MediaItem, onBack: () -> Unit, onEdit: (MediaItem) -> Unit, onOpenRelated: (RelatedEntry) -> Unit, relatedLoadingId: Int? = null, onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenRecommended: (RecommendedEntry) -> Unit = {}, recommendedLoadingId: Int? = null, onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadCharactersStaff: (MediaItem, (List<CharacterEntry>, List<StaffEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenReview: (ReviewEntry) -> Unit = {}, onOpenReviewList: (String, String) -> Unit = { _, _ -> }, onGenreClick: (String) -> Unit = {}, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, myListStatus: Map<Int, WatchStatus> = emptyMap()) {
+@Composable private fun DetailScreen(item: MediaItem, onBack: () -> Unit, onEdit: (MediaItem) -> Unit, onOpenRelated: (RelatedEntry) -> Unit, relatedLoadingId: Int? = null, onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenRecommended: (RecommendedEntry) -> Unit = {}, recommendedLoadingId: Int? = null, onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadCharactersStaff: (MediaItem, (List<CharacterEntry>, List<StaffEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenReview: (ReviewEntry) -> Unit = {}, onOpenReviewList: (String, String) -> Unit = { _, _ -> }, onGenreClick: (String) -> Unit = {}, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap()) {
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
     // Track related backfill completion
@@ -4377,7 +4487,7 @@ private fun applyForcedDarkMode(settings: android.webkit.WebSettings, darkTheme:
                         Text("Related", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             items(related) { rel ->
-                                RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId, myStatus = myListStatus[rel.malId]) {
+                                RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId, myStatus = myListStatus[rel.malId to (if (rel.malType == "manga") MediaType.Manga else MediaType.Anime)]) {
                                     // Fallback to web search
                                     if (rel.malId > 0) onOpenRelated(rel) else uriHandler.openUri(malUrl(rel))
                                 }
@@ -4390,7 +4500,7 @@ private fun applyForcedDarkMode(settings: android.webkit.WebSettings, darkTheme:
                         Text("Recommended", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             items(recommended, key = { it.malId }) { rec ->
-                                RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId]) { onOpenRecommended(rec) }
+                                RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { onOpenRecommended(rec) }
                             }
                         }
                     }
