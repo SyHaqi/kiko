@@ -143,6 +143,11 @@ import kotlin.math.roundToInt
     val openBrowse: (StackBrowseKind) -> Unit = { k -> saveScroll(); onOpenBrowse(k) }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    // Spotlight row data — the curated Challenge/Manga/Anime picks combined into one ordered list.
+    // Hoisted here (not inside the LazyColumn content block) since remember() needs composable context.
+    val spotlightStacks = remember(vm.stacksHomeChallenges, vm.stacksHomeManga, vm.stacksHomeAnime) {
+        vm.stacksHomeChallenges.map { "ch" to it } + vm.stacksHomeManga.map { "mg" to it } + vm.stacksHomeAnime.map { "an" to it }
+    }
     // Auto-load more of the "Recent" section as the user nears the bottom, same as
     // every other paginated list — only that section is paginated; the curated
     // Challenge/Manga/Anime/MyAnimeList rows above load in full once, so leave those alone
@@ -168,17 +173,14 @@ import kotlin.math.roundToInt
             if (vm.stacksHomeLoading) {
                 item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(26.dp)) } }
             }
-            if (vm.stacksHomeChallenges.isNotEmpty()) {
-                item { StackSectionHeader("Challenge Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Challenges) }) }
-                items(vm.stacksHomeChallenges, key = { "ch-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
-            }
-            if (vm.stacksHomeManga.isNotEmpty()) {
-                item { StackSectionHeader("Manga Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Manga) }) }
-                items(vm.stacksHomeManga, key = { "mg-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
-            }
-            if (vm.stacksHomeAnime.isNotEmpty()) {
-                item { StackSectionHeader("Anime Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.Anime) }) }
-                items(vm.stacksHomeAnime, key = { "an-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
+            if (spotlightStacks.isNotEmpty()) {
+                // Spotlight row — the curated Challenge/Manga/Anime picks side by side instead of stacked full-width
+                item { StackSectionHeader("Spotlight", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(spotlightStacks, key = { (prefix, s) -> "$prefix-${s.id}" }) { (_, s) -> StackSpotlightCard(s) { openStack(s) } }
+                    }
+                }
             }
             if (vm.stacksHomeMal.isNotEmpty()) {
                 item { StackSectionHeader("MyAnimeList Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.MyAnimeList) }) }
@@ -360,6 +362,35 @@ import kotlin.math.roundToInt
                     Text(stack.description, color = c.muted, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
                 }
                 Box(Modifier.padding(top = 12.dp)) { StackStatsRow(stack.entryCount, stack.restacks, stack.updatedLabel) }
+            }
+        }
+    }
+}
+// Spotlight card — fixed-width version of StackFeaturedCard for the horizontal
+// Challenge/Manga/Anime spotlight row on the stacks homepage
+
+@Composable fun StackSpotlightCard(stack: StackSummary, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    var covers by remember(stack.id) { mutableStateOf(stack.covers) }
+    LaunchedEffect(stack.id) {
+        if (covers.isEmpty()) covers = runCatching { StacksApi().topCovers(stack.id) }.getOrElse { emptyList() }
+    }
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = c.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        modifier = Modifier.width(250.dp).clickable(onClick = onClick),
+    ) {
+        Column {
+            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)))
+            Column(Modifier.padding(14.dp)) {
+                if (stack.tags.isNotEmpty()) Box(Modifier.padding(bottom = 8.dp)) { StackTagsRow(stack.tags) }
+                Text(stack.title, style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (stack.author.isNotBlank()) Text("by ${stack.author}", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 5.dp))
+                if (stack.description.isNotBlank()) {
+                    Text(stack.description, color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
+                }
+                Box(Modifier.padding(top = 10.dp)) { StackStatsRow(stack.entryCount, stack.restacks, stack.updatedLabel) }
             }
         }
     }

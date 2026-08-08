@@ -154,7 +154,7 @@ import kotlin.math.roundToInt
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
-                AppHeader("Forums", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty()) }
+                AppHeader("Forums", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty()) { vm.profileDrawerOpen = true } }
                 // Search hands off topics
                 SearchField(query, { query = it }, "Search topics", onSearch = { if (query.isNotBlank()) { saveScroll(); vm.runForumSearch(context, query) } })
             }

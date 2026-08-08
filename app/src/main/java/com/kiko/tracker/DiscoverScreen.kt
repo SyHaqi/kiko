@@ -134,7 +134,9 @@ import kotlin.math.roundToInt
     onOpenDetail: (MediaItem) -> Unit,
     onRanking: () -> Unit,
     onSeasonal: () -> Unit,
-    onStacks: () -> Unit
+    onStacks: () -> Unit,
+    onRecommendations: () -> Unit,
+    onExitResults: () -> Unit = vm::exitDiscoverSearch
 ) {
     val context = LocalContext.current
     LaunchedEffect(vm.signedIn) { vm.loadDiscoverBrowse(context) }
@@ -143,8 +145,8 @@ import kotlin.math.roundToInt
         transitionSpec = { if (targetState == DiscoverMode.Results) PushEnter togetherWith PushExit else PopEnter togetherWith PopExit },
         label = "discover-mode",
     ) { mode ->
-        if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail)
-        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks)
+        if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults)
+        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks, onRecommendations)
     }
 }
 // Discover landing page
@@ -155,7 +157,8 @@ import kotlin.math.roundToInt
     onOpenDetail: (MediaItem) -> Unit,
     onRanking: () -> Unit,
     onSeasonal: () -> Unit,
-    onStacks: () -> Unit
+    onStacks: () -> Unit,
+    onRecommendations: () -> Unit
 ) {
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf("") }
@@ -167,7 +170,7 @@ import kotlin.math.roundToInt
 
     LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
         item {
-            AppHeader("Discover", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty()) }
+            AppHeader("Discover", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty()) { vm.profileDrawerOpen = true } }
             Spacer(Modifier.height(17.dp))
 
             // Search bar and filter
@@ -254,9 +257,10 @@ import kotlin.math.roundToInt
             // Recommendations row
             if (vm.visibleRecommendations.isNotEmpty()) {
                 item {
-                    SectionTitle("You might like", "", {})
+                    SectionTitle("You might like", "See more", onRecommendations)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                        items(vm.visibleRecommendations, key = { it.id }) { item ->
+                        // Cap row at 7; full list is in the "See more" grid
+                        items(vm.visibleRecommendations.take(7), key = { it.id }) { item ->
                             BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
                         }
                     }
@@ -312,11 +316,11 @@ import kotlin.math.roundToInt
 // Interest Stacks homepage — curated Challenge/Manga/Anime picks up top, Recent Interest Stacks below.
 // Greets the user when they tap the Stacks button, mirroring myanimelist.net/stacks.
 
-@Composable fun DiscoverResultsScreen(vm: LibraryViewModel, context: Context, onOpenDetail: (MediaItem) -> Unit) {
+@Composable fun DiscoverResultsScreen(vm: LibraryViewModel, context: Context, onOpenDetail: (MediaItem) -> Unit, onExitResults: () -> Unit = vm::exitDiscoverSearch) {
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf(vm.discoverQuery) }
     var filterSheetOpen by remember { mutableStateOf(false) }
-    BackHandler(onBack = vm::exitDiscoverSearch)
+    BackHandler(onBack = onExitResults)
     // Restore results scroll position
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.discoverScrollIndex, initialFirstVisibleItemScrollOffset = vm.discoverScrollOffset)
     val openResult: (MediaItem) -> Unit = { result ->
@@ -329,7 +333,7 @@ import kotlin.math.roundToInt
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = vm::exitDiscoverSearch, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink) }
+                    IconButton(onClick = onExitResults, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink) }
                     Text("Search results", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -557,5 +561,72 @@ fun episodeAndYear(item: MediaItem): String {
 // Comma-format member count
 
 fun formatExact(n: Int): String = "%,d".format(n)
+
+// "You might like" — full grid of recommendations, with the user's status mark on each cover
+
+@Composable fun RecommendationsScreen(vm: LibraryViewModel, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    BackHandler(onBack = onBack)
+    LaunchedEffect(Unit) { vm.loadHomeExtras(context) }
+    // Same id+type keyed status map used elsewhere so recs the user already tracks show their mark
+    val myListStatus = remember(vm.items) { vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap() }
+    val gridState = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 } }
+
+    Box(Modifier.fillMaxSize()) {
+        LazyVerticalGrid(
+            state = gridState,
+            columns = GridCells.Fixed(3),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    Text("You might like", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+                }
+            }
+            if (vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp), color = c.primary, trackColor = c.surfaceLow)
+                }
+            }
+            items(vm.visibleRecommendations, key = { it.id }) { item ->
+                RecommendationGridCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
+            }
+            if (!vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text("No recommendations yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center)
+                }
+            }
+        }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { gridState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
+    }
+}
+// Recommendations grid tile — mirrors SeasonalGridCard but marks the user's tracked status
+
+@Composable fun RecommendationGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null) {
+    val c = LocalKikoColors.current
+    Column(Modifier.fillMaxWidth().clickable { onOpenDetail(item) }) {
+        Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f), showStatus = true, overrideStatus = myStatus)
+        Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
+        if (item.score > 0) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
+                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
+                Text("%.2f".format(item.score), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
+            }
+        } else if (item.genre.isNotBlank()) {
+            Text(item.genre, color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+        }
+    }
+}
 
 // Forums tab structure

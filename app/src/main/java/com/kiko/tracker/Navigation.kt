@@ -165,6 +165,8 @@ sealed class TopScreen {
     data class Detail(val item: MediaItem) : TopScreen()
     object Ranking : TopScreen()
     object Seasonal : TopScreen()
+    // Full grid of "You might like" recommendations
+    object Recommendations : TopScreen()
     // Seed initial schedule day
     data class Schedule(val initialDay: java.time.DayOfWeek) : TopScreen()
     // Reading single forum topic
@@ -180,6 +182,11 @@ sealed class TopScreen {
     data class StacksBrowse(val initialKind: StackBrowseKind) : TopScreen()
     // One stack's entries
     data class StackDetail(val stackId: Int, val title: String) : TopScreen()
+    // Single club page
+    data class ClubDetail(val club: MalClub) : TopScreen()
+    // Full pages opened from the profile drawer
+    object ProfileStats : TopScreen()
+    object SettingsPage : TopScreen()
     data class Tab(val destination: Destination) : TopScreen()
 }
 // Same screen vs navigation
@@ -188,6 +195,7 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.Detail -> "detail:${item.id}"
     TopScreen.Ranking -> "ranking"
     TopScreen.Seasonal -> "seasonal"
+    TopScreen.Recommendations -> "recommendations"
     is TopScreen.Schedule -> "schedule"
     is TopScreen.Topic -> "topic:$topicId"
     TopScreen.About -> "about"
@@ -195,10 +203,13 @@ fun TopScreen.navKey(): Any = when (this) {
     TopScreen.StacksHome -> "stacksHome"
     is TopScreen.StacksBrowse -> "stacksBrowse"
     is TopScreen.StackDetail -> "stackDetail:$stackId"
+    is TopScreen.ClubDetail -> "clubDetail:${club.id}"
+    TopScreen.ProfileStats -> "profileStats"
+    TopScreen.SettingsPage -> "settingsPage"
     is TopScreen.Tab -> "tab:$destination"
 }
 
-fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Seasonal || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail
+fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Seasonal || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.SettingsPage
 
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}) {
@@ -231,6 +242,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Home full-screen destinations
     var rankingOpen by remember { mutableStateOf(false) }
     var seasonalOpen by remember { mutableStateOf(false) }
+    var recommendationsOpen by remember { mutableStateOf(false) }
     // Schedule day to open
     var scheduleOpen by remember { mutableStateOf(false) }
     var scheduleInitialDay by remember { mutableStateOf(java.time.LocalDate.now().dayOfWeek) }
@@ -248,6 +260,11 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var stackDetailOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
     fun openStacks() { stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = true }
     fun openStacksBrowse(kind: StackBrowseKind) { stackDetailOpen = null; stacksBrowseKind = kind }
+    // Club detail state
+    var clubDetailOpen by remember { mutableStateOf<MalClub?>(null) }
+    // Full pages opened from the profile drawer
+    var profileStatsOpen by remember { mutableStateOf(false) }
+    var settingsPageOpen by remember { mutableStateOf(false) }
     // Live-merge search result — must match on id AND type, since MAL anime and
     // manga ids are separate numbering spaces and can collide (e.g. anime id 11577 is
     // Steins;Gate Movie: Fuka Ryouiki no Déjà vu, manga id 11577 is Stardust★Wink)
@@ -255,7 +272,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Prefer live item copy — same id+type requirement as above
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && (vm.destination != Destination.Home || genreReturnItem != null)) {
+    BackHandler(enabled = detailItem == null && !rankingOpen && !seasonalOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && (vm.destination != Destination.Home || genreReturnItem != null)) {
         val returnItem = genreReturnItem
         if (returnItem != null && vm.destination == Destination.Discover) {
             genreReturnItem = null
@@ -290,7 +307,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         ) {
             Scaffold(
                 containerColor = c.background,
-                bottomBar = { if (detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen) BottomBar(vm.destination) { genreReturnItem = null; vm.destination = it } }
+                bottomBar = { if (detailItem == null && !rankingOpen && !seasonalOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen) BottomBar(vm.destination) { genreReturnItem = null; vm.destination = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val topScreen = when {
@@ -298,12 +315,16 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                         detailItem != null -> TopScreen.Detail(detailItem)
                         rankingOpen -> TopScreen.Ranking
                         seasonalOpen -> TopScreen.Seasonal
+                        recommendationsOpen -> TopScreen.Recommendations
                         scheduleOpen -> TopScreen.Schedule(scheduleInitialDay)
                         stackDetailOpen != null -> TopScreen.StackDetail(stackDetailOpen!!.first, stackDetailOpen!!.second)
                         stacksBrowseKind != null -> TopScreen.StacksBrowse(stacksBrowseKind!!)
                         stacksHomeOpen -> TopScreen.StacksHome
-                        forumTopicOpen != null -> TopScreen.Topic(forumTopicOpen!!.first, forumTopicOpen!!.second)
+                        clubDetailOpen != null -> TopScreen.ClubDetail(clubDetailOpen!!)
                         aboutOpen -> TopScreen.About
+                        profileStatsOpen -> TopScreen.ProfileStats
+                        settingsPageOpen -> TopScreen.SettingsPage
+                        forumTopicOpen != null -> TopScreen.Topic(forumTopicOpen!!.first, forumTopicOpen!!.second)
                         else -> TopScreen.Tab(vm.destination)
                     }
                     AnimatedContent(
@@ -327,6 +348,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             })
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Seasonal -> SeasonalScreen(vm, onBack = { seasonalOpen = false }, onOpenDetail = ::openDetail)
+                            TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail)
                             is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)
                             is TopScreen.Topic -> ForumTopicScreen(vm, topicId = screen.topicId, title = screen.title, onBack = { forumTopicOpen = null })
                             TopScreen.About -> AboutScreen(
@@ -338,6 +360,15 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             TopScreen.StacksHome -> StacksHomeScreen(vm, onBack = { stacksHomeOpen = false }, onOpenBrowse = { kind -> openStacksBrowse(kind) }, onOpenStack = { id, title -> stackDetailOpen = id to title })
                             is TopScreen.StacksBrowse -> StacksScreen(vm, initialKind = screen.initialKind, onBack = { stacksBrowseKind = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
                             is TopScreen.StackDetail -> StackDetailScreen(screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), onBack = { stackDetailOpen = null }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } })
+                            is TopScreen.ClubDetail -> ClubDetailScreen(screen.club, onBack = { clubDetailOpen = null })
+                            TopScreen.ProfileStats -> ProfileStatsScreen(vm.signedIn, vm.malProfile, vm.items, onConnect = onSignIn, onBack = { profileStatsOpen = false })
+                            TopScreen.SettingsPage -> SettingsScreen(
+                                connected = vm.signedIn, themeMode = vm.themeMode, colorSource = vm.colorSource, paletteStyle = vm.paletteStyle, titleLanguage = vm.titleLanguage,
+                                nsfwEnabled = vm.nsfwEnabled, onNsfwChange = { vm.setNsfw(context, it) },
+                                onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true },
+                                updateInfo = vm.updateInfo, onAboutClick = { aboutOpen = true }, onSignOut = { settingsPageOpen = false; onSignOut() },
+                                onBack = { settingsPageOpen = false },
+                            )
                             is TopScreen.Tab -> when (screen.destination) {
                                 Destination.Home -> HomeScreen(vm, onOpenDetail = ::openDetail, onList = { vm.destination = Destination.List }, onDiscover = { vm.destination = Destination.Discover }, onRanking = { rankingOpen = true }, onSeasonal = { seasonalOpen = true }, onSchedule = ::openSchedule, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onSeeNews = { vm.destination = Destination.Forums; vm.openNewsBoard(context) })
                                 Destination.List -> ListScreen(vm, onOpenDetail = ::openDetail, onIncrement = { vm.saveLive(context, it) })
@@ -346,11 +377,16 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onOpenDetail = ::openDetail,
                                     onRanking = { rankingOpen = true },
                                     onSeasonal = { seasonalOpen = true },
-                                    onStacks = ::openStacks
+                                    onStacks = ::openStacks,
+                                    onRecommendations = { recommendationsOpen = true },
+                                    onExitResults = {
+                                        val returnItem = genreReturnItem
+                                        if (returnItem != null) { genreReturnItem = null; selectedItem = returnItem }
+                                        else vm.exitDiscoverSearch()
+                                    }
                                 )
                                 Destination.Forums -> ForumsScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title })
-                                Destination.Profile -> ProfileScreen(vm.signedIn, vm.malProfile, vm.items, vm.themeMode, vm.colorSource, vm.paletteStyle, vm.titleLanguage, vm.nsfwEnabled, onNsfwChange = { vm.setNsfw(context, it) }, onConnect = onSignIn, onSignOut = onSignOut, onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true },
-                                    updateInfo = vm.updateInfo, onAboutClick = { aboutOpen = true })
+                                Destination.Clubs -> ClubsScreen(vm, onOpenClub = { clubDetailOpen = it })
                             }
                         }
                     }
@@ -373,6 +409,14 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                     onOpenInstallSettings = { vm.updateNeedsInstallPermission = false; context.startActivity(AppUpdateChecker(context).installPermissionSettingsIntent()) },
                     onSkip = { vm.skipUpdate(context) },
                     onDismiss = { vm.updateDialogOpen = false; vm.updateNeedsInstallPermission = false; vm.updateError = null },
+                )
+            }
+            if (vm.profileDrawerOpen) {
+                ProfileDrawer(
+                    connected = vm.signedIn, profile = vm.malProfile,
+                    onOpenProfile = { profileStatsOpen = true },
+                    onOpenSettings = { settingsPageOpen = true },
+                    onDismiss = { vm.profileDrawerOpen = false },
                 )
             }
         }

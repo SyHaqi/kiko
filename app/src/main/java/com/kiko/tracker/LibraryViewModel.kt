@@ -133,6 +133,8 @@ class LibraryViewModel : ViewModel() {
     // Start with empty list
     var items by mutableStateOf(emptyList<MediaItem>()); private set
     var destination by mutableStateOf(Destination.Home)
+    // Right-side profile/settings slider, opened from any tab's avatar
+    var profileDrawerOpen by mutableStateOf(false)
     var signedIn by mutableStateOf(false); var loading by mutableStateOf(false); var error by mutableStateOf<String?>(null)
     var themeMode by mutableStateOf(ThemeMode.System)
     var colorSource by mutableStateOf(ColorSource.AppDefault); private set
@@ -151,6 +153,24 @@ class LibraryViewModel : ViewModel() {
     var discoverScrollIndex by mutableStateOf(0); private set
     var discoverScrollOffset by mutableStateOf(0); private set
     fun saveDiscoverScroll(index: Int, offset: Int) { discoverScrollIndex = index; discoverScrollOffset = offset }
+    // Clubs tab state — survives navigating into a club and back, same as
+    // Discover results above: query, loaded pages, and scroll position all
+    // live here instead of in ClubsScreen's own remember{} blocks, which get
+    // torn down when the screen leaves composition for the club detail page.
+    var clubsQuery by mutableStateOf(""); private set
+    var clubsList by mutableStateOf<List<MalClub>>(emptyList()); private set
+    var clubsPage by mutableStateOf(1); private set
+    var clubsHasMore by mutableStateOf(false); private set
+    var clubsVisibleCount by mutableStateOf(10); private set
+    var clubsScrollIndex by mutableStateOf(0); private set
+    var clubsScrollOffset by mutableStateOf(0); private set
+    fun saveClubsScroll(index: Int, offset: Int) { clubsScrollIndex = index; clubsScrollOffset = offset }
+    fun setClubsResults(query: String, page: ClubsPage) {
+        clubsQuery = query; clubsList = page.items; clubsPage = 1; clubsHasMore = page.hasMore
+        clubsVisibleCount = 10; clubsScrollIndex = 0; clubsScrollOffset = 0
+    }
+    fun appendClubsResults(page: ClubsPage, pageNumber: Int) { clubsList = clubsList + page.items; clubsHasMore = page.hasMore; clubsPage = pageNumber }
+    fun revealMoreClubs(count: Int) { clubsVisibleCount = count }
     // Per-title detail scroll
     private val detailScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
     fun getDetailScroll(id: String) = detailScrollPositions[id] ?: (0 to 0)
@@ -362,7 +382,7 @@ class LibraryViewModel : ViewModel() {
     fun loadHomeExtras(context: Context) {
         if (homeExtrasLoaded || !MalApi(context).signedIn) return
         homeExtrasLoaded = true
-        viewModelScope.launch { runCatching { MalApi(context).animeSuggestions(10) }.onSuccess { recommendations = it } }
+        viewModelScope.launch { runCatching { MalApi(context).animeSuggestions(100) }.onSuccess { recommendations = it } }
     }
     // (Re)run ranking chart
     fun loadRanking(context: Context, type: MediaType, sort: RankingSort) {

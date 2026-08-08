@@ -230,7 +230,7 @@ enum class MediaType { Anime, Manga }
 
 enum class WatchStatus(val label: String) { Watching("Watching"), Reading("Reading"), Plan("Plan to Watch"), Completed("Completed"), OnHold("On Hold"), Dropped("Dropped") }
 
-enum class Destination(val label: String, val icon: ImageVector) { Home("Home", Icons.Default.Home), List("My list", Icons.Default.List), Discover("Discover", Icons.Default.Search), Forums("Forums", Icons.Default.Forum), Profile("Profile", Icons.Default.Person) }
+enum class Destination(val label: String, val icon: ImageVector) { Home("Home", Icons.Default.Home), List("My list", Icons.Default.List), Discover("Discover", Icons.Default.Search), Forums("Forums", Icons.Default.Forum), Clubs("Clubs", Icons.Default.Groups) }
 
 enum class ThemeMode(val label: String) { System("System"), Light("Light"), Dark("Dark") }
 

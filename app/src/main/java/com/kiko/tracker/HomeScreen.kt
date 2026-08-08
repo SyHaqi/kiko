@@ -143,7 +143,7 @@ import kotlin.math.roundToInt
     val airingNext = vm.visibleDiscoverNewSeason.mapNotNull { item -> item.nextAirDateTime()?.let { item to it } }.sortedBy { it.second }.take(5).map { it.first }
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
-            AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty()) }
+            AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty()) { vm.profileDrawerOpen = true } }
             Column(Modifier.padding(horizontal = 20.dp)) {
                 // Use device current date
                 Text(
@@ -387,7 +387,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         }
     }
     val header: @Composable () -> Unit = {
-        AppHeader("My list", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty()) }
+        AppHeader("My list", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty()) { vm.profileDrawerOpen = true } }
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.primary, trackColor = c.surfaceLow)
         SearchField(query, { query = it }, "Search your list", onSearch = { submittedQuery = query }, onClear = { query = ""; submittedQuery = "" })
         // Reset scroll on change
