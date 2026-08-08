@@ -1,0 +1,689 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
+package com.kiko.tracker
+
+import android.Manifest
+import android.app.Activity
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.browser.customtabs.CustomTabsIntent
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
+import coil.request.ImageRequest
+import coil.size.Size
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import java.util.UUID
+import kotlin.math.roundToInt
+
+@Composable fun ForumsScreen(vm: LibraryViewModel, onOpenTopic: (Int, String) -> Unit) {
+    val context = LocalContext.current
+    LaunchedEffect(vm.signedIn) { vm.loadForumBoards(context) }
+    AnimatedContent(
+        vm.forumMode,
+        transitionSpec = { if (targetState == ForumMode.Topics) PushEnter togetherWith PushExit else PopEnter togetherWith PopExit },
+        label = "forum-mode",
+    ) { mode ->
+        if (mode == ForumMode.Topics) ForumTopicsScreen(vm, context, onOpenTopic)
+        else ForumBoardsScreen(vm, context)
+    }
+}
+// Forums landing page
+
+@Composable fun ForumBoardsScreen(vm: LibraryViewModel, context: Context) {
+    val c = LocalKikoColors.current
+    var query by remember { mutableStateOf("") }
+    // Restore board list scroll
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.forumBoardsScrollIndex, initialFirstVisibleItemScrollOffset = vm.forumBoardsScrollOffset)
+    val saveScroll = { vm.saveForumBoardsScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            item {
+                AppHeader("Forums", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty()) }
+                // Search hands off topics
+                SearchField(query, { query = it }, "Search topics", onSearch = { if (query.isNotBlank()) { saveScroll(); vm.runForumSearch(context, query) } })
+            }
+            if (!vm.signedIn) {
+                item { Text("Sign in from Profile to browse the MAL forums", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+            } else {
+                item {
+                    if (vm.forumBoardsLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                    vm.forumBoardsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                }
+                // Grouped category board card
+                vm.forumCategories.forEach { category ->
+                    item { Text(category.title.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp)) }
+                    item {
+                        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                            Column {
+                                category.boards.forEachIndexed { index, board ->
+                                    ForumBoardRow(board) { saveScroll(); vm.openForumBoard(context, board) }
+                                    if (index < category.boards.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
+    }
+}
+// Subboard count pill
+
+@Composable fun ForumBoardRow(board: ForumBoard, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.Forum, null, tint = c.primary, modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(board.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+            if (board.description.isNotBlank()) Text(board.description, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        }
+        if (board.subboards.isNotEmpty()) {
+            Box(Modifier.padding(end = 8.dp).clip(RoundedCornerShape(50)).background(c.surfaceLow).padding(horizontal = 9.dp, vertical = 4.dp)) {
+                Text("${board.subboards.size} boards", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+            }
+        }
+        Icon(Icons.Default.ChevronRight, null, tint = c.muted)
+    }
+}
+// Back-to-top floating button
+
+@Composable fun GoToTopButton(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+        FloatingActionButton(onClick = onClick, containerColor = c.primary, contentColor = c.onPrimary, modifier = Modifier.size(46.dp)) {
+            Icon(Icons.Default.KeyboardArrowUp, "Back to top")
+        }
+    }
+}
+// Shared topic list page
+
+@Composable fun ForumTopicsScreen(vm: LibraryViewModel, context: Context, onOpenTopic: (Int, String) -> Unit) {
+    val c = LocalKikoColors.current
+    val headerTitle = vm.forumBoardTitle.ifBlank { "Search results" }
+    BackHandler(onBack = vm::exitForumTopics)
+    // Restore topics scroll position
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.forumTopicsScrollIndex, initialFirstVisibleItemScrollOffset = vm.forumTopicsScrollOffset)
+    val openTopic: (ForumTopic) -> Unit = { topic ->
+        vm.saveForumTopicsScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+        onOpenTopic(topic.id, topic.title)
+    }
+    val scope = rememberCoroutineScope()
+    // Item-index alone misses cases where a single tall item (e.g. a long post) is
+    // scrolled through without the index ever advancing, so also trigger off pixel offset
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    // Load more forum topics
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
+            .distinctUntilChanged()
+            .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 6) vm.loadMoreForumTopics(context) }
+    }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = vm::exitForumTopics, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back to Forums", tint = c.ink) }
+                    Text(headerTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
+                }
+                if (vm.forumSubboards.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 15.dp)) {
+                        item { FilterChip(selected = vm.forumSubboardId == null, onClick = { vm.openForumSubboard(context, null) }, label = { Text("All") }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                        items(vm.forumSubboards, key = { it.id }) { sub -> FilterChip(selected = vm.forumSubboardId == sub.id, onClick = { vm.openForumSubboard(context, sub.id) }, label = { Text(sub.title) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                    }
+                }
+                if (vm.forumTopicsLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                vm.forumTopicsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+            }
+            if (!vm.forumTopicsLoading && vm.forumTopics.isEmpty() && vm.forumTopicsError == null) {
+                item { Text("No topics found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+            }
+            itemsIndexed(vm.forumTopics, key = { _, it -> it.id }) { index, topic ->
+                if (vm.forumIsNewsBoard) NewsTopicRow(topic) { openTopic(topic) } else ForumTopicRow(topic) { openTopic(topic) }
+                if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+            }
+            if (vm.forumLoadingMore) {
+                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+            }
+        }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
+    }
+}
+// Forum topic list row
+
+@Composable fun ForumTopicRow(topic: ForumTopic, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
+        if (topic.author.avatar.isNotBlank()) {
+            AsyncImage(model = topic.author.avatar, contentDescription = topic.author.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(36.dp).clip(CircleShape).background(c.warm))
+        } else {
+            Box(Modifier.size(36.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                Text(topic.author.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
+            }
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (topic.isLocked) Icon(Icons.Default.Lock, null, tint = c.muted, modifier = Modifier.size(13.dp).padding(end = 4.dp))
+                Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Text("by ${topic.author.name.ifBlank { "Unknown" }} · ${formatForumDate(topic.createdAt)}", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+            if (topic.lastPostAuthor.name.isNotBlank()) {
+                Text("Last reply by ${topic.lastPostAuthor.name} · ${formatForumDate(topic.lastPostAt)}", color = c.primary, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 3.dp))
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp)) {
+            Icon(Icons.Default.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
+            Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+        }
+    }
+}
+// News Discussion topic row
+
+@Composable fun NewsTopicRow(topic: ForumTopic, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.Top) {
+        Box(Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(16.dp)).background(c.surfaceLow), contentAlignment = Alignment.Center) {
+            if (topic.imageUrl != null) {
+                AsyncImage(model = topic.imageUrl, contentDescription = topic.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            } else {
+                Icon(Icons.Default.Newspaper, null, tint = c.muted, modifier = Modifier.size(28.dp))
+            }
+        }
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (topic.isLocked) Icon(Icons.Default.Lock, null, tint = c.muted, modifier = Modifier.size(12.dp).padding(end = 4.dp))
+                Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+            Text("by ${topic.author.name.ifBlank { "Unknown" }} · ${formatForumDate(topic.createdAt)}", color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                if (topic.lastPostAuthor.name.isNotBlank()) {
+                    Text("Last reply by ${topic.lastPostAuthor.name} · ${formatForumDate(topic.lastPostAt)}", color = c.primary, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp))
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
+                    Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+                }
+            }
+        }
+    }
+}
+// Single topic posts screen
+
+@Composable fun ForumTopicScreen(vm: LibraryViewModel, topicId: Int, title: String, onBack: () -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var posts by remember(topicId) { mutableStateOf<List<ForumPost>>(emptyList()) }
+    var poll by remember(topicId) { mutableStateOf<ForumPoll?>(null) }
+    var loading by remember(topicId) { mutableStateOf(true) }
+    var loadingMore by remember(topicId) { mutableStateOf(false) }
+    var hasMore by remember(topicId) { mutableStateOf(false) }
+    var error by remember(topicId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(topicId) {
+        loading = true
+        runCatching { MalApi(context).forumTopic(topicId) }
+            .onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore; error = null }
+            .onFailure { error = it.message ?: "Could not load topic" }
+        loading = false
+    }
+    // Restore per-topic scroll position
+    val (initialIndex, initialOffset) = remember(topicId) { vm.forumTopicScrollFor(topicId) }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex, initialFirstVisibleItemScrollOffset = initialOffset)
+    val goBack = { vm.saveForumTopicScroll(topicId, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onBack() }
+    BackHandler(onBack = goBack)
+    // Item-index alone misses cases where a single tall item (e.g. a long OP post) is
+    // scrolled through without the index ever advancing, so also trigger off pixel offset
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    // Auto-load the next page of replies as the user nears the bottom, instead of
+    // requiring a manual tap — matches ForumTopicsScreen's behavior so replies appear
+    // as you scroll rather than needing to be requested explicitly
+    LaunchedEffect(listState, topicId, hasMore) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
+            .distinctUntilChanged()
+            .collect { (lastVisible, total) ->
+                if (lastVisible != null && total > 0 && lastVisible >= total - 6 && hasMore && !loadingMore && !loading) {
+                    loadingMore = true
+                    runCatching { MalApi(context).forumTopic(topicId, offset = posts.size) }
+                        .onSuccess { posts = posts + it.posts; hasMore = it.hasMore }
+                        .onFailure { hasMore = false }
+                    loadingMore = false
+                }
+            }
+    }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = goBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                    // Open topic in browser
+                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/forum/?topicid=$topicId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) {
+                        Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
+                    }
+                }
+                if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                poll?.let { ForumPollCard(it, Modifier.padding(top = 6.dp, bottom = 6.dp)) }
+            }
+            itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
+                ForumPostCard(post, isOriginalPost = post.number == 1)
+                if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+            }
+            if (loadingMore) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                    }
+                }
+            }
+        }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
+    }
+}
+// Full review readout page
+
+@Composable fun ReviewScreen(entry: ReviewEntry, itemTitle: String, onBack: () -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    BackHandler(onBack = onBack)
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { scrollState.value > 600 } }
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 20.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                if (entry.url.isNotBlank()) {
+                    // Open review in browser
+                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(entry.url)) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) {
+                        Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (entry.userImage.isNotBlank()) {
+                    AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(40.dp).clip(CircleShape).background(c.warm))
+                } else {
+                    Box(Modifier.size(40.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                        Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+                    }
+                }
+                Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
+                if (entry.score > 0) {
+                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp))
+                    Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
+                }
+            }
+            if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 14.dp))
+            if (entry.tags.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 14.dp)) {
+                    entry.tags.forEach { tag ->
+                        val verdict = tag in ReviewVerdictTags
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (verdict) Icon(Icons.Default.Star, null, tint = verdictColor(tag, c), modifier = Modifier.size(13.dp))
+                            Text(
+                                tag, color = if (verdict) verdictColor(tag, c) else c.muted, fontWeight = if (verdict) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp, modifier = Modifier.padding(start = if (verdict) 4.dp else 0.dp),
+                            )
+                        }
+                    }
+                }
+            }
+            SelectionContainer {
+                Text(
+                    entry.review, color = c.ink, fontSize = 14.sp, lineHeight = 22.sp,
+                    modifier = Modifier.padding(top = 18.dp, bottom = 28.dp),
+                )
+            }
+        }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { scrollState.animateScrollTo(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
+    }
+}
+// BBCode tag renderer
+sealed class ForumBlock {
+    data class Paragraph(val text: AnnotatedString, val center: Boolean = false) : ForumBlock()
+    // Tenor flag needs resolving
+    data class ImageBlock(val url: String, val resolveTenor: Boolean = false) : ForumBlock()
+    data class ListBlock(val items: List<AnnotatedString>, val ordered: Boolean) : ForumBlock()
+    // Quote holds nested blocks
+    data class Quote(val blocks: List<ForumBlock>) : ForumBlock()
+}
+sealed class BbToken {
+    data class Text(val text: String) : BbToken()
+    data class Open(val name: String, val attr: String?) : BbToken()
+    data class Close(val name: String) : BbToken()
+}
+
+@Composable fun ForumImage(url: String, c: KikoColors, onTap: (String) -> Unit) {
+    val uriHandler = LocalUriHandler.current
+    Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
+        SubcomposeAsyncImage(
+            model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 340.dp).clip(RoundedCornerShape(8.dp))
+                .border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(8.dp))
+                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onTap(url) },
+        ) {
+            when (painter.state) {
+                is AsyncImagePainter.State.Loading -> Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = c.primary, modifier = Modifier.size(26.dp), strokeWidth = 2.dp)
+                }
+                is AsyncImagePainter.State.Error -> Column(
+                    Modifier.fillMaxWidth().padding(16.dp).clickable { runCatching { uriHandler.openUri(url) } },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(Icons.Default.Warning, null, tint = c.muted, modifier = Modifier.size(22.dp))
+                    Text("Couldn't load image · tap to open", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                }
+                else -> SubcomposeAsyncImageContent()
+            }
+        }
+    }
+}
+// Fullscreen zoomable image viewer
+
+@Composable fun ZoomableImageDialog(url: String, onDismiss: () -> Unit) {
+    var scale by remember(url) { mutableStateOf(1f) }
+    var offset by remember(url) { mutableStateOf(Offset.Zero) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = .95f))
+                .pointerInput(url) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        val newScale = (scale * zoom).coerceIn(1f, 6f)
+                        scale = newScale
+                        offset = if (newScale <= 1f) Offset.Zero else offset + pan
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth(0.95f)
+                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y)
+                    .pointerInput(url) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                if (scale > 1f) { scale = 1f; offset = Offset.Zero } else scale = 2.5f
+                            },
+                            onTap = { if (scale <= 1f) onDismiss() },
+                        )
+                    },
+            )
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = .15f)),
+            ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
+        }
+    }
+}
+// Render BBCode as column
+
+@Composable fun ForumBody(body: String, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    val uriHandler = LocalUriHandler.current
+    val blocks = remember(body, c.primary) { parseBBCode(body, c.primary) }
+    // Currently open viewer image
+    var fullscreenImage by remember { mutableStateOf<String?>(null) }
+    fullscreenImage?.let { url -> ZoomableImageDialog(url, onDismiss = { fullscreenImage = null }) }
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        blocks.forEach { block -> ForumBlockView(block, c, uriHandler) { fullscreenImage = it } }
+    }
+}
+// Recursive block rendering helper
+
+@Composable fun ForumBlockView(block: ForumBlock, c: KikoColors, uriHandler: androidx.compose.ui.platform.UriHandler, muted: Boolean = false, onImageTap: (String) -> Unit) {
+    when (block) {
+        is ForumBlock.Paragraph -> ClickableText(
+            text = block.text,
+            style = TextStyle(
+                color = if (muted) c.muted else c.ink, fontSize = if (muted) 13.sp else 14.sp,
+                lineHeight = if (muted) 19.sp else 20.sp, fontStyle = if (muted) FontStyle.Italic else FontStyle.Normal,
+                textAlign = if (block.center) TextAlign.Center else TextAlign.Start,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { offset -> block.text.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { runCatching { uriHandler.openUri(it.item) } } },
+        )
+        // Ignore fixed pixel width
+        is ForumBlock.ImageBlock -> {
+            // Tenor resolve loading states
+            if (block.resolveTenor) {
+                var resolved by remember(block.url) { mutableStateOf<String?>(null) }
+                var failed by remember(block.url) { mutableStateOf(false) }
+                LaunchedEffect(block.url) {
+                    val gif = TenorResolver.resolveGifUrl(block.url)
+                    if (gif != null) resolved = gif else failed = true
+                }
+                when {
+                    failed -> Text(
+                        block.url, color = c.primary, fontSize = 13.sp, textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.fillMaxWidth().clickable { runCatching { uriHandler.openUri(block.url) } },
+                    )
+                    resolved == null -> Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = c.primary, modifier = Modifier.size(26.dp), strokeWidth = 2.dp)
+                    }
+                    else -> ForumImage(resolved!!, c, onImageTap)
+                }
+            } else {
+                ForumImage(block.url, c, onImageTap)
+            }
+        }
+        is ForumBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            block.items.forEachIndexed { index, item ->
+                Row {
+                    Text(if (block.ordered) "${index + 1}." else "•", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(end = 8.dp).width(18.dp))
+                    ClickableText(
+                        text = item, style = TextStyle(color = c.ink, fontSize = 14.sp, lineHeight = 20.sp), modifier = Modifier.weight(1f),
+                        onClick = { offset -> item.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { runCatching { uriHandler.openUri(it.item) } } },
+                    )
+                }
+            }
+        }
+        is ForumBlock.Quote -> Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.surfaceLow)
+                .border(androidx.compose.foundation.BorderStroke(3.dp, c.muted.copy(alpha = .35f)), RoundedCornerShape(10.dp)).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            block.blocks.forEach { nested -> ForumBlockView(nested, c, uriHandler, muted = true, onImageTap = onImageTap) }
+        }
+    }
+}
+// Single topic reply row
+
+@Composable fun ForumPostCard(post: ForumPost, isOriginalPost: Boolean = false) {
+    val c = LocalKikoColors.current
+    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
+        if (post.author.avatar.isNotBlank()) {
+            AsyncImage(model = post.author.avatar, contentDescription = post.author.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(38.dp).clip(CircleShape).background(c.warm))
+        } else {
+            Box(Modifier.size(38.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                Text(post.author.name.take(1).ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+            }
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(post.author.name.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink)
+                if (isOriginalPost) {
+                    Box(Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50)).background(c.primary).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                        Text("OP", color = c.onPrimary, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    }
+                } else {
+                    Text("#${post.number}", color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+            Text(formatForumDate(post.createdAt), color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 1.dp))
+            ForumBody(post.body, Modifier.padding(top = 8.dp))
+        }
+    }
+}
+// Poll option vote bars
+
+@Composable fun ForumPollCard(poll: ForumPoll, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    val totalVotes = poll.options.sumOf { it.votes }.coerceAtLeast(1)
+    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text(poll.question, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
+            Spacer(Modifier.height(10.dp))
+            poll.options.forEach { opt ->
+                val fraction = opt.votes.toFloat() / totalVotes
+                Column(Modifier.padding(bottom = 8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(opt.text, color = c.ink, fontSize = 13.sp, modifier = Modifier.weight(1f, fill = false))
+                        Text("${opt.votes}", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
+                    }
+                    Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(6.dp).clip(RoundedCornerShape(50)).background(c.surfaceLow)) {
+                        Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().clip(RoundedCornerShape(50)).background(c.primary))
+                    }
+                }
+            }
+            if (poll.closed) Text("Poll closed", color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
+}
+// Parse forum ISO timestamp
+
+fun formatForumDate(raw: String): String {
+    if (raw.isBlank()) return ""
+    return try {
+        val parsed = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US).parse(raw)
+        java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US).format(parsed!!)
+    } catch (e: Exception) { raw.take(10) }
+}
+
+// Profile section

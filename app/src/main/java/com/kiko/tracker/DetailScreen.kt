@@ -1,0 +1,849 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
+package com.kiko.tracker
+
+import android.Manifest
+import android.app.Activity
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.browser.customtabs.CustomTabsIntent
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
+import coil.request.ImageRequest
+import coil.size.Size
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import java.util.UUID
+import kotlin.math.roundToInt
+
+@Composable fun DetailScreen(item: MediaItem, onBack: () -> Unit, onEdit: (MediaItem) -> Unit, onOpenRelated: (RelatedEntry) -> Unit, relatedLoadingId: Int? = null, onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenRecommended: (RecommendedEntry) -> Unit = {}, recommendedLoadingId: Int? = null, onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadCharactersStaff: (MediaItem, (List<CharacterEntry>, List<StaffEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenReview: (ReviewEntry) -> Unit = {}, onOpenReviewList: (String, String) -> Unit = { _, _ -> }, onGenreClick: (String) -> Unit = {}, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap()) {
+    val c = LocalKikoColors.current
+    var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
+    // Track related backfill completion
+    var backfilledRelated by remember(item.id) { mutableStateOf<List<RelatedEntry>?>(null) }
+    var relatedDone by remember(item.id) { mutableStateOf(item.related.isNotEmpty()) }
+    LaunchedEffect(item.id) {
+        if (item.related.isEmpty()) onBackfillRelated(item.id, item.type, { backfilledRelated = it }, { relatedDone = true }) else relatedDone = true
+    }
+    val related = backfilledRelated ?: item.related
+    // Recheck themes if missing
+    var backfilledThemes by remember(item.id) { mutableStateOf<Pair<List<String>, List<String>>?>(null) }
+    var themesDone by remember(item.id) { mutableStateOf(item.openingThemes.isNotEmpty() || item.endingThemes.isNotEmpty()) }
+    LaunchedEffect(item.id) {
+        if (item.openingThemes.isEmpty() && item.endingThemes.isEmpty()) {
+            onBackfillThemes(item.id, item.type, { op, ed -> backfilledThemes = op to ed }, { themesDone = true })
+        } else themesDone = true
+    }
+    val (openingThemes, endingThemes) = backfilledThemes ?: (item.openingThemes to item.endingThemes)
+    // Characters + staff rows
+    var characters by remember(item.id) { mutableStateOf<List<CharacterEntry>>(emptyList()) }
+    var staffList by remember(item.id) { mutableStateOf<List<StaffEntry>>(emptyList()) }
+    LaunchedEffect(item.id) { onLoadCharactersStaff(item, { chars, stf -> characters = chars; staffList = stf }, {}) }
+    var reviews by remember(item.id) { mutableStateOf<List<ReviewEntry>>(emptyList()) }
+    LaunchedEffect(item.id) { onLoadReviews(item, { reviews = it }, {}) }
+    // Recheck cover gallery non-blocking
+    var backfilledCovers by remember(item.id) { mutableStateOf<List<String>?>(null) }
+    LaunchedEffect(item.id) {
+        if (item.covers.size <= 1) onBackfillCovers(item.id, item.type, { backfilledCovers = it }, {})
+    }
+    val covers = backfilledCovers ?: item.covers
+    // Recommended row loads async
+    var recommended by remember(item.id) { mutableStateOf<List<RecommendedEntry>>(emptyList()) }
+    LaunchedEffect(item.id) { onLoadRecommended(item, { recommended = it }, {}) }
+    // Status distribution loads async
+    var statusDistribution by remember(item.id) { mutableStateOf<StatusDistribution?>(null) }
+    LaunchedEffect(item.id) { onLoadStatusDistribution(item, { statusDistribution = it }, {}) }
+    // Fresh scroll state per-title
+    val listState = remember(item.id) { LazyListState(initialScroll.first, initialScroll.second) }
+    // Save spot on leave
+    DisposableEffect(item.id) {
+        onDispose { onLeaveScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
+    }
+    // Share single decoded painter
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    val coverPainter = rememberAsyncImagePainter(
+        model = ImageRequest.Builder(context).data(item.cover.ifBlank { null }).size(Size.ORIGINAL).build()
+    )
+    val coverReady = item.cover.isBlank() || coverPainter.state is AsyncImagePainter.State.Success || coverPainter.state is AsyncImagePainter.State.Error
+    BackHandler(onBack = onBack)
+    // Load all sections upfront
+    if (!coverReady || !relatedDone || !themesDone) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary) }
+        return
+    }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 110.dp)) {
+            item {
+                // Tap cover opens fullscreen
+                var showFullCover by remember(item.id) { mutableStateOf(false) }
+                val displayTitle = item.displayTitle()
+                // Backdrop from second picture
+                val backdropUrl = covers.getOrNull(1)
+                // Unclipped wrapper for poster
+                Box(Modifier.fillMaxWidth()) {
+                    Box(Modifier.fillMaxWidth().height(248.dp).clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))) {
+                        if (backdropUrl != null) {
+                            AsyncImage(
+                                model = backdropUrl, contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            )
+                        } else {
+                            Box(Modifier.fillMaxSize().background(Color(item.color)))
+                        }
+                        // Shadow instead of blur
+                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .5f), .4f to Color.Transparent)))
+                        // General darkening overlay
+                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .32f), Color.Black.copy(alpha = .7f)))))
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .32f)),
+                        ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
+                        var moreOpen by remember(item.id) { mutableStateOf(false) }
+                        Box(Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+                            IconButton(
+                                onClick = { moreOpen = true },
+                                modifier = Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .32f)),
+                            ) { Icon(Icons.Default.MoreVert, "More options", tint = Color.White) }
+                            DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Share") },
+                                    leadingIcon = { Icon(Icons.Default.Share, null) },
+                                    onClick = {
+                                        moreOpen = false
+                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, malUrl(item))
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, displayTitle))
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Open in browser") },
+                                    leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                                    onClick = { moreOpen = false; uriHandler.openUri(malUrl(item)) },
+                                )
+                            }
+                        }
+                    }
+                    // Poster position below button
+                    Box(
+                        Modifier.padding(start = 20.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f)
+                            .shadow(10.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color(item.color))
+                            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { showFullCover = true },
+                    ) {
+                        if (item.cover.isNotBlank()) {
+                            Image(painter = coverPainter, contentDescription = displayTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                        } else {
+                            Text(displayTitle.take(1), fontWeight = FontWeight.Bold, fontSize = 44.sp, color = Color.White.copy(.85f), modifier = Modifier.align(Alignment.Center))
+                        }
+                    }
+                }
+                if (showFullCover && item.cover.isNotBlank()) {
+                    // Fallback to single cover
+                    val gallery = covers.ifEmpty { listOf(item.cover) }
+                    val pagerState = rememberPagerState(pageCount = { gallery.size })
+                    Dialog(onDismissRequest = { showFullCover = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+                        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .92f))) {
+                            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+                                Box(
+                                    Modifier.fillMaxSize()
+                                        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { showFullCover = false },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    // Fit, not cropped, cover
+                                    AsyncImage(
+                                        model = gallery[page], contentDescription = item.displayTitle(),
+                                        modifier = Modifier.fillMaxWidth(0.86f).aspectRatio(2f / 3f).clip(RoundedCornerShape(16.dp)),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                                    )
+                                }
+                            }
+                            if (gallery.size > 1) {
+                                Row(
+                                    Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    gallery.indices.forEach { i ->
+                                        Box(
+                                            Modifier.size(if (i == pagerState.currentPage) 8.dp else 6.dp).clip(CircleShape)
+                                                .background(Color.White.copy(alpha = if (i == pagerState.currentPage) .95f else .4f)),
+                                        )
+                                    }
+                                }
+                            }
+                            IconButton(
+                                onClick = { showFullCover = false },
+                                modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = .15f)),
+                            ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
+                        }
+                    }
+                }
+                Column(Modifier.padding(horizontal = 20.dp)) {
+                    val itemDisplayTitle = item.displayTitle()
+                    val aired = seasonYear(item.season, item.startDate)
+                    Text(
+                        "${item.type.name.uppercase()}${if (item.format.isNotBlank()) " · ${item.format}" else ""}",
+                        color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
+                        modifier = Modifier.padding(top = 18.dp),
+                    )
+                    SelectionContainer {
+                        Column {
+                            Text(itemDisplayTitle, style = MaterialTheme.typography.displaySmall, color = c.ink, modifier = Modifier.padding(top = 7.dp))
+                            val secondary = item.secondaryTitle()
+                            if (secondary.isNotBlank()) {
+                                Text(secondary, color = c.muted, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                            }
+                        }
+                    }
+
+                    // Status line below title
+                    val statusMeta = listOfNotNull(
+                        item.airStatus.takeIf { it.isNotBlank() },
+                        if (item.total > 0) "${item.total} ${if (item.type == MediaType.Anime) "episodes" else "chapters"}" else null,
+                    )
+                    if (statusMeta.isNotEmpty() || item.score > 0) {
+                        Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (statusMeta.isNotEmpty()) {
+                                Text(statusMeta.joinToString("   ·   "), color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            }
+                            if (item.score > 0) {
+                                if (statusMeta.isNotEmpty()) Text("   ·   ", color = c.muted, fontSize = 13.sp)
+                                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(14.dp))
+                                Text("%.2f".format(item.score), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+                            }
+                        }
+                    }
+                    // Next episode airing time
+                    item.nextEpisodeLabel()?.let { label ->
+                        val is24Hour = systemIs24Hour()
+                        val airTime = item.localBroadcast()?.second
+                        Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(14.dp))
+                            Text(
+                                listOfNotNull(label, airTime?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
+                                color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp),
+                            )
+                        }
+                    }
+
+                    if (item.genres.isNotEmpty()) {
+                        Text("GENRES", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            item.genres.forEach { g -> GenreChip(g, onClick = { onGenreClick(g) }) }
+                        }
+                    }
+                    val meta = listOfNotNull(item.creator.takeIf { it.isNotBlank() }, aired.takeIf { it.isNotBlank() })
+                    if (meta.isNotEmpty()) Text(meta.joinToString("   ·   "), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
+
+                    Text("Synopsis", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 28.dp, bottom = 10.dp))
+                    Text(
+                        item.synopsis.ifBlank { "No synopsis available yet." },
+                        color = if (item.synopsis.isBlank()) c.muted else c.ink,
+                        fontSize = 14.sp, lineHeight = 21.sp,
+                        maxLines = if (synopsisExpanded) Int.MAX_VALUE else 3,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .animateContentSize()
+                            .let { if (item.synopsis.isNotBlank()) it.clickable { synopsisExpanded = !synopsisExpanded } else it },
+                    )
+
+                    // Community rank/popularity stats
+                    if (item.rank > 0 || item.popularity > 0 || item.listUsers > 0) {
+                        Text("Statistics", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 28.dp, bottom = 10.dp))
+                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.fillMaxWidth().padding(vertical = 20.dp)) {
+                                if (item.rank > 0) StatBlock(Modifier.weight(1f), "#${item.rank}", "Rank")
+                                if (item.popularity > 0) StatBlock(Modifier.weight(1f), "#${item.popularity}", "Popularity")
+                                if (item.listUsers > 0) StatBlock(Modifier.weight(1f), formatCount(item.listUsers), "Members")
+                            }
+                        }
+                    }
+
+                    val details = buildList {
+                        if (item.format.isNotBlank()) add("Format" to item.format)
+                        if (item.source.isNotBlank()) add("Source" to item.source)
+                        if (aired.isNotBlank()) add(if (item.type == MediaType.Anime) "Aired" to aired else "Published" to aired)
+                        if (item.startDateFull.isNotBlank()) add("Start date" to formatFullDate(item.startDateFull))
+                        if (item.endDateFull.isNotBlank()) add("End date" to formatFullDate(item.endDateFull))
+                        else if (item.startDateFull.isNotBlank()) add("End date" to "Ongoing")
+                        if (item.type == MediaType.Anime && item.total > 0) add("Episodes" to item.total.toString())
+                        if (item.type == MediaType.Manga && item.total > 0) add("Chapters" to item.total.toString())
+                        if (item.type == MediaType.Manga && item.volumes > 0) add("Volumes" to item.volumes.toString())
+                        if (item.type == MediaType.Anime && item.rating.isNotBlank()) add("Rating" to item.rating)
+                        if (item.creator.isNotBlank()) add(if (item.type == MediaType.Anime) "Studio" to item.creator else "Author" to item.creator)
+                    }
+                    if (details.isNotEmpty()) {
+                        Text("Details", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
+                                details.forEachIndexed { i, (label, value) ->
+                                    InfoRow(label, value)
+                                    if (i != details.lastIndex) HorizontalDivider(color = c.surfaceLow)
+                                }
+                            }
+                        }
+                    }
+
+                    if (item.synonyms.isNotEmpty()) {
+                        Text("Alternative titles", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                            SelectionContainer {
+                                Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
+                                    item.synonyms.forEachIndexed { i, name ->
+                                        Text(name, color = c.ink, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 11.dp))
+                                        if (i != item.synonyms.lastIndex) HorizontalDivider(color = c.surfaceLow)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (characters.isNotEmpty()) {
+                        Text("Characters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(characters, key = { it.malId }) { ch -> CharacterCard(ch, uriHandler) }
+                        }
+                    }
+                    if (staffList.isNotEmpty()) {
+                        Text("Staff", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(staffList, key = { it.malId }) { st -> StaffCard(st, uriHandler) }
+                        }
+                    }
+
+                    val themes = openingThemes.map { "OP" to it } + endingThemes.map { "ED" to it }
+                    if (themes.isNotEmpty()) {
+                        Text("Theme songs", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
+                                themes.forEachIndexed { i, (kind, text) ->
+                                    Row(
+                                        Modifier.fillMaxWidth().clickable { uriHandler.openUri(youtubeSearchUrl("$text $itemDisplayTitle")) }.padding(vertical = 11.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(kind, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.width(28.dp))
+                                        Text(text, color = c.ink, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
+                                        Icon(Icons.Default.PlayArrow, "Search on YouTube", tint = c.muted, modifier = Modifier.size(18.dp))
+                                    }
+                                    if (i != themes.lastIndex) HorizontalDivider(color = c.surfaceLow)
+                                }
+                            }
+                        }
+                    }
+
+                    if (reviews.isNotEmpty()) {
+                        Row(Modifier.fillMaxWidth().padding(top = 26.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Reviews", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.weight(1f))
+                            Text("See more", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.clickable { onOpenReviewList(malReviewsUrl(item), itemDisplayTitle) })
+                        }
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(reviews, key = { it.malId }) { rev -> ReviewCard(rev, onClick = { onOpenReview(rev) }) }
+                        }
+                    }
+
+                    if (related.isNotEmpty()) {
+                        Text("Related", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(related) { rel ->
+                                RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId, myStatus = myListStatus[rel.malId to (if (rel.malType == "manga") MediaType.Manga else MediaType.Anime)]) {
+                                    // Fallback to web search
+                                    if (rel.malId > 0) onOpenRelated(rel) else uriHandler.openUri(malUrl(rel))
+                                }
+                            }
+                        }
+                    }
+
+                    // Recommendations from MAL endpoint
+                    if (recommended.isNotEmpty()) {
+                        Text("Recommended", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                            items(recommended, key = { it.malId }) { rec ->
+                                RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { onOpenRecommended(rec) }
+                            }
+                        }
+                    }
+
+                    if (item.background.isNotBlank()) {
+                        Text("Background", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                        Text(item.background, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp)
+                    }
+
+                    // Reuse status bar styling
+                    statusDistribution?.takeIf { it.total > 0 }?.let { dist ->
+                        Text("Status distribution", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+                                StatBar("Watching", dist.watching, dist.total, c, statusColor("Watching"))
+                                StatBar("Completed", dist.completed, dist.total, c, statusColor("Completed"))
+                                StatBar("On hold", dist.onHold, dist.total, c, statusColor("On hold"))
+                                StatBar("Dropped", dist.dropped, dist.total, c, statusColor("Dropped"))
+                                StatBar("Plan to watch", dist.planToWatch, dist.total, c, statusColor("Plan to watch"))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ExtendedFloatingActionButton(
+            onClick = { onEdit(item) },
+            icon = { Icon(if (item.inUserList) Icons.Default.Edit else Icons.Default.Add, if (item.inUserList) "Edit" else "Add", tint = c.onPrimary) },
+            text = { Text(if (item.inUserList) item.status.label else "Add", fontWeight = FontWeight.Bold, color = c.onPrimary) },
+            containerColor = c.primary,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
+        )
+    }
+}
+
+@Composable fun InfoRow(label: String, value: String) {
+    val c = LocalKikoColors.current
+    Row(Modifier.fillMaxWidth().padding(vertical = 11.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = c.muted, fontSize = 13.sp)
+        Text(value, color = c.ink, fontWeight = FontWeight.Medium, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
+    }
+}
+
+fun formatCount(n: Int): String = when {
+    n >= 1_000_000 -> "%.1fM".format(n / 1_000_000.0)
+    n >= 1_000 -> "%.0fK".format(n / 1_000.0)
+    else -> n.toString()
+}
+// Format season and year
+
+fun seasonYear(season: String, year: String): String = listOf(season, year).filter { it.isNotBlank() }.joinToString(" ")
+// Format ISO date display
+
+fun formatFullDate(raw: String): String {
+    if (raw.isBlank()) return ""
+    return try {
+        when (raw.count { it == '-' }) {
+            2 -> java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US).format(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(raw)!!)
+            1 -> java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.US).format(java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).parse(raw)!!)
+            else -> raw
+        }
+    } catch (e: Exception) { raw }
+}
+
+fun youtubeSearchUrl(query: String) = "https://www.youtube.com/results?search_query=" + java.net.URLEncoder.encode(query, "UTF-8")
+
+fun malUrl(entry: RelatedEntry) = if (entry.malId > 0) "https://myanimelist.net/${entry.malType}/${entry.malId}" else "https://myanimelist.net/search/all?q=" + java.net.URLEncoder.encode(entry.title, "UTF-8")
+// Item for share/open menu
+
+fun malUrl(item: MediaItem): String {
+    val intId = item.id.toIntOrNull()
+    return if (intId != null && intId > 0) "https://myanimelist.net/${item.type.name.lowercase()}/$intId"
+    else "https://myanimelist.net/search/all?q=" + java.net.URLEncoder.encode(item.title, "UTF-8")
+}
+// Reviews page for an item
+
+fun malReviewsUrl(item: MediaItem): String {
+    val intId = item.id.toIntOrNull()
+    return if (intId != null && intId > 0) "https://myanimelist.net/${item.type.name.lowercase()}/$intId/_/reviews"
+    else malUrl(item)
+}
+// Recognize MAL title URL
+
+fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
+    val host = uri.host?.lowercase() ?: return null
+    if (host != "myanimelist.net" && !host.endsWith(".myanimelist.net")) return null
+    val segments = uri.pathSegments
+    if (segments.size < 2) return null
+    val type = when (segments[0].lowercase()) {
+        "anime" -> MediaType.Anime
+        "manga" -> MediaType.Manga
+        else -> return null
+    }
+    val id = segments[1].toIntOrNull() ?: return null
+    return id to type
+}
+
+@Composable fun DetailRowCard(
+    imageUrl: String, fallbackLetter: String, title: String,
+    label: String? = null, subtitle: String? = null,
+    loading: Boolean = false, onClick: (() -> Unit)? = null,
+    myStatus: WatchStatus? = null,
+) {
+    val c = LocalKikoColors.current
+    Column(
+        Modifier.width(140.dp).clip(RoundedCornerShape(18.dp)).background(c.surface)
+            .let { m -> onClick?.let { m.clickable(enabled = !loading, onClick = it) } ?: m },
+    ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)).background(c.surfaceLow)) {
+            if (imageUrl.isNotBlank()) {
+                AsyncImage(model = imageUrl, contentDescription = title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            } else {
+                Text(fallbackLetter, fontWeight = FontWeight.Bold, fontSize = 30.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+            }
+            if (loading) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .45f)), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                }
+            }
+            // Own tracking mark
+            myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopStart).padding(6.dp)) }
+        }
+        // Fixed height text block
+        Column(Modifier.fillMaxWidth().height(112.dp).padding(10.dp)) {
+            if (label != null) Text(label.uppercase(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 15.sp, minLines = 3, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = if (label != null) 4.dp else 0.dp))
+            if (subtitle != null) Text(subtitle, color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+        }
+    }
+}
+
+@Composable fun RelatedCard(entry: RelatedEntry, loading: Boolean = false, myStatus: WatchStatus? = null, onClick: () -> Unit) {
+    DetailRowCard(imageUrl = entry.cover, fallbackLetter = entry.title.take(1), title = entry.title, label = entry.relation, loading = loading, myStatus = myStatus, onClick = onClick)
+}
+
+// Recommended card same style
+
+@Composable fun RecommendedCard(entry: RecommendedEntry, loading: Boolean = false, myStatus: WatchStatus? = null, onClick: () -> Unit) {
+    val subtitle = if (entry.votes > 0) "${entry.votes} recommend${if (entry.votes == 1) "s" else ""}" else "Recommended"
+    DetailRowCard(imageUrl = entry.cover, fallbackLetter = entry.title.take(1), title = entry.title, subtitle = subtitle, loading = loading, myStatus = myStatus, onClick = onClick)
+}
+// Compact card for characters/staff rows
+
+@Composable fun PersonCard(imageUrl: String, fallbackLetter: String, name: String, role: String, onClick: (() -> Unit)?) {
+    val c = LocalKikoColors.current
+    Column(
+        Modifier.width(88.dp).clip(RoundedCornerShape(14.dp)).background(c.surface)
+            .let { m -> onClick?.let { m.clickable(onClick = it) } ?: m },
+    ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(3f / 4f).clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)).background(c.surfaceLow)) {
+            if (imageUrl.isNotBlank()) {
+                AsyncImage(model = imageUrl, contentDescription = name, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            } else {
+                Text(fallbackLetter, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+            }
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp)) {
+            Text(name, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (role.isNotBlank()) Text(role, color = c.muted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        }
+    }
+}
+// Character card opens MAL page
+
+@Composable fun CharacterCard(entry: CharacterEntry, uriHandler: androidx.compose.ui.platform.UriHandler) {
+    PersonCard(entry.image, entry.name.take(1), entry.name, entry.role) { entry.url.takeIf { it.isNotBlank() }?.let { runCatching { uriHandler.openUri(it) } } }
+}
+// Staff card opens MAL page
+
+@Composable fun StaffCard(entry: StaffEntry, uriHandler: androidx.compose.ui.platform.UriHandler) {
+    PersonCard(entry.image, entry.name.take(1), entry.name, entry.role.ifBlank { "Staff" }) { entry.url.takeIf { it.isNotBlank() }?.let { runCatching { uriHandler.openUri(it) } } }
+}
+// Review card opens full text
+
+@Composable fun ReviewCard(entry: ReviewEntry, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Column(
+        Modifier.width(260.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).clickable(onClick = onClick).padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (entry.userImage.isNotBlank()) {
+                AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(30.dp).clip(CircleShape).background(c.warm))
+            } else {
+                Box(Modifier.size(30.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                    Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink)
+                }
+            }
+            Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 9.dp))
+            if (entry.score > 0) {
+                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
+                Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 3.dp))
+            }
+        }
+        val verdict = entry.verdict()
+        val otherTags = entry.tags.filterNot { it in ReviewVerdictTags }
+        if (verdict != null || otherTags.isNotEmpty()) {
+            Row(Modifier.padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                verdict?.let {
+                    Icon(Icons.Default.Star, null, tint = verdictColor(it, c), modifier = Modifier.size(11.dp))
+                    Text(it, color = verdictColor(it, c), fontWeight = FontWeight.Bold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
+                }
+                otherTags.firstOrNull()?.let {
+                    Text(it, color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = if (verdict != null) 8.dp else 0.dp))
+                }
+            }
+        }
+        if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+        Text(
+            entry.review, color = c.muted, fontSize = 12.sp, lineHeight = 17.sp,
+            maxLines = 5, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+// Sheets section
+
+@Composable fun EditSheet(item: MediaItem, onDismiss: () -> Unit, onSave: (MediaItem) -> Unit, onDelete: () -> Unit) {
+    val c = LocalKikoColors.current
+    var status by remember { mutableStateOf(item.status) }
+    var progress by remember { mutableStateOf(item.progress) }
+    var rating by remember { mutableStateOf(item.myRating) }
+    var startDate by remember { mutableStateOf(item.watchStartDate) }
+    var endDate by remember { mutableStateOf(item.watchEndDate) }
+    var rewatching by remember { mutableStateOf(item.isRewatching) }
+    var timesRewatched by remember { mutableStateOf(item.timesRewatched) }
+    val rewatchWord = if (item.type == MediaType.Anime) "Rewatch" else "Reread"
+    val rewatchedWord = if (item.type == MediaType.Anime) "rewatched" else "reread"
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = c.surface,
+            title = { Text("Remove from your list?", color = c.ink) },
+            text = { Text("Are you sure you want to remove \"${item.title}\" from your list? This also removes it from your MyAnimeList account.", color = c.muted) },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Remove") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }, colors = ButtonDefaults.textButtonColors(contentColor = c.muted)) { Text("Cancel") } },
+        )
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.background) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 22.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = { confirmDelete = true }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Delete") }
+                Button(
+                    onClick = { onSave(item.copy(status = status, progress = progress, myRating = rating, watchStartDate = startDate, watchEndDate = endDate, isRewatching = rewatching, timesRewatched = timesRewatched)) },
+                    colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
+                ) { Text("Save change") }
+            }
+
+            Text("Status", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink)
+            val statusOptions = remember(item.type) { WatchStatus.entries.filterNot { it == if (item.type == MediaType.Anime) WatchStatus.Reading else WatchStatus.Watching } }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 9.dp)) {
+                items(statusOptions) { s ->
+                    FilterChip(
+                        selected = status == s,
+                        onClick = {
+                            status = s
+                            // Auto-fill progress to the max when marking as completed
+                            if (s == WatchStatus.Completed && item.total > 0) progress = item.total
+                        },
+                        label = { Text(s.label) },
+                        colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),
+                    )
+                }
+            }
+
+            Text(if (item.type == MediaType.Anime) "Episodes watched" else "Chapters read", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
+            Row(
+                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                IconButton(onClick = { if (progress > 0) progress-- }) { Icon(Icons.Default.Remove, "Decrease", tint = c.primary) }
+                Text(if (item.total > 0) "$progress/${item.total}" else progress.toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink)
+                IconButton(onClick = { if (item.total <= 0 || progress < item.total) progress++ }) { Icon(Icons.Default.Add, "Increase", tint = c.primary) }
+            }
+
+            Text("Your rating", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
+            Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                Slider(
+                    value = rating.toFloat(),
+                    onValueChange = { rating = it.roundToInt() },
+                    valueRange = 0f..10f,
+                    steps = 9,
+                    colors = SliderDefaults.colors(thumbColor = c.primary, activeTrackColor = c.primary, inactiveTrackColor = c.surfaceLow),
+                    modifier = Modifier.weight(1f),
+                )
+                Box(Modifier.padding(start = 14.dp).size(34.dp).clip(CircleShape).background(c.primaryContainer), contentAlignment = Alignment.Center) {
+                    Text(if (rating == 0) "–" else rating.toString(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.primary)
+                }
+            }
+
+            Text("Dates", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
+            Row(Modifier.fillMaxWidth().padding(top = 9.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DateField(Modifier.weight(1f), label = "Start date", value = startDate, onPick = { startDate = it })
+                DateField(Modifier.weight(1f), label = "End date", value = endDate, onPick = { endDate = it })
+            }
+
+            Text(rewatchWord, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
+            Row(
+                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("Currently ${rewatchWord.lowercase()}ing", color = c.ink, fontSize = 14.sp)
+                Switch(checked = rewatching, onCheckedChange = { rewatching = it }, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary))
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                IconButton(onClick = { if (timesRewatched > 0) timesRewatched-- }) { Icon(Icons.Default.Remove, "Decrease", tint = c.primary) }
+                Text("Times $rewatchedWord: $timesRewatched", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink)
+                IconButton(onClick = { timesRewatched++ }) { Icon(Icons.Default.Add, "Increase", tint = c.primary) }
+            }
+        }
+    }
+}
+// Tappable date picker field
+
+@Composable fun DateField(modifier: Modifier = Modifier, label: String, value: String, onPick: (String) -> Unit) {
+    val c = LocalKikoColors.current
+    var showPicker by remember { mutableStateOf(false) }
+    Column(modifier) {
+        Text(label, color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).clickable { showPicker = true }.padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(if (value.isBlank()) "Not set" else formatUserDate(value), color = if (value.isBlank()) c.muted else c.ink, fontWeight = FontWeight.Medium, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 6.dp))
+            Icon(Icons.Default.DateRange, null, tint = c.muted, modifier = Modifier.size(18.dp))
+        }
+    }
+    if (showPicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = value.toEpochMillisOrNull())
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { onPick(it.toIsoDate()) }; showPicker = false }) { Text("OK", color = c.primary, fontWeight = FontWeight.Bold) } },
+            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("Cancel", color = c.muted) } },
+            colors = DatePickerDefaults.colors(containerColor = c.background),
+        ) { DatePicker(state = state, colors = DatePickerDefaults.colors(containerColor = c.background, selectedDayContainerColor = c.primary, todayDateBorderColor = c.primary)) }
+    }
+}
+// Parse date to millis
+
+fun String.toEpochMillisOrNull(): Long? {
+    if (isBlank()) return null
+    return try {
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        sdf.parse(this)?.time
+    } catch (e: Exception) { null }
+}
+// Format millis to date
+
+fun Long.toIsoDate(): String {
+    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+    return sdf.format(java.util.Date(this))
+}
+// Format date for display
+
+fun formatUserDate(raw: String): String {
+    if (raw.isBlank()) return ""
+    return try {
+        val parser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+        val out = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+        out.format(parser.parse(raw)!!)
+    } catch (e: Exception) { raw }
+}
+// Update available dialog sheet
