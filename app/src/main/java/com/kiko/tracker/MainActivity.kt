@@ -13,11 +13,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.webkit.WebSettingsCompat
-import androidx.webkit.WebViewFeature
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.NotificationCompat
@@ -365,21 +360,31 @@ private fun resolvedDiscoverType(format: String, fallback: String): String = whe
 }
 // Sort order options
 enum class DiscoverSort(val label: String) { Members("Members"), Score("Score"), Newest("Newest"), Title("Title") }
-// Title match ranking score
-private fun MediaItem.titleMatchRank(query: String): Int {
-    if (query.isBlank()) return Int.MAX_VALUE
-    val q = query.trim().lowercase()
-    val candidates = (listOf(title, titleEnglish) + synonyms).filter { it.isNotBlank() }.map { it.lowercase() }
-    if (candidates.isEmpty()) return Int.MAX_VALUE
-    return candidates.minOf { c ->
-        when {
-            c == q -> 0
-            c.startsWith(q) -> 1
-            Regex("\\b" + Regex.escape(q) + "\\b").containsMatchIn(c) -> 2
-            c.contains(q) -> 3
-            else -> 4
-        }
+// Collapse punctuation/symbols (e.g. the ★ in "Stardust★Wink") to spaces so title matching
+// isn't defeated by stylized titles; also lets "startsWith"/word-boundary checks line up.
+private fun normalizeForTitleMatch(s: String) = s.lowercase().replace(Regex("[^a-z0-9]+"), " ").trim()
+// Match quality against a single candidate string, or null if no match at all
+private fun matchTier(candidate: String, q: String): Int? {
+    val c = normalizeForTitleMatch(candidate)
+    if (c.isBlank()) return null
+    return when {
+        c == q -> 0
+        c.startsWith(q) -> 1
+        Regex("\\b" + Regex.escape(q) + "\\b").containsMatchIn(c) -> 2
+        c.contains(q) -> 3
+        else -> null
     }
+}
+// Title match ranking score. Primary/English title matches always outrank synonym-only
+// matches (e.g. MAL lists "Demon Slayer" as a synonym of the unrelated anime "Onigiri" —
+// that shouldn't out-rank the real "Demon Slayer: Kimetsu no Yaiba" for that query).
+private fun MediaItem.titleMatchRank(query: String): Int {
+    val q = normalizeForTitleMatch(query)
+    if (q.isBlank()) return Int.MAX_VALUE
+    val primaryRank = listOf(title, titleEnglish).mapNotNull { matchTier(it, q) }.minOrNull()
+    if (primaryRank != null) return primaryRank
+    val synonymRank = synonyms.mapNotNull { matchTier(it, q) }.minOrNull()
+    return synonymRank?.plus(4) ?: 8
 }
 // Default blank query
 private fun List<MediaItem>.sortedForDiscover(sort: DiscoverSort, titleLanguage: TitleLanguage, query: String = ""): List<MediaItem> {
@@ -759,19 +764,21 @@ class LibraryViewModel : ViewModel() {
                     val kinds = t?.let { listOf(if (it == MediaType.Anime) "anime" else "manga") } ?: listOf("anime", "manga")
                     // Pick one facet id
                     val names = filters.themes.ifEmpty { filters.genres.ifEmpty { filters.demographics } }
-                    runCatching {
+                    val tenraiResults = runCatching {
                         coroutineScope {
                             kinds.map { kind -> async { tenrai.searchByGenreIds(kind, tenrai.resolveGenreIds(kind, names), includeAdult = nsfwEnabled) } }
                                 .awaitAll().flatten()
                         }
-                    }.getOrElse {
-                        // Fallback if Tenrai fails
-                        coroutineScope {
-                            (t?.let { listOf(it) } ?: MediaType.entries.toList()).flatMap { mt ->
-                                listOf("all", "bypopularity", "favorite").map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
-                            }.awaitAll().flatten()
-                        }
-                    }
+                    }.getOrElse { emptyList() }
+                    // Fall back to a broad ranking pool (filtered client-side against the
+                    // chosen genre/theme/demographic by matches()) whenever Tenrai comes back
+                    // empty — not just when it throws. A clean-but-empty response otherwise had
+                    // no safety net, so the first tap could show nothing until a manual retry.
+                    (if (tenraiResults.isNotEmpty()) tenraiResults else coroutineScope {
+                        (t?.let { listOf(it) } ?: MediaType.entries.toList()).flatMap { mt ->
+                            listOf("all", "bypopularity", "favorite").map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
+                        }.awaitAll().flatten()
+                    })
                         .distinctBy { it.id }
                 }
                 // Merge multiple ranking charts
@@ -1300,7 +1307,6 @@ private sealed class TopScreen {
     // Full review readout
     data class Review(val review: ReviewEntry, val itemTitle: String) : TopScreen()
     // Reviews page in webview
-    data class ReviewList(val url: String, val itemTitle: String) : TopScreen()
     // Interest stacks homepage — curated challenge/manga/anime picks + recent list
     object StacksHome : TopScreen()
     // Interest stacks full browse/search, seeded with a starting tab
@@ -1318,13 +1324,12 @@ private fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.Topic -> "topic:$topicId"
     TopScreen.About -> "about"
     is TopScreen.Review -> "review:${review.malId}"
-    is TopScreen.ReviewList -> "reviewList:$url"
     TopScreen.StacksHome -> "stacksHome"
     is TopScreen.StacksBrowse -> "stacksBrowse"
     is TopScreen.StackDetail -> "stackDetail:$stackId"
     is TopScreen.Tab -> "tab:$destination"
 }
-private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Seasonal || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.ReviewList || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail
+private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Seasonal || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}) {
     val context = LocalContext.current
@@ -1333,7 +1338,9 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
     var selectedItem by remember { mutableStateOf<MediaItem?>(null) }
     // Related title navigation stack
     var detailStack by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
-    fun openDetail(item: MediaItem) { detailStack = emptyList(); selectedItem = item }
+    // Item to return to when backing out of a genre-chip jump to Discover
+    var genreReturnItem by remember { mutableStateOf<MediaItem?>(null) }
+    fun openDetail(item: MediaItem) { detailStack = emptyList(); genreReturnItem = null; selectedItem = item }
     fun openRelatedDetail(from: MediaItem, to: MediaItem) { detailStack = detailStack + from; selectedItem = to }
     fun backDetail() {
         val prev = detailStack.lastOrNull()
@@ -1365,7 +1372,6 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
     // Full review readout state
     var reviewOpen by remember { mutableStateOf<Pair<ReviewEntry, String>?>(null) }
     // Reviews webview state
-    var reviewListOpen by remember { mutableStateOf<Pair<String, String>?>(null) }
     // Interest stacks nav state: home -> browse (seeded tab) -> detail
     var stacksHomeOpen by remember { mutableStateOf(false) }
     var stacksBrowseKind by remember { mutableStateOf<StackBrowseKind?>(null) }
@@ -1379,8 +1385,14 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
     // Prefer live item copy — same id+type requirement as above
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && reviewListOpen == null && !stacksHomeOpen && vm.destination != Destination.Home) {
-        vm.destination = Destination.Home
+    BackHandler(enabled = detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && (vm.destination != Destination.Home || genreReturnItem != null)) {
+        val returnItem = genreReturnItem
+        if (returnItem != null && vm.destination == Destination.Discover) {
+            genreReturnItem = null
+            selectedItem = returnItem
+        } else {
+            vm.destination = Destination.Home
+        }
     }
     val darkTheme = when (vm.themeMode) { ThemeMode.System -> isSystemInDarkTheme(); ThemeMode.Light -> false; ThemeMode.Dark -> true }
     // Default palette uses constants
@@ -1408,12 +1420,11 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
         ) {
             Scaffold(
                 containerColor = c.background,
-                bottomBar = { if (detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && reviewListOpen == null && !stacksHomeOpen) BottomBar(vm.destination) { vm.destination = it } }
+                bottomBar = { if (detailItem == null && !rankingOpen && !seasonalOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen) BottomBar(vm.destination) { genreReturnItem = null; vm.destination = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val topScreen = when {
                         reviewOpen != null -> TopScreen.Review(reviewOpen!!.first, reviewOpen!!.second)
-                        reviewListOpen != null -> TopScreen.ReviewList(reviewListOpen!!.first, reviewListOpen!!.second)
                         detailItem != null -> TopScreen.Detail(detailItem)
                         rankingOpen -> TopScreen.Ranking
                         seasonalOpen -> TopScreen.Seasonal
@@ -1438,7 +1449,8 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                         label = "topScreen",
                     ) { screen ->
                         when (screen) {
-                            is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) }, onLoadCharactersStaff = { forItem, onFound, onDone -> vm.loadCharactersStaff(forItem, onFound, onDone) }, onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) }, onOpenReview = { rev -> reviewOpen = rev to screen.item.title }, onOpenReviewList = { url, title -> reviewListOpen = url to title }, initialScroll = vm.getDetailScroll(screen.item.id), onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) }, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), onGenreClick = { genre ->
+                            is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) }, onLoadCharactersStaff = { forItem, onFound, onDone -> vm.loadCharactersStaff(forItem, onFound, onDone) }, onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) }, onOpenReview = { rev -> reviewOpen = rev to screen.item.title }, onOpenReviewList = { url, _ -> CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) }, initialScroll = vm.getDetailScroll(screen.item.id), onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) }, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), onGenreClick = { genre ->
+                                genreReturnItem = screen.item
                                 selectedItem = null; detailStack = emptyList()
                                 vm.destination = Destination.Discover
                                 vm.runDiscoverSearch(context, "", if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
@@ -1453,7 +1465,6 @@ private fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScre
                                 onCheckForUpdate = { if (vm.updateInfo != null) vm.updateDialogOpen = true else vm.checkForUpdate(context, manual = true) },
                             )
                             is TopScreen.Review -> ReviewScreen(screen.review, screen.itemTitle, onBack = { reviewOpen = null })
-                            is TopScreen.ReviewList -> WebPageScreen(screen.url, screen.itemTitle, darkTheme = darkTheme, onBack = { reviewListOpen = null })
                             TopScreen.StacksHome -> StacksHomeScreen(vm, onBack = { stacksHomeOpen = false }, onOpenBrowse = { kind -> openStacksBrowse(kind) }, onOpenStack = { id, title -> stackDetailOpen = id to title })
                             is TopScreen.StacksBrowse -> StacksScreen(vm, initialKind = screen.initialKind, onBack = { stacksBrowseKind = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
                             is TopScreen.StackDetail -> StackDetailScreen(screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), onBack = { stackDetailOpen = null }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } })
@@ -2431,6 +2442,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 // Greets the user when they tap the Stacks button, mirroring myanimelist.net/stacks.
 @Composable private fun StacksHomeScreen(vm: LibraryViewModel, onBack: () -> Unit, onOpenBrowse: (StackBrowseKind) -> Unit, onOpenStack: (Int, String) -> Unit) {
     val c = LocalKikoColors.current
+    val context = LocalContext.current
     BackHandler(onBack = onBack)
     // Data is cached in the ViewModel — loads once, so navigating into a stack's
     // entries and back doesn't re-fetch or reset this list
@@ -2454,9 +2466,13 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
-                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                    // Open stacks home in browser
+                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) {
+                        Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
+                    }
                     IconButton(onClick = { openBrowse(StackBrowseKind.All) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.Search, "Search stacks", tint = c.ink) }
                 }
             }
@@ -2681,6 +2697,7 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
 // breakdown against the signed-in user's list, then a seasonal-chart-style grid
 @Composable private fun StackDetailScreen(stackId: Int, initialTitle: String, loadingId: Int?, myListStatus: Map<Pair<Int, MediaType>, WatchStatus>, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit) {
     val c = LocalKikoColors.current
+    val context = LocalContext.current
     BackHandler(onBack = onBack)
     var detail by remember(stackId) { mutableStateOf<StackDetail?>(null) }
     var loadFailed by remember(stackId) { mutableStateOf(false) }
@@ -2705,9 +2722,13 @@ private fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members 
                 Column {
                     // Back button gets real breathing room below it before the type pill,
                     // matching the spacing every other detail header in the app uses
-                    Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                         Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                        // Open this stack in browser
+                        IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks/$stackId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) {
+                            Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
+                        }
                     }
                     if (detail == null && !loadFailed) {
                         Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(24.dp)) }
@@ -4109,53 +4130,6 @@ private fun statusColor(label: String): Color = when {
 }
 
 // Detail section
-// In-app browser page
-@Composable private fun WebPageScreen(url: String, title: String, darkTheme: Boolean, onBack: () -> Unit) {
-    val c = LocalKikoColors.current
-    val context = LocalContext.current
-    var loading by remember(url) { mutableStateOf(true) }
-    BackHandler(onBack = onBack)
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-            Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
-            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) {
-                Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
-            }
-        }
-        Box(Modifier.fillMaxSize().padding(top = 15.dp)) {
-            val backgroundArgb = c.background.toArgb()
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = {
-                    WebView(it).apply {
-                        setBackgroundColor(backgroundArgb)
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        // Follow app theme, not system
-                        applyForcedDarkMode(settings, darkTheme)
-                        webViewClient = object : WebViewClient() {
-                            override fun onPageFinished(view: WebView, finishedUrl: String) { loading = false }
-                        }
-                        loadUrl(url)
-                    }
-                },
-                update = { webView -> webView.setBackgroundColor(backgroundArgb); applyForcedDarkMode(webView.settings, darkTheme) },
-            )
-            // Loading indicator overlay
-            if (loading) CircularProgressIndicator(color = c.primary, modifier = Modifier.align(Alignment.Center))
-        }
-    }
-}
-// Forces WebView rendering to match app theme
-private fun applyForcedDarkMode(settings: android.webkit.WebSettings, darkTheme: Boolean) {
-    if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
-        WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, darkTheme)
-    } else if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
-        @Suppress("DEPRECATION")
-        WebSettingsCompat.setForceDark(settings, if (darkTheme) WebSettingsCompat.FORCE_DARK_ON else WebSettingsCompat.FORCE_DARK_OFF)
-    }
-}
 @Composable private fun DetailScreen(item: MediaItem, onBack: () -> Unit, onEdit: (MediaItem) -> Unit, onOpenRelated: (RelatedEntry) -> Unit, relatedLoadingId: Int? = null, onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenRecommended: (RecommendedEntry) -> Unit = {}, recommendedLoadingId: Int? = null, onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadCharactersStaff: (MediaItem, (List<CharacterEntry>, List<StaffEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenReview: (ReviewEntry) -> Unit = {}, onOpenReviewList: (String, String) -> Unit = { _, _ -> }, onGenreClick: (String) -> Unit = {}, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap()) {
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
