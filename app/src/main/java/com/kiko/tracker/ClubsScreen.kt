@@ -65,7 +65,7 @@ import kotlinx.coroutines.launch
     // Only fetch on a genuinely fresh arrival — coming back from a club page
     // (or switching tabs and back) already has vm.clubsList populated, and
     // its scroll position gets restored below, so there's nothing to redo.
-    LaunchedEffect(Unit) { if (vm.clubsList.isEmpty() && vm.clubsQuery.isBlank()) runSearch("") }
+    LaunchedEffect(vm.signedIn) { if (vm.signedIn && vm.clubsList.isEmpty() && vm.clubsQuery.isBlank()) runSearch("") }
 
     // "See more" reveals 10 more of what's already fetched; only reaches out
     // to MAL for another page once the visible window catches up to it.
@@ -95,17 +95,21 @@ import kotlinx.coroutines.launch
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
-                AppHeader("Clubs", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty()) { vm.profileDrawerOpen = true } }
-                SearchField(query, { query = it }, "Find clubs…", onSearch = { runSearch(query) }, onClear = { query = ""; runSearch("") })
-                Text(
-                    if (vm.clubsQuery.isBlank()) "POPULAR CLUBS" else "RESULTS",
-                    color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp,
-                    modifier = Modifier.padding(top = 22.dp, bottom = 9.dp),
-                )
-                if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp), color = c.primary, trackColor = c.surfaceLow)
-                error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 10.dp)) }
+                AppHeader("Clubs", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
+                if (vm.signedIn) {
+                    SearchField(query, { query = it }, "Find clubs…", onSearch = { runSearch(query) }, onClear = { query = ""; runSearch("") })
+                    Text(
+                        if (vm.clubsQuery.isBlank()) "POPULAR CLUBS" else "RESULTS",
+                        color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp,
+                        modifier = Modifier.padding(top = 22.dp, bottom = 9.dp),
+                    )
+                    if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp), color = c.primary, trackColor = c.surfaceLow)
+                    error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 10.dp)) }
+                }
             }
-            if (!loading && vm.clubsList.isEmpty() && error == null) {
+            if (vm.authChecked && !vm.signedIn) {
+                item { Text("Sign in from Profile to browse MAL clubs", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+            } else if (!loading && vm.clubsList.isEmpty() && error == null) {
                 item { Text("No clubs found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
             }
             itemsIndexed(visibleClubs, key = { _, club -> club.id }) { index, club ->

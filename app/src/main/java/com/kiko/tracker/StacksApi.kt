@@ -158,6 +158,28 @@ class StacksApi {
         return seen.values.toList()
     }
 
+    // Renders an element's own text while turning <br> into real newlines —
+    // plain .text() collapses all whitespace (including line breaks) down to
+    // single spaces, which mangles the "introduction" div's multi-line rules
+    // text (e.g. the numbered challenge steps) into one unreadable run-on line.
+    private fun textWithLineBreaks(el: Element): String {
+        val sb = StringBuilder()
+        el.traverse(object : org.jsoup.select.NodeVisitor {
+            override fun head(node: org.jsoup.nodes.Node, depth: Int) {
+                when {
+                    node is org.jsoup.nodes.TextNode -> sb.append(node.text())
+                    node is Element && node.tagName() == "br" -> sb.append('\n')
+                }
+            }
+            override fun tail(node: org.jsoup.nodes.Node, depth: Int) {}
+        })
+        // Collapse the occasional run of 3+ blank lines (consecutive <br>s in
+        // the source, e.g. before "Jul/Aug 2026 Official Challenge Stack")
+        // down to a single blank line separator, then trim the ends.
+        return sb.toString().lines().joinToString("\n") { it.trim() }
+            .replace(Regex("\n{3,}"), "\n\n").trim()
+    }
+
     // Full entry list for one stack — force list view: tile/seasonal lazy-load
     // covers via JS and leave the <img> src empty in the raw HTML we scrape,
     // while list view ships real cdn.myanimelist.net src attributes upfront
@@ -169,53 +191,28 @@ class StacksApi {
         // "MyAnimeList - Interest Stacks - 9 Entries, 14 Restacks" — this meta tag never
         // carries the actual stack description, only the entry/restack counts
         val restacks = Regex("(\\d+)\\s+Restacks").find(ogDescription)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        // Byline element ("by AUTHOR") located by its own text, not by requiring a
-        // profile link — MAL's official "MyAnimeList" account (used on curated/
-        // challenge stacks) renders "by MyAnimeList" as plain text with no
-        // <a href=".../profile/..."> at all, so anchoring on that link left this
-        // branch skipped entirely for every official stack. Pick the most specific
-        // (shortest-text) element whose own flattened text starts with "by " —
-        // that's the byline itself, whether or not the name inside is a link.
-        // "More Like This" sidebar rows are also "N Entries · N Restacks by AUTHOR"
-        // cards, and their author names are frequently shorter than the real
-        // stack owner's — e.g. "by Sylicone" (11 chars) beats "by MyAnimeList"
-        // (14 chars) — so picking by shortest text alone grabbed a sidebar
-        // byline instead of the page's own, leaving description blank because
-        // the extraction regex never matched inside the wrong container.
-        // Sidebar cards always carry "Restacks" in the same small block right
-        // next to their byline; the real page byline never does (that count
-        // lives elsewhere, next to the stack icon). Drop any candidate whose
-        // nearby ancestors mention "Restacks" before ranking by length.
-        val bylineEl = doc.select("*")
-            .filter { el -> normText(el).trim().let { it.startsWith("by ") && it.length in 4..80 } }
-            .filterNot { el ->
-                var anc: Element? = el
-                var hit = false
-                repeat(4) {
-                    anc = anc?.parent()
-                    if (anc != null && Regex("\\bRestacks\\b").containsMatchIn(normText(anc!!))) hit = true
-                }
-                hit
-            }
-            .minByOrNull { normText(it).trim().length }
-        val author = bylineEl?.let { el ->
-            el.selectFirst("a")?.text()?.trim()?.takeIf { it.isNotBlank() }
-                ?: normText(el).trim().removePrefix("by ").trim()
-        }.orEmpty()
+        // The byline lives in its own dedicated element (class="information"):
+        // <span class="mr4">by</span>AUTHOR<br>DATE | TIME_LEFT — note there is
+        // no actual space character between "by" and the author name in the
+        // markup; the visible gap is purely the mr4 margin CSS class. Matching
+        // text against a literal "by " (with a space) therefore never hit,
+        // leaving both author and description blank. Instead, find the "by"
+        // marker span itself and read its very next sibling node — that's the
+        // author, whether it's a plain text node (MAL's official "MyAnimeList"
+        // account, which isn't a profile link) or an <a> (regular users).
+        val infoEl = doc.selectFirst("div.information")
+        val byMarker = infoEl?.select("span")?.firstOrNull { it.ownText().trim() == "by" }
+        val author = when (val sibling = byMarker?.nextSibling()) {
+            is org.jsoup.nodes.TextNode -> sibling.text().trim()
+            is Element -> sibling.text().trim()
+            else -> ""
+        }
         val bodyText = normText(doc.body())
         val type = Regex("\\b(Anime|Manga)\\b").find(bodyText)?.groupValues?.get(1).orEmpty()
-        // Description sits between the "by AUTHOR" byline and the next stat marker,
-        // same shape as a browse row's card — reuse the row-container climb +
-        // extraction that already works for parseSummaries instead of matching
-        // against the whole page body
-        val description = if (bylineEl != null && author.isNotBlank()) {
-            // Wider climb than the default: on the detail page the byline and
-            // the "Start tracking this stack!" stop marker can sit further
-            // apart in the DOM than a compact browse-row card ever does.
-            val text = normText(rowContainer(bylineEl, maxLevels = 14))
-            Regex(Regex.escape("by $author") + "\\s*(.*?)\\s*(?:${descriptionStop.pattern})", RegexOption.DOT_MATCHES_ALL)
-                .find(text)?.groupValues?.get(1)?.trim().orEmpty()
-        } else ""
+        // The description itself sits in its own dedicated element too
+        // (class="introduction"), right above the my-list/mean-score stats —
+        // no need to carve it out of surrounding byline/date text at all.
+        val description = doc.selectFirst("div.introduction")?.let(::textWithLineBreaks).orEmpty()
         StackDetail(stackId, title, type, author, description, restacks, parseEntries(doc))
     }
 

@@ -136,6 +136,14 @@ class LibraryViewModel : ViewModel() {
     // Right-side profile/settings slider, opened from any tab's avatar
     var profileDrawerOpen by mutableStateOf(false)
     var signedIn by mutableStateOf(false); var loading by mutableStateOf(false); var error by mutableStateOf<String?>(null)
+    // Whether the initial signed-in check (in load()) has actually run yet. signedIn
+    // itself defaults to false before that, which is indistinguishable from "checked
+    // and genuinely signed out" — so screens gating on signedIn alone (e.g. Home's
+    // "Please sign in" prompt) briefly flashed that prompt for already-signed-in users
+    // on every cold start, for the one+ frames between first composition and the
+    // LaunchedEffect that calls load() actually running. Gate that kind of UI on
+    // authChecked too so nothing shows until we know the real answer.
+    var authChecked by mutableStateOf(false); private set
     var themeMode by mutableStateOf(ThemeMode.System)
     var colorSource by mutableStateOf(ColorSource.AppDefault); private set
     var paletteStyle by mutableStateOf(PaletteStyle.TonalSpot); private set
@@ -153,6 +161,18 @@ class LibraryViewModel : ViewModel() {
     var discoverScrollIndex by mutableStateOf(0); private set
     var discoverScrollOffset by mutableStateOf(0); private set
     fun saveDiscoverScroll(index: Int, offset: Int) { discoverScrollIndex = index; discoverScrollOffset = offset }
+    // Home tab scroll — HomeScreen's LazyColumn previously had no hoisted state at
+    // all, so opening a card and pressing back left it torn down and rebuilt from
+    // scratch at the top, same class of bug the List/Discover-results scroll state
+    // above was already added to fix.
+    var homeScrollIndex by mutableStateOf(0); private set
+    var homeScrollOffset by mutableStateOf(0); private set
+    fun saveHomeScroll(index: Int, offset: Int) { homeScrollIndex = index; homeScrollOffset = offset }
+    // Discover landing/browse tab scroll (separate from discoverScroll* above,
+    // which is the search-results list further down the same tab)
+    var discoverBrowseScrollIndex by mutableStateOf(0); private set
+    var discoverBrowseScrollOffset by mutableStateOf(0); private set
+    fun saveDiscoverBrowseScroll(index: Int, offset: Int) { discoverBrowseScrollIndex = index; discoverBrowseScrollOffset = offset }
     // Clubs tab state — survives navigating into a club and back, same as
     // Discover results above: query, loaded pages, and scroll position all
     // live here instead of in ClubsScreen's own remember{} blocks, which get
@@ -348,7 +368,7 @@ class LibraryViewModel : ViewModel() {
     }
 
     fun load(context: Context) {
-        val api = MalApi(context); signedIn = api.signedIn; if (!signedIn) return
+        val api = MalApi(context); signedIn = api.signedIn; authChecked = true; if (!signedIn) return
         loading = true
         viewModelScope.launch { runCatching { api.library() }.onSuccess { items = it }.onFailure { error = it.message ?: "Could not load your MAL list" }; loading = false }
         loadProfile(context)
@@ -610,22 +630,6 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
-    // Continue mini player dismiss state — lives only in memory, so it resets to shown
-    // (false) whenever the app is freshly opened (this ViewModel is recreated on process
-    // start), but stays dismissed for the rest of the session once the user swipes it away
-    var continueMiniPlayerDismissed by mutableStateOf(false); private set
-    fun dismissContinueMiniPlayer() { continueMiniPlayerDismissed = true }
-
-    // Whether the Continue card is pinned in place — unlike the dismiss flag above,
-    // this is a deliberate user preference so it's persisted and survives app restarts.
-    // While pinned, the card ignores swipe-to-dismiss entirely (see ContinueMiniPlayer).
-    var continueMiniPlayerPinned by mutableStateOf(false); private set
-    fun loadContinuePinnedPref(context: Context) { continueMiniPlayerPinned = settingsPrefs(context).getBoolean("continue_pinned", false) }
-    fun setContinuePinned(context: Context, pinned: Boolean) {
-        continueMiniPlayerPinned = pinned
-        settingsPrefs(context).edit().putBoolean("continue_pinned", pinned).apply()
-    }
-
     // Related row loading id
     var relatedLoadingId by mutableStateOf<Int?>(null); private set
 
@@ -715,8 +719,8 @@ class LibraryViewModel : ViewModel() {
     // needs the one most-recent card, not the full curated homepage.
     var homeLatestStack by mutableStateOf<StackSummary?>(null); private set
     private var homeLatestStackLoaded = false
-    fun loadHomeLatestStack() {
-        if (homeLatestStackLoaded) return
+    fun loadHomeLatestStack(context: Context) {
+        if (homeLatestStackLoaded || !MalApi(context).signedIn) return
         homeLatestStackLoaded = true
         viewModelScope.launch {
             homeLatestStack = runCatching { StacksApi().search(StackBrowseKind.All).firstOrNull() }.getOrNull()

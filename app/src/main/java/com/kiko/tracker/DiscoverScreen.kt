@@ -167,10 +167,15 @@ import kotlin.math.roundToInt
     // Tenrai/MAL search results, not the user's own list) can still show the status badge.
     // Keyed by id+type since anime and manga IDs are independent and can collide.
     val myListStatus = remember(vm.items) { vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap() }
+    // Restore scroll position on return from a card/entry instead of resetting to top
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.discoverBrowseScrollIndex, initialFirstVisibleItemScrollOffset = vm.discoverBrowseScrollOffset)
+    val trackedOpenDetail: (MediaItem) -> Unit = remember(onOpenDetail) {
+        { item -> vm.saveDiscoverBrowseScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenDetail(item) }
+    }
 
-    LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+    LazyColumn(state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
         item {
-            AppHeader("Discover", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty()) { vm.profileDrawerOpen = true } }
+            AppHeader("Discover", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
             Spacer(Modifier.height(17.dp))
 
             // Search bar and filter
@@ -219,7 +224,7 @@ import kotlin.math.roundToInt
             Spacer(Modifier.height(12.dp))
         }
 
-        if (!vm.signedIn) {
+        if (vm.authChecked && !vm.signedIn) {
             item {
                 Text(
                     "Sign in from Profile to browse MyAnimeList",
@@ -236,7 +241,7 @@ import kotlin.math.roundToInt
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                         // Cap row at 7
                         items(vm.visibleDiscoverNewSeason.take(7), key = { it.id }) { item ->
-                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
+                            BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
                         }
                     }
                 }
@@ -248,7 +253,7 @@ import kotlin.math.roundToInt
                     SectionTitle("Top 10 upcoming", "", {})
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                         items(vm.visibleDiscoverUpcoming, key = { it.id }) { item ->
-                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
+                            BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
                         }
                     }
                 }
@@ -261,7 +266,7 @@ import kotlin.math.roundToInt
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                         // Cap row at 7; full list is in the "See more" grid
                         items(vm.visibleRecommendations.take(7), key = { it.id }) { item ->
-                            BrowseCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
+                            BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
                         }
                     }
                 }

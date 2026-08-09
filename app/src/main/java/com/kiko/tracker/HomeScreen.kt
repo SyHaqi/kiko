@@ -57,7 +57,6 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardActions
@@ -80,7 +79,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
@@ -100,8 +98,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -132,11 +128,10 @@ import kotlinx.coroutines.coroutineScope
 import java.util.UUID
 import kotlin.math.roundToInt
 
-@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit) {
+@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
-    LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context) }
-    LaunchedEffect(Unit) { vm.loadHomeLatestStack() }
+    LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context); vm.loadHomeLatestStack(context) }
     val items = vm.visibleItems
     // Most recently updated wins
     val active = items.filter { it.status == WatchStatus.Watching || it.status == WatchStatus.Reading }.maxByOrNull { it.updatedAt }
@@ -145,57 +140,53 @@ import kotlin.math.roundToInt
     val today = java.time.LocalDate.now().dayOfWeek
     // Airing-next row pool
     val airingNext = vm.visibleDiscoverNewSeason.mapNotNull { item -> item.nextAirDateTime()?.let { item to it } }.sortedBy { it.second }.take(5).map { it.first }
-    // Floating "Continue" card shows on a clean app open, or always while pinned — swiping
-    // it away (only possible when not pinned) dismisses it for the rest of this session
-    // (see vm.continueMiniPlayerDismissed)
-    val continueVisible = active != null && (vm.continueMiniPlayerPinned || !vm.continueMiniPlayerDismissed)
-    // Measured height of the floating card, so list content can reserve exactly enough
-    // bottom space to scroll fully clear of it instead of disappearing underneath
-    val density = LocalDensity.current
-    var continueCardHeightPx by remember { mutableStateOf(0) }
-    val bottomReserve = if (continueVisible) with(density) { continueCardHeightPx.toDp() } + 14.dp else 0.dp
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp + bottomReserve)) {
-            item {
-                AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty()) { vm.profileDrawerOpen = true } }
-                Column(Modifier.padding(horizontal = 20.dp)) {
-                    // Use device current date
-                    Text(
-                        java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault()),
-                        color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
-                    )
-                    if (airingNext.isNotEmpty()) {
-                        SectionTitle("Airing next", "See all") { onSchedule(today) }
-                        AiringNextRow(airingNext, onOpenDetail)
+    // Restore scroll position on return from a card/entry instead of resetting to top
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.homeScrollIndex, initialFirstVisibleItemScrollOffset = vm.homeScrollOffset)
+    val trackedOpenDetail: (MediaItem) -> Unit = remember(onOpenDetail) {
+        { item -> vm.saveHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenDetail(item) }
+    }
+    val trackedOpenTopic: (Int, String) -> Unit = remember(onOpenTopic) {
+        { id, title -> vm.saveHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenTopic(id, title) }
+    }
+    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
+        item {
+            AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                // Use device current date
+                Text(
+                    java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault()),
+                    color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
+                )
+                if (airingNext.isNotEmpty()) {
+                    SectionTitle("Airing next", "See all") { onSchedule(today) }
+                    AiringNextRow(airingNext, trackedOpenDetail)
+                }
+                // Most recently updated in-progress title
+                active?.let { item ->
+                    SectionTitle("Continue", "See list", onList)
+                    ContinueCard(item, trackedOpenDetail)
+                }
+                // Home recent news row
+                if (vm.newsSnapshots.isNotEmpty()) {
+                    SectionTitle("Snapshots", "See news", onSeeNews)
+                    SnapshotsGrid(vm.newsSnapshots, trackedOpenTopic)
+                }
+                // Freshest Interest Stack teaser
+                vm.homeLatestStack?.let { stack ->
+                    SectionTitle("Interest Stacks", "See all", onOpenStacks)
+                    StackFeaturedCard(stack) {
+                        vm.saveHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+                        onOpenStack(stack.id, stack.title)
                     }
-                    // Home recent news row
-                    if (vm.newsSnapshots.isNotEmpty()) {
-                        SectionTitle("Snapshots", "See news", onSeeNews)
-                        SnapshotsGrid(vm.newsSnapshots, onOpenTopic)
-                    }
-                    // Freshest Interest Stack teaser
-                    vm.homeLatestStack?.let { stack ->
-                        SectionTitle("Interest Stacks", "See all", onOpenStacks)
-                        StackFeaturedCard(stack) { onOpenStack(stack.id, stack.title) }
-                    }
-                    if (active == null && !vm.loading && !vm.signedIn && airingNext.isEmpty()) {
-                        Text("Sign in from Profile to see releases and recommendations.", color = c.muted, fontSize = 14.sp, modifier = Modifier.padding(top = 40.dp))
+                }
+                if (vm.authChecked && !vm.signedIn && !vm.loading) {
+                    Column(Modifier.fillMaxWidth().padding(top = 50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Please sign in with your MyAnimeList account", color = c.muted, fontSize = 14.sp, textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(16.dp))
+                        Button(onClick = onSignIn, colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) { Text("Sign in with MyAnimeList") }
                     }
                 }
             }
-        }
-        if (continueVisible && active != null) {
-            ContinueMiniPlayer(
-                item = active,
-                pinned = vm.continueMiniPlayerPinned,
-                onOpenDetail = onOpenDetail,
-                onDismiss = vm::dismissContinueMiniPlayer,
-                onTogglePin = { vm.setContinuePinned(context, !vm.continueMiniPlayerPinned) },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 20.dp, vertical = 14.dp)
-                    .onGloballyPositioned { continueCardHeightPx = it.size.height },
-            )
         }
     }
 }
@@ -243,72 +234,19 @@ import kotlin.math.roundToInt
 
 @Composable fun SectionTitle(title: String, action: String, click: () -> Unit) { val c = LocalKikoColors.current; Row(Modifier.fillMaxWidth().padding(top = 29.dp, bottom = 13.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(title, style = MaterialTheme.typography.headlineSmall, color = c.ink); TextButton(onClick = click) { Text(action, fontWeight = FontWeight.Bold, color = c.primary) } } }
 
-// Compact floating "Continue" mini player — cover thumbnail, label/2-line title/progress,
-// plus a pin toggle top-right. Unpinned, swipe either direction dismisses it for the rest
-// of this session; pinned, swipe-to-dismiss is disabled entirely so it can't go by accident.
+// Inline "Continue" card, docked under Airing Next — the same row style and size used for
+// entries in My List (ListRow below), just wrapped in a card so it stands out as its own
+// section. Lives in the normal scroll flow, so there's no dismiss/pin gesture to manage.
 
-@Composable fun ContinueMiniPlayer(item: MediaItem, pinned: Boolean, onOpenDetail: (MediaItem) -> Unit, onDismiss: () -> Unit, onTogglePin: () -> Unit, modifier: Modifier = Modifier) {
+@Composable fun ContinueCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
-    val card: @Composable () -> Unit = {
-        Card(
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = c.surface),
-            elevation = CardDefaults.cardElevation(6.dp),
-            modifier = Modifier.fillMaxWidth().clickable { onOpenDetail(item) },
-        ) {
-            Box {
-                Row(Modifier.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Cover(item, Modifier.size(width = 42.dp, height = 58.dp))
-                    Column(Modifier.weight(1f).padding(start = 11.dp, end = 24.dp)) {
-                        Text("CONTINUE", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 9.sp, letterSpacing = 1.1.sp)
-                        // Two-line title — the card has the room, and most titles no longer truncate
-                        Text(
-                            item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, lineHeight = 15.sp, color = c.ink,
-                            minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
-                        )
-                        Row(Modifier.padding(top = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                            LinearProgressIndicator(
-                                progress = { if (item.total > 0) item.progress.toFloat() / item.total else .45f },
-                                modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(9.dp)),
-                                color = statusColor(item.status), trackColor = c.surfaceLow,
-                            )
-                            Text(
-                                "${item.progress}${if (item.total > 0) "/${item.total}" else ""}",
-                                color = c.muted, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(start = 7.dp),
-                            )
-                        }
-                    }
-                }
-                IconButton(
-                    onClick = onTogglePin,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 3.dp, end = 3.dp)
-                        .size(22.dp)
-                        .clip(CircleShape)
-                        .background(if (pinned) c.primaryContainer else Color.Transparent),
-                ) {
-                    Icon(
-                        if (pinned) Icons.Default.PushPin else Icons.Outlined.PushPin,
-                        contentDescription = if (pinned) "Unpin Continue card" else "Pin Continue card",
-                        tint = if (pinned) c.primary else c.muted,
-                        modifier = Modifier.size(12.dp),
-                    )
-                }
-            }
-        }
-    }
-    if (pinned) {
-        // Pinned: no swipe gesture at all, so there's no accidental-dismiss path to guard against
-        Box(modifier.fillMaxWidth()) { card() }
-    } else {
-        val dismissState = rememberSwipeToDismissBoxState(confirmValueChange = { true })
-        // Fire the callback once the swipe has fully settled off-screen, not mid-drag
-        LaunchedEffect(dismissState.currentValue) {
-            if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) onDismiss()
-        }
-        SwipeToDismissBox(state = dismissState, backgroundContent = {}, modifier = modifier.fillMaxWidth()) { card() }
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = c.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        ListRow(item, onOpenDetail, showType = false, modifier = Modifier.padding(horizontal = 14.dp))
     }
 }
 // Pinterest-style snapshots layout
@@ -453,7 +391,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         }
     }
     val header: @Composable () -> Unit = {
-        AppHeader("My list", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty()) { vm.profileDrawerOpen = true } }
+        AppHeader("My list", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.primary, trackColor = c.surfaceLow)
         SearchField(query, { query = it }, "Search your list", onSearch = { submittedQuery = query }, onClear = { query = ""; submittedQuery = "" })
         // Reset scroll on change
@@ -547,14 +485,14 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     }
 }
 
-@Composable fun ListRow(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, showType: Boolean = true) {
+@Composable fun ListRow(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, showType: Boolean = true, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().clickable { onOpenDetail(item) }.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().clickable { onOpenDetail(item) }.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         Cover(item, Modifier.size(width = 84.dp, height = 118.dp))
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
             Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(if (showType) "${item.type} · ${item.genre}" else item.genre, color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
-            if (onIncrement != null && item.total > 0) {
+            if (item.total > 0) {
                 LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth(0.75f).padding(top = 9.dp).height(4.dp).clip(RoundedCornerShape(4.dp)), color = statusColor(item.status), trackColor = c.surfaceLow)
             }
             Text(progressLabel(item), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))

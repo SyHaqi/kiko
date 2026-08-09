@@ -250,13 +250,13 @@ fun statusColor(label: String): Color = when {
 }
 // Fallback avatar tile
 
-@Composable fun Avatar(picture: String = "", onClick: (() -> Unit)? = null) {
+@Composable fun Avatar(picture: String = "", name: String = "", onClick: (() -> Unit)? = null) {
     val c = LocalKikoColors.current
     val tapMod = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
     if (picture.isNotBlank()) {
         AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(RoundedCornerShape(16.dp)).background(c.warm).then(tapMod))
     } else {
-        Box(Modifier.size(43.dp).clip(RoundedCornerShape(16.dp)).background(c.warm).then(tapMod), contentAlignment = Alignment.Center) { Text("M", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink) }
+        Box(Modifier.size(43.dp).clip(RoundedCornerShape(16.dp)).background(c.warm).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink) }
     }
 }
 

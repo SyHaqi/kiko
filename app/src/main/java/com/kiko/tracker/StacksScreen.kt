@@ -150,7 +150,7 @@ import kotlin.math.roundToInt
     }
     // Auto-load more of the "Recent" section as the user nears the bottom, same as
     // every other paginated list — only that section is paginated; the curated
-    // Challenge/Manga/Anime/MyAnimeList rows above load in full once, so leave those alone
+    // Challenge/Manga/Anime rows above (Spotlight) load in full once, so leave those alone
     LaunchedEffect(listState, vm.stacksHomeRecent.size) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
             .distinctUntilChanged()
@@ -181,10 +181,6 @@ import kotlin.math.roundToInt
                         items(spotlightStacks, key = { (prefix, s) -> "$prefix-${s.id}" }) { (_, s) -> StackSpotlightCard(s) { openStack(s) } }
                     }
                 }
-            }
-            if (vm.stacksHomeMal.isNotEmpty()) {
-                item { StackSectionHeader("MyAnimeList Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.MyAnimeList) }) }
-                items(vm.stacksHomeMal, key = { "mal-${it.id}" }) { s -> StackFeaturedCard(s) { openStack(s) } }
             }
             if (vm.stacksHomeRecent.isNotEmpty()) {
                 item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
