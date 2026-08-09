@@ -258,7 +258,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
     Column {
         if (club.description.isNotBlank()) {
             Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
-                Text(club.description, color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(18.dp))
+                ForumBody(club.description, modifier = Modifier.padding(18.dp))
             }
             Spacer(Modifier.height(18.dp))
         }
@@ -285,12 +285,12 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                                     Text(post.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
                                 }
                             }
-                            Column(Modifier.padding(start = 12.dp)) {
+                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(post.username.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink)
                                     if (post.postedLabel.isNotBlank()) Text("  ·  ${post.postedLabel}", color = c.muted, fontSize = 11.sp)
                                 }
-                                Text(post.body, color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
+                                ForumBody(post.body, modifier = Modifier.padding(top = 3.dp))
                             }
                         }
                         if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))

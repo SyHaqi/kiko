@@ -214,11 +214,15 @@ fun decodeHtmlEntities(text: String): String = htmlEntityRegex.replace(text) { m
 // Rewrite bare image links
 
 val bareImageLinkRegex = Regex("""\[url\]\s*(https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?|https?://cdn\.myanimelist\.net/s/common/bbcode/\S+?)\s*\[/url\]""", RegexOption.IGNORE_CASE)
+// Some club/profile descriptions paste a [*] list-item marker directly against
+// the next tag with no space (e.g. "[*url=...]...[*IMG]...[*/IMG][*/url]"),
+// which renders as literal bracket text since "*url"/"*img" aren't real tag
+// names. Strip the stray asterisk so the underlying url/img tags parse normally.
+val strayListMarkerTagRegex = Regex("""\[\*(/?)(url|img|list|quote|center|b|i|u|s|strike)\b""", RegexOption.IGNORE_CASE)
 // Fix unclosed img tags
 
 val unclosedImgRegex = Regex("""\[img(?:[^\]]*)\]\s*(https?://[^\s\[\]]++)(?!\s*\[/img\])""", RegexOption.IGNORE_CASE)
 // Wrap bare image URLs
-
 val bareUrlRegex = Regex(
     """(?<!\[img\])(?<!\[img\][ \t]{0,10})(?:https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?|https?://cdn\.myanimelist\.net/s/common/bbcode/\S+?)(?=\s|$)(?!\[/img\])""",
     setOf(RegexOption.IGNORE_CASE),
@@ -244,6 +248,7 @@ val bareGenericUrlRegex = Regex(
 
 fun normalizeMalMarkup(raw: String): String =
     decodeHtmlEntities(brTagRegex.replace(raw, "\n"))
+        .let { strayListMarkerTagRegex.replace(it) { m -> "[${m.groupValues[1]}${m.groupValues[2]}" } }
         .let { bareImageLinkRegex.replace(it) { m -> "[img]${m.groupValues[1]}[/img]" } }
         .let { unclosedImgRegex.replace(it) { m -> "[img]${m.groupValues[1]}[/img]" } }
         .let { bareTenorLinkRegex.replace(it) { m -> "[img]tenor:${m.groupValues[1].ifBlank { m.groupValues[2] }}[/img]" } }
@@ -255,6 +260,10 @@ fun parseBBCode(rawIn: String, linkColor: Color): List<ForumBlock> {
     if (rawIn.isBlank()) return emptyList()
     return parseBlocks(normalizeMalMarkup(rawIn), linkColor)
 }
+// Old pasted links are often plain http:// — Android blocks cleartext network
+// requests by default (API 28+) so those images silently fail to load even
+// though the same host serves the same image fine over https.
+fun httpsUpgrade(url: String): String = if (url.startsWith("http://", ignoreCase = true)) "https://" + url.substring(7) else url
 // Recurse into center/quote blocks
 
 fun parseBlocks(raw: String, linkColor: Color): List<ForumBlock> {
@@ -267,7 +276,7 @@ fun parseBlocks(raw: String, linkColor: Color): List<ForumBlock> {
         when (tag) {
             "img" -> inner.trim().takeIf { it.isNotBlank() }?.let {
                 if (it.startsWith("tenor:", ignoreCase = true)) blocks += ForumBlock.ImageBlock(it.substring(6), resolveTenor = true)
-                else blocks += ForumBlock.ImageBlock(it)
+                else blocks += ForumBlock.ImageBlock(httpsUpgrade(it))
             }
             "list" -> {
                 val items = inner.split(Regex("""\[\*\]""", RegexOption.IGNORE_CASE)).map { it.trim() }.filter { it.isNotBlank() }
