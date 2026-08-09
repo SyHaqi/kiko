@@ -270,6 +270,25 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var settingsPageOpen by remember { mutableStateOf(false) }
     // Score distribution drill-down, opened over ProfileStats
     var scoreFilterOpen by remember { mutableStateOf<Pair<MediaType, Int>?>(null) }
+    // Jump from a detail page (genre chip / creator tap) to Discover search results.
+    // Clears every other overlay screen's "open" state, not just detailStack — a detail
+    // page can be reached from inside a stack, club, forum topic, review, etc., and each
+    // of those leaves its own flag (stackDetailOpen, clubDetailOpen, ...) set underneath.
+    // topScreen's priority chain checks those flags ahead of the plain destination, so
+    // once selectedItem is cleared below, a leftover flag would resurface that screen
+    // instead of the Discover results — e.g. tapping an author from an entry opened out
+    // of a stack would fall back to the stack's entry list instead of showing the search.
+    fun jumpToDiscover(from: MediaItem, type: String, filters: DiscoverFilters) {
+        discoverReturnItem = from
+        selectedItem = null; detailStack = emptyList()
+        stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = false
+        clubDetailOpen = null
+        rankingOpen = false; seasonalOpen = false; recommendationsOpen = false; scheduleOpen = false
+        forumTopicOpen = null; aboutOpen = false; reviewOpen = null
+        profileStatsOpen = false; settingsPageOpen = false; scoreFilterOpen = null
+        vm.destination = Destination.Discover
+        vm.runDiscoverSearch(context, "", type, filters)
+    }
     // Live-merge search result — must match on id AND type, since MAL anime and
     // manga ids are separate numbering spaces and can collide (e.g. anime id 11577 is
     // Steins;Gate Movie: Fuka Ryouiki no Déjà vu, manga id 11577 is Stardust★Wink)
@@ -347,15 +366,9 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                     ) { screen ->
                         when (screen) {
                             is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) }, onLoadCharactersStaff = { forItem, onFound, onDone -> vm.loadCharactersStaff(forItem, onFound, onDone) }, onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) }, onOpenReview = { rev -> reviewOpen = rev to screen.item.title }, onOpenReviewList = { url, _ -> CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) }, initialScroll = vm.getDetailScroll(screen.item.id), onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) }, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), onGenreClick = { genre ->
-                                discoverReturnItem = screen.item
-                                selectedItem = null; detailStack = emptyList()
-                                vm.destination = Destination.Discover
-                                vm.runDiscoverSearch(context, "", if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
+                                jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
                             }, onCreatorClick = { creator ->
-                                discoverReturnItem = screen.item
-                                selectedItem = null; detailStack = emptyList()
-                                vm.destination = Destination.Discover
-                                vm.runDiscoverSearch(context, "", if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(creator = creator))
+                                jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(creator = creator))
                             })
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Seasonal -> SeasonalScreen(vm, onBack = { seasonalOpen = false }, onOpenDetail = ::openDetail)
