@@ -34,6 +34,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -72,9 +73,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Size as UiSize
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -263,13 +268,72 @@ import kotlin.math.roundToInt
     if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
     Column(Modifier.fillMaxWidth()) { counts.forEach { (genre, count) -> StatBar(genre, count, total, c, c.primary) } }
 }
-// Proportional format breakdown bars (TV/OVA/Movie for anime, Manga/Manhua/Light Novel for manga)
+// Format breakdown — a donut ring (TV/OVA/Movie for anime, Manga/Manhua/Light Novel for manga)
+// paired with a ranked legend. Ring segments and dots are shades of the theme's
+// own accent color faded toward surfaceLow, so it stays on-palette for any custom theme.
 
 @Composable fun FormatBreakdownChart(items: List<MediaItem>, c: KikoColors) {
-    val total = items.size
-    val counts = items.map { it.format }.filter { it.isNotBlank() }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(6)
+    val counts = items.map { it.format }.filter { it.isNotBlank() }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(5)
     if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
-    Column(Modifier.fillMaxWidth()) { counts.forEach { (format, count) -> StatBar(format, count, total, c, c.primary) } }
+    val total = counts.sumOf { it.value }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        FormatRing(counts, total, c, modifier = Modifier.size(92.dp))
+        Spacer(Modifier.width(20.dp))
+        Column(Modifier.weight(1f)) {
+            counts.forEachIndexed { index, entry -> FormatLegendRow(entry.key, entry.value, total, formatShade(index, counts.size, c), c) }
+        }
+    }
+}
+// One shade in the ring's accent ramp: full primary at index 0, fading toward surfaceLow
+
+fun formatShade(index: Int, segmentCount: Int, c: KikoColors): Color {
+    if (segmentCount <= 1) return c.primary
+    val t = index / (segmentCount - 1).toFloat()
+    return lerp(c.primary, c.surfaceLow, t * 0.72f)
+}
+// Donut ring with rounded, gapped segments and a centered total
+
+@Composable fun FormatRing(counts: List<Map.Entry<String, Int>>, total: Int, c: KikoColors, modifier: Modifier = Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val strokeWidth = size.minDimension * 0.17f
+            val gapDegrees = if (counts.size > 1) 6f else 0f
+            val diameter = size.minDimension - strokeWidth
+            val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
+            val arcSize = UiSize(diameter, diameter)
+            var startAngle = -90f
+            counts.forEachIndexed { index, entry ->
+                val sweep = (entry.value.toFloat() / total) * (360f - gapDegrees * counts.size)
+                drawArc(
+                    color = formatShade(index, counts.size, c),
+                    startAngle = startAngle, sweepAngle = sweep, useCenter = false,
+                    topLeft = topLeft, size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                )
+                startAngle += sweep + gapDegrees
+            }
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(total.toString(), fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink)
+            Text("titles", color = c.muted, fontSize = 10.sp)
+        }
+    }
+}
+// One ranked row in the format legend: dot, name, raw count, percentage pill
+
+@Composable fun FormatLegendRow(label: String, count: Int, total: Int, color: Color, c: KikoColors) {
+    val pct = if (total > 0) (count * 100f / total).roundToInt() else 0
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.width(9.dp))
+        Text(label, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
+        Text(count.toString(), color = c.muted, fontSize = 12.sp)
+        Spacer(Modifier.width(6.dp))
+        Box(Modifier.clip(RoundedCornerShape(50)).background(c.surfaceLow).padding(horizontal = 8.dp, vertical = 2.dp)) {
+            Text("$pct%", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        }
+    }
 }
 // Score distribution histogram
 
