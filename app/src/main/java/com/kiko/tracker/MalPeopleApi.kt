@@ -112,11 +112,19 @@ class MalPeopleApi {
         return fetchCreditedWorks("manga", personId, name)
     }
 
+    // MAL serves the credited-works table's thumbnails through a resizing proxy path like
+    // "/r/50x70/images/manga/3/122224.jpg" — the same pattern ClubsApi strips for club/member
+    // avatars. Removing the "/r/WxH/" segment returns the original, full-resolution cover.
+    private fun fullResUrl(url: String): String = url.replaceFirst(Regex("/r/\\d+x\\d+(?:-\\d+)?/"), "/")
+
     private fun parseWorkRow(kind: String, row: Element, creator: String, allCreators: String): MediaItem? {
         val link = row.selectFirst("a.js-people-title") ?: return null
         val title = link.text().takeIf { it.isNotBlank() } ?: return null
         val id = Regex("/$kind/(\\d+)").find(link.attr("href"))?.groupValues?.get(1)?.toIntOrNull() ?: return null
-        val cover = row.selectFirst("img")?.let { it.attr("data-src").ifBlank { it.attr("src") } }.orEmpty()
+        val cover = row.selectFirst("img")?.let { img ->
+            val raw = img.attr("data-src").ifBlank { img.attr("src") }
+            fullResUrl(img.absUrl(if (img.hasAttr("data-src")) "data-src" else "src").ifBlank { raw })
+        }.orEmpty()
         // e.g. "TV, Fall 2014" or "Light Novel, 2017"
         val infoParts = row.selectFirst("div[class*=info-text]")?.text()?.split(", ", limit = 2).orEmpty()
         val format = infoParts.getOrNull(0)?.takeIf { it.isNotBlank() } ?: ""

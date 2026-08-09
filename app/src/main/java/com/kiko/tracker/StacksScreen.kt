@@ -440,6 +440,14 @@ import kotlin.math.roundToInt
         }
     }
     val scope = rememberCoroutineScope()
+    // Persist scroll position whenever this screen leaves composition — covers both
+    // opening an entry AND pressing back. Previously this was only saved from the
+    // entry-open tap, so backing out (e.g. after scrolling back to the top first) left
+    // the last entry-open position stuck in place, and the next visit would jump back
+    // down to it instead of respecting where the user actually left the list.
+    DisposableEffect(stackId) {
+        onDispose { onLeaveScroll(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset) }
+    }
     val showGoToTop by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 } }
     Box(Modifier.fillMaxSize()) {
         LazyVerticalGrid(
@@ -491,7 +499,6 @@ import kotlin.math.roundToInt
                 }
                 itemsIndexed(d.entries, key = { _, e -> e.malId }) { i, entry ->
                     StackEntryGridCard(i + 1, entry, loading = loadingId == entry.malId, myStatus = myListStatus[entry.malId to entry.type]) {
-                        onLeaveScroll(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
                         onOpenEntry(entry)
                     }
                 }
