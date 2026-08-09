@@ -213,7 +213,7 @@ fun decodeHtmlEntities(text: String): String = htmlEntityRegex.replace(text) { m
 }
 // Rewrite bare image links
 
-val bareImageLinkRegex = Regex("""\[url\]\s*(https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?|https?://cdn\.myanimelist\.net/s/common/bbcode/\S+?)\s*\[/url\]""", RegexOption.IGNORE_CASE)
+val bareImageLinkRegex = Regex("""\[url\]\s*(https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?|https?://cdn\.myanimelist\.net/s/common/bbcode/\S+?|https?://image\.myanimelist\.net/ui/\S+?)\s*\[/url\]""", RegexOption.IGNORE_CASE)
 // Some club/profile descriptions paste a [*] list-item marker directly against
 // the next tag with no space (e.g. "[*url=...]...[*IMG]...[*/IMG][*/url]"),
 // which renders as literal bracket text since "*url"/"*img" aren't real tag
@@ -223,8 +223,12 @@ val strayListMarkerTagRegex = Regex("""\[\*(/?)(url|img|list|quote|center|b|i|u|
 
 val unclosedImgRegex = Regex("""\[img(?:[^\]]*)\]\s*(https?://[^\s\[\]]++)(?!\s*\[/img\])""", RegexOption.IGNORE_CASE)
 // Wrap bare image URLs
+// Also covers image.myanimelist.net/ui/<hash> links (stickers/reactions and
+// some uploaded images use this extensionless CDN path), which previously
+// fell through to the generic link-wrapper below and rendered as plain tap-
+// to-open text instead of an inline image.
 val bareUrlRegex = Regex(
-    """(?<!\[img\])(?<!\[img\][ \t]{0,10})(?:https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?|https?://cdn\.myanimelist\.net/s/common/bbcode/\S+?)(?=\s|$)(?!\[/img\])""",
+    """(?<!\[img\])(?<!\[img\][ \t]{0,10})(?:https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?|https?://cdn\.myanimelist\.net/s/common/bbcode/\S+?|https?://image\.myanimelist\.net/ui/\S+?)(?=\s|$)(?!\[/img\])""",
     setOf(RegexOption.IGNORE_CASE),
 )
 // Wrap Tenor GIF shares

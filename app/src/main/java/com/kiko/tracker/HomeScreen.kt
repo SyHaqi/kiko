@@ -67,6 +67,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -153,7 +154,11 @@ import kotlin.math.roundToInt
     }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
-    Box(Modifier.fillMaxSize()) {
+    PullToRefreshBox(
+        isRefreshing = vm.loading,
+        onRefresh = { vm.load(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeLatestStack(context, force = true) },
+        modifier = Modifier.fillMaxSize(),
+    ) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
                 AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
@@ -419,7 +424,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { if (isGrid) gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 else listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
-    Box(Modifier.fillMaxSize()) {
+    PullToRefreshBox(isRefreshing = vm.loading, onRefresh = { vm.load(context) }, modifier = Modifier.fillMaxSize()) {
         if (isGrid) {
             LazyVerticalGrid(
                 state = gridState,

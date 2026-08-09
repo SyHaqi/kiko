@@ -619,8 +619,8 @@ class LibraryViewModel : ViewModel() {
     fun saveForumTopicScroll(topicId: Int, index: Int, offset: Int) { forumTopicScrollPositions[topicId] = index to offset }
 
     // Load forum board hierarchy
-    fun loadForumBoards(context: Context) {
-        if (forumBoardsLoaded || !MalApi(context).signedIn) return
+    fun loadForumBoards(context: Context, force: Boolean = false) {
+        if ((forumBoardsLoaded && !force) || !MalApi(context).signedIn) return
         forumBoardsLoaded = true
         forumBoardsLoading = true
         viewModelScope.launch {
@@ -700,8 +700,8 @@ class LibraryViewModel : ViewModel() {
     var newsSnapshots by mutableStateOf<List<NewsSnapshot>>(emptyList()); private set
     var newsSnapshotsLoading by mutableStateOf(false); private set
     private var newsSnapshotsLoaded = false
-    fun loadNewsSnapshots(context: Context) {
-        if (newsSnapshotsLoaded || !MalApi(context).signedIn) return
+    fun loadNewsSnapshots(context: Context, force: Boolean = false) {
+        if ((newsSnapshotsLoaded && !force) || !MalApi(context).signedIn) return
         newsSnapshotsLoaded = true
         newsSnapshotsLoading = true
         viewModelScope.launch {
@@ -802,8 +802,8 @@ class LibraryViewModel : ViewModel() {
     // needs the one most-recent card, not the full curated homepage.
     var homeLatestStack by mutableStateOf<StackSummary?>(null); private set
     private var homeLatestStackLoaded = false
-    fun loadHomeLatestStack(context: Context) {
-        if (homeLatestStackLoaded || !MalApi(context).signedIn) return
+    fun loadHomeLatestStack(context: Context, force: Boolean = false) {
+        if ((homeLatestStackLoaded && !force) || !MalApi(context).signedIn) return
         homeLatestStackLoaded = true
         viewModelScope.launch {
             homeLatestStack = runCatching { StacksApi().search(StackBrowseKind.All).firstOrNull() }.getOrNull()

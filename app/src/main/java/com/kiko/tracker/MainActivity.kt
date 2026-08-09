@@ -159,7 +159,17 @@ class MainActivity : ComponentActivity() {
         // Register animated GIF decoders + Referer/UA for hotlink-protected images
         val forumImageClient = okhttp3.OkHttpClient.Builder()
             .addInterceptor { chain ->
-                val req = chain.request().newBuilder()
+                val original = chain.request()
+                // Some MAL image links (older avatars/uploads, pasted forum links) are
+                // still plain http://. Cleartext traffic is blocked by default since
+                // API 28, and this app declares no networkSecurityConfig to allow it,
+                // so those requests would otherwise fail before ever reaching the
+                // server. Upgrade the scheme here so it covers every AsyncImage call
+                // in the app (this client backs the single global Coil ImageLoader),
+                // not just the forum-post body renderer.
+                val url = if (original.url.scheme == "http") original.url.newBuilder().scheme("https").build() else original.url
+                val req = original.newBuilder()
+                    .url(url)
                     .header("Referer", "https://myanimelist.net/")
                     .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36")
                     .build()

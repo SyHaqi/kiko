@@ -44,7 +44,7 @@ private class AuthExpired : IOException()
 
 // Extract first forum image
 private val firstImgTagRegex = Regex("""\[img(?:[^\]]*)\]\s*(https?://[^\s\[\]]+?)\s*\[/img\]""", RegexOption.IGNORE_CASE)
-private val firstBareImageUrlRegex = Regex("""https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?""", RegexOption.IGNORE_CASE)
+private val firstBareImageUrlRegex = Regex("""https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?|https?://cdn\.myanimelist\.net/s/common/bbcode/\S+|https?://image\.myanimelist\.net/ui/\S+""", RegexOption.IGNORE_CASE)
 private fun firstImageUrl(body: String): String? =
     firstImgTagRegex.find(body)?.groupValues?.get(1)
         ?: firstBareImageUrlRegex.find(body)?.value

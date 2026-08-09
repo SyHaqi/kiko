@@ -3,6 +3,7 @@
 package com.kiko.tracker
 
 import android.Manifest
+import android.util.Log
 import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -67,6 +68,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -151,7 +153,7 @@ import kotlin.math.roundToInt
     val saveScroll = { vm.saveForumBoardsScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
-    Box(Modifier.fillMaxSize()) {
+    PullToRefreshBox(isRefreshing = vm.forumBoardsLoading, onRefresh = { vm.loadForumBoards(context, force = true) }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
                 AppHeader("Forums", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
@@ -492,19 +494,46 @@ sealed class BbToken {
 
 @Composable fun ForumImage(url: String, c: KikoColors, onTap: (String) -> Unit) {
     val uriHandler = LocalUriHandler.current
+    // Single source of truth for what a tap does — previously the outer
+    // SubcomposeAsyncImage carried its own `.clickable { onTap(url) }` covering
+    // the whole box, AND the error state had a second, nested `.clickable` to
+    // open the browser. Two overlapping clickable regions on the same spot is
+    // unreliable: the outer one was winning, so "tap to open" silently opened
+    // the fullscreen ZoomableImageDialog instead — which has no error state of
+    // its own, so it just showed a blank black screen. That reads as "nothing
+    // happened". Track load state here instead and dispatch a single tap
+    // handler based on it.
+    var isError by remember(url) { mutableStateOf(false) }
     Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
         SubcomposeAsyncImage(
             model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            onState = { state ->
+                if (state is AsyncImagePainter.State.Error) {
+                    isError = true
+                    // Surfaces the real failure reason (HTTP status, SSL error, timeout, etc.)
+                    // in Logcat under tag "ForumImage" — filter for `url` to trace this.
+                    Log.e("ForumImage", "failed to load $url", state.result.throwable)
+                } else if (state is AsyncImagePainter.State.Success) {
+                    isError = false
+                }
+            },
             modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 340.dp).clip(RoundedCornerShape(8.dp))
                 .border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(8.dp))
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onTap(url) },
+                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {
+                    if (isError) {
+                        val opened = runCatching { uriHandler.openUri(url) }
+                        if (opened.isFailure) Log.e("ForumImage", "couldn't open $url in browser", opened.exceptionOrNull())
+                    } else {
+                        onTap(url)
+                    }
+                },
         ) {
             when (painter.state) {
                 is AsyncImagePainter.State.Loading -> Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = c.primary, modifier = Modifier.size(26.dp), strokeWidth = 2.dp)
                 }
                 is AsyncImagePainter.State.Error -> Column(
-                    Modifier.fillMaxWidth().padding(16.dp).clickable { runCatching { uriHandler.openUri(url) } },
+                    Modifier.fillMaxWidth().padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Icon(Icons.Default.Warning, null, tint = c.muted, modifier = Modifier.size(22.dp))
