@@ -201,6 +201,15 @@ class LibraryViewModel : ViewModel() {
     fun loadListSort(context: Context) { listSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("list_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
     fun setListViewMode(context: Context, mode: ListViewMode) { listViewMode = mode; settingsPrefs(context).edit().putString("list_view_mode", mode.name).apply() }
     fun loadListViewMode(context: Context) { listViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("list_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
+    // Score distribution drill-down view mode — separate pref from list_view_mode above so
+    // switching one screen's list/grid choice doesn't affect the other's
+    var scoreFilterViewMode by mutableStateOf(ListViewMode.List); private set
+    fun setScoreFilterViewMode(context: Context, mode: ListViewMode) { scoreFilterViewMode = mode; settingsPrefs(context).edit().putString("score_filter_view_mode", mode.name).apply() }
+    fun loadScoreFilterViewMode(context: Context) { scoreFilterViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("score_filter_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
+    // Profile stats page scroll — a single pixel offset since it's a plain
+    // verticalScroll Column, not a LazyColumn with item indices
+    var profileScrollOffset by mutableStateOf(0); private set
+    fun saveProfileScroll(offset: Int) { profileScrollOffset = offset }
     // NSFW off by default
     var nsfwEnabled by mutableStateOf(false); private set
     // User profile stats

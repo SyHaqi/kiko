@@ -172,122 +172,131 @@ import kotlin.math.roundToInt
     val trackedOpenDetail: (MediaItem) -> Unit = remember(onOpenDetail) {
         { item -> vm.saveDiscoverBrowseScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenDetail(item) }
     }
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
 
-    LazyColumn(state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-        item {
-            AppHeader("Discover", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
-            Spacer(Modifier.height(17.dp))
-
-            // Search bar and filter
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) {
-                    SearchField(
-                        value = query,
-                        change = { query = it },
-                        hint = "Search in MAL",
-                        onSearch = { if (query.isNotBlank() || vm.discoverFilters.isActive()) vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) }
-                    )
-                }
-                FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
-            }
-            if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = "All", onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) })
-
-            Spacer(Modifier.height(14.dp))
-
-            // Ranking and Seasonal share the top row; Interest Stacks gets its own
-            // full-width button below, edge-to-edge within the screen's padding
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                DiscoverActionButton(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.TrendingUp,
-                    label = "Rankings",
-                    onClick = onRanking
-                )
-                DiscoverActionButton(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.DateRange,
-                    label = "Seasonal",
-                    onClick = onSeasonal
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            DiscoverActionButton(
-                modifier = Modifier.fillMaxWidth(),
-                icon = Icons.Default.Layers,
-                label = "Interest Stacks",
-                onClick = onStacks
-            )
-
-            Spacer(Modifier.height(12.dp))
-        }
-
-        if (vm.authChecked && !vm.signedIn) {
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
-                Text(
-                    "Sign in from Profile to browse MyAnimeList",
-                    color = c.muted,
-                    modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
-        } else {
-            // New this season row
-            if (vm.visibleDiscoverNewSeason.isNotEmpty()) {
-                item {
-                    SectionTitle("New this season", "See all", onSeasonal)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                        // Cap row at 7
-                        items(vm.visibleDiscoverNewSeason.take(7), key = { it.id }) { item ->
-                            BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
-                        }
-                    }
-                }
-            }
+                AppHeader("Discover", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
+                Spacer(Modifier.height(17.dp))
 
-            // Top 10 upcoming row
-            if (vm.visibleDiscoverUpcoming.isNotEmpty()) {
-                item {
-                    SectionTitle("Top 10 upcoming", "", {})
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                        items(vm.visibleDiscoverUpcoming, key = { it.id }) { item ->
-                            BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
-                        }
+                // Search bar and filter
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {
+                        SearchField(
+                            value = query,
+                            change = { query = it },
+                            hint = "Search in MAL",
+                            onSearch = { if (query.isNotBlank() || vm.discoverFilters.isActive()) vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) }
+                        )
                     }
+                    FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
                 }
-            }
+                if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = "All", onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) })
 
-            // Recommendations row
-            if (vm.visibleRecommendations.isNotEmpty()) {
-                item {
-                    SectionTitle("You might like", "See more", onRecommendations)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                        // Cap row at 7; full list is in the "See more" grid
-                        items(vm.visibleRecommendations.take(7), key = { it.id }) { item ->
-                            BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
-                        }
-                    }
-                }
-            }
+                Spacer(Modifier.height(14.dp))
 
-            // Loading and error states
-            if (vm.discoverBrowseLoading) {
-                item {
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                        color = c.primary,
-                        trackColor = c.surfaceLow
+                // Ranking and Seasonal share the top row; Interest Stacks gets its own
+                // full-width button below, edge-to-edge within the screen's padding
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    DiscoverActionButton(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.TrendingUp,
+                        label = "Rankings",
+                        onClick = onRanking
+                    )
+                    DiscoverActionButton(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.DateRange,
+                        label = "Seasonal",
+                        onClick = onSeasonal
                     )
                 }
+                Spacer(Modifier.height(12.dp))
+                DiscoverActionButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = Icons.Default.Layers,
+                    label = "Interest Stacks",
+                    onClick = onStacks
+                )
+
+                Spacer(Modifier.height(12.dp))
             }
-            vm.discoverBrowseError?.let { error ->
+
+            if (vm.authChecked && !vm.signedIn) {
                 item {
-                    Text(error, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
+                    Text(
+                        "Sign in from Profile to browse MyAnimeList",
+                        color = c.muted,
+                        modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                // New this season row
+                if (vm.visibleDiscoverNewSeason.isNotEmpty()) {
+                    item {
+                        SectionTitle("New this season", "See all", onSeasonal)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                            // Cap row at 7
+                            items(vm.visibleDiscoverNewSeason.take(7), key = { it.id }) { item ->
+                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
+                            }
+                        }
+                    }
+                }
+
+                // Top 10 upcoming row
+                if (vm.visibleDiscoverUpcoming.isNotEmpty()) {
+                    item {
+                        SectionTitle("Top 10 upcoming", "", {})
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                            items(vm.visibleDiscoverUpcoming, key = { it.id }) { item ->
+                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
+                            }
+                        }
+                    }
+                }
+
+                // Recommendations row
+                if (vm.visibleRecommendations.isNotEmpty()) {
+                    item {
+                        SectionTitle("You might like", "See more", onRecommendations)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                            // Cap row at 7; full list is in the "See more" grid
+                            items(vm.visibleRecommendations.take(7), key = { it.id }) { item ->
+                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
+                            }
+                        }
+                    }
+                }
+
+                // Loading and error states
+                if (vm.discoverBrowseLoading) {
+                    item {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                            color = c.primary,
+                            trackColor = c.surfaceLow
+                        )
+                    }
+                }
+                vm.discoverBrowseError?.let { error ->
+                    item {
+                        Text(error, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
+                    }
                 }
             }
         }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
     }
 }
 

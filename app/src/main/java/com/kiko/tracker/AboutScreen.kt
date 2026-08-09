@@ -265,7 +265,7 @@ import kotlin.math.roundToInt
 }
 // Score distribution histogram
 
-@Composable fun ScoreDistributionChart(items: List<MediaItem>, c: KikoColors) {
+@Composable fun ScoreDistributionChart(items: List<MediaItem>, c: KikoColors, onScoreClick: ((Int) -> Unit)? = null) {
     val counts = (1..10).associateWith { s -> items.count { it.myRating == s } }
     if (counts.values.all { it == 0 }) { Text("No scored titles yet.", color = c.muted, fontSize = 12.sp); return }
     val maxCount = counts.values.max()
@@ -273,7 +273,10 @@ import kotlin.math.roundToInt
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
         (1..10).forEach { score ->
             val count = counts.getValue(score)
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).padding(horizontal = 2.dp)) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.weight(1f).padding(horizontal = 2.dp).let { m -> if (onScoreClick != null) m.clickable { onScoreClick(score) } else m },
+            ) {
                 Text(if (count > 0) count.toString() else "", color = c.muted, fontSize = 9.sp)
                 Box(Modifier.fillMaxWidth().height(barSlotHeight), contentAlignment = Alignment.BottomCenter) {
                     Box(

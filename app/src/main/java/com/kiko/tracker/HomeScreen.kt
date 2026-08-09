@@ -148,46 +148,55 @@ import kotlin.math.roundToInt
     val trackedOpenTopic: (Int, String) -> Unit = remember(onOpenTopic) {
         { id, title -> vm.saveHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenTopic(id, title) }
     }
-    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
-        item {
-            AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
-            Column(Modifier.padding(horizontal = 20.dp)) {
-                // Use device current date
-                Text(
-                    java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault()),
-                    color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
-                )
-                if (airingNext.isNotEmpty()) {
-                    SectionTitle("Airing next", "See all") { onSchedule(today) }
-                    AiringNextRow(airingNext, trackedOpenDetail)
-                }
-                // Most recently updated in-progress title
-                active?.let { item ->
-                    SectionTitle("Continue", "See list", onList)
-                    ContinueCard(item, trackedOpenDetail)
-                }
-                // Home recent news row
-                if (vm.newsSnapshots.isNotEmpty()) {
-                    SectionTitle("Snapshots", "See news", onSeeNews)
-                    SnapshotsGrid(vm.newsSnapshots, trackedOpenTopic)
-                }
-                // Freshest Interest Stack teaser
-                vm.homeLatestStack?.let { stack ->
-                    SectionTitle("Interest Stacks", "See all", onOpenStacks)
-                    StackFeaturedCard(stack) {
-                        vm.saveHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
-                        onOpenStack(stack.id, stack.title)
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
+            item {
+                AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
+                Column(Modifier.padding(horizontal = 20.dp)) {
+                    // Use device current date
+                    Text(
+                        java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault()),
+                        color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
+                    )
+                    if (airingNext.isNotEmpty()) {
+                        SectionTitle("Airing next", "See all") { onSchedule(today) }
+                        AiringNextRow(airingNext, trackedOpenDetail)
                     }
-                }
-                if (vm.authChecked && !vm.signedIn && !vm.loading) {
-                    Column(Modifier.fillMaxWidth().padding(top = 50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Please sign in with your MyAnimeList account", color = c.muted, fontSize = 14.sp, textAlign = TextAlign.Center)
-                        Spacer(Modifier.height(16.dp))
-                        Button(onClick = onSignIn, colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) { Text("Sign in with MyAnimeList") }
+                    // Most recently updated in-progress title
+                    active?.let { item ->
+                        SectionTitle("Continue", "See list", onList)
+                        ContinueCard(item, trackedOpenDetail)
+                    }
+                    // Home recent news row
+                    if (vm.newsSnapshots.isNotEmpty()) {
+                        SectionTitle("Snapshots", "See news", onSeeNews)
+                        SnapshotsGrid(vm.newsSnapshots, trackedOpenTopic)
+                    }
+                    // Freshest Interest Stack teaser
+                    vm.homeLatestStack?.let { stack ->
+                        SectionTitle("Interest Stacks", "See all", onOpenStacks)
+                        StackFeaturedCard(stack) {
+                            vm.saveHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+                            onOpenStack(stack.id, stack.title)
+                        }
+                    }
+                    if (vm.authChecked && !vm.signedIn && !vm.loading) {
+                        Column(Modifier.fillMaxWidth().padding(top = 50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Please sign in with your MyAnimeList account", color = c.muted, fontSize = 14.sp, textAlign = TextAlign.Center)
+                            Spacer(Modifier.height(16.dp))
+                            Button(onClick = onSignIn, colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) { Text("Sign in with MyAnimeList") }
+                        }
                     }
                 }
             }
         }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+        )
     }
 }
 // Airing next row order
