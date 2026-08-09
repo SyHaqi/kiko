@@ -133,7 +133,7 @@ import kotlinx.coroutines.coroutineScope
 import java.util.UUID
 import kotlin.math.roundToInt
 
-@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit) {
+@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onLocateInList: (MediaItem) -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context); vm.loadHomeLatestStack(context) }
@@ -176,7 +176,7 @@ import kotlin.math.roundToInt
                     // Most recently updated in-progress title
                     active?.let { item ->
                         SectionTitle("Continue", "See list", onList)
-                        ContinueCard(item, trackedOpenDetail)
+                        ContinueCard(item, onClick = { onLocateInList(item) })
                     }
                     // Home recent news row
                     if (vm.newsSnapshots.isNotEmpty()) {
@@ -255,8 +255,10 @@ import kotlin.math.roundToInt
 // Inline "Continue" card, docked under Airing Next — the same row style and size used for
 // entries in My List (ListRow below), just wrapped in a card so it stands out as its own
 // section. Lives in the normal scroll flow, so there's no dismiss/pin gesture to manage.
+// Tapping it jumps to the entry's spot in My List rather than opening its detail page —
+// "Continue" is meant as a shortcut back into the list, not a detail-page shortcut.
 
-@Composable fun ContinueCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, modifier: Modifier = Modifier) {
+@Composable fun ContinueCard(item: MediaItem, onClick: (MediaItem) -> Unit, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -264,7 +266,7 @@ import kotlin.math.roundToInt
         elevation = CardDefaults.cardElevation(2.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
-        ListRow(item, onOpenDetail, showType = false, modifier = Modifier.padding(horizontal = 14.dp))
+        ListRow(item, onClick, showType = false, modifier = Modifier.padding(horizontal = 14.dp))
     }
 }
 // Pinterest-style snapshots layout

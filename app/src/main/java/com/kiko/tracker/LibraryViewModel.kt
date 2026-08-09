@@ -158,6 +158,18 @@ class LibraryViewModel : ViewModel() {
     var listScrollIndex by mutableStateOf(0); private set
     var listScrollOffset by mutableStateOf(0); private set
     fun saveListScroll(index: Int, offset: Int) { listScrollIndex = index; listScrollOffset = offset }
+    // Jump My List to wherever a given item sits — used by Home's "Continue" card so
+    // tapping it lands on the item's row in the list instead of opening its detail page.
+    // Switches to the item's type tab, clears any status filter so it's guaranteed
+    // visible, then finds its index in that same filtered/sorted order to scroll to.
+    fun locateInList(context: Context, item: MediaItem) {
+        selectListTypeTab(item.type)
+        setListFilter(context, "All")
+        val ordered = visibleItems.filter { it.type == item.type }.sortedWithListSort(listSort, titleLanguage)
+        val idx = ordered.indexOfFirst { it.id == item.id && it.type == item.type }
+        listScrollIndex = if (idx >= 0) idx else 0
+        listScrollOffset = 0
+    }
     // Discover results scroll
     var discoverScrollIndex by mutableStateOf(0); private set
     var discoverScrollOffset by mutableStateOf(0); private set
