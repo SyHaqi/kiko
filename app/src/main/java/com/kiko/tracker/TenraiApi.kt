@@ -4,6 +4,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -11,6 +14,18 @@ import org.json.JSONObject
 import java.io.IOException
 
 private const val TENRAI = "https://api.tenrai.org/v1"
+
+// Tenrai/Jikan rate-limits to a few requests per second. Requests that get fired
+// faster than that come back 429 and were previously swallowed silently by the
+// callers below (getOrNull/getOrElse), which is why an author search — which fans
+// out into one detail request per credited work — used to return a different,
+// incomplete subset of results on every "Apply". This shared limiter caps in-flight
+// requests and retries 429s with backoff instead of dropping them, so all requests
+// eventually succeed rather than randomly disappearing.
+private object TenraiThrottle {
+    val semaphore = Semaphore(3)
+}
+private class TenraiRateLimitException(url: String) : IOException("Tenrai rate-limited: $url")
 
 // Normalize Jikan facet values
 private fun normalizeRating(jikanRating: String) = when {
@@ -54,7 +69,7 @@ class TenraiApi {
         return merged
     }
 
-    private fun fetchGenreFacet(kind: String, facet: String): Map<String, Int> {
+    private suspend fun fetchGenreFacet(kind: String, facet: String): Map<String, Int> {
         val body = getRaw("$TENRAI/genres/$kind?filter=$facet")
         val arr = JSONObject(body).optJSONArray("data") ?: return emptyMap()
         return (0 until arr.length()).mapNotNull { i ->
@@ -83,7 +98,7 @@ class TenraiApi {
         }.distinctBy { it.id }
     }
 
-    private fun searchPage(kind: String, genreId: Int, page: Int, limit: Int, includeAdult: Boolean): List<MediaItem> {
+    private suspend fun searchPage(kind: String, genreId: Int, page: Int, limit: Int, includeAdult: Boolean): List<MediaItem> {
         val sfwParam = if (includeAdult) "" else "&sfw"
         val url = "$TENRAI/$kind?genres=$genreId&order_by=members&sort=desc&page=$page&limit=$limit$sfwParam"
         val body = getRaw(url)
@@ -156,10 +171,29 @@ class TenraiApi {
         }.getOrElse { emptyList() }
     }
 
-    private fun getRaw(url: String): String {
+    // Caps concurrent Tenrai requests and retries 429s with backoff, since firing
+    // requests faster than the API's rate limit previously caused those requests
+    // to fail and get silently dropped by callers instead of eventually succeeding.
+    private suspend fun getRaw(url: String): String = TenraiThrottle.semaphore.withPermit {
+        var lastError: IOException? = null
+        repeat(4) { attempt ->
+            if (attempt > 0) delay(300L * (1 shl (attempt - 1))) // 300ms, 600ms, 1200ms
+            try {
+                return@withPermit getRawOnce(url)
+            } catch (e: TenraiRateLimitException) {
+                lastError = e
+            } catch (e: IOException) {
+                throw e
+            }
+        }
+        throw lastError ?: IOException("Tenrai request failed: $url")
+    }
+
+    private fun getRawOnce(url: String): String {
         val request = Request.Builder().url(url).build()
         client.newCall(request).execute().use { resp ->
             val text = resp.body?.string() ?: ""
+            if (resp.code == 429) throw TenraiRateLimitException(url)
             if (!resp.isSuccessful) throw IOException("Tenrai request failed (${resp.code}): ${text.take(300)}")
             return text
         }
@@ -174,11 +208,12 @@ class TenraiApi {
         val images = n.optJSONObject("images")?.optJSONObject("jpg") ?: n.optJSONObject("images")?.optJSONObject("webp")
         val cover = images?.optString("large_image_url")?.takeIf { it.isNotBlank() }
             ?: images?.optString("image_url")?.takeIf { it.isNotBlank() } ?: ""
-        val creator = if (kind == "anime") {
-            n.optJSONArray("studios")?.optJSONObject(0)?.optString("name") ?: ""
+        val allCreators = if (kind == "anime") {
+            n.optJSONArray("studios")?.let { arr -> (0 until arr.length()).mapNotNull { arr.getJSONObject(it).optString("name").takeIf { s -> s.isNotBlank() } } } ?: emptyList()
         } else {
-            n.optJSONArray("authors")?.optJSONObject(0)?.optString("name") ?: ""
+            n.optJSONArray("authors")?.let { arr -> (0 until arr.length()).mapNotNull { reorderName(arr.getJSONObject(it).optString("name")).takeIf { s -> s.isNotBlank() } } } ?: emptyList()
         }
+        val creator = allCreators.firstOrNull() ?: ""
         val titlesArr = n.optJSONArray("titles")
         fun titleOfType(t: String) = titlesArr?.let { arr -> (0 until arr.length()).map { arr.getJSONObject(it) }.firstOrNull { it.optString("type").equals(t, ignoreCase = true) }?.optString("title") }
         val titleEnglish = n.optString("title_english").takeIf { it.isNotBlank() } ?: titleOfType("English") ?: ""
@@ -191,7 +226,7 @@ class TenraiApi {
         val broadcastTime = n.optJSONObject("broadcast")?.optString("time")?.takeIf { it.isNotBlank() } ?: ""
         return MediaItem(
             id = n.optInt("mal_id").toString(),
-            title = n.optString("title"),
+            title = n.optString("title").takeIf { it.isNotBlank() && it != "null" } ?: titleEnglish,
             type = if (kind == "anime") MediaType.Anime else MediaType.Manga,
             status = WatchStatus.Plan,
             progress = 0,
@@ -208,6 +243,7 @@ class TenraiApi {
             popularity = n.optInt("popularity", 0),
             listUsers = n.optInt("members", 0),
             creator = creator,
+            allCreators = allCreators.joinToString(", "),
             startDate = startDateFull.take(4),
             season = season,
             format = n.optString("type").takeIf { it.isNotBlank() && it != "null" }?.let { if (kind == "manga") normalizeMangaFormat(it) else it } ?: "",

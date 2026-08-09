@@ -169,7 +169,11 @@ data class MediaItem(
     val covers: List<String> = emptyList(),
     val synopsis: String = "", val background: String = "",
     val score: Double = 0.0, val rank: Int = 0, val popularity: Int = 0, val listUsers: Int = 0,
-    val creator: String = "", val startDate: String = "", val season: String = "",
+    val creator: String = "",
+    // All studios (anime) or all authors (manga), comma-separated — used for filter matching
+    // so a work still matches when the searched-for author isn't the first one credited.
+    val allCreators: String = "",
+    val startDate: String = "", val season: String = "",
     val format: String = "", val airStatus: String = "", val source: String = "", val rating: String = "",
     val volumes: Int = 0, val titleEnglish: String = "",
     // Extra detail metadata
@@ -273,8 +277,9 @@ fun MediaItem.matches(f: DiscoverFilters): Boolean {
     if (f.genres.isNotEmpty() && genres.none { g -> f.genres.any { it.equals(g, ignoreCase = true) } }) return false
     if (f.themes.isNotEmpty() && contentThemes.none { t -> f.themes.any { it.equals(t, ignoreCase = true) } }) return false
     if (f.demographics.isNotEmpty() && demographics.none { d -> f.demographics.any { it.equals(d, ignoreCase = true) } }) return false
-    // Studio for anime, author for manga — both live in MediaItem.creator
-    if (f.creator.isNotBlank() && !creator.contains(f.creator, ignoreCase = true)) return false
+    // Studio for anime, author for manga — check every credited name, not just the
+    // first-listed one (e.g. an illustrator credited alongside a separate writer).
+    if (f.creator.isNotBlank() && allCreators.split(",").map { it.trim() }.none { it.contains(f.creator, ignoreCase = true) }) return false
     if (f.source.isNotBlank() && !source.equals(f.source, ignoreCase = true)) return false
     if (f.year.isNotBlank() && startDate != f.year) return false
     if (f.season != null && !season.equals(f.season.label, ignoreCase = true)) return false

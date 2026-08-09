@@ -499,40 +499,80 @@ class LibraryViewModel : ViewModel() {
             val t = when (type) { "Anime" -> MediaType.Anime; "Manga" -> MediaType.Manga; else -> null }
             val api = MalApi(context)
             runCatching {
-                val results = if (query.isNotBlank()) api.search(query, t)
-                // Search via Tenrai filters
-                else if (filters.genres.isNotEmpty() || filters.themes.isNotEmpty() || filters.demographics.isNotEmpty()) {
-                    val tenrai = TenraiApi()
-                    val kinds = t?.let { listOf(if (it == MediaType.Anime) "anime" else "manga") } ?: listOf("anime", "manga")
-                    // Pick one facet id
-                    val names = filters.themes.ifEmpty { filters.genres.ifEmpty { filters.demographics } }
-                    val tenraiResults = runCatching {
-                        coroutineScope {
-                            kinds.map { kind -> async { tenrai.searchByGenreIds(kind, tenrai.resolveGenreIds(kind, names), includeAdult = nsfwEnabled) } }
-                                .awaitAll().flatten()
+                val results =
+                // Manga/novel author search: resolve the typed name to a MAL person id by
+                // searching MAL's own People page directly, then scrape that person's own
+                // MAL page for their full credited-works list — two requests total, both
+                // straight to myanimelist.net, no third-party API involved (see
+                // MalPeopleApi for details). Anime studio search still uses the
+                // ranking-pool + client-filter approach below, since that path already
+                // works well for producers/studios.
+                //
+                // This has to be checked *before* the plain-text query branch below, not
+                // after: whenever someone types the author's name into the main search bar
+                // (the natural thing to do) `query` is non-blank, so with the original
+                // ordering that branch always won and this one — the one that actually
+                // resolves the author and pulls their full works list — never ran at all.
+                // The MalPeopleApi lookup underneath it isn't the search itself; the search
+                    // is choosing to call it in the first place.
+                    if (filters.creator.isNotBlank() && t != MediaType.Anime) {
+                        val malPeople = MalPeopleApi()
+                        val authorResults = runCatching {
+                            val personId = malPeople.searchPerson(filters.creator)
+                            // Note: the scraped person page doesn't expose genre tags, so NSFW
+                            // (Hentai) filtering via nsfwFiltered() downstream can't catch an
+                            // adult work here the way it can for results from other search paths.
+                            if (personId == null) emptyList() else malPeople.fetchCreditedWorks("manga", personId, filters.creator)
+                        }.getOrElse { emptyList() }
+                        // When browsing "All" types with a creator filter, also pull in the old
+                        // anime ranking-pool results so studio matches aren't dropped entirely.
+                        val animePool = if (t == null) coroutineScope {
+                            listOf("all", "bypopularity", "favorite").map { rankType -> async { api.ranking(MediaType.Anime, rankType, limit = 500) } }.awaitAll().flatten()
+                        } else emptyList()
+                        // Fall back to the old manga ranking-pool approach (filtered client-side by
+                        // matches()) if we couldn't resolve the author or the scrape came back
+                        // empty, so a lookup failure still shows something instead of a blank screen.
+                        val mangaPool = if (authorResults.isNotEmpty()) authorResults else coroutineScope {
+                            listOf("all", "bypopularity", "favorite", "manga", "novels", "oneshots", "doujin", "manhwa", "manhua").map { rankType ->
+                                async { api.ranking(MediaType.Manga, rankType, limit = 500) }
+                            }.awaitAll().flatten()
                         }
-                    }.getOrElse { emptyList() }
-                    // Fall back to a broad ranking pool (filtered client-side against the
-                    // chosen genre/theme/demographic by matches()) whenever Tenrai comes back
-                    // empty — not just when it throws. A clean-but-empty response otherwise had
-                    // no safety net, so the first tap could show nothing until a manual retry.
-                    (if (tenraiResults.isNotEmpty()) tenraiResults else coroutineScope {
+                        (mangaPool + animePool).distinctBy { it.id }
+                    }
+                    else if (query.isNotBlank()) api.search(query, t)
+                    // Search via Tenrai filters
+                    else if (filters.genres.isNotEmpty() || filters.themes.isNotEmpty() || filters.demographics.isNotEmpty()) {
+                        val tenrai = TenraiApi()
+                        val kinds = t?.let { listOf(if (it == MediaType.Anime) "anime" else "manga") } ?: listOf("anime", "manga")
+                        // Pick one facet id
+                        val names = filters.themes.ifEmpty { filters.genres.ifEmpty { filters.demographics } }
+                        val tenraiResults = runCatching {
+                            coroutineScope {
+                                kinds.map { kind -> async { tenrai.searchByGenreIds(kind, tenrai.resolveGenreIds(kind, names), includeAdult = nsfwEnabled) } }
+                                    .awaitAll().flatten()
+                            }
+                        }.getOrElse { emptyList() }
+                        // Fall back to a broad ranking pool (filtered client-side against the
+                        // chosen genre/theme/demographic by matches()) whenever Tenrai comes back
+                        // empty — not just when it throws. A clean-but-empty response otherwise had
+                        // no safety net, so the first tap could show nothing until a manual retry.
+                        (if (tenraiResults.isNotEmpty()) tenraiResults else coroutineScope {
+                            (t?.let { listOf(it) } ?: MediaType.entries.toList()).flatMap { mt ->
+                                listOf("all", "bypopularity", "favorite").map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
+                            }.awaitAll().flatten()
+                        })
+                            .distinctBy { it.id }
+                    }
+                    // Merge multiple ranking charts
+                    else coroutineScope {
                         (t?.let { listOf(it) } ?: MediaType.entries.toList()).flatMap { mt ->
-                            listOf("all", "bypopularity", "favorite").map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
+                            val rankTypes = if (mt == MediaType.Anime)
+                                listOf("all", "bypopularity", "favorite", "airing", "upcoming", "tv", "ova", "movie", "special")
+                            else
+                                listOf("all", "bypopularity", "favorite", "manga", "novels", "oneshots", "doujin", "manhwa", "manhua")
+                            rankTypes.map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
                         }.awaitAll().flatten()
-                    })
-                        .distinctBy { it.id }
-                }
-                // Merge multiple ranking charts
-                else coroutineScope {
-                    (t?.let { listOf(it) } ?: MediaType.entries.toList()).flatMap { mt ->
-                        val rankTypes = if (mt == MediaType.Anime)
-                            listOf("all", "bypopularity", "favorite", "airing", "upcoming", "tv", "ova", "movie", "special")
-                        else
-                            listOf("all", "bypopularity", "favorite", "manga", "novels", "oneshots", "doujin", "manhwa", "manhua")
-                        rankTypes.map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
-                    }.awaitAll().flatten()
-                }.distinctBy { it.id }
+                    }.distinctBy { it.id }
                 // Reconcile against user's library
                 results.map { candidate -> items.find { it.id == candidate.id && it.type == candidate.type } ?: candidate }
             }

@@ -438,12 +438,18 @@ class MalApi(private val context: Context) {
         val contentThemes = tagList("themes")
         val demographics = tagList("demographics")
         val picture = n.optJSONObject("main_picture")
-        val creator = if (kind == "anime") {
-            n.optJSONArray("studios")?.optJSONObject(0)?.optString("name") ?: ""
+        val allCreators = if (kind == "anime") {
+            n.optJSONArray("studios")?.let { arr2 -> (0 until arr2.length()).mapNotNull { arr2.getJSONObject(it).optString("name").takeIf { s -> s.isNotBlank() } } } ?: emptyList()
         } else {
-            val a = n.optJSONArray("authors")?.optJSONObject(0)?.optJSONObject("node")
-            listOfNotNull(a?.optString("first_name")?.takeIf { it.isNotBlank() }, a?.optString("last_name")?.takeIf { it.isNotBlank() }).joinToString(" ")
+            n.optJSONArray("authors")?.let { arr2 ->
+                (0 until arr2.length()).mapNotNull { i ->
+                    val a = arr2.getJSONObject(i).optJSONObject("node")
+                    listOfNotNull(a?.optString("first_name")?.takeIf { it.isNotBlank() }, a?.optString("last_name")?.takeIf { it.isNotBlank() })
+                        .joinToString(" ").takeIf { it.isNotBlank() }
+                }
+            } ?: emptyList()
         }
+        val creator = allCreators.firstOrNull() ?: ""
         val altTitleNode = n.optJSONObject("alternative_titles")
         val titleEnglish = altTitleNode?.optString("en") ?: ""
         val japaneseTitle = altTitleNode?.optString("ja")?.takeIf { it.isNotBlank() }
@@ -526,6 +532,7 @@ class MalApi(private val context: Context) {
             popularity = n.optInt("popularity", 0),
             listUsers = n.optInt("num_list_users", 0),
             creator = creator,
+            allCreators = allCreators.joinToString(", "),
             startDate = n.optString("start_date").take(4),
             season = season,
             format = prettifyFormat(n.optString("media_type")),
