@@ -143,9 +143,9 @@ import kotlinx.coroutines.launch
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         if (club.image.isNotBlank()) {
-            AsyncImage(model = club.image, contentDescription = club.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(84.dp).clip(RoundedCornerShape(18.dp)).background(c.warm))
+            AsyncImage(model = club.image, contentDescription = club.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(18.dp)).background(c.warm))
         } else {
-            Box(Modifier.size(84.dp).clip(RoundedCornerShape(18.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(18.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.Groups, null, tint = c.primary, modifier = Modifier.size(30.dp))
             }
         }

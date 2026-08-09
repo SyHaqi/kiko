@@ -59,11 +59,16 @@ class ClubsApi {
             for (attr in listOf("data-src", "src")) {
                 val raw = img.attr(attr)
                 if (raw.isBlank() || raw.startsWith("data:")) continue
-                return img.absUrl(attr).ifBlank { raw }
+                return fullResUrl(img.absUrl(attr).ifBlank { raw })
             }
         }
         return ""
     }
+
+    // MAL serves club/member thumbnails through a resizing proxy path like
+    // "/r/50x70/images/clubs/8/209342.jpg" — stripping the "/r/WxH/" segment
+    // returns the same image at its original, much higher-resolution size.
+    private fun fullResUrl(url: String): String = url.replaceFirst(Regex("/r/\\d+x\\d+(?:-\\d+)?/"), "/")
 
     // Elements between a "normal_header" section heading and the next one —
     // MAL groups sidebar content (Club Staff, Anime Relations, etc.) this way
