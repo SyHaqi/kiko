@@ -148,14 +148,9 @@ import kotlin.math.roundToInt
     val spotlightStacks = remember(vm.stacksHomeChallenges, vm.stacksHomeManga, vm.stacksHomeAnime) {
         vm.stacksHomeChallenges.map { "ch" to it } + vm.stacksHomeManga.map { "mg" to it } + vm.stacksHomeAnime.map { "an" to it }
     }
-    // Auto-load more of the "Recent" section as the user nears the bottom, same as
-    // every other paginated list — only that section is paginated; the curated
-    // Challenge/Manga/Anime rows above (Spotlight) load in full once, so leave those alone
-    LaunchedEffect(listState, vm.stacksHomeRecent.size) {
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
-            .distinctUntilChanged()
-            .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 6 && vm.stacksHomeRecent.isNotEmpty()) vm.loadMoreStacksHomeRecent() }
-    }
+    // The "Recent" section here only ever shows page 1 — no auto-load-more on
+    // this screen. Paging further only happens in the dedicated browse/search
+    // screen (via "See all" or the search icon above), not by scrolling Home.
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
@@ -185,9 +180,6 @@ import kotlin.math.roundToInt
             if (vm.stacksHomeRecent.isNotEmpty()) {
                 item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
                 items(vm.stacksHomeRecent, key = { "rc-${it.id}" }) { s -> StackListRow(s) { openStack(s) } }
-                if (vm.stacksHomeRecentLoadingMore) {
-                    item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
-                }
             }
         }
         GoToTopButton(
@@ -420,7 +412,7 @@ import kotlin.math.roundToInt
 // One stack's entries — header (back button + title), description, "my progress"
 // breakdown against the signed-in user's list, then a seasonal-chart-style grid
 
-@Composable fun StackDetailScreen(stackId: Int, initialTitle: String, loadingId: Int?, myListStatus: Map<Pair<Int, MediaType>, WatchStatus>, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit) {
+@Composable fun StackDetailScreen(stackId: Int, initialTitle: String, loadingId: Int?, myListStatus: Map<Pair<Int, MediaType>, WatchStatus>, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     BackHandler(onBack = onBack)
@@ -432,6 +424,21 @@ import kotlin.math.roundToInt
         if (detail == null) loadFailed = true
     }
     val gridState = rememberLazyGridState()
+    // Entries are fetched fresh over the network each time this screen is (re)composed,
+    // so the grid is empty at the moment gridState is created — an initial index/offset
+    // set then would just get clamped to 0 and never revisited. Instead, jump to the saved
+    // position once the real entries have actually landed (only the first time per visit,
+    // so the user's own subsequent scrolling isn't fought).
+    var scrollRestored by remember(stackId) { mutableStateOf(false) }
+    LaunchedEffect(detail) {
+        val d = detail
+        if (d != null && !scrollRestored) {
+            scrollRestored = true
+            if (initialScroll.first != 0 || initialScroll.second != 0) {
+                gridState.scrollToItem(initialScroll.first, initialScroll.second)
+            }
+        }
+    }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 } }
     Box(Modifier.fillMaxSize()) {
@@ -465,9 +472,12 @@ import kotlin.math.roundToInt
                             if (d.type.isNotBlank()) Pill(d.type, c.primaryContainer, c.primary)
                             if (d.author.isNotBlank()) Text("by ${d.author}", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 9.dp))
                         }
-                        // Description sits above the entries, right under the byline
+                        // Description sits above the entries, right under the byline.
+                        // Rendered through the same BBCode parser the forums screen uses,
+                        // so links stay tappable (blue + underlined) and any embedded
+                        // images load, instead of falling back to unstyled plain text.
                         if (d.description.isNotBlank()) {
-                            Text(d.description, color = c.ink, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 10.dp))
+                            ForumBody(d.description, Modifier.padding(top = 10.dp))
                         }
                         Box(Modifier.padding(top = 12.dp)) { StackStatsRow(d.entries.size, d.restacks, "") }
                         StackMyProgressBar(d.entries, myListStatus, c, Modifier.padding(top = 16.dp))
@@ -480,7 +490,10 @@ import kotlin.math.roundToInt
                     item(span = { GridItemSpan(maxLineSpan) }) { Text("No entries in this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 20.dp), textAlign = TextAlign.Center) }
                 }
                 itemsIndexed(d.entries, key = { _, e -> e.malId }) { i, entry ->
-                    StackEntryGridCard(i + 1, entry, loading = loadingId == entry.malId, myStatus = myListStatus[entry.malId to entry.type]) { onOpenEntry(entry) }
+                    StackEntryGridCard(i + 1, entry, loading = loadingId == entry.malId, myStatus = myListStatus[entry.malId to entry.type]) {
+                        onLeaveScroll(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+                        onOpenEntry(entry)
+                    }
                 }
             }
         }

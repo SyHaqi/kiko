@@ -130,18 +130,23 @@ import java.util.UUID
 import kotlin.math.roundToInt
 
 // Full page for the profile drawer's "avatar + name" row — profile stats
-@Composable fun ProfileStatsScreen(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, onBack: () -> Unit, scrollOffset: Int = 0, onSaveScroll: (Int) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }) {
+@Composable fun ProfileStatsScreen(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, onBack: () -> Unit, scrollOffset: Int = 0, onSaveScroll: (Int) -> Unit = {}, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }) {
     val c = LocalKikoColors.current
-    BackHandler(onBack = onBack)
+    // Leaving the Profile page entirely: reset the Anime/Manga switcher and the
+    // remembered scroll offset, so re-opening Profile always starts fresh at the top.
+    // (Drilling into the score distribution filter list and coming back is handled
+    // separately below — that round trip is meant to preserve both.)
+    val exitProfile = { onBack(); onStatsTabChange(MediaType.Anime); onSaveScroll(0) }
+    BackHandler(onBack = exitProfile)
     // Restore scroll position on return from the score distribution drill-down instead of resetting to top
     val scrollState = rememberScrollState(initial = scrollOffset)
     Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 20.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = exitProfile, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text(profile?.name?.ifBlank { "Profile" } ?: "Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         Box(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
-            ProfileStatsSection(connected, profile, items, onConnect, onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) })
+            ProfileStatsSection(connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange, onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) })
         }
     }
 }
@@ -173,7 +178,7 @@ import kotlin.math.roundToInt
 
 // Profile header card + full anime/manga stats (used inside the profile drawer's
 // expandable "avatar + name" row). Ends with the score distribution chart.
-@Composable fun ProfileStatsSection(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }) {
+@Composable fun ProfileStatsSection(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     Column {
@@ -236,11 +241,10 @@ import kotlin.math.roundToInt
                     }
                 }
             }
-            var statsTab by remember { mutableStateOf(MediaType.Anime) }
             Card(shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                 Column(Modifier.padding(22.dp)) {
                     Text("STATS", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                    TypeToggle(statsTab, trackColor = c.surfaceLow) { statsTab = it }
+                    TypeToggle(statsTab, trackColor = c.surfaceLow) { onStatsTabChange(it) }
                     Spacer(Modifier.height(18.dp))
                     if (statsTab == MediaType.Anime) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

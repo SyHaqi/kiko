@@ -229,6 +229,18 @@ val bareTenorLinkRegex = Regex(
     """\[url\]\s*(https?://tenor\.com/view/\S*?)\s*\[/url\]|(?<!\[img\]tenor:)(https?://tenor\.com/view/\S+?)(?=\s|\[|$)""",
     RegexOption.IGNORE_CASE,
 )
+// Auto-link any remaining plain-text URL (one MAL posters paste directly,
+// with no [url] tag at all) so it renders as a tappable hyperlink instead
+// of dead text. Runs last, after the image/tenor passes above have already
+// claimed and bracketed anything that belongs to them — the lookbehinds
+// stop this from re-wrapping URLs those passes (or an explicit [url] tag)
+// already handled. The trailing-char exclusion keeps sentence punctuation
+// like a period or closing paren out of the link.
+
+val bareGenericUrlRegex = Regex(
+    """(?<!\[img\])(?<!\[url\])(?<!\[url=)(?<!tenor:)(https?://[^\s\[\]<>"']+[^\s\[\]<>"'.,!?:;)])""",
+    RegexOption.IGNORE_CASE,
+)
 
 fun normalizeMalMarkup(raw: String): String =
     decodeHtmlEntities(brTagRegex.replace(raw, "\n"))
@@ -236,6 +248,7 @@ fun normalizeMalMarkup(raw: String): String =
         .let { unclosedImgRegex.replace(it) { m -> "[img]${m.groupValues[1]}[/img]" } }
         .let { bareTenorLinkRegex.replace(it) { m -> "[img]tenor:${m.groupValues[1].ifBlank { m.groupValues[2] }}[/img]" } }
         .let { bareUrlRegex.replace(it) { m -> "[img]${m.value}[/img]" } }
+        .let { bareGenericUrlRegex.replace(it) { m -> "[url]${m.value}[/url]" } }
 
 
 fun parseBBCode(rawIn: String, linkColor: Color): List<ForumBlock> {

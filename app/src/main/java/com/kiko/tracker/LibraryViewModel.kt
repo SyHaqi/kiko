@@ -195,6 +195,11 @@ class LibraryViewModel : ViewModel() {
     private val detailScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
     fun getDetailScroll(id: String) = detailScrollPositions[id] ?: (0 to 0)
     fun saveDetailScroll(id: String, index: Int, offset: Int) { detailScrollPositions[id] = index to offset }
+    // Same idea for a stack's own entry grid — restores scroll position when
+    // coming back from an entry's detail page instead of resetting to top
+    private val stackDetailScrollPositions = mutableMapOf<Int, Pair<Int, Int>>()
+    fun getStackDetailScroll(stackId: Int) = stackDetailScrollPositions[stackId] ?: (0 to 0)
+    fun saveStackDetailScroll(stackId: Int, index: Int, offset: Int) { stackDetailScrollPositions[stackId] = index to offset }
     // Reset scroll on sort
     fun selectListTypeTab(t: MediaType) { listTypeTab = t; listScrollIndex = 0; listScrollOffset = 0 }
     fun setListSort(context: Context, sort: ListSort) { listSort = sort; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_sort", sort.name).apply() }
@@ -210,6 +215,11 @@ class LibraryViewModel : ViewModel() {
     // verticalScroll Column, not a LazyColumn with item indices
     var profileScrollOffset by mutableStateOf(0); private set
     fun saveProfileScroll(offset: Int) { profileScrollOffset = offset }
+    // Profile stats Anime/Manga switcher — hoisted here (not local `remember`) so it
+    // survives drilling into the score distribution filter list and coming back.
+    // Only resets to Anime when the user leaves the Profile page entirely.
+    var profileStatsTab by mutableStateOf(MediaType.Anime); private set
+    fun selectProfileStatsTab(type: MediaType) { profileStatsTab = type }
     // NSFW off by default
     var nsfwEnabled by mutableStateOf(false); private set
     // User profile stats
@@ -695,10 +705,11 @@ class LibraryViewModel : ViewModel() {
     var stacksHomeManga by mutableStateOf<List<StackSummary>>(emptyList()); private set
     var stacksHomeAnime by mutableStateOf<List<StackSummary>>(emptyList()); private set
     var stacksHomeMal by mutableStateOf<List<StackSummary>>(emptyList()); private set
+    // Only ever page 1 — Home's "Recent" section doesn't paginate; further
+    // results are reached via "See all" / search, which opens the dedicated
+    // browse screen (that screen does its own paging independently).
     var stacksHomeRecent by mutableStateOf<List<StackSummary>>(emptyList()); private set
     var stacksHomeLoading by mutableStateOf(false); private set
-    var stacksHomeRecentLoadingMore by mutableStateOf(false); private set
-    private var stacksHomeRecentPage = 1
     private var stacksHomeLoaded = false
     var stacksHomeScrollIndex by mutableStateOf(0); private set
     var stacksHomeScrollOffset by mutableStateOf(0); private set
@@ -719,7 +730,6 @@ class LibraryViewModel : ViewModel() {
                 val rc = async { runCatching { api.search(StackBrowseKind.All) }.getOrElse { emptyList() } }
                 stacksHomeChallenges = ch.await(); stacksHomeManga = mg.await(); stacksHomeAnime = an.await(); stacksHomeMal = mal.await(); stacksHomeRecent = rc.await()
             }
-            stacksHomeRecentPage = 1
             stacksHomeLoading = false
         }
     }
@@ -733,17 +743,6 @@ class LibraryViewModel : ViewModel() {
         homeLatestStackLoaded = true
         viewModelScope.launch {
             homeLatestStack = runCatching { StacksApi().search(StackBrowseKind.All).firstOrNull() }.getOrNull()
-        }
-    }
-    fun loadMoreStacksHomeRecent() {
-        if (stacksHomeRecentLoadingMore) return
-        stacksHomeRecentLoadingMore = true
-        viewModelScope.launch {
-            val targetPage = stacksHomeRecentPage + 1
-            val more = runCatching { StacksApi().search(StackBrowseKind.All, page = targetPage) }.getOrElse { emptyList() }
-            stacksHomeRecent = stacksHomeRecent + more
-            stacksHomeRecentPage = targetPage
-            stacksHomeRecentLoadingMore = false
         }
     }
 

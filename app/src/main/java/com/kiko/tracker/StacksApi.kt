@@ -75,7 +75,7 @@ class StacksApi {
     suspend fun search(kind: StackBrowseKind, query: String = "", page: Int = 1): List<StackSummary> = withContext(Dispatchers.IO) {
         val typeParam = if (kind.param.isBlank()) "" else "type=${kind.param}&"
         val q = if (query.isBlank()) "" else "q=" + java.net.URLEncoder.encode(query, "UTF-8") + "&"
-        val url = "$MAL/stacks/search?$typeParam${q}page=$page"
+        val url = "$MAL/stacks/search?$typeParam${q}p=$page"
         parseSummaries(fetchDoc(url))
     }
 
@@ -158,21 +158,48 @@ class StacksApi {
         return seen.values.toList()
     }
 
-    // Renders an element's own text while turning <br> into real newlines —
-    // plain .text() collapses all whitespace (including line breaks) down to
-    // single spaces, which mangles the "introduction" div's multi-line rules
-    // text (e.g. the numbered challenge steps) into one unreadable run-on line.
-    private fun textWithLineBreaks(el: Element): String {
+    // Renders an element's content as BBCode-flavored text instead of plain
+    // .text() — that used to collapse every <a href> down to its bare label
+    // and drop <img>/<br> entirely, which is why links in a stack's
+    // description rendered as dead plain text and any embedded images just
+    // vanished (matching the same "plain text, no hyperlink" and "image
+    // couldn't load" complaints reported for forum posts). Anchors become
+    // [url=href]text[/url], images become [img]src[/img], <br> becomes a
+    // real newline, and the result is fed through the same BBCode renderer
+    // (ForumBody) the forums screen already uses, so both surfaces get
+    // tappable links and loadable images from one shared code path.
+    private fun bbCodeFromElement(el: Element): String {
         val sb = StringBuilder()
-        el.traverse(object : org.jsoup.select.NodeVisitor {
-            override fun head(node: org.jsoup.nodes.Node, depth: Int) {
-                when {
-                    node is org.jsoup.nodes.TextNode -> sb.append(node.text())
-                    node is Element && node.tagName() == "br" -> sb.append('\n')
+        fun visit(node: org.jsoup.nodes.Node) {
+            when (node) {
+                is org.jsoup.nodes.TextNode -> sb.append(node.text())
+                is Element -> when (node.tagName().lowercase()) {
+                    "br" -> sb.append('\n')
+                    "img" -> {
+                        val attr = if (node.hasAttr("data-src")) "data-src" else "src"
+                        val src = node.absUrl(attr).ifBlank { node.attr(attr) }
+                        if (src.isNotBlank() && !src.startsWith("data:")) sb.append("[img]").append(src).append("[/img]")
+                    }
+                    "a" -> {
+                        val href = node.absUrl("href").ifBlank { node.attr("href") }
+                        if (href.isNotBlank()) {
+                            sb.append("[url=").append(href).append(']')
+                            node.childNodes().forEach(::visit)
+                            sb.append("[/url]")
+                        } else {
+                            node.childNodes().forEach(::visit)
+                        }
+                    }
+                    "b", "strong" -> { sb.append("[b]"); node.childNodes().forEach(::visit); sb.append("[/b]") }
+                    "i", "em" -> { sb.append("[i]"); node.childNodes().forEach(::visit); sb.append("[/i]") }
+                    "u" -> { sb.append("[u]"); node.childNodes().forEach(::visit); sb.append("[/u]") }
+                    "p", "div", "li" -> { node.childNodes().forEach(::visit); sb.append('\n') }
+                    else -> node.childNodes().forEach(::visit)
                 }
+                else -> {}
             }
-            override fun tail(node: org.jsoup.nodes.Node, depth: Int) {}
-        })
+        }
+        el.childNodes().forEach(::visit)
         // Collapse the occasional run of 3+ blank lines (consecutive <br>s in
         // the source, e.g. before "Jul/Aug 2026 Official Challenge Stack")
         // down to a single blank line separator, then trim the ends.
@@ -212,7 +239,7 @@ class StacksApi {
         // The description itself sits in its own dedicated element too
         // (class="introduction"), right above the my-list/mean-score stats —
         // no need to carve it out of surrounding byline/date text at all.
-        val description = doc.selectFirst("div.introduction")?.let(::textWithLineBreaks).orEmpty()
+        val description = doc.selectFirst("div.introduction")?.let(::bbCodeFromElement).orEmpty()
         StackDetail(stackId, title, type, author, description, restacks, parseEntries(doc))
     }
 
