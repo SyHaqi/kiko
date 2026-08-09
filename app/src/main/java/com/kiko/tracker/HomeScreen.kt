@@ -471,7 +471,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
 @Composable fun ListGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null) {
     val c = LocalKikoColors.current
     Column(Modifier.fillMaxWidth().clickable { onOpenDetail(item) }) {
-        Cover(item, Modifier.fillMaxWidth().aspectRatio(2f / 3f))
+        Cover(item, Modifier.fillMaxWidth().aspectRatio(2f / 3f), showRating = true)
         // Fixed to 2 lines so every tile's progress bar lines up regardless of title length
         Text(
             item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, color = c.ink,

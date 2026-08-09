@@ -157,7 +157,7 @@ import kotlin.math.roundToInt
     }
 }
 
-@Composable fun Cover(item: MediaItem, modifier: Modifier = Modifier, showStatus: Boolean = false, statusAlignment: Alignment = Alignment.TopStart, overrideStatus: WatchStatus? = null) {
+@Composable fun Cover(item: MediaItem, modifier: Modifier = Modifier, showStatus: Boolean = false, statusAlignment: Alignment = Alignment.TopStart, overrideStatus: WatchStatus? = null, showRating: Boolean = false) {
     val displayTitle = item.displayTitle()
     Box(modifier.clip(RoundedCornerShape(16.dp)).background(Color(item.color)), contentAlignment = Alignment.Center) {
         if (item.cover.isNotBlank()) AsyncImage(model = item.cover, contentDescription = displayTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
@@ -165,6 +165,8 @@ import kotlin.math.roundToInt
         // Optional tracking mark — overrideStatus lets callers supply the real list status for
         // items that weren't sourced from the user's own list (item.inUserList would be false)
         if (showStatus) (overrideStatus ?: trackedBadgeStatus(item))?.let { CoverStatusMark(it, Modifier.align(statusAlignment).padding(6.dp)) }
+        // User's own score, bottom-right so it never collides with the status mark
+        if (showRating && item.myRating > 0) CoverRatingMark(item.myRating, Modifier.align(Alignment.BottomEnd).padding(6.dp))
     }
 }
 // All 5 states shown
@@ -187,6 +189,21 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
         modifier.size(22.dp).clip(CircleShape).background(statusColor(status)).border(1.5.dp, Color.White.copy(alpha = .9f), CircleShape),
         contentAlignment = Alignment.Center,
     ) { Icon(status.badgeIcon(), status.label, tint = Color.White, modifier = Modifier.size(13.dp)) }
+}
+// User's score, pinned to a cover corner — dark pill so it reads on any artwork
+
+@Composable fun CoverRatingMark(rating: Int, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .clip(RoundedCornerShape(7.dp))
+            .background(Color.Black.copy(alpha = .6f))
+            .border(1.dp, Color.White.copy(alpha = .9f), RoundedCornerShape(7.dp))
+            .padding(horizontal = 6.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
+        Text(rating.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
+    }
 }
 
 @Composable fun TypeToggle(current: MediaType, trackColor: Color = LocalKikoColors.current.surface, set: (MediaType) -> Unit) {
