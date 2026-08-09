@@ -383,8 +383,16 @@ class MalApi(private val context: Context) {
     // Browse endpoints need my_list_status
     private fun browseFields(kind: String) = fields(kind).replace("list_status", "my_list_status")
     private fun fields(kind: String): String {
+        // list_status only returns its default subset (status, score, progress, is_rewatching, updated_at)
+        // unless the extra sub-fields are named explicitly — num_times_rewatched/reread and the
+        // start/finish dates were being silently dropped, so request them by name.
+        val listStatus = if (kind == "anime") {
+            "list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched,updated_at,start_date,finish_date}"
+        } else {
+            "list_status{status,score,num_chapters_read,num_volumes_read,is_rereading,num_times_reread,updated_at,start_date,finish_date}"
+        }
         // Related and theme fields
-        val common = "list_status,genres,explicit_genres,themes,demographics,main_picture,synopsis,background,mean,rank,popularity,num_list_users," +
+        val common = "$listStatus,genres,explicit_genres,themes,demographics,main_picture,synopsis,background,mean,rank,popularity,num_list_users," +
                 "start_date,end_date,media_type,status,alternative_titles,nsfw," +
                 "related_anime{node{id,title,main_picture},relation_type},related_manga{node{id,title,main_picture},relation_type}," +
                 "recommendations{node{id,title,main_picture},num_recommendations}"

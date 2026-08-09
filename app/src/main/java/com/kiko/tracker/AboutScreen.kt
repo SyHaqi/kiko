@@ -263,6 +263,14 @@ import kotlin.math.roundToInt
     if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
     Column(Modifier.fillMaxWidth()) { counts.forEach { (genre, count) -> StatBar(genre, count, total, c, c.primary) } }
 }
+// Proportional format breakdown bars (TV/OVA/Movie for anime, Manga/Manhua/Light Novel for manga)
+
+@Composable fun FormatBreakdownChart(items: List<MediaItem>, c: KikoColors) {
+    val total = items.size
+    val counts = items.map { it.format }.filter { it.isNotBlank() }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(6)
+    if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
+    Column(Modifier.fillMaxWidth()) { counts.forEach { (format, count) -> StatBar(format, count, total, c, c.primary) } }
+}
 // Score distribution histogram
 
 @Composable fun ScoreDistributionChart(items: List<MediaItem>, c: KikoColors, onScoreClick: ((Int) -> Unit)? = null) {
