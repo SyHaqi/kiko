@@ -79,7 +79,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -259,18 +258,42 @@ import kotlin.math.roundToInt
         Text(value, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
     }
 }
-// Top genres proportional bars
+// Top genres proportional bars — each genre gets its own hue off the theme's own
+// accent color (see chartColor below) instead of one flat color repeated down the list.
 
 @Composable fun GenreBreakdownChart(items: List<MediaItem>, c: KikoColors) {
     val total = items.size
     // Skip junk genre tags
     val counts = items.flatMap { it.genres }.filter { it.isNotBlank() && it.trim().split(" ").size <= 3 && it.length <= 24 }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(6)
     if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
-    Column(Modifier.fillMaxWidth()) { counts.forEach { (genre, count) -> StatBar(genre, count, total, c, c.primary) } }
+    Column(Modifier.fillMaxWidth()) { counts.forEachIndexed { index, (genre, count) -> StatBar(genre, count, total, c, chartColor(c, index)) } }
+}
+// Categorical colors for stat charts (genre bars, format ring/legend) — every swatch
+// keeps the exact saturation and lightness of the theme's own primary color, just
+// spun to a different hue, so the set always reads as "this app's palette" no matter
+// what seed color the user picked, rather than a set of arbitrary fixed hex values.
+// Successive indices step by the golden angle (~137.5°) around the wheel, which is
+// the standard trick for keeping any number of swatches evenly, non-repeatingly spread
+// instead of clustering — same principle used to space seeds in a sunflower head.
+
+private fun chartHsl(c: KikoColors): FloatArray {
+    val hsl = FloatArray(3)
+    ColorUtils.RGBToHSL(
+        (c.primary.red * 255f).roundToInt().coerceIn(0, 255),
+        (c.primary.green * 255f).roundToInt().coerceIn(0, 255),
+        (c.primary.blue * 255f).roundToInt().coerceIn(0, 255),
+        hsl,
+    )
+    return hsl
+}
+
+fun chartColor(c: KikoColors, index: Int): Color {
+    val hsl = chartHsl(c)
+    return hslColor(hsl[0] + index * 137.508f, hsl[1], hsl[2])
 }
 // Format breakdown — a donut ring (TV/OVA/Movie for anime, Manga/Manhua/Light Novel for manga)
-// paired with a ranked legend. Ring segments and dots are shades of the theme's
-// own accent color faded toward surfaceLow, so it stays on-palette for any custom theme.
+// paired with a ranked legend, each format's own hue from chartColor so every wedge
+// reads as distinct at a glance instead of one accent bleeding into its own shades.
 
 @Composable fun FormatBreakdownChart(items: List<MediaItem>, c: KikoColors) {
     val counts = items.map { it.format }.filter { it.isNotBlank() }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(5)
@@ -280,16 +303,9 @@ import kotlin.math.roundToInt
         FormatRing(counts, total, c, modifier = Modifier.size(92.dp))
         Spacer(Modifier.width(20.dp))
         Column(Modifier.weight(1f)) {
-            counts.forEachIndexed { index, entry -> FormatLegendRow(entry.key, entry.value, total, formatShade(index, counts.size, c), c) }
+            counts.forEachIndexed { index, entry -> FormatLegendRow(entry.key, entry.value, total, chartColor(c, index), c) }
         }
     }
-}
-// One shade in the ring's accent ramp: full primary at index 0, fading toward surfaceLow
-
-fun formatShade(index: Int, segmentCount: Int, c: KikoColors): Color {
-    if (segmentCount <= 1) return c.primary
-    val t = index / (segmentCount - 1).toFloat()
-    return lerp(c.primary, c.surfaceLow, t * 0.72f)
 }
 // Donut ring with rounded, gapped segments and a centered total
 
@@ -305,7 +321,7 @@ fun formatShade(index: Int, segmentCount: Int, c: KikoColors): Color {
             counts.forEachIndexed { index, entry ->
                 val sweep = (entry.value.toFloat() / total) * (360f - gapDegrees * counts.size)
                 drawArc(
-                    color = formatShade(index, counts.size, c),
+                    color = chartColor(c, index),
                     startAngle = startAngle, sweepAngle = sweep, useCenter = false,
                     topLeft = topLeft, size = arcSize,
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
@@ -319,7 +335,8 @@ fun formatShade(index: Int, segmentCount: Int, c: KikoColors): Color {
         }
     }
 }
-// One ranked row in the format legend: dot, name, raw count, percentage pill
+// One ranked row in the format legend: dot, name, raw count, percentage pill — the
+// pill's text picks up the segment's own color so it visually ties back to its wedge
 
 @Composable fun FormatLegendRow(label: String, count: Int, total: Int, color: Color, c: KikoColors) {
     val pct = if (total > 0) (count * 100f / total).roundToInt() else 0
@@ -331,11 +348,21 @@ fun formatShade(index: Int, segmentCount: Int, c: KikoColors): Color {
         Text(count.toString(), color = c.muted, fontSize = 12.sp)
         Spacer(Modifier.width(6.dp))
         Box(Modifier.clip(RoundedCornerShape(50)).background(c.surfaceLow).padding(horizontal = 8.dp, vertical = 2.dp)) {
-            Text("$pct%", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            Text("$pct%", color = color, fontWeight = FontWeight.Bold, fontSize = 11.sp)
         }
     }
 }
-// Score distribution histogram
+// Score distribution — bars sweep through a gradient of the theme's own hue rather
+// than one flat color, with score 10 landing exactly on the app's primary color and
+// lower scores stepping back around the wheel from it. Keeps the ordering readable
+// (neighbors look similar, extremes look most different) instead of the jumbled
+// look a fully categorical palette would give an ordered 1-10 axis.
+
+fun scoreBarColor(c: KikoColors, score: Int): Color {
+    val hsl = chartHsl(c)
+    val t = (score - 1) / 9f
+    return hslColor(hsl[0] - 110f + t * 110f, hsl[1], hsl[2])
+}
 
 @Composable fun ScoreDistributionChart(items: List<MediaItem>, c: KikoColors, onScoreClick: ((Int) -> Unit)? = null) {
     val counts = (1..10).associateWith { s -> items.count { it.myRating == s } }
@@ -353,7 +380,7 @@ fun formatShade(index: Int, segmentCount: Int, c: KikoColors): Color {
                 Box(Modifier.fillMaxWidth().height(barSlotHeight), contentAlignment = Alignment.BottomCenter) {
                     Box(
                         Modifier.fillMaxWidth().height((count.toFloat() / maxCount * barSlotHeight.value).dp.coerceAtLeast(if (count > 0) 4.dp else 1.dp))
-                            .clip(RoundedCornerShape(4.dp)).background(if (count > 0) c.primary else c.surfaceLow)
+                            .clip(RoundedCornerShape(4.dp)).background(if (count > 0) scoreBarColor(c, score) else c.surfaceLow)
                     )
                 }
                 Spacer(Modifier.height(4.dp))
