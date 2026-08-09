@@ -96,9 +96,12 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -174,21 +177,31 @@ import kotlin.math.roundToInt
     }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    // Bounds (in root coordinates) of the outer Box and the search row, used to float
+    // the suggestions list directly under the search bar regardless of scroll position
+    var containerBounds by remember { mutableStateOf<Rect?>(null) }
+    var searchBarBounds by remember { mutableStateOf<Rect?>(null) }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().onGloballyPositioned { containerBounds = it.boundsInRoot() }) {
         LazyColumn(state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
                 AppHeader("Discover", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
                 Spacer(Modifier.height(17.dp))
 
                 // Search bar and filter
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.onGloballyPositioned { searchBarBounds = it.boundsInRoot() },
+                ) {
                     Box(Modifier.weight(1f)) {
                         SearchField(
                             value = query,
-                            change = { query = it },
+                            change = { query = it; vm.fetchDiscoverSuggestions(context, it, vm.discoverTypeFilter) },
                             hint = "Search in MAL",
-                            onSearch = { if (query.isNotBlank() || vm.discoverFilters.isActive()) vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) }
+                            onSearch = {
+                                vm.clearDiscoverSuggestions()
+                                if (query.isNotBlank() || vm.discoverFilters.isActive()) vm.runDiscoverSearch(context, query, vm.discoverTypeFilter)
+                            }
                         )
                     }
                     FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
@@ -297,6 +310,17 @@ import kotlin.math.roundToInt
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
         )
+        // Floating title suggestions as the user types — tap to fill the search bar and
+        // run that search; tapping anywhere outside dismisses it and drops focus
+        FloatingSearchSuggestions(
+            anchorBounds = searchBarBounds,
+            containerBounds = containerBounds,
+            suggestions = if (query.isNotBlank()) vm.discoverSuggestions else emptyList(),
+            onDismiss = vm::clearDiscoverSuggestions,
+        ) { picked ->
+            query = picked
+            vm.runDiscoverSearch(context, picked, vm.discoverTypeFilter)
+        }
     }
 }
 
@@ -343,21 +367,34 @@ import kotlin.math.roundToInt
     }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
-    Box(Modifier.fillMaxSize()) {
+    // Bounds (in root coordinates) of the outer Box and the search row, used to float
+    // the suggestions list directly under the search bar regardless of scroll position
+    var containerBounds by remember { mutableStateOf<Rect?>(null) }
+    var searchBarBounds by remember { mutableStateOf<Rect?>(null) }
+    Box(Modifier.fillMaxSize().onGloballyPositioned { containerBounds = it.boundsInRoot() }) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onExitResults, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface)) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink) }
                     Text("Search results", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.onGloballyPositioned { searchBarBounds = it.boundsInRoot() },
+                ) {
                     Box(Modifier.weight(1f)) {
-                        SearchField(query, { query = it }, "Search in MAL", onSearch = { vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) })
+                        SearchField(
+                            query,
+                            { query = it; vm.fetchDiscoverSuggestions(context, it, vm.discoverTypeFilter) },
+                            "Search in MAL",
+                            onSearch = { vm.clearDiscoverSuggestions(); vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) }
+                        )
                     }
                     FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
                 }
                 // Fixes type/format mismatch
                 if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) })
+
                 Row(Modifier.fillMaxWidth().padding(top = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
                         items(listOf("Anime", "Manga")) { label -> FilterChip(selected = vm.discoverTypeFilter == label, onClick = { vm.runDiscoverSearch(context, query, label) }, label = { Text(label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
@@ -381,6 +418,17 @@ import kotlin.math.roundToInt
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
         )
+        // Floating title suggestions as the user types — tap to fill the search bar and
+        // run that search; tapping anywhere outside dismisses it and drops focus
+        FloatingSearchSuggestions(
+            anchorBounds = searchBarBounds,
+            containerBounds = containerBounds,
+            suggestions = if (query.isNotBlank()) vm.discoverSuggestions else emptyList(),
+            onDismiss = vm::clearDiscoverSuggestions,
+        ) { picked ->
+            query = picked
+            vm.runDiscoverSearch(context, picked, vm.discoverTypeFilter)
+        }
     }
 }
 // Filters button with indicator
@@ -428,7 +476,7 @@ import kotlin.math.roundToInt
     var explicitGenres by remember { mutableStateOf(current.genres.filter { it in CommonExplicitGenres }.toSet()) }
     var themes by remember { mutableStateOf(current.themes) }
     var demographics by remember { mutableStateOf(current.demographics) }
-    var studio by remember { mutableStateOf(current.studio) }
+    var creator by remember { mutableStateOf(current.creator) }
     var source by remember { mutableStateOf(current.source) }
     var year by remember { mutableStateOf(current.year) }
     var season by remember { mutableStateOf(current.season) }
@@ -461,9 +509,13 @@ import kotlin.math.roundToInt
                 airingOptions.forEach { s -> FilterChip(selected = airingStatus == s, onClick = { airingStatus = if (airingStatus == s) "" else s }, label = { Text(s) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
             }
 
-            Text("Studio", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+            // Anime searches by studio, manga by author — both stored in DiscoverFilters.creator.
+            // When type is ambiguous ("All"), label it as both since either can match.
+            val creatorLabel = when (type) { "Anime" -> "Studio"; "Manga" -> "Author"; else -> "Studio / Author" }
+            val creatorHint = when (type) { "Anime" -> "e.g. Madhouse"; "Manga" -> "e.g. Eiichiro Oda"; else -> "e.g. Madhouse or Eiichiro Oda" }
+            Text(creatorLabel, color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
             OutlinedTextField(
-                value = studio, onValueChange = { studio = it }, placeholder = { Text("e.g. Madhouse", color = c.muted) }, singleLine = true,
+                value = creator, onValueChange = { creator = it }, placeholder = { Text(creatorHint, color = c.muted) }, singleLine = true,
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = Color.Transparent, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
                 modifier = Modifier.fillMaxWidth(),
@@ -500,11 +552,11 @@ import kotlin.math.roundToInt
 
             Row(Modifier.fillMaxWidth().padding(top = 26.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 TextButton(
-                    onClick = { genres = emptySet(); explicitGenres = emptySet(); themes = emptySet(); demographics = emptySet(); studio = ""; source = ""; year = ""; season = null; rating = ""; format = ""; airingStatus = "" },
+                    onClick = { genres = emptySet(); explicitGenres = emptySet(); themes = emptySet(); demographics = emptySet(); creator = ""; source = ""; year = ""; season = null; rating = ""; format = ""; airingStatus = "" },
                     modifier = Modifier.weight(1f),
                 ) { Text("Reset", color = c.muted, fontWeight = FontWeight.Bold) }
                 Button(
-                    onClick = { onApply(DiscoverFilters(genres + explicitGenres, themes, demographics, studio.trim(), source, year, season, rating, format, airingStatus)) },
+                    onClick = { onApply(DiscoverFilters(genres + explicitGenres, themes, demographics, creator.trim(), source, year, season, rating, format, airingStatus)) },
                     colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
                     modifier = Modifier.weight(2f),
                 ) { Text("Apply filters", fontWeight = FontWeight.Bold) }

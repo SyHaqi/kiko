@@ -126,6 +126,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import java.util.UUID
 import kotlin.math.roundToInt
 
@@ -310,6 +311,10 @@ class LibraryViewModel : ViewModel() {
     var discoverBrowseError by mutableStateOf<String?>(null); private set
     private var discoverBrowseLoaded = false
     private var discoverSearchJob: kotlinx.coroutines.Job? = null
+    // Lightweight title suggestions shown below the search bar as the user types —
+    // just plain title strings the user can tap to fill/submit the search, no thumbnails
+    var discoverSuggestions by mutableStateOf<List<String>>(emptyList()); private set
+    private var discoverSuggestJob: kotlinx.coroutines.Job? = null
 
     // Home recommendations row
     var recommendations by mutableStateOf<List<MediaItem>>(emptyList()); private set
@@ -463,11 +468,29 @@ class LibraryViewModel : ViewModel() {
             seasonalLoadingMore = false
         }
     }
+    // Title suggestions for the search bar, fetched (debounced) as the user types.
+    // These are for autofilling the search field only — tapping one runs the
+    // actual search via runDiscoverSearch, it doesn't open a detail page directly.
+    fun fetchDiscoverSuggestions(context: Context, query: String, type: String) {
+        discoverSuggestJob?.cancel()
+        if (query.isBlank()) { discoverSuggestions = emptyList(); return }
+        if (!MalApi(context).signedIn) { discoverSuggestions = emptyList(); return }
+        discoverSuggestJob = viewModelScope.launch {
+            delay(100) // debounce so we're not firing a request per keystroke
+            val t = when (type) { "Anime" -> MediaType.Anime; "Manga" -> MediaType.Manga; else -> null }
+            runCatching { MalApi(context).suggestTitles(query, t) }
+                .onSuccess { discoverSuggestions = it }
+                .onFailure { discoverSuggestions = emptyList() }
+        }
+    }
+    fun clearDiscoverSuggestions() { discoverSuggestJob?.cancel(); discoverSuggestions = emptyList() }
+
     // Switch to results page
     fun runDiscoverSearch(context: Context, query: String, type: String, filters: DiscoverFilters = discoverFilters) {
         discoverQuery = query; discoverTypeFilter = type; discoverFilters = filters; discoverMode = DiscoverMode.Results
         // Reset scroll for search
         discoverScrollIndex = 0; discoverScrollOffset = 0
+        discoverSuggestJob?.cancel(); discoverSuggestions = emptyList()
         discoverSearchJob?.cancel()
         if (query.isBlank() && !filters.isActive()) { discoverResults = emptyList(); discoverSearching = false; discoverError = null; return }
         if (!MalApi(context).signedIn) { discoverError = "Sign in from Profile to search MyAnimeList"; return }
@@ -522,6 +545,7 @@ class LibraryViewModel : ViewModel() {
     fun exitDiscoverSearch() {
         discoverSort = DiscoverSort.Members
         discoverSearchJob?.cancel()
+        discoverSuggestJob?.cancel(); discoverSuggestions = emptyList()
         discoverMode = DiscoverMode.Browse; discoverQuery = ""; discoverResults = emptyList(); discoverFilters = DiscoverFilters(); discoverError = null
     }
 

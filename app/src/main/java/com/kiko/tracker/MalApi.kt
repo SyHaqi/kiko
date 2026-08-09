@@ -6,6 +6,7 @@ import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -182,6 +183,28 @@ class MalApi(private val context: Context) {
         if (query.isBlank()) return@withContext emptyList()
         if (type == null) return@withContext listOf(searchKind(query, "anime"), searchKind(query, "manga")).flatten()
         searchKind(query, if (type == MediaType.Anime) "anime" else "manga")
+    }
+
+    // Lightweight title-only lookup for search-bar suggestions as the user types.
+    // Deliberately requests minimal fields (no synopsis/genres/etc.) so it stays fast,
+    // and just returns plain title strings — no ids/covers, since these only exist to
+    // autofill the search field rather than open a detail page directly.
+    suspend fun suggestTitles(query: String, type: MediaType?, limit: Int = 5): List<String> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext emptyList()
+        val kinds = if (type == null) listOf("anime", "manga") else listOf(if (type == MediaType.Anime) "anime" else "manga")
+        val results = coroutineScope { kinds.map { kind -> async { suggestKind(query, kind, limit) } }.awaitAll().flatten() }
+        val q = query.trim().lowercase()
+        // Titles starting with the query first, then shorter titles, then dedupe case-insensitively
+        results.distinctBy { it.lowercase() }
+            .sortedWith(compareBy({ !it.lowercase().startsWith(q) }, { it.length }))
+            .take(limit)
+    }
+
+    private suspend fun suggestKind(query: String, kind: String, limit: Int): List<String> = withContext(Dispatchers.IO) {
+        val encoded = URLEncoder.encode(query, "UTF-8")
+        val body = runCatching { authorized { get("$API/$kind?q=$encoded&limit=$limit&nsfw=true&fields=id,title") } }.getOrElse { return@withContext emptyList() }
+        val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
+        (0 until arr.length()).mapNotNull { arr.getJSONObject(it).optJSONObject("node")?.optString("title")?.takeIf { t -> t.isNotBlank() } }
     }
 
     // Current season anime list

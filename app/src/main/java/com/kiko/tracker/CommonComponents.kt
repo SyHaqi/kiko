@@ -96,15 +96,19 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -247,6 +251,83 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
         keyboardActions = KeyboardActions(onSearch = { onSearch?.invoke(); keyboard?.hide() }),
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+// Google-style "search this" suggestions shown under the search bar as the user
+// types. Plain title rows only (no thumbnails/detail lookup) — tapping one just
+// fills the search bar with that title and runs the search, same as typing it in.
+@Composable fun SearchSuggestionsList(suggestions: List<String>, onSelect: (String) -> Unit) {
+    val c = LocalKikoColors.current
+    if (suggestions.isEmpty()) return
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface),
+    ) {
+        suggestions.forEachIndexed { index, title ->
+            Row(
+                Modifier.fillMaxWidth().clickable { onSelect(title) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.Search, null, tint = c.muted, modifier = Modifier.size(16.dp))
+                Text(title, color = c.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 14.dp).weight(1f))
+            }
+            if (index < suggestions.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.muted.copy(alpha = .12f), modifier = Modifier.padding(start = 46.dp))
+        }
+    }
+}
+
+// Floats the suggestion list over the rest of the screen, anchored directly under the
+// search row. Also lays two invisible scrims (above and below the anchor) that dismiss
+// the suggestions and drop keyboard focus when tapped, without intercepting taps meant
+// for the search row itself (which sits in the untouched gap between the two scrims).
+// `anchorBounds`/`containerBounds` are captured via Modifier.onGloballyPositioned on the
+// search row and the screen's outer Box, respectively — both in the same root coordinate
+// space, so they stay correctly aligned even while the list underneath is scrolling.
+@Composable fun BoxScope.FloatingSearchSuggestions(
+    anchorBounds: Rect?,
+    containerBounds: Rect?,
+    suggestions: List<String>,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+) {
+    if (suggestions.isEmpty() || anchorBounds == null || containerBounds == null) return
+    val density = LocalDensity.current
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val dismiss: () -> Unit = { focusManager.clearFocus(); keyboard?.hide(); onDismiss() }
+
+    val relTop = anchorBounds.top - containerBounds.top
+    val relBottom = anchorBounds.bottom - containerBounds.top
+    val relLeft = anchorBounds.left - containerBounds.left
+    val widthPx = anchorBounds.width
+    val remainingHeightPx = (containerBounds.height - relBottom).coerceAtLeast(0f)
+
+    // Scrim above the anchor (e.g. the header/title sitting above the search bar)
+    if (relTop > 0f) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(with(density) { relTop.toDp() })
+                .pointerInput(Unit) { detectTapGestures { dismiss() } }
+        )
+    }
+    // Scrim below the anchor, covering the rest of the screen
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(with(density) { remainingHeightPx.toDp() })
+            .offset { IntOffset(0, relBottom.roundToInt()) }
+            .pointerInput(Unit) { detectTapGestures { dismiss() } }
+    )
+    // The floating suggestion list itself, drawn on top of the scrim above so its own
+    // taps register as selections rather than dismissals
+    Box(
+        Modifier
+            .offset { IntOffset(relLeft.roundToInt(), (relBottom + with(density) { 8.dp.toPx() }).roundToInt()) }
+            .width(with(density) { widthPx.toDp() })
+            .shadow(10.dp, RoundedCornerShape(18.dp)),
+    ) {
+        SearchSuggestionsList(suggestions) { picked -> dismiss(); onSelect(picked) }
+    }
 }
 
 fun statusColor(status: WatchStatus): Color = when (status) {

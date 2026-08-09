@@ -247,7 +247,8 @@ data class DiscoverFilters(
     val genres: Set<String> = emptySet(),
     val themes: Set<String> = emptySet(),
     val demographics: Set<String> = emptySet(),
-    val studio: String = "",
+    // Matches MediaItem.creator — studio name for anime, author name for manga
+    val creator: String = "",
     val source: String = "",
     val year: String = "",
     val season: SeasonName? = null,
@@ -257,7 +258,7 @@ data class DiscoverFilters(
     // Finished, Ongoing, Upcoming
     val airingStatus: String = "",
 ) {
-    fun isActive() = genres.isNotEmpty() || themes.isNotEmpty() || demographics.isNotEmpty() || studio.isNotBlank() || source.isNotBlank() || year.isNotBlank() || season != null || rating.isNotBlank() || format.isNotBlank() || airingStatus.isNotBlank()
+    fun isActive() = genres.isNotEmpty() || themes.isNotEmpty() || demographics.isNotEmpty() || creator.isNotBlank() || source.isNotBlank() || year.isNotBlank() || season != null || rating.isNotBlank() || format.isNotBlank() || airingStatus.isNotBlank()
 }
 // Groups raw airing/publishing text
 
@@ -272,7 +273,8 @@ fun MediaItem.matches(f: DiscoverFilters): Boolean {
     if (f.genres.isNotEmpty() && genres.none { g -> f.genres.any { it.equals(g, ignoreCase = true) } }) return false
     if (f.themes.isNotEmpty() && contentThemes.none { t -> f.themes.any { it.equals(t, ignoreCase = true) } }) return false
     if (f.demographics.isNotEmpty() && demographics.none { d -> f.demographics.any { it.equals(d, ignoreCase = true) } }) return false
-    if (f.studio.isNotBlank() && !creator.contains(f.studio, ignoreCase = true)) return false
+    // Studio for anime, author for manga — both live in MediaItem.creator
+    if (f.creator.isNotBlank() && !creator.contains(f.creator, ignoreCase = true)) return false
     if (f.source.isNotBlank() && !source.equals(f.source, ignoreCase = true)) return false
     if (f.year.isNotBlank() && startDate != f.year) return false
     if (f.season != null && !season.equals(f.season.label, ignoreCase = true)) return false
