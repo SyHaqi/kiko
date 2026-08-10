@@ -123,6 +123,7 @@ import coil.request.ImageRequest
 import coil.size.Size
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -730,11 +731,28 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     // left off so the sheet keeps its natural partial/full/dismiss states.
     val sheetState = rememberModalBottomSheetState()
     // By default ModalBottomSheet resizes/re-anchors its own container against the IME,
-    // which is what caused the sheet to shrink or glitch when the keyboard opened/closed.
-    // Passing an empty windowInsets decouples the sheet container from the keyboard
-    // entirely, so its size stays fixed at whatever anchor (half/full) the user left it at;
-    // imePadding() on the inner content is what pushes the notes/tags fields up above the
-    // keyboard instead.
+    // which is what caused the sheet to shrink while the keyboard was open. An empty
+    // contentWindowInsets stops that; imePadding() on the inner content pushes the
+    // focused field up above the keyboard instead.
+    // Even so, Compose still briefly re-settles the sheet's own anchor right as the
+    // keyboard finishes closing, which is what caused the drag-handle-overlapping-content
+    // "cut" glitch. Remember the sheet's value from just before the keyboard opened, wait
+    // for the close animation/remeasure to actually finish, then restore that value —
+    // instead of fighting that remeasure mid-flight the way an immediate call did.
+    var lastStableValue by remember { mutableStateOf(sheetState.currentValue) }
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible) {
+        if (imeVisible) {
+            lastStableValue = sheetState.currentValue
+        } else {
+            delay(120)
+            when (lastStableValue) {
+                SheetValue.Expanded -> sheetState.expand()
+                SheetValue.PartiallyExpanded -> sheetState.partialExpand()
+                else -> {}
+            }
+        }
+    }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.background, contentWindowInsets = { WindowInsets(0, 0, 0, 0) }) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding().verticalScroll(rememberScrollState())) {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 22.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -783,8 +801,12 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
                     colors = SliderDefaults.colors(thumbColor = c.primary, activeTrackColor = c.primary, inactiveTrackColor = c.surfaceLow),
                     modifier = Modifier.weight(1f),
                 )
-                Box(Modifier.padding(start = 14.dp).size(34.dp).clip(CircleShape).background(c.primaryContainer), contentAlignment = Alignment.Center) {
-                    Text(if (rating == 0) "–" else rating.toString(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.primary)
+                // Star matches the app's rating iconography elsewhere (e.g. score display),
+                // just recolored to this component's own primary/primaryContainer accent
+                // instead of the MAL-score amber, since this is the user's own rating.
+                Box(Modifier.padding(start = 14.dp).size(38.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Star, contentDescription = null, tint = c.primaryContainer, modifier = Modifier.fillMaxSize())
+                    Text(if (rating == 0) "–" else rating.toString(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.primary)
                 }
             }
 
