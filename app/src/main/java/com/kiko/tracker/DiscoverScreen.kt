@@ -25,6 +25,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -581,6 +582,7 @@ import kotlin.math.roundToInt
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "browseCardSelectBg")
+    val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "browseCardSelectPad")
     Column(
         Modifier
             .width(118.dp)
@@ -590,7 +592,8 @@ import kotlin.math.roundToInt
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )
-            .padding(if (isSelected) 8.dp else 0.dp)
+            .animateContentSize()
+            .padding(pad)
     ) {
         Cover(item, Modifier.fillMaxWidth().height(150.dp), showStatus = true, overrideStatus = myStatus, selected = isSelected)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
@@ -603,6 +606,7 @@ import kotlin.math.roundToInt
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "searchResultSelectBg")
+    val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "searchResultSelectPad")
     Row(
         Modifier
             .fillMaxWidth()
@@ -613,7 +617,7 @@ import kotlin.math.roundToInt
                 onClick = onTap,
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit() } },
             )
-            .padding(horizontal = if (isSelected) 10.dp else 0.dp, vertical = 14.dp),
+            .padding(horizontal = hPad, vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Box(Modifier.width(84.dp).height(118.dp)) {
@@ -717,6 +721,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "recommendationSelectBg")
+    val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "recommendationSelectPad")
     Column(
         Modifier
             .fillMaxWidth()
@@ -726,7 +731,8 @@ fun formatExact(n: Int): String = "%,d".format(n)
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )
-            .padding(if (isSelected) 8.dp else 0.dp)
+            .animateContentSize()
+            .padding(pad)
     ) {
         Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f), showStatus = true, overrideStatus = myStatus, selected = isSelected)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))

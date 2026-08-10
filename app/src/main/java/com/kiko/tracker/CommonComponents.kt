@@ -31,6 +31,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -174,10 +176,21 @@ import kotlin.math.roundToInt
         // User's own score, bottom-right so it never collides with the status mark
         if (showRating && item.myRating > 0) CoverRatingMark(item.myRating, Modifier.align(Alignment.BottomEnd).padding(6.dp))
         // Long-press selection — tint the whole cover and drop a checkmark, top-right
-        if (selected) {
+        AnimatedVisibility(
+            visible = selected,
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(140)),
+        ) {
             Box(Modifier.fillMaxSize().background(c.primary.copy(alpha = .32f)))
+        }
+        AnimatedVisibility(
+            visible = selected,
+            enter = fadeIn(tween(180)) + scaleIn(tween(180), initialScale = .6f),
+            exit = fadeOut(tween(140)) + scaleOut(tween(140), targetScale = .6f),
+            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
+        ) {
             Box(
-                Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).clip(CircleShape).background(c.primary).border(1.5.dp, Color.White.copy(alpha = .9f), CircleShape),
+                Modifier.size(22.dp).clip(CircleShape).background(c.primary).border(1.5.dp, Color.White.copy(alpha = .9f), CircleShape),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Default.Check, "Selected", tint = c.onPrimary, modifier = Modifier.size(13.dp)) }
         }

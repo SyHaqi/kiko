@@ -25,6 +25,9 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -554,6 +557,7 @@ import kotlin.math.roundToInt
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "stackEntrySelectBg")
+    val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "stackEntrySelectPad")
     Column(
         Modifier
             .fillMaxWidth()
@@ -565,7 +569,7 @@ import kotlin.math.roundToInt
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit() } },
             )
             .animateContentSize()
-            .padding(if (isSelected) 8.dp else 0.dp)
+            .padding(pad)
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(0.72f).clip(RoundedCornerShape(16.dp)).background(c.surfaceLow)) {
             if (entry.cover.isNotBlank()) {
@@ -585,10 +589,21 @@ import kotlin.math.roundToInt
             // Long-press selection — same tint + checkmark treatment as Cover()'s selected state.
             // Placed bottom-end since the number badge already owns top-start and the tracking
             // status mark owns top-end on this card.
-            if (isSelected) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isSelected,
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(140)),
+            ) {
                 Box(Modifier.fillMaxSize().background(c.primary.copy(alpha = .32f)))
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isSelected,
+                enter = fadeIn(tween(180)) + scaleIn(tween(180), initialScale = .6f),
+                exit = fadeOut(tween(140)) + scaleOut(tween(140), targetScale = .6f),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+            ) {
                 Box(
-                    Modifier.align(Alignment.BottomEnd).padding(6.dp).size(22.dp).clip(CircleShape).background(c.primary).border(1.5.dp, Color.White.copy(alpha = .9f), CircleShape),
+                    Modifier.size(22.dp).clip(CircleShape).background(c.primary).border(1.5.dp, Color.White.copy(alpha = .9f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Default.Check, "Selected", tint = c.onPrimary, modifier = Modifier.size(13.dp)) }
             }

@@ -24,6 +24,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.RepeatMode
@@ -494,6 +495,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "gridSelectBg")
+    val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "gridSelectPad")
     Column(
         Modifier
             .fillMaxWidth()
@@ -504,7 +506,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )
             .animateContentSize()
-            .padding(if (isSelected) 8.dp else 0.dp)
+            .padding(pad)
     ) {
         Cover(item, Modifier.fillMaxWidth().aspectRatio(2f / 3f), showRating = true, selected = isSelected)
         // Fixed to 2 lines so every tile's progress bar lines up regardless of title length
@@ -533,6 +535,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "rowSelectBg")
+    val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "rowSelectPad")
     Row(
         modifier
             .fillMaxWidth()
@@ -542,7 +545,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )
-            .padding(horizontal = if (isSelected) 10.dp else 0.dp, vertical = 14.dp),
+            .padding(horizontal = hPad, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Cover(item, Modifier.size(width = 84.dp, height = 118.dp), selected = isSelected)
