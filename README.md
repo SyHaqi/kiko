@@ -4,7 +4,7 @@
 
 Kiko is an Android app built around MyAnimeList (MAL), with a focus on a clean Material 3 interface, fast discovery, detailed title pages, personal list management, forums, Interest Stacks, clubs, rankings, seasonal charts, and profile statistics.
 
-Join the community on Discord: **Himawari's Garden**
+Join the community on Discord: [Himawari HS](https://discord.gg/KZYQHpDWKH)
 
 ---
 
@@ -357,5 +357,5 @@ Kiko is distributed in the hope that it will be useful, but **WITHOUT ANY WARRAN
 
 ## 💬 Community
 
-For discussion, feedback, bug reports, and development updates, join the Kiko Discord community.
+For discussion, feedback, bug reports, and development updates, join the [Kiko Discord community](https://discord.gg/KZYQHpDWKH).
 
