@@ -100,6 +100,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
@@ -355,15 +356,19 @@ fun statusColor(label: String): Color = when {
     label.startsWith("Drop", true) -> StatusDroppedColor
     else -> StatusPlanColor // Plan to watch
 }
-// Fallback avatar tile
+// Fallback avatar tile. Reports its own on-screen bounds (in window coordinates) to
+// onClick so callers can anchor a popup — like AvatarMenu — directly under it, even
+// though that popup is rendered elsewhere in the tree (see Navigation's profileMenuAnchor).
 
-@Composable fun Avatar(picture: String = "", name: String = "", onClick: (() -> Unit)? = null) {
+@Composable fun Avatar(picture: String = "", name: String = "", onClick: ((Rect) -> Unit)? = null) {
     val c = LocalKikoColors.current
-    val tapMod = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    var bounds by remember { mutableStateOf(Rect.Zero) }
+    val posMod = Modifier.onGloballyPositioned { bounds = it.boundsInWindow() }
+    val tapMod = if (onClick != null) Modifier.clickable { onClick(bounds) } else Modifier
     if (picture.isNotBlank()) {
-        AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(RoundedCornerShape(16.dp)).background(c.warm).then(tapMod))
+        AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(RoundedCornerShape(16.dp)).background(c.warm).then(posMod).then(tapMod))
     } else {
-        Box(Modifier.size(43.dp).clip(RoundedCornerShape(16.dp)).background(c.warm).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink) }
+        Box(Modifier.size(43.dp).clip(RoundedCornerShape(16.dp)).background(c.warm).then(posMod).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink) }
     }
 }
 

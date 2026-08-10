@@ -477,11 +477,11 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                 )
             }
             if (vm.profileDrawerOpen) {
-                ProfileDrawer(
-                    connected = vm.signedIn, profile = vm.malProfile,
+                AvatarMenu(
+                    connected = vm.signedIn, profile = vm.malProfile, anchor = vm.profileMenuAnchor,
                     onOpenProfile = { profileStatsOpen = true },
                     onOpenSettings = { settingsPageOpen = true },
-                    onDismiss = { vm.profileDrawerOpen = false },
+                    onDismiss = { vm.profileDrawerOpen = false; vm.profileMenuAnchor = null },
                 )
             }
         }

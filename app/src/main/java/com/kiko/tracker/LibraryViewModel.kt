@@ -127,6 +127,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import androidx.compose.ui.geometry.Rect
 import java.util.UUID
 import kotlin.math.roundToInt
 
@@ -134,8 +135,12 @@ class LibraryViewModel : ViewModel() {
     // Start with empty list
     var items by mutableStateOf(emptyList<MediaItem>()); private set
     var destination by mutableStateOf(Destination.Home)
-    // Right-side profile/settings slider, opened from any tab's avatar
+    // Avatar popup menu (profile/settings), opened from any tab's avatar. anchor is
+    // that avatar's on-screen bounds at the moment it was tapped, captured by Avatar
+    // itself, so the popup can appear directly under it regardless of which tab it
+    // was opened from.
     var profileDrawerOpen by mutableStateOf(false)
+    var profileMenuAnchor by mutableStateOf<Rect?>(null)
     var signedIn by mutableStateOf(false); var loading by mutableStateOf(false); var error by mutableStateOf<String?>(null)
     // Whether the initial signed-in check (in load()) has actually run yet. signedIn
     // itself defaults to false before that, which is indistinguishable from "checked

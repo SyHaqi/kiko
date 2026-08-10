@@ -157,7 +157,7 @@ import kotlin.math.roundToInt
     PullToRefreshBox(isRefreshing = vm.forumBoardsLoading, onRefresh = { vm.loadForumBoards(context, force = true) }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
-                AppHeader("Forums", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
+                AppHeader("Forums", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
                 // Search hands off topics
                 SearchField(query, { query = it }, "Search topics", onSearch = { if (query.isNotBlank()) { saveScroll(); vm.runForumSearch(context, query) } })
             }

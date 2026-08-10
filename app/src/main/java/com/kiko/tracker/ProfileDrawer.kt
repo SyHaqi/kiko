@@ -6,8 +6,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -16,17 +16,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -34,79 +37,101 @@ import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
-// Right-side profile/settings slider, opened by tapping the avatar in any tab header.
-// Row 1 (avatar + name) opens the full profile stats page; Row 2 (Settings) opens the
-// app preferences page that used to live on the old Profile tab. Each opens as its own
-// full page rather than expanding inline, since the slider itself is fairly narrow.
-@Composable fun ProfileDrawer(
-    connected: Boolean, profile: MalProfile?,
+// Avatar popup menu, opened by tapping the avatar in any tab header. Anchored right
+// under the avatar rather than sliding in as a full-height side panel: the screen
+// behind it dims, the avatar is redrawn on top of that dim at its real position (so
+// it reads as "lifted" above the scrim together with the popup), and the menu itself
+// pops out from that same top-right corner. Row 1 (avatar + name) opens the full
+// profile stats page; Row 2 (Settings) opens the app preferences page — same two
+// destinations the old slider offered, just presented as a compact anchored card.
+@Composable fun AvatarMenu(
+    connected: Boolean, profile: MalProfile?, anchor: Rect?,
     onOpenProfile: () -> Unit, onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val c = LocalKikoColors.current
+    val density = LocalDensity.current
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
-    // Wait for the slide-out animation before actually tearing the Dialog down
-    LaunchedEffect(visible) { if (!visible) { delay(220); onDismiss() } }
+    // Wait for the fade/scale-out before actually tearing the Dialog down
+    LaunchedEffect(visible) { if (!visible) { delay(160); onDismiss() } }
 
     Dialog(onDismissRequest = { visible = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize()) {
-            AnimatedVisibility(visible = visible, enter = fadeIn(tween(220)), exit = fadeOut(tween(200))) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val screenWidthPx = with(density) { maxWidth.toPx() }
+            // Fallback anchor (top-right, roughly where the avatar normally sits) in
+            // case this ever opens before a real position was captured
+            val a = anchor ?: with(density) {
+                Rect(screenWidthPx - 20.dp.toPx() - 43.dp.toPx(), 56.dp.toPx(), screenWidthPx - 20.dp.toPx(), 56.dp.toPx() + 43.dp.toPx())
+            }
+            val menuTopPad = with(density) { (a.bottom + 10.dp.toPx()).toDp() }
+            val menuEndPad = with(density) { (screenWidthPx - a.right).coerceAtLeast(0f).toDp() }.coerceAtLeast(16.dp)
+
+            // Scrim — dims everything except the avatar (redrawn below) and the menu itself
+            AnimatedVisibility(visible = visible, enter = fadeIn(tween(180)), exit = fadeOut(tween(140))) {
                 Box(
                     Modifier.fillMaxSize().background(Color.Black.copy(alpha = .5f))
                         .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { visible = false },
                 )
             }
+
+            // The avatar itself, redrawn at its real on-screen position so it sits above
+            // the scrim rather than getting dimmed along with the rest of the screen
             AnimatedVisibility(
                 visible = visible,
-                enter = slideInHorizontally(tween(280)) { it } + fadeIn(tween(220)),
-                exit = slideOutHorizontally(tween(240)) { it } + fadeOut(tween(180)),
-                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.87f),
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(140)),
+                modifier = Modifier.offset { IntOffset(a.left.toInt(), a.top.toInt()) },
             ) {
-                Column(Modifier.fillMaxSize().background(c.background).windowInsetsPadding(WindowInsets.systemBars)) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.End) {
-                        IconButton(onClick = { visible = false }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surfaceLow)) {
-                            Icon(Icons.Default.Close, "Close", tint = c.ink)
+                Avatar(profile?.picture.orEmpty(), profile?.name.orEmpty()) { visible = false }
+            }
+
+            // The menu card, popping out from that same top-right corner
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.85f, transformOrigin = TransformOrigin(1f, 0f)),
+                exit = fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.9f, transformOrigin = TransformOrigin(1f, 0f)),
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = menuTopPad, end = menuEndPad).widthIn(max = 280.dp),
+            ) {
+                Column(
+                    Modifier.shadow(16.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(c.background).padding(8.dp),
+                ) {
+                    // Row 1 — avatar + name, opens the full profile stats page
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
+                            .clickable { visible = false; onOpenProfile() }.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (profile?.picture?.isNotBlank() == true) {
+                            AsyncImage(model = profile.picture, contentDescription = profile.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(CircleShape).background(c.warm))
+                        } else {
+                            Box(Modifier.size(43.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                                Text(profile?.name?.take(1)?.uppercase()?.ifBlank { "M" } ?: "M", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = c.ink)
+                            }
                         }
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text(profile?.name?.ifBlank { "MyAnimeList" } ?: (if (connected) "MyAnimeList" else "Not signed in"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink, maxLines = 1)
+                            Text(if (connected) "View profile & stats" else "Sign in to see your stats", color = c.muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 1.dp))
+                        }
+                        Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(18.dp))
                     }
-                    Column(Modifier.padding(horizontal = 20.dp)) {
-                        // Row 1 — avatar + name, opens the full profile stats page
-                        Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surface)
-                                .clickable { visible = false; onOpenProfile() }.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            if (profile?.picture?.isNotBlank() == true) {
-                                AsyncImage(model = profile.picture, contentDescription = profile.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(52.dp).clip(CircleShape).background(c.warm))
-                            } else {
-                                Box(Modifier.size(52.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
-                                    Text(profile?.name?.take(1)?.uppercase()?.ifBlank { "M" } ?: "M", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = c.ink)
-                                }
-                            }
-                            Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                                Text(profile?.name?.ifBlank { "MyAnimeList" } ?: (if (connected) "MyAnimeList" else "Not signed in"), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink)
-                                Text(if (connected) "View profile & stats" else "Sign in to see your stats", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-                            }
-                            Icon(Icons.Default.ChevronRight, null, tint = c.muted)
-                        }
 
-                        Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(6.dp))
 
-                        // Row 2 — Settings, opens the full settings page
-                        Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surface)
-                                .clickable { visible = false; onOpenSettings() }.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Settings, null, tint = c.primary)
-                            }
-                            Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                                Text("Settings", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink)
-                                Text("Appearance, titles, adult content, about", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-                            }
-                            Icon(Icons.Default.ChevronRight, null, tint = c.muted)
+                    // Row 2 — Settings, opens the full settings page
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
+                            .clickable { visible = false; onOpenSettings() }.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(43.dp).clip(RoundedCornerShape(14.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Settings, null, tint = c.primary, modifier = Modifier.size(20.dp))
                         }
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text("Settings", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
+                            Text("Appearance, titles, adult content, about", color = c.muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 1.dp))
+                        }
+                        Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(18.dp))
                     }
                 }
             }

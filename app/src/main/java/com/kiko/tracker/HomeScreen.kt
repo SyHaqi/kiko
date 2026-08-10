@@ -168,7 +168,7 @@ import kotlin.math.roundToInt
     ) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
-                AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
+                AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
                 Column(Modifier.padding(horizontal = 20.dp)) {
                     // Use device current date
                     Text(
@@ -414,7 +414,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         }
     }
     val header: @Composable () -> Unit = {
-        AppHeader("My list", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { vm.profileDrawerOpen = true } }
+        AppHeader("My list", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.primary, trackColor = c.surfaceLow)
         SearchField(query, { query = it }, "Search your list", onSearch = { submittedQuery = query }, onClear = { query = ""; submittedQuery = "" })
         // Reset scroll on change
