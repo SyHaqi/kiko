@@ -270,6 +270,20 @@ fun parseBBCode(rawIn: String, linkColor: Color): List<ForumBlock> {
 fun httpsUpgrade(url: String): String = if (url.startsWith("http://", ignoreCase = true)) "https://" + url.substring(7) else url
 // Recurse into center/quote blocks
 
+// Strip any nested BBCode tags from an [img]...[/img] tag's inner content, keeping
+// only the plain text runs. MAL's own news-image tool has been observed to
+// double-wrap a pasted link — [img][url]https://...[/url][/img] — so the "url"
+// inside an [img] block isn't always a bare link. Previously the img handler in
+// parseBlocks used that inner content as-is, so for a doubly-wrapped post the
+// resulting ForumBlock.ImageBlock.url was literally the string
+// "[url]https://...[/url]", which Coil then rejected outright ("Unable to create
+// a fetcher that supports: [url]https://...") since it isn't a URL at all — no
+// amount of resizing/cropping the request fixes a URL string that was broken
+// before the request was ever built. Running the inner content through the same
+// tokenizer used everywhere else and keeping only the Text tokens discards any
+// wrapping tag (and its attributes) and leaves the bare link behind.
+fun stripBbTags(raw: String): String = tokenizeBb(raw).filterIsInstance<BbToken.Text>().joinToString("") { it.text }.trim()
+
 fun parseBlocks(raw: String, linkColor: Color): List<ForumBlock> {
     val blocks = mutableListOf<ForumBlock>()
     var pos = 0
@@ -278,9 +292,10 @@ fun parseBlocks(raw: String, linkColor: Color): List<ForumBlock> {
         val tag = m.groupValues[1].lowercase()
         val inner = m.groupValues[2]
         when (tag) {
-            "img" -> inner.trim().takeIf { it.isNotBlank() }?.let {
-                if (it.startsWith("tenor:", ignoreCase = true)) blocks += ForumBlock.ImageBlock(it.substring(6), resolveTenor = true)
-                else blocks += ForumBlock.ImageBlock(httpsUpgrade(it))
+            "img" -> inner.trim().takeIf { it.isNotBlank() }?.let { imgInner ->
+                val cleaned = stripBbTags(imgInner).ifBlank { imgInner }
+                if (cleaned.startsWith("tenor:", ignoreCase = true)) blocks += ForumBlock.ImageBlock(cleaned.substring(6), resolveTenor = true)
+                else blocks += ForumBlock.ImageBlock(httpsUpgrade(cleaned))
             }
             "list" -> {
                 val items = inner.split(Regex("""\[\*\]""", RegexOption.IGNORE_CASE)).map { it.trim() }.filter { it.isNotBlank() }

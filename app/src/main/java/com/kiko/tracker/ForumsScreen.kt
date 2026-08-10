@@ -82,6 +82,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
@@ -505,31 +506,29 @@ sealed class BbToken {
     // happened". Track load state here instead and dispatch a single tap
     // handler based on it.
     var isError by remember(url) { mutableStateOf(false) }
-    // Some forum images (large news/cover art in particular) fail to decode when
-    // Coil is left to infer a request size from this composable's own layout
-    // constraints — SubcomposeAsyncImage needs a size *before* the final layout
-    // pass to pick a painter, and without an explicit target it can fall back to
-    // requesting the source at full/original resolution. That's fine for a small
-    // avatar, but a multi-megapixel cover image decoded at full size can blow past
-    // the canvas/bitmap limits and surface as a load error — even though the exact
-    // same URL decodes fine elsewhere in the app (e.g. the Home news thumbnails),
-    // because those are requested into a small fixed-size box that forces Coil to
-    // downsample up front. Capping the request to a sane max pixel size here makes
-    // this composable behave the same way regardless of surrounding layout.
-    val request = remember(url) {
-        ImageRequest.Builder(context).data(url).size(1080, 1080).build()
-    }
+    // Surfaced directly in the UI below so the real failure reason (HTTP status,
+    // host/SSL error, decode error, etc.) is visible on-device without needing
+    // Logcat/adb. This is what actually found the real bug (a malformed URL from
+    // stray nested BBCode tags, fixed in stripBbTags/parseBlocks) — worth keeping
+    // around for whatever surfaces next.
+    var errorDetail by remember(url) { mutableStateOf<String?>(null) }
+    // Back to showing the whole image at its own aspect ratio instead of cropping
+    // it into a fixed box. The crop was only ever a (wrong) guess at fixing a load
+    // failure that turned out to be a parsing bug, not a sizing one — now that the
+    // URL itself is correct, there's no reason to keep cropping.
     Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
         SubcomposeAsyncImage(
-            model = request, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
             onState = { state ->
                 if (state is AsyncImagePainter.State.Error) {
                     isError = true
-                    // Surfaces the real failure reason (HTTP status, SSL error, timeout, etc.)
-                    // in Logcat under tag "ForumImage" — filter for `url` to trace this.
-                    Log.e("ForumImage", "failed to load $url", state.result.throwable)
+                    val t = state.result.throwable
+                    errorDetail = "${t::class.simpleName}: ${t.message ?: "no message"}"
+                    // Also still logged under tag "ForumImage" for adb/Logcat if that's handy.
+                    Log.e("ForumImage", "failed to load $url", t)
                 } else if (state is AsyncImagePainter.State.Success) {
                     isError = false
+                    errorDetail = null
                 }
             },
             modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 340.dp).clip(RoundedCornerShape(8.dp))
@@ -565,6 +564,9 @@ sealed class BbToken {
                 ) {
                     Icon(Icons.Default.Warning, null, tint = c.muted, modifier = Modifier.size(22.dp))
                     Text("Couldn't load image · tap to open", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    errorDetail?.let {
+                        Text(it, color = c.muted.copy(alpha = .7f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 2.dp))
+                    }
                 }
                 else -> SubcomposeAsyncImageContent()
             }
@@ -579,14 +581,9 @@ sealed class BbToken {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     var isError by remember(url) { mutableStateOf(false) }
-    // Same reasoning as ForumImage: cap the decode size so a very large source
-    // image (news covers, uploaded scans) can't blow past bitmap/canvas limits
-    // just because this dialog fills the whole screen.
-    val request = remember(url) {
-        ImageRequest.Builder(context).data(url).size(1440, 1440).build()
-    }
+    val density = LocalDensity.current
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(
+        BoxWithConstraints(
             Modifier.fillMaxSize().background(Color.Black.copy(alpha = .95f))
                 .pointerInput(url) {
                     detectTransformGestures { _, pan, zoom, _ ->
@@ -597,6 +594,14 @@ sealed class BbToken {
                 },
             contentAlignment = Alignment.Center,
         ) {
+            // Same reasoning as ForumImage: size the decode target off the real
+            // screen this dialog fills, rather than a flat number that can end up
+            // bigger (or needlessly smaller) than the device's actual screen.
+            val targetWidthPx = with(density) { (maxWidth * 0.95f).roundToPx().coerceAtLeast(1) }
+            val targetHeightPx = with(density) { maxHeight.roundToPx().coerceAtLeast(1) }
+            val request = remember(url, targetWidthPx, targetHeightPx) {
+                ImageRequest.Builder(context).data(url).size(targetWidthPx, targetHeightPx).build()
+            }
             SubcomposeAsyncImage(
                 model = request, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 onState = { state ->
