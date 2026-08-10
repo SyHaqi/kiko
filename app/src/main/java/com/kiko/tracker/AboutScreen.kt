@@ -258,8 +258,8 @@ import kotlin.math.roundToInt
         Text(value, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
     }
 }
-// Top genres proportional bars — each genre gets its own hue off the theme's own
-// accent color (see chartColor below) instead of one flat color repeated down the list.
+// Top genres proportional bars — each genre gets its own swatch from the fixed
+// ChartPalette below instead of one flat color repeated down the list.
 
 @Composable fun GenreBreakdownChart(items: List<MediaItem>, c: KikoColors) {
     val total = items.size
@@ -268,29 +268,25 @@ import kotlin.math.roundToInt
     if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
     Column(Modifier.fillMaxWidth()) { counts.forEachIndexed { index, (genre, count) -> StatBar(genre, count, total, c, chartColor(c, index)) } }
 }
-// Categorical colors for stat charts (genre bars, format ring/legend) — every swatch
-// keeps the exact saturation and lightness of the theme's own primary color, just
-// spun to a different hue, so the set always reads as "this app's palette" no matter
-// what seed color the user picked, rather than a set of arbitrary fixed hex values.
-// Successive indices step by the golden angle (~137.5°) around the wheel, which is
-// the standard trick for keeping any number of swatches evenly, non-repeatingly spread
-// instead of clustering — same principle used to space seeds in a sunflower head.
+// Categorical colors for stat charts (genre bars, format ring/legend) — a fixed,
+// hardcoded set of solid swatches, same spirit as the Status colors below (flat,
+// saturated, theme-independent) rather than something spun off the user's chosen
+// accent color. Kept deliberately distinct from the Status palette (green/navy/
+// gold/maroon/gray) so genre and format breakdowns never visually collide with the
+// status legend elsewhere on the same screen. Cycles by index for any list length.
 
-private fun chartHsl(c: KikoColors): FloatArray {
-    val hsl = FloatArray(3)
-    ColorUtils.RGBToHSL(
-        (c.primary.red * 255f).roundToInt().coerceIn(0, 255),
-        (c.primary.green * 255f).roundToInt().coerceIn(0, 255),
-        (c.primary.blue * 255f).roundToInt().coerceIn(0, 255),
-        hsl,
-    )
-    return hsl
-}
+val ChartPalette = listOf(
+    Color(0xFFFF6F59), // coral
+    Color(0xFF6C63FF), // indigo
+    Color(0xFF2EC4B6), // teal
+    Color(0xFFFF9F1C), // orange
+    Color(0xFFE84393), // magenta
+    Color(0xFF00B4D8), // sky blue
+    Color(0xFF9B5DE5), // purple
+    Color(0xFF4A4E69), // slate
+)
 
-fun chartColor(c: KikoColors, index: Int): Color {
-    val hsl = chartHsl(c)
-    return hslColor(hsl[0] + index * 137.508f, hsl[1], hsl[2])
-}
+fun chartColor(c: KikoColors, index: Int): Color = ChartPalette[index % ChartPalette.size]
 // Format breakdown — a donut ring (TV/OVA/Movie for anime, Manga/Manhua/Light Novel for manga)
 // paired with a ranked legend, each format's own hue from chartColor so every wedge
 // reads as distinct at a glance instead of one accent bleeding into its own shades.
@@ -352,16 +348,21 @@ fun chartColor(c: KikoColors, index: Int): Color {
         }
     }
 }
-// Score distribution — bars sweep through a gradient of the theme's own hue rather
-// than one flat color, with score 10 landing exactly on the app's primary color and
-// lower scores stepping back around the wheel from it. Keeps the ordering readable
-// (neighbors look similar, extremes look most different) instead of the jumbled
-// look a fully categorical palette would give an ordered 1-10 axis.
+// Score distribution — bars sweep through a fixed, hardcoded gradient (coral at the
+// low end to teal at the high end, the same two hues that anchor ChartPalette above)
+// instead of tracking the theme's own accent color. Fixed hue/saturation/lightness
+// stops keep the ordering readable (neighbors look similar, extremes look most
+// different) while staying independent of whatever seed color the user picked.
+
+private const val ScoreGradientStartHue = 8f   // coral — matches ChartPalette
+private const val ScoreGradientEndHue = 174f   // teal — matches ChartPalette
+private const val ScoreGradientSaturation = 0.62f
+private const val ScoreGradientLightness = 0.52f
 
 fun scoreBarColor(c: KikoColors, score: Int): Color {
-    val hsl = chartHsl(c)
     val t = (score - 1) / 9f
-    return hslColor(hsl[0] - 110f + t * 110f, hsl[1], hsl[2])
+    val hue = ScoreGradientStartHue + t * (ScoreGradientEndHue - ScoreGradientStartHue)
+    return hslColor(hue, ScoreGradientSaturation, ScoreGradientLightness)
 }
 
 @Composable fun ScoreDistributionChart(items: List<MediaItem>, c: KikoColors, onScoreClick: ((Int) -> Unit)? = null) {

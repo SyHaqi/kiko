@@ -147,12 +147,18 @@ import kotlin.math.roundToInt
     val airingNext = vm.visibleDiscoverNewSeason.mapNotNull { item -> item.nextAirDateTime()?.let { item to it } }.sortedBy { it.second }.take(5).map { it.first }
     // Restore scroll position on return from a card/entry instead of resetting to top
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.homeScrollIndex, initialFirstVisibleItemScrollOffset = vm.homeScrollOffset)
-    val trackedOpenDetail: (MediaItem) -> Unit = remember(onOpenDetail) {
-        { item -> vm.saveHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenDetail(item) }
+    // Persist scroll position whenever Home leaves composition, for any reason — opening a
+    // detail/topic/stack, tapping "See news"/"See all", or just switching bottom-nav tabs.
+    // Saving only at a few specific click sites (as before) missed some exits entirely (e.g.
+    // "See news" never saved at all) and, more importantly, missed switching tabs — so scrolling
+    // back to the top and then leaving via the bottom nav would restore the last *saved* position
+    // instead of top, since nothing updated the saved value in between. Disposal is the one point
+    // every exit path shares, so saving there covers all of them regardless of how Home was left.
+    DisposableEffect(Unit) {
+        onDispose { vm.saveHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
     }
-    val trackedOpenTopic: (Int, String) -> Unit = remember(onOpenTopic) {
-        { id, title -> vm.saveHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenTopic(id, title) }
-    }
+    val trackedOpenDetail: (MediaItem) -> Unit = onOpenDetail
+    val trackedOpenTopic: (Int, String) -> Unit = onOpenTopic
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     PullToRefreshBox(
@@ -186,10 +192,7 @@ import kotlin.math.roundToInt
                     // Freshest Interest Stack teaser
                     vm.homeLatestStack?.let { stack ->
                         SectionTitle("Interest Stacks", "See all", onOpenStacks)
-                        StackFeaturedCard(stack) {
-                            vm.saveHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
-                            onOpenStack(stack.id, stack.title)
-                        }
+                        StackFeaturedCard(stack) { onOpenStack(stack.id, stack.title) }
                     }
                     if (vm.authChecked && !vm.signedIn && !vm.loading) {
                         Column(Modifier.fillMaxWidth().padding(top = 50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
