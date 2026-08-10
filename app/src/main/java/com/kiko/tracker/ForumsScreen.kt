@@ -494,6 +494,7 @@ sealed class BbToken {
 
 @Composable fun ForumImage(url: String, c: KikoColors, onTap: (String) -> Unit) {
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
     // Single source of truth for what a tap does — previously the outer
     // SubcomposeAsyncImage carried its own `.clickable { onTap(url) }` covering
     // the whole box, AND the error state had a second, nested `.clickable` to
@@ -504,9 +505,23 @@ sealed class BbToken {
     // happened". Track load state here instead and dispatch a single tap
     // handler based on it.
     var isError by remember(url) { mutableStateOf(false) }
+    // Some forum images (large news/cover art in particular) fail to decode when
+    // Coil is left to infer a request size from this composable's own layout
+    // constraints — SubcomposeAsyncImage needs a size *before* the final layout
+    // pass to pick a painter, and without an explicit target it can fall back to
+    // requesting the source at full/original resolution. That's fine for a small
+    // avatar, but a multi-megapixel cover image decoded at full size can blow past
+    // the canvas/bitmap limits and surface as a load error — even though the exact
+    // same URL decodes fine elsewhere in the app (e.g. the Home news thumbnails),
+    // because those are requested into a small fixed-size box that forces Coil to
+    // downsample up front. Capping the request to a sane max pixel size here makes
+    // this composable behave the same way regardless of surrounding layout.
+    val request = remember(url) {
+        ImageRequest.Builder(context).data(url).size(1080, 1080).build()
+    }
     Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
         SubcomposeAsyncImage(
-            model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            model = request, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
             onState = { state ->
                 if (state is AsyncImagePainter.State.Error) {
                     isError = true
@@ -521,8 +536,20 @@ sealed class BbToken {
                 .border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(8.dp))
                 .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {
                     if (isError) {
-                        val opened = runCatching { uriHandler.openUri(url) }
-                        if (opened.isFailure) Log.e("ForumImage", "couldn't open $url in browser", opened.exceptionOrNull())
+                        // Try the browser custom tab first — this is what every other
+                        // "open in browser" spot in the app uses and it's proven more
+                        // reliable than LocalUriHandler on some devices/launchers. Only
+                        // fall back to the ambient UriHandler, and only surface a toast
+                        // if both fail, so a tap never just silently does nothing.
+                        val opened = runCatching { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) }
+                        if (opened.isFailure) {
+                            Log.e("ForumImage", "couldn't open $url via custom tab", opened.exceptionOrNull())
+                            val fallback = runCatching { uriHandler.openUri(url) }
+                            if (fallback.isFailure) {
+                                Log.e("ForumImage", "couldn't open $url in browser either", fallback.exceptionOrNull())
+                                android.widget.Toast.makeText(context, "Couldn't open image link", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     } else {
                         onTap(url)
                     }
@@ -549,6 +576,15 @@ sealed class BbToken {
 @Composable fun ZoomableImageDialog(url: String, onDismiss: () -> Unit) {
     var scale by remember(url) { mutableStateOf(1f) }
     var offset by remember(url) { mutableStateOf(Offset.Zero) }
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    var isError by remember(url) { mutableStateOf(false) }
+    // Same reasoning as ForumImage: cap the decode size so a very large source
+    // image (news covers, uploaded scans) can't blow past bitmap/canvas limits
+    // just because this dialog fills the whole screen.
+    val request = remember(url) {
+        ImageRequest.Builder(context).data(url).size(1440, 1440).build()
+    }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(
             Modifier.fillMaxSize().background(Color.Black.copy(alpha = .95f))
@@ -561,19 +597,37 @@ sealed class BbToken {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            AsyncImage(
-                model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            SubcomposeAsyncImage(
+                model = request, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                onState = { state ->
+                    isError = state is AsyncImagePainter.State.Error
+                    if (state is AsyncImagePainter.State.Error) Log.e("ForumImage", "fullscreen failed to load $url", state.result.throwable)
+                },
                 modifier = Modifier.fillMaxWidth(0.95f)
                     .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y)
-                    .pointerInput(url) {
+                    .pointerInput(url, isError) {
                         detectTapGestures(
                             onDoubleTap = {
-                                if (scale > 1f) { scale = 1f; offset = Offset.Zero } else scale = 2.5f
+                                if (!isError) { if (scale > 1f) { scale = 1f; offset = Offset.Zero } else scale = 2.5f }
                             },
-                            onTap = { if (scale <= 1f) onDismiss() },
+                            onTap = {
+                                if (isError) {
+                                    val opened = runCatching { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) }
+                                    if (opened.isFailure) runCatching { uriHandler.openUri(url) }
+                                } else if (scale <= 1f) onDismiss()
+                            },
                         )
                     },
-            )
+            ) {
+                when (painter.state) {
+                    is AsyncImagePainter.State.Loading -> CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(32.dp))
+                    is AsyncImagePainter.State.Error -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Warning, null, tint = Color.White.copy(alpha = .8f), modifier = Modifier.size(28.dp))
+                        Text("Couldn't load image · tap to open", color = Color.White.copy(alpha = .8f), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                    }
+                    else -> SubcomposeAsyncImageContent()
+                }
+            }
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = .15f)),
