@@ -497,10 +497,15 @@ import kotlin.math.roundToInt
     var airingStatus by remember { mutableStateOf(current.airingStatus) }
     val airingOptions = listOf("Ongoing", "Finished", "Upcoming")
     val formatOptions = when (type) { "Anime" -> CommonAnimeFormats; "Manga" -> CommonMangaFormats; else -> CommonAnimeFormats + CommonMangaFormats }
-    // Skip partially-expanded sheet state
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.background) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).heightIn(max = 620.dp).verticalScroll(rememberScrollState())) {
+    // Opens half-screen (partially expanded); drag up to go full screen, drag down
+    // to return to half screen, drag down again to dismiss — skipPartiallyExpanded
+    // left off so the sheet keeps its natural partial/full/dismiss states.
+    val sheetState = rememberModalBottomSheetState()
+    // contentWindowInsets = {} decouples the sheet container from the IME so it doesn't
+    // resize/glitch when the keyboard opens/closes (e.g. typing in Creator or Year);
+    // imePadding() below pushes the content up above the keyboard instead.
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.background, contentWindowInsets = { WindowInsets(0, 0, 0, 0) }) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding().verticalScroll(rememberScrollState())) {
             Text("Discover", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Advanced filters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 4.dp))
 

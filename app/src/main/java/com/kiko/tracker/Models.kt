@@ -159,6 +159,10 @@ data class MediaItem(
     val progress: Int = 0, val total: Int = 0,
     // User's own tracking info
     val myRating: Int = 0, val watchStartDate: String = "", val watchEndDate: String = "",
+    // Comma-separated tags, synced to MAL's own per-entry "tags" field
+    val notes: String = "",
+    // Free-text personal note, synced to MAL's own per-entry "comments" field
+    val comments: String = "",
     // Rewatch tracking fields
     val isRewatching: Boolean = false, val timesRewatched: Int = 0,
     val genre: String = "", val genres: List<String> = emptyList(),

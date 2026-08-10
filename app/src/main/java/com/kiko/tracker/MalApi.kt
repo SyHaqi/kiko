@@ -369,6 +369,10 @@ class MalApi(private val context: Context) {
             if (item.watchEndDate.isNotBlank()) put("finish_date", item.watchEndDate)
             put(rewatchingField, item.isRewatching.toString())
             put(timesRewatchedField, item.timesRewatched.toString())
+            // MAL accepts tags as one comma-separated string on write, same format the
+            // website's own tag field uses
+            put("tags", item.notes)
+            put("comments", item.comments)
         }
         authorized { form(endpoint, fields, method = "PATCH") }
     }
@@ -385,11 +389,12 @@ class MalApi(private val context: Context) {
     private fun fields(kind: String): String {
         // list_status only returns its default subset (status, score, progress, is_rewatching, updated_at)
         // unless the extra sub-fields are named explicitly — num_times_rewatched/reread and the
-        // start/finish dates were being silently dropped, so request them by name.
+        // start/finish dates were being silently dropped, so request them by name. "tags" is
+        // MAL's per-entry tags field; "comments" is the separate free-text notes field.
         val listStatus = if (kind == "anime") {
-            "list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched,updated_at,start_date,finish_date}"
+            "list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched,updated_at,start_date,finish_date,tags,comments}"
         } else {
-            "list_status{status,score,num_chapters_read,num_volumes_read,is_rereading,num_times_reread,updated_at,start_date,finish_date}"
+            "list_status{status,score,num_chapters_read,num_volumes_read,is_rereading,num_times_reread,updated_at,start_date,finish_date,tags,comments}"
         }
         // Related and theme fields
         val common = "$listStatus,genres,explicit_genres,themes,demographics,main_picture,synopsis,background,mean,rank,popularity,num_list_users," +
@@ -560,6 +565,10 @@ class MalApi(private val context: Context) {
             myRating = s.optInt("score", 0),
             watchStartDate = s.optString("start_date"),
             watchEndDate = s.optString("finish_date"),
+            // "tags" comes back as a JSON array (e.g. ["comfort watch","rewatch"]); flatten
+            // to the same comma-separated text the user types/sees on the MAL website itself.
+            notes = s.optJSONArray("tags")?.let { arr2 -> (0 until arr2.length()).map { arr2.getString(it) } }?.joinToString(", ") ?: "",
+            comments = s.optString("comments"),
             isRewatching = if (kind == "anime") s.optBoolean("is_rewatching") else s.optBoolean("is_rereading"),
             timesRewatched = if (kind == "anime") s.optInt("num_times_rewatched") else s.optInt("num_times_reread"),
             updatedAt = s.optString("updated_at"),

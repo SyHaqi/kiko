@@ -710,6 +710,8 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     var endDate by remember { mutableStateOf(item.watchEndDate) }
     var rewatching by remember { mutableStateOf(item.isRewatching) }
     var timesRewatched by remember { mutableStateOf(item.timesRewatched) }
+    var notes by remember { mutableStateOf(item.notes) }
+    var comments by remember { mutableStateOf(item.comments) }
     val rewatchWord = if (item.type == MediaType.Anime) "Rewatch" else "Reread"
     val rewatchedWord = if (item.type == MediaType.Anime) "rewatched" else "reread"
     var confirmDelete by remember { mutableStateOf(false) }
@@ -723,12 +725,22 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
             dismissButton = { TextButton(onClick = { confirmDelete = false }, colors = ButtonDefaults.textButtonColors(contentColor = c.muted)) { Text("Cancel") } },
         )
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.background) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
+    // Opens half-screen (partially expanded); drag up to go full screen, drag down
+    // to return to half screen, drag down again to dismiss — skipPartiallyExpanded
+    // left off so the sheet keeps its natural partial/full/dismiss states.
+    val sheetState = rememberModalBottomSheetState()
+    // By default ModalBottomSheet resizes/re-anchors its own container against the IME,
+    // which is what caused the sheet to shrink or glitch when the keyboard opened/closed.
+    // Passing an empty windowInsets decouples the sheet container from the keyboard
+    // entirely, so its size stays fixed at whatever anchor (half/full) the user left it at;
+    // imePadding() on the inner content is what pushes the notes/tags fields up above the
+    // keyboard instead.
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.background, contentWindowInsets = { WindowInsets(0, 0, 0, 0) }) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding().verticalScroll(rememberScrollState())) {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 22.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { confirmDelete = true }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Delete") }
                 Button(
-                    onClick = { onSave(item.copy(status = status, progress = progress, myRating = rating, watchStartDate = startDate, watchEndDate = endDate, isRewatching = rewatching, timesRewatched = timesRewatched)) },
+                    onClick = { onSave(item.copy(status = status, progress = progress, myRating = rating, watchStartDate = startDate, watchEndDate = endDate, isRewatching = rewatching, timesRewatched = timesRewatched, notes = notes, comments = comments)) },
                     colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
                 ) { Text("Save change") }
             }
@@ -800,6 +812,26 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
                 Text("Times $rewatchedWord: $timesRewatched", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink)
                 IconButton(onClick = { timesRewatched++ }) { Icon(Icons.Default.Add, "Increase", tint = c.primary) }
             }
+
+            Text("Tags", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
+            OutlinedTextField(
+                value = notes, onValueChange = { notes = it },
+                placeholder = { Text("Comma separated, e.g. comfort watch, rewatch", color = c.muted) },
+                minLines = 3, maxLines = 6,
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = Color.Transparent, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
+            )
+
+            Text("Notes", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
+            OutlinedTextField(
+                value = comments, onValueChange = { comments = it },
+                placeholder = { Text("Write a note about this entry", color = c.muted) },
+                minLines = 3, maxLines = 6,
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = Color.Transparent, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
+            )
         }
     }
 }
