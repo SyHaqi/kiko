@@ -155,7 +155,7 @@ import kotlin.math.roundToInt
         label = "discover-mode",
     ) { mode ->
         if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults, onEdit, selectedItem)
-        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks, onRecommendations, onEdit)
+        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks, onRecommendations, onEdit, selectedItem)
     }
 }
 // Discover landing page
@@ -168,7 +168,8 @@ import kotlin.math.roundToInt
     onSeasonal: () -> Unit,
     onStacks: () -> Unit,
     onRecommendations: () -> Unit,
-    onEdit: (MediaItem) -> Unit = {}
+    onEdit: (MediaItem) -> Unit = {},
+    selectedItem: MediaItem? = null
 ) {
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf("") }
@@ -264,7 +265,7 @@ import kotlin.math.roundToInt
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             // Cap row at 7
                             items(vm.visibleDiscoverNewSeason.take(7), key = { it.id }) { item ->
-                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit)
+                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
                             }
                         }
                     }
@@ -276,7 +277,7 @@ import kotlin.math.roundToInt
                         SectionTitle("Top 10 upcoming", "", {})
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             items(vm.visibleDiscoverUpcoming, key = { it.id }) { item ->
-                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit)
+                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
                             }
                         }
                     }
@@ -289,7 +290,7 @@ import kotlin.math.roundToInt
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             // Cap row at 7; full list is in the "See more" grid
                             items(vm.visibleRecommendations.take(7), key = { it.id }) { item ->
-                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit)
+                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
                             }
                         }
                     }
@@ -576,16 +577,22 @@ import kotlin.math.roundToInt
 }
 // Browse row cover card
 
-@Composable fun BrowseCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, subtitle: String? = null, myStatus: WatchStatus? = null, onLongPress: ((MediaItem) -> Unit)? = null) {
+@Composable fun BrowseCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, subtitle: String? = null, myStatus: WatchStatus? = null, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
+    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "browseCardSelectBg")
     Column(
-        Modifier.width(118.dp).combinedClickable(
-            onClick = { onOpenDetail(item) },
-            onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
-        )
+        Modifier
+            .width(118.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .combinedClickable(
+                onClick = { onOpenDetail(item) },
+                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
+            )
+            .padding(if (isSelected) 8.dp else 0.dp)
     ) {
-        Cover(item, Modifier.fillMaxWidth().height(150.dp), showStatus = true, overrideStatus = myStatus)
+        Cover(item, Modifier.fillMaxWidth().height(150.dp), showStatus = true, overrideStatus = myStatus, selected = isSelected)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         Text(subtitle ?: (if (item.score > 0) "★ ${"%.1f".format(item.score)}" else item.genre), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
@@ -657,7 +664,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
 
 // "You might like" — full grid of recommendations, with the user's status mark on each cover
 
-@Composable fun RecommendationsScreen(vm: LibraryViewModel, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit, onEdit: (MediaItem) -> Unit = {}) {
+@Composable fun RecommendationsScreen(vm: LibraryViewModel, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     BackHandler(onBack = onBack)
@@ -689,7 +696,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
                 }
             }
             items(vm.visibleRecommendations, key = { it.id }) { item ->
-                RecommendationGridCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit)
+                RecommendationGridCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
             }
             if (!vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -706,16 +713,22 @@ fun formatExact(n: Int): String = "%,d".format(n)
 }
 // Recommendations grid tile — mirrors SeasonalGridCard but marks the user's tracked status
 
-@Composable fun RecommendationGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null, onLongPress: ((MediaItem) -> Unit)? = null) {
+@Composable fun RecommendationGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
+    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "recommendationSelectBg")
     Column(
-        Modifier.fillMaxWidth().combinedClickable(
-            onClick = { onOpenDetail(item) },
-            onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
-        )
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .combinedClickable(
+                onClick = { onOpenDetail(item) },
+                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
+            )
+            .padding(if (isSelected) 8.dp else 0.dp)
     ) {
-        Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f), showStatus = true, overrideStatus = myStatus)
+        Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f), showStatus = true, overrideStatus = myStatus, selected = isSelected)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         if (item.score > 0) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
