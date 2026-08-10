@@ -156,6 +156,22 @@ class MainActivity : ComponentActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Best-effort crash capture: if anything throws an uncaught exception
+        // anywhere in the process (not just the UI thread), write it to a plain
+        // file before the process dies, so it survives past the crash without
+        // needing adb/Logcat hooked up. Delegates to the previous handler
+        // afterward so normal OS crash/ANR behavior (and any crash reporting
+        // tool that registers its own handler) still happens.
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            runCatching {
+                val trace = java.io.StringWriter().also { throwable.printStackTrace(java.io.PrintWriter(it)) }.toString()
+                java.io.File(filesDir, "last_crash.txt").writeText(
+                    "Crashed at ${java.util.Date()} on thread ${thread.name}\n\n$trace"
+                )
+            }
+            previousHandler?.uncaughtException(thread, throwable)
+        }
         // Register animated GIF decoders + Referer/UA for hotlink-protected images
         val forumImageClient = okhttp3.OkHttpClient.Builder()
             .addInterceptor { chain ->
@@ -182,9 +198,27 @@ class MainActivity : ComponentActivity() {
                 .components {
                     if (Build.VERSION.SDK_INT >= 28) add(coil.decode.ImageDecoderDecoder.Factory()) else add(coil.decode.GifDecoder.Factory())
                 }
+                // Forum threads can carry a dozen+ small reaction stickers
+                // (image.myanimelist.net/ui/...), some animated. With
+                // ImageDecoderDecoder on API 28+, every one of those decodes into a
+                // *hardware* bitmap by default (allowHardware defaults to true) —
+                // those come from a small, GPU-driver-limited buffer pool, not
+                // regular heap memory. Scrolling fast through a thread with many
+                // small images back-to-back is exactly the scenario that exhausts
+                // that pool, and the failure is frequently a hard native crash that
+                // never surfaces as a catchable Java exception (no stack trace, no
+                // error dialog — it just dies). Forcing software (ARGB_8888)
+                // bitmaps trades a little decode performance for not hitting that
+                // pool limit at all, which is the right trade for a list of many
+                // small stickers.
+                .allowHardware(false)
                 .build()
         )
         routeIntentUri(intent?.data)
+        // If the app crashed last run, show it now so it's easy to grab and
+        // report, then clear it so it doesn't keep reappearing.
+        val crashFile = java.io.File(filesDir, "last_crash.txt")
+        var crashText by mutableStateOf<String?>(if (crashFile.exists()) runCatching { crashFile.readText() }.getOrNull() else null)
         setContent {
             val vm: LibraryViewModel = viewModel()
             LaunchedEffect(Unit) { vm.loadTheme(this@MainActivity); vm.loadColorSource(this@MainActivity); vm.loadPaletteStyle(this@MainActivity); vm.loadCustomColor(this@MainActivity); vm.loadTitleLanguage(this@MainActivity); vm.loadListFilter(this@MainActivity); vm.loadListSort(this@MainActivity); vm.loadListViewMode(this@MainActivity); vm.loadScoreFilterViewMode(this@MainActivity); vm.loadNsfwPref(this@MainActivity); vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity); vm.loadHomeExtras(this@MainActivity) }
@@ -214,6 +248,22 @@ class MainActivity : ComponentActivity() {
                 malLink = malLink,
                 onMalLinkHandled = { malLink = null },
             )
+            // Shows once, right after a crash-and-relaunch, so the actual stack
+            // trace is one tap away to copy/paste instead of needing adb.
+            crashText?.let { text ->
+                AlertDialog(
+                    onDismissRequest = { crashText = null; crashFile.delete() },
+                    title = { Text("Kiko crashed last time") },
+                    text = { Text(text, fontSize = 11.sp, modifier = Modifier.verticalScroll(rememberScrollState())) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Kiko crash log", text))
+                        }) { Text("Copy") }
+                    },
+                    dismissButton = { TextButton(onClick = { crashText = null; crashFile.delete() }) { Text("Dismiss") } },
+                )
+            }
         }
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); routeIntentUri(intent.data) }

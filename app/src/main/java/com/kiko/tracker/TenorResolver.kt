@@ -14,22 +14,30 @@ object TenorResolver {
         .readTimeout(6, TimeUnit.SECONDS)
         .build()
 
-    // Cache resolved GIF URLs
-    private val cache = ConcurrentHashMap<String, String?>()
+    // Cache resolved GIF URLs. Must never store an actual null: java.util.concurrent's
+    // ConcurrentHashMap forbids null *values* outright — put(key, null) throws
+    // NullPointerException unconditionally, it's not just a nullability lint issue.
+    // A failed/empty resolution (network hiccup, blocked request, or a Tenor page
+    // with no og:image/twitter:image meta tag) is an expected, common outcome here,
+    // not a rare edge case — every one of those used to crash the app the moment
+    // it tried to cache that outcome. NO_RESULT stands in for "we tried and found
+    // nothing" so it's still cached (avoids re-fetching the same dead link on every
+    // recomposition while scrolling) without ever touching a real null.
+    private val cache = ConcurrentHashMap<String, String>()
+    private const val NO_RESULT = "\u0000NO_TENOR_RESULT"
 
     private val metaTagRegex = Regex(
-        """<meta[^>]+(?:property|name)\s*=\s*"(?:og:image|twitter:image)"[^>]+content\s*=\s*"([^"]+)"""",
+        """<meta[^>]+(?:property|name)\s*=\s*['"](?:og:image|twitter:image)['"][^>]+content\s*=\s*['"]([^'"]+)['"]""",
         RegexOption.IGNORE_CASE,
     )
     // Handle reversed attribute order
     private val metaTagRegexAlt = Regex(
-        """<meta[^>]+content\s*=\s*"([^"]+)"[^>]+(?:property|name)\s*=\s*"(?:og:image|twitter:image)"""",
+        """<meta[^>]+content\s*=\s*['"]([^'"]+)['"][^>]+(?:property|name)\s*=\s*['"](?:og:image|twitter:image)['"]""",
         RegexOption.IGNORE_CASE,
     )
 
     suspend fun resolveGifUrl(pageUrl: String): String? {
-        cache[pageUrl]?.let { return it }
-        if (cache.containsKey(pageUrl)) return null // a prior attempt already found nothing usable
+        cache[pageUrl]?.let { return if (it == NO_RESULT) null else it }
         return withContext(Dispatchers.IO) {
             val resolved = runCatching {
                 val request = Request.Builder()
@@ -45,7 +53,7 @@ object TenorResolver {
                     raw?.let { decodeHtmlAttribute(it) }
                 }
             }.getOrNull()
-            cache[pageUrl] = resolved
+            cache[pageUrl] = resolved ?: NO_RESULT
             resolved
         }
     }
