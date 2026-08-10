@@ -246,83 +246,93 @@ import kotlin.math.roundToInt
                     Text("STATS", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
                     TypeToggle(statsTab, trackColor = c.surfaceLow) { onStatsTabChange(it) }
                     Spacer(Modifier.height(18.dp))
-                    if (statsTab == MediaType.Anime) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            LabeledStat("Days:", "%.1f".format(animeDaysWatched), c)
-                            LabeledStat("Mean Score:", (profile?.animeMeanScore ?: 0.0).let { if (it > 0) "%.2f".format(it) else "—" }, c)
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        SegmentedStatBar(listOf(
-                            (profile?.animeWatching ?: 0) to statusColor("Watching"),
-                            (profile?.animeCompleted ?: 0) to statusColor("Completed"),
-                            (profile?.animeOnHold ?: 0) to statusColor("On hold"),
-                            (profile?.animeDropped ?: 0) to statusColor("Dropped"),
-                            (profile?.animePlanToWatch ?: 0) to statusColor("Plan to watch"),
-                        ), c)
-                        Spacer(Modifier.height(20.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                            Column(Modifier.weight(1f)) {
-                                StatusLegendRow("Watching", profile?.animeWatching ?: 0, statusColor("Watching"), c)
-                                StatusLegendRow("Completed", profile?.animeCompleted ?: 0, statusColor("Completed"), c)
-                                StatusLegendRow("On-Hold", profile?.animeOnHold ?: 0, statusColor("On hold"), c)
-                                StatusLegendRow("Dropped", profile?.animeDropped ?: 0, statusColor("Dropped"), c)
-                                StatusLegendRow("Plan to Watch", profile?.animePlanToWatch ?: 0, statusColor("Plan to watch"), c)
+                    // Basic cross-fade between the anime/manga stat breakdowns, matching the
+                    // tab-switch transition used elsewhere in the app (e.g. Clubs tabs)
+                    AnimatedContent(
+                        statsTab,
+                        transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+                        label = "profile-stats-tab",
+                    ) { tab ->
+                        Column {
+                            if (tab == MediaType.Anime) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    LabeledStat("Days:", "%.1f".format(animeDaysWatched), c)
+                                    LabeledStat("Mean Score:", (profile?.animeMeanScore ?: 0.0).let { if (it > 0) "%.2f".format(it) else "—" }, c)
+                                }
+                                Spacer(Modifier.height(12.dp))
+                                SegmentedStatBar(listOf(
+                                    (profile?.animeWatching ?: 0) to statusColor("Watching"),
+                                    (profile?.animeCompleted ?: 0) to statusColor("Completed"),
+                                    (profile?.animeOnHold ?: 0) to statusColor("On hold"),
+                                    (profile?.animeDropped ?: 0) to statusColor("Dropped"),
+                                    (profile?.animePlanToWatch ?: 0) to statusColor("Plan to watch"),
+                                ), c)
+                                Spacer(Modifier.height(20.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                    Column(Modifier.weight(1f)) {
+                                        StatusLegendRow("Watching", profile?.animeWatching ?: 0, statusColor("Watching"), c)
+                                        StatusLegendRow("Completed", profile?.animeCompleted ?: 0, statusColor("Completed"), c)
+                                        StatusLegendRow("On-Hold", profile?.animeOnHold ?: 0, statusColor("On hold"), c)
+                                        StatusLegendRow("Dropped", profile?.animeDropped ?: 0, statusColor("Dropped"), c)
+                                        StatusLegendRow("Plan to Watch", profile?.animePlanToWatch ?: 0, statusColor("Plan to watch"), c)
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        SummaryRow("Total Entries", formatExact(profile?.animeTotalEntries ?: 0), c)
+                                        SummaryRow("Rewatched", formatExact(animeItems.sumOf { it.timesRewatched }), c)
+                                        SummaryRow("Episodes", formatExact(profile?.animeEpisodesWatched ?: 0), c)
+                                    }
+                                }
+                                if (animeItems.isNotEmpty()) {
+                                    Spacer(Modifier.height(24.dp))
+                                    Text("GENRE BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    GenreBreakdownChart(animeItems, c)
+                                    Spacer(Modifier.height(24.dp))
+                                    Text("SCORE DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    ScoreDistributionChart(animeItems, c, onScoreClick = { onScoreClick(MediaType.Anime, it) })
+                                    Spacer(Modifier.height(24.dp))
+                                    Text("FORMAT BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    FormatBreakdownChart(animeItems, c)
+                                }
+                            } else {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    LabeledStat("Days:", "%.1f".format(mangaDaysReadEst) + " (est.)", c)
+                                    LabeledStat("Mean Score:", if (mangaMeanScore > 0) "%.2f".format(mangaMeanScore) else "—", c)
+                                }
+                                Spacer(Modifier.height(12.dp))
+                                SegmentedStatBar(listOf(
+                                    mangaItems.count { it.status == WatchStatus.Reading } to statusColor("Reading"),
+                                    mangaItems.count { it.status == WatchStatus.Completed } to statusColor("Completed"),
+                                    mangaItems.count { it.status == WatchStatus.OnHold } to statusColor("On hold"),
+                                    mangaItems.count { it.status == WatchStatus.Dropped } to statusColor("Dropped"),
+                                    mangaItems.count { it.status == WatchStatus.Plan } to statusColor("Plan to read"),
+                                ), c)
+                                Spacer(Modifier.height(20.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                    Column(Modifier.weight(1f)) {
+                                        StatusLegendRow("Reading", mangaItems.count { it.status == WatchStatus.Reading }, statusColor("Reading"), c)
+                                        StatusLegendRow("Completed", mangaItems.count { it.status == WatchStatus.Completed }, statusColor("Completed"), c)
+                                        StatusLegendRow("On-Hold", mangaItems.count { it.status == WatchStatus.OnHold }, statusColor("On hold"), c)
+                                        StatusLegendRow("Dropped", mangaItems.count { it.status == WatchStatus.Dropped }, statusColor("Dropped"), c)
+                                        StatusLegendRow("Plan to Read", mangaItems.count { it.status == WatchStatus.Plan }, statusColor("Plan to read"), c)
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        SummaryRow("Total Entries", formatExact(mangaTotal), c)
+                                        SummaryRow("Reread", formatExact(mangaItems.sumOf { it.timesRewatched }), c)
+                                        SummaryRow("Chapters", formatExact(mangaChaptersRead), c)
+                                    }
+                                }
+                                if (mangaItems.isNotEmpty()) {
+                                    Spacer(Modifier.height(24.dp))
+                                    Text("GENRE BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    GenreBreakdownChart(mangaItems, c)
+                                    Spacer(Modifier.height(24.dp))
+                                    Text("SCORE DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    ScoreDistributionChart(mangaItems, c, onScoreClick = { onScoreClick(MediaType.Manga, it) })
+                                    Spacer(Modifier.height(24.dp))
+                                    Text("FORMAT BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    FormatBreakdownChart(mangaItems, c)
+                                }
                             }
-                            Column(Modifier.weight(1f)) {
-                                SummaryRow("Total Entries", formatExact(profile?.animeTotalEntries ?: 0), c)
-                                SummaryRow("Rewatched", formatExact(animeItems.sumOf { it.timesRewatched }), c)
-                                SummaryRow("Episodes", formatExact(profile?.animeEpisodesWatched ?: 0), c)
-                            }
-                        }
-                        if (animeItems.isNotEmpty()) {
-                            Spacer(Modifier.height(24.dp))
-                            Text("GENRE BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                            GenreBreakdownChart(animeItems, c)
-                            Spacer(Modifier.height(24.dp))
-                            Text("SCORE DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                            ScoreDistributionChart(animeItems, c, onScoreClick = { onScoreClick(MediaType.Anime, it) })
-                            Spacer(Modifier.height(24.dp))
-                            Text("FORMAT BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                            FormatBreakdownChart(animeItems, c)
-                        }
-                    } else {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            LabeledStat("Days:", "%.1f".format(mangaDaysReadEst) + " (est.)", c)
-                            LabeledStat("Mean Score:", if (mangaMeanScore > 0) "%.2f".format(mangaMeanScore) else "—", c)
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        SegmentedStatBar(listOf(
-                            mangaItems.count { it.status == WatchStatus.Reading } to statusColor("Reading"),
-                            mangaItems.count { it.status == WatchStatus.Completed } to statusColor("Completed"),
-                            mangaItems.count { it.status == WatchStatus.OnHold } to statusColor("On hold"),
-                            mangaItems.count { it.status == WatchStatus.Dropped } to statusColor("Dropped"),
-                            mangaItems.count { it.status == WatchStatus.Plan } to statusColor("Plan to read"),
-                        ), c)
-                        Spacer(Modifier.height(20.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                            Column(Modifier.weight(1f)) {
-                                StatusLegendRow("Reading", mangaItems.count { it.status == WatchStatus.Reading }, statusColor("Reading"), c)
-                                StatusLegendRow("Completed", mangaItems.count { it.status == WatchStatus.Completed }, statusColor("Completed"), c)
-                                StatusLegendRow("On-Hold", mangaItems.count { it.status == WatchStatus.OnHold }, statusColor("On hold"), c)
-                                StatusLegendRow("Dropped", mangaItems.count { it.status == WatchStatus.Dropped }, statusColor("Dropped"), c)
-                                StatusLegendRow("Plan to Read", mangaItems.count { it.status == WatchStatus.Plan }, statusColor("Plan to read"), c)
-                            }
-                            Column(Modifier.weight(1f)) {
-                                SummaryRow("Total Entries", formatExact(mangaTotal), c)
-                                SummaryRow("Reread", formatExact(mangaItems.sumOf { it.timesRewatched }), c)
-                                SummaryRow("Chapters", formatExact(mangaChaptersRead), c)
-                            }
-                        }
-                        if (mangaItems.isNotEmpty()) {
-                            Spacer(Modifier.height(24.dp))
-                            Text("GENRE BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                            GenreBreakdownChart(mangaItems, c)
-                            Spacer(Modifier.height(24.dp))
-                            Text("SCORE DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                            ScoreDistributionChart(mangaItems, c, onScoreClick = { onScoreClick(MediaType.Manga, it) })
-                            Spacer(Modifier.height(24.dp))
-                            Text("FORMAT BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                            FormatBreakdownChart(mangaItems, c)
                         }
                     }
                 }

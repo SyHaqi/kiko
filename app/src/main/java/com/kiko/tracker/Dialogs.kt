@@ -199,7 +199,7 @@ import kotlin.math.roundToInt
             Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Choose a color", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             ColorSource.entries.forEach { source ->
-                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(if (source == current) c.primaryContainer else c.surface)) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(if (source == current) c.primaryContainer else c.surface).animateContentSize()) {
                     Row(
                         Modifier.fillMaxWidth().clickable { onSelect(source); if (source != ColorSource.Custom) onDismiss() }.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
@@ -213,8 +213,8 @@ import kotlin.math.roundToInt
                         }
                         if (source == current) Icon(Icons.Default.Check, null, tint = c.primary)
                     }
-                    // Expand only Custom row
-                    if (source == ColorSource.Custom && current == ColorSource.Custom) {
+                    // Expand only Custom row — basic fade/size transition, matching the app's other reveals
+                    AnimatedVisibility(visible = source == ColorSource.Custom && current == ColorSource.Custom, enter = fadeIn(tween(180)), exit = fadeOut(tween(140))) {
                         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                             val valid = parseHexColor(customHex) != null
                             Box(Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).background(if (valid) parseHexColor(customHex)!! else c.surfaceLow).border(1.dp, c.muted.copy(alpha = .4f), RoundedCornerShape(6.dp)))
