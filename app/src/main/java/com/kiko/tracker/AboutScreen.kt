@@ -390,6 +390,46 @@ fun scoreBarColor(c: KikoColors, score: Int): Color {
         }
     }
 }
+// Year distribution — how many of the user's titles were originally released in each
+// year, laid out the same way as ScoreDistributionChart above (count label, bar, axis
+// label) but in a LazyRow instead of a fixed Row: a title list can span decades, and
+// unlike scores (a fixed 1-10 set) the year axis has no natural cap, so it scrolls
+// horizontally instead of squeezing. Every year between the earliest and latest release
+// gets a column — including zero-count years — so the shape of the timeline (and any
+// gaps in it) reads correctly rather than only showing years that happen to have data.
+// Bars use a single fixed, hardcoded color independent of the theme's accent, distinct
+// from both the coral-to-teal score gradient and the categorical ChartPalette wedges.
+
+val YearBarColor = Color(0xFF6C56D9) // fixed violet, unrelated to the user's chosen accent
+
+@Composable fun YearDistributionChart(items: List<MediaItem>, c: KikoColors) {
+    // "Compatible with year": tolerate any startDate that begins with a plausible
+    // 4-digit year (extra trailing text, non-numeric junk, blanks) rather than crashing
+    // or silently dropping the item from the count.
+    val counts = items.mapNotNull { it.startDate.take(4).toIntOrNull() }
+        .filter { it in 1900..2100 }
+        .groupingBy { it }.eachCount()
+    if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
+    val years = (counts.keys.min()..counts.keys.max()).toList()
+    val maxCount = counts.values.max()
+    val barSlotHeight = 56.dp
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+        items(years, key = { it }) { year ->
+            val count = counts[year] ?: 0
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(30.dp)) {
+                Text(if (count > 0) count.toString() else "", color = c.muted, fontSize = 9.sp)
+                Box(Modifier.fillMaxWidth().height(barSlotHeight), contentAlignment = Alignment.BottomCenter) {
+                    Box(
+                        Modifier.fillMaxWidth().height((count.toFloat() / maxCount * barSlotHeight.value).dp.coerceAtLeast(if (count > 0) 4.dp else 1.dp))
+                            .clip(RoundedCornerShape(4.dp)).background(if (count > 0) YearBarColor else c.surfaceLow)
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(year.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+            }
+        }
+    }
+}
 // Fixed non-theme status colors
 
 val StatusWatchingColor = Color(0xFF2DB039)

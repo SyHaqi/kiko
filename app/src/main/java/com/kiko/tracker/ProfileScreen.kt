@@ -292,6 +292,9 @@ import kotlin.math.roundToInt
                                     Spacer(Modifier.height(24.dp))
                                     Text("FORMAT BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
                                     FormatBreakdownChart(animeItems, c)
+                                    Spacer(Modifier.height(24.dp))
+                                    Text("YEAR DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    YearDistributionChart(animeItems, c)
                                 }
                             } else {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -331,6 +334,9 @@ import kotlin.math.roundToInt
                                     Spacer(Modifier.height(24.dp))
                                     Text("FORMAT BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
                                     FormatBreakdownChart(mangaItems, c)
+                                    Spacer(Modifier.height(24.dp))
+                                    Text("YEAR DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    YearDistributionChart(mangaItems, c)
                                 }
                             }
                         }
