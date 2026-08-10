@@ -222,13 +222,47 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var selectedItem by remember { mutableStateOf<MediaItem?>(null) }
     // Related title navigation stack
     var detailStack by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
-    // Item to return to when backing out of a genre-chip jump to Discover
+    // Interest stacks nav state: home -> browse (seeded tab) -> detail. Declared up here
+    // (rather than alongside the other overlay flags below) because backDetail()'s
+    // Discover-detour restoration needs to write to stackDetailOpen.
+    var stacksHomeOpen by remember { mutableStateOf(false) }
+    var stacksBrowseKind by remember { mutableStateOf<StackBrowseKind?>(null) }
+    var stackDetailOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    // Item to return to when backing out of a genre-chip/creator-tap jump to Discover
     var discoverReturnItem by remember { mutableStateOf<MediaItem?>(null) }
-    fun openDetail(item: MediaItem) { detailStack = emptyList(); discoverReturnItem = null; selectedItem = item }
+    // Where the detour started — the tab (My List, Home, ...) and, if applicable, the
+    // specific stack detail screen — so backing all the way out of the detour lands
+    // back where the user actually was, not on the Discover tab they detoured through.
+    // Set once per detour (first jump only — see jumpToDiscover) and only cleared once
+    // the whole detour is fully backed out of (see backDetail) or abandoned via the
+    // bottom nav bar.
+    var discoverReturnDestination by remember { mutableStateOf<Destination?>(null) }
+    var discoverReturnStack by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    fun openDetail(item: MediaItem) {
+        detailStack = emptyList()
+        // A title opened while a Discover detour is still in progress (e.g. tapping
+        // another result on the author's search page) is just drilling further into
+        // that same detour — keep the breadcrumbs so backing out eventually still
+        // returns to the real origin instead of the Discover tab. Only a genuinely
+        // fresh open (no detour active) should discard them.
+        if (discoverReturnDestination == null) discoverReturnItem = null
+        selectedItem = item
+    }
     fun openRelatedDetail(from: MediaItem, to: MediaItem) { detailStack = detailStack + from; selectedItem = to }
     fun backDetail() {
         val prev = detailStack.lastOrNull()
-        if (prev != null) { selectedItem = prev; detailStack = detailStack.dropLast(1) } else selectedItem = null
+        if (prev != null) { selectedItem = prev; detailStack = detailStack.dropLast(1); return }
+        selectedItem = null
+        // Only restore once the detour's own "return to origin item" stop has already
+        // been consumed (discoverReturnItem null) — otherwise this was just closing an
+        // intermediate title opened mid-detour, which should reveal the search results
+        // underneath, not jump straight back to the origin tab/screen.
+        val destination = discoverReturnDestination
+        if (discoverReturnItem == null && destination != null) {
+            vm.destination = destination
+            stackDetailOpen = discoverReturnStack
+            discoverReturnDestination = null; discoverReturnStack = null
+        }
     }
     // Handle tapped MAL link
     LaunchedEffect(malLink) {
@@ -257,10 +291,6 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Full review readout state
     var reviewOpen by remember { mutableStateOf<Pair<ReviewEntry, String>?>(null) }
     // Reviews webview state
-    // Interest stacks nav state: home -> browse (seeded tab) -> detail
-    var stacksHomeOpen by remember { mutableStateOf(false) }
-    var stacksBrowseKind by remember { mutableStateOf<StackBrowseKind?>(null) }
-    var stackDetailOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
     fun openStacks() { stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = true }
     fun openStacksBrowse(kind: StackBrowseKind) { stackDetailOpen = null; stacksBrowseKind = kind }
     // Club detail state
@@ -279,6 +309,14 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // instead of the Discover results — e.g. tapping an author from an entry opened out
     // of a stack would fall back to the stack's entry list instead of showing the search.
     fun jumpToDiscover(from: MediaItem, type: String, filters: DiscoverFilters) {
+        // Only remember the true origin (tab + stack screen) on the first hop of a
+        // detour — a jump launched from inside an already-active detour (e.g. tapping
+        // another creator link while already browsing search results) must not
+        // overwrite it with the Discover tab we're currently sitting in.
+        if (discoverReturnDestination == null) {
+            discoverReturnDestination = vm.destination
+            discoverReturnStack = stackDetailOpen
+        }
         discoverReturnItem = from
         selectedItem = null; detailStack = emptyList()
         stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = false
@@ -331,7 +369,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         ) {
             Scaffold(
                 containerColor = c.background,
-                bottomBar = { if (detailItem == null && !rankingOpen && !seasonalOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null) BottomBar(vm.destination) { discoverReturnItem = null; vm.destination = it } }
+                bottomBar = { if (detailItem == null && !rankingOpen && !seasonalOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null) BottomBar(vm.destination) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val topScreen = when {
@@ -372,7 +410,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             })
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Seasonal -> SeasonalScreen(vm, onBack = { seasonalOpen = false }, onOpenDetail = ::openDetail)
-                            TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail)
+                            TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it })
                             is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)
                             is TopScreen.Topic -> ForumTopicScreen(vm, topicId = screen.topicId, title = screen.title, onBack = { forumTopicOpen = null })
                             TopScreen.About -> AboutScreen(
@@ -383,7 +421,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             is TopScreen.Review -> ReviewScreen(screen.review, screen.itemTitle, onBack = { reviewOpen = null })
                             TopScreen.StacksHome -> StacksHomeScreen(vm, onBack = { stacksHomeOpen = false }, onOpenBrowse = { kind -> openStacksBrowse(kind) }, onOpenStack = { id, title -> stackDetailOpen = id to title })
                             is TopScreen.StacksBrowse -> StacksScreen(vm, initialKind = screen.initialKind, onBack = { stacksBrowseKind = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
-                            is TopScreen.StackDetail -> StackDetailScreen(screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), initialScroll = vm.getStackDetailScroll(screen.stackId), onLeaveScroll = { index, offset -> vm.saveStackDetailScroll(screen.stackId, index, offset) }, onBack = { stackDetailOpen = null }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } })
+                            is TopScreen.StackDetail -> StackDetailScreen(screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), initialScroll = vm.getStackDetailScroll(screen.stackId), onLeaveScroll = { index, offset -> vm.saveStackDetailScroll(screen.stackId, index, offset) }, onBack = { stackDetailOpen = null }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } }, onEditEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> editor = fetched } }, selectedItem = editor)
                             is TopScreen.ClubDetail -> ClubDetailScreen(screen.club, onBack = { clubDetailOpen = null })
                             TopScreen.ProfileStats -> ProfileStatsScreen(vm.signedIn, vm.malProfile, vm.items, onConnect = onSignIn, onBack = { profileStatsOpen = false }, scrollOffset = vm.profileScrollOffset, onSaveScroll = vm::saveProfileScroll, statsTab = vm.profileStatsTab, onStatsTabChange = vm::selectProfileStatsTab, onScoreClick = { type, score -> scoreFilterOpen = type to score })
                             is TopScreen.ScoreFilter -> ScoreFilterScreen(vm = vm, type = screen.type, initialScore = screen.score, onBack = { scoreFilterOpen = null }, onOpenDetail = ::openDetail)
@@ -408,7 +446,9 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         val returnItem = discoverReturnItem
                                         if (returnItem != null) { discoverReturnItem = null; selectedItem = returnItem }
                                         else vm.exitDiscoverSearch()
-                                    }
+                                    },
+                                    onEdit = { editor = it },
+                                    selectedItem = editor
                                 )
                                 Destination.Forums -> ForumsScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title })
                                 Destination.Clubs -> ClubsScreen(vm, onOpenClub = { clubDetailOpen = it })

@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 
 package com.kiko.tracker
 
@@ -24,6 +24,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -38,6 +39,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -92,6 +94,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -139,7 +143,9 @@ import kotlin.math.roundToInt
     onSeasonal: () -> Unit,
     onStacks: () -> Unit,
     onRecommendations: () -> Unit,
-    onExitResults: () -> Unit = vm::exitDiscoverSearch
+    onExitResults: () -> Unit = vm::exitDiscoverSearch,
+    onEdit: (MediaItem) -> Unit = {},
+    selectedItem: MediaItem? = null
 ) {
     val context = LocalContext.current
     LaunchedEffect(vm.signedIn) { vm.loadDiscoverBrowse(context) }
@@ -148,8 +154,8 @@ import kotlin.math.roundToInt
         transitionSpec = { if (targetState == DiscoverMode.Results) PushEnter togetherWith PushExit else PopEnter togetherWith PopExit },
         label = "discover-mode",
     ) { mode ->
-        if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults)
-        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks, onRecommendations)
+        if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults, onEdit, selectedItem)
+        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks, onRecommendations, onEdit)
     }
 }
 // Discover landing page
@@ -161,7 +167,8 @@ import kotlin.math.roundToInt
     onRanking: () -> Unit,
     onSeasonal: () -> Unit,
     onStacks: () -> Unit,
-    onRecommendations: () -> Unit
+    onRecommendations: () -> Unit,
+    onEdit: (MediaItem) -> Unit = {}
 ) {
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf("") }
@@ -257,7 +264,7 @@ import kotlin.math.roundToInt
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             // Cap row at 7
                             items(vm.visibleDiscoverNewSeason.take(7), key = { it.id }) { item ->
-                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
+                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit)
                             }
                         }
                     }
@@ -269,7 +276,7 @@ import kotlin.math.roundToInt
                         SectionTitle("Top 10 upcoming", "", {})
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             items(vm.visibleDiscoverUpcoming, key = { it.id }) { item ->
-                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
+                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit)
                             }
                         }
                     }
@@ -282,7 +289,7 @@ import kotlin.math.roundToInt
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             // Cap row at 7; full list is in the "See more" grid
                             items(vm.visibleRecommendations.take(7), key = { it.id }) { item ->
-                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
+                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit)
                             }
                         }
                     }
@@ -354,7 +361,7 @@ import kotlin.math.roundToInt
 // Interest Stacks homepage — curated Challenge/Manga/Anime picks up top, Recent Interest Stacks below.
 // Greets the user when they tap the Stacks button, mirroring myanimelist.net/stacks.
 
-@Composable fun DiscoverResultsScreen(vm: LibraryViewModel, context: Context, onOpenDetail: (MediaItem) -> Unit, onExitResults: () -> Unit = vm::exitDiscoverSearch) {
+@Composable fun DiscoverResultsScreen(vm: LibraryViewModel, context: Context, onOpenDetail: (MediaItem) -> Unit, onExitResults: () -> Unit = vm::exitDiscoverSearch, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf(vm.discoverQuery) }
     var filterSheetOpen by remember { mutableStateOf(false) }
@@ -365,6 +372,9 @@ import kotlin.math.roundToInt
         vm.saveDiscoverScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
         vm.openDiscoverDetail(context, result, onOpenDetail)
     }
+    // Long-press to edit — same fetch-full-detail-first step as tapping through,
+    // since a bare search result row doesn't carry everything EditSheet wants.
+    val editResult: (MediaItem) -> Unit = { result -> vm.openDiscoverDetail(context, result, onEdit) }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     // Bounds (in root coordinates) of the outer Box and the search row, used to float
@@ -409,7 +419,7 @@ import kotlin.math.roundToInt
                 item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
             }
             itemsIndexed(vm.visibleDiscoverResults, key = { _, it -> it.id }) { index, result ->
-                SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id) { openResult(result) }
+                SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type)
                 if (index < vm.visibleDiscoverResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
             }
         }
@@ -566,9 +576,15 @@ import kotlin.math.roundToInt
 }
 // Browse row cover card
 
-@Composable fun BrowseCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, subtitle: String? = null, myStatus: WatchStatus? = null) {
+@Composable fun BrowseCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, subtitle: String? = null, myStatus: WatchStatus? = null, onLongPress: ((MediaItem) -> Unit)? = null) {
     val c = LocalKikoColors.current
-    Column(Modifier.width(118.dp).clickable { onOpenDetail(item) }) {
+    val haptic = LocalHapticFeedback.current
+    Column(
+        Modifier.width(118.dp).combinedClickable(
+            onClick = { onOpenDetail(item) },
+            onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
+        )
+    ) {
         Cover(item, Modifier.fillMaxWidth().height(150.dp), showStatus = true, overrideStatus = myStatus)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         Text(subtitle ?: (if (item.score > 0) "★ ${"%.1f".format(item.score)}" else item.genre), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -576,14 +592,25 @@ import kotlin.math.roundToInt
 }
 // Discover search result row
 
-@Composable fun SearchResultRow(item: MediaItem, loading: Boolean, onTap: () -> Unit) {
+@Composable fun SearchResultRow(item: MediaItem, loading: Boolean, onTap: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
+    val haptic = LocalHapticFeedback.current
+    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "searchResultSelectBg")
     Row(
-        Modifier.fillMaxWidth().clickable(enabled = !loading) { onTap() }.padding(vertical = 14.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(bg)
+            .combinedClickable(
+                enabled = !loading,
+                onClick = onTap,
+                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit() } },
+            )
+            .padding(horizontal = if (isSelected) 10.dp else 0.dp, vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Box(Modifier.width(84.dp).height(118.dp)) {
-            Cover(item, Modifier.fillMaxSize(), showStatus = true)
+            Cover(item, Modifier.fillMaxSize(), showStatus = true, selected = isSelected)
             if (item.score > 0) {
                 Row(
                     Modifier.align(Alignment.BottomStart).padding(6.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 6.dp, vertical = 3.dp),
@@ -630,7 +657,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
 
 // "You might like" — full grid of recommendations, with the user's status mark on each cover
 
-@Composable fun RecommendationsScreen(vm: LibraryViewModel, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
+@Composable fun RecommendationsScreen(vm: LibraryViewModel, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit, onEdit: (MediaItem) -> Unit = {}) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     BackHandler(onBack = onBack)
@@ -662,7 +689,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
                 }
             }
             items(vm.visibleRecommendations, key = { it.id }) { item ->
-                RecommendationGridCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] })
+                RecommendationGridCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit)
             }
             if (!vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -679,9 +706,15 @@ fun formatExact(n: Int): String = "%,d".format(n)
 }
 // Recommendations grid tile — mirrors SeasonalGridCard but marks the user's tracked status
 
-@Composable fun RecommendationGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null) {
+@Composable fun RecommendationGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null, onLongPress: ((MediaItem) -> Unit)? = null) {
     val c = LocalKikoColors.current
-    Column(Modifier.fillMaxWidth().clickable { onOpenDetail(item) }) {
+    val haptic = LocalHapticFeedback.current
+    Column(
+        Modifier.fillMaxWidth().combinedClickable(
+            onClick = { onOpenDetail(item) },
+            onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
+        )
+    ) {
         Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f), showStatus = true, overrideStatus = myStatus)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         if (item.score > 0) {
