@@ -1,6 +1,9 @@
 package com.kiko.tracker
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -50,10 +53,19 @@ private fun normalizeMangaFormat(malType: String) = when (malType.lowercase()) {
 // 2. https://myanimelist.net/people/{id} — that person's own page, whose "Published Manga"
 //    table lists every credited work with its title, cover, format, year, score, and member
 //    count baked directly into the HTML (one request, and titles are never blank the way a
-//    partially-indexed third-party API's can be).
+//    partially-indexed third-party API's can be). It does not carry genre/theme/demographic/
+//    source/rating data at all, so for manga we take the id straight out of each row's link
+//    and fetch that one work's own facet data via Tenrai (see enrichWithFacets) — the same
+//    "id in, that item's info out" step MalCompanyApi does for studio facets, just resolved
+//    per credited work instead of once for the whole page, since studio pages bake genre ids
+//    directly into each tile and person pages don't.
 class MalPeopleApi {
     private val client = OkHttpClient()
     private val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    // Only used to fill in genre/theme/demographic/source/rating data per credited manga
+    // (see enrichWithFacets below) — the author's own MAL page doesn't expose any of that,
+    // same reasoning MalCompanyApi documents for why it needs Tenrai's facet id maps.
+    private val tenrai = TenraiApi()
 
     private fun fetchDoc(url: String): Document {
         val request = Request.Builder().url(url).header("User-Agent", userAgent).build()
@@ -102,8 +114,39 @@ class MalPeopleApi {
             val tableClass = if (kind == "anime") "js-table-people-staff" else "js-table-people-manga"
             val rowClass = if (kind == "anime") "js-people-staff" else "js-people-manga"
             val table = doc.selectFirst("table.$tableClass") ?: return@runCatching emptyList()
-            table.select("tr.$rowClass").mapNotNull { row -> parseWorkRow(kind, row, creatorLabel.orEmpty(), allCreators) }
+            val rows = table.select("tr.$rowClass").mapNotNull { row -> parseWorkRow(kind, row, creatorLabel.orEmpty(), allCreators) }
+            // Same "we already have the id, just look up that item" approach as studio
+            // search's facet resolution, just per-row instead of per-page: the person page
+            // never carries genre/theme/demographic/source/rating data (see unknownFacets
+            // below), so each credited manga's id gets looked up individually to fill it in
+            // and make it actually filterable, instead of every advanced-filter check on
+            // these rows being silently skipped forever.
+            if (kind == "manga") enrichWithFacets(rows) else rows
         }.getOrElse { emptyList() }
+    }
+
+    // Fan out one facet lookup per credited work. Tenrai's own getRaw() throttles/retries
+    // concurrent requests, so this doesn't need its own rate limiting on top.
+    private suspend fun enrichWithFacets(items: List<MediaItem>): List<MediaItem> = coroutineScope {
+        items.map { item ->
+            async {
+                val malId = item.id.toIntOrNull()
+                val facets = malId?.let { runCatching { tenrai.fetchItemFacets("manga", it) }.getOrNull() }
+                if (facets == null) item else item.copy(
+                    genre = facets.genres.firstOrNull() ?: item.genre,
+                    genres = facets.genres,
+                    contentThemes = facets.contentThemes,
+                    demographics = facets.demographics,
+                    source = facets.source,
+                    rating = facets.rating,
+                    airStatus = facets.airStatus,
+                    // Lookup succeeded, so these facets are no longer unknown for this row —
+                    // if it failed, leave them flagged unknown so matches() still skips those
+                    // checks for this one item instead of wrongly treating it as a non-match.
+                    unknownFacets = item.unknownFacets - setOf("genres", "themes", "demographics", "source", "rating", "airingStatus"),
+                )
+            }
+        }.awaitAll()
     }
 
     // Convenience wrapper: name in, manga list out.

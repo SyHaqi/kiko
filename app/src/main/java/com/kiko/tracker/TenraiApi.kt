@@ -141,6 +141,20 @@ class TenraiApi {
         return (0 until arr.length()).map { parseJikanEntry(kind, arr.getJSONObject(it)) }
     }
 
+    // Fetch one item's full facet data (genres/themes/demographics/source/rating/airing
+    // status) by id. Used to enrich author/studio search rows that only carry a title +
+    // id from the page they were scraped off of — MalPeopleApi's person page lists format
+    // + year per credited work and nothing else, so this is the "we already have the id,
+    // just look that item up" fetch that fills in the rest, one request per credited work.
+    // Same throttled/retried getRaw() as every other Tenrai call, so fanning this out over
+    // a long credited-works list doesn't trip the 429 issue described above.
+    suspend fun fetchItemFacets(kind: String, malId: Int): MediaItem? = withContext(Dispatchers.IO) {
+        runCatching {
+            val obj = JSONObject(getRaw("$TENRAI/$kind/$malId")).optJSONObject("data") ?: return@runCatching null
+            parseJikanEntry(kind, obj)
+        }.getOrNull()
+    }
+
     // Fetch characters row for detail page
     suspend fun fetchCharacters(kind: String, malId: Int): List<CharacterEntry> = withContext(Dispatchers.IO) {
         runCatching {

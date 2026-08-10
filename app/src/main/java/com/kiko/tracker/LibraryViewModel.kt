@@ -332,8 +332,9 @@ class LibraryViewModel : ViewModel() {
     // lowercased/trimmed creator name — so re-applying Advanced Filters (genre, format,
     // year, ...) while the Studio/Author field stays the same doesn't re-scrape MAL; the
     // generic matches() filtering in visibleDiscoverResults just re-runs against this
-    // cached list instead. Lives for the process, same as the other "cached in this VM"
-    // state below (e.g. forumCategories) — no eviction needed at this scale.
+    // cached list instead. Cleared in exitDiscoverSearch() rather than living for the whole
+    // process — it only needs to survive re-filtering on the results page itself, and every
+    // studio/author ever searched otherwise sticks around in memory for the rest of the session.
     private val creatorSearchCache = mutableMapOf<Pair<MediaType, String>, List<MediaItem>>()
 
     // Home recommendations row
@@ -620,6 +621,12 @@ class LibraryViewModel : ViewModel() {
         discoverSearchJob?.cancel()
         discoverSuggestJob?.cancel(); discoverSuggestions = emptyList()
         discoverMode = DiscoverMode.Browse; discoverQuery = ""; discoverResults = emptyList(); discoverFilters = DiscoverFilters(); discoverError = null
+        // Drop the raw studio/author lookup cache here rather than letting it live for the
+        // whole process — it existed purely so re-applying filters *within* the same results
+        // page didn't re-scrape MAL. Once the person leaves the results page that reason is
+        // gone, and holding onto every studio/author they've ever searched for the rest of
+        // the session just grows unbounded for no benefit; the next search simply re-scrapes.
+        creatorSearchCache.clear()
     }
 
     // Forum browsing state hoisted
