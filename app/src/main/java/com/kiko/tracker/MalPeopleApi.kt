@@ -132,6 +132,13 @@ class MalPeopleApi {
         val score = row.selectFirst("span.score-val")?.text()?.toDoubleOrNull() ?: 0.0
         val members = row.selectFirst("div[class*=total-members]")?.text()
             ?.let { Regex("[\\d,]+").find(it)?.value?.replace(",", "")?.toIntOrNull() } ?: 0
+        // This row only ever carries format + year; genre/theme/demographic/source/rating/
+        // airing-status data isn't on the person's own page at all (see class doc above).
+        // Flagging that here — rather than leaving genres/etc. as a plain empty list — is
+        // what lets matches() tell "no data for this facet" apart from "known non-match",
+        // so an author search combined with e.g. a Genre filter still shows every one of
+        // this person's works instead of silently showing zero.
+        val unknownFacets = setOf("genres", "themes", "demographics", "source", "rating", "airingStatus")
         return MediaItem(
             id = id.toString(),
             title = title,
@@ -146,6 +153,7 @@ class MalPeopleApi {
             format = if (kind == "manga") normalizeMangaFormat(format) else format,
             nsfw = "white",
             inUserList = false,
+            unknownFacets = unknownFacets,
         )
     }
 }

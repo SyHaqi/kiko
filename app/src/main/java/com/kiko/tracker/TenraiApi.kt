@@ -86,6 +86,41 @@ class TenraiApi {
         return names.mapNotNull { map[it.lowercase()] }
     }
 
+    // Id -> name, one map per facet (kept separate rather than merged like genreNameMap
+    // above, since a caller translating ids back to names needs to know *which* bucket —
+    // genre vs theme vs demographic — each id belongs in, not just that it resolves to
+    // something). Used by MalCompanyApi to turn a studio page's data-genre="1,2,50" ids
+    // into filterable names; this is a small, static reference lookup (~150 rows, cached
+    // once), not a search — MalCompanyApi still scrapes MAL directly for the actual anime
+    // list rather than going through Tenrai's own search/ranking endpoints.
+    data class FacetIdMaps(val genres: Map<Int, String>, val explicitGenres: Map<Int, String>, val themes: Map<Int, String>, val demographics: Map<Int, String>)
+    private object IdCache { val byKind = mutableMapOf<String, FacetIdMaps>() }
+
+    suspend fun facetIdMaps(kind: String): FacetIdMaps {
+        IdCache.byKind[kind]?.let { return it }
+        val result = withContext(Dispatchers.IO) {
+            coroutineScope {
+                val g = async { runCatching { fetchGenreFacetById(kind, "genres") }.getOrElse { emptyMap() } }
+                val eg = async { runCatching { fetchGenreFacetById(kind, "explicit_genres") }.getOrElse { emptyMap() } }
+                val th = async { runCatching { fetchGenreFacetById(kind, "themes") }.getOrElse { emptyMap() } }
+                val dm = async { runCatching { fetchGenreFacetById(kind, "demographics") }.getOrElse { emptyMap() } }
+                FacetIdMaps(g.await(), eg.await(), th.await(), dm.await())
+            }
+        }
+        IdCache.byKind[kind] = result
+        return result
+    }
+
+    private suspend fun fetchGenreFacetById(kind: String, facet: String): Map<Int, String> {
+        val body = getRaw("$TENRAI/genres/$kind?filter=$facet")
+        val arr = JSONObject(body).optJSONArray("data") ?: return emptyMap()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.getJSONObject(i)
+            val name = o.optString("name").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            o.optInt("mal_id") to name
+        }.toMap()
+    }
+
     // Build broad candidate pool
     suspend fun searchByGenreIds(kind: String, ids: List<Int>, pages: Int = 2, limit: Int = 50, includeAdult: Boolean): List<MediaItem> {
         if (ids.isEmpty()) return emptyList()

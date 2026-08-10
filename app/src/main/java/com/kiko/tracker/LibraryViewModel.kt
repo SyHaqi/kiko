@@ -328,6 +328,13 @@ class LibraryViewModel : ViewModel() {
     // just plain title strings the user can tap to fill/submit the search, no thumbnails
     var discoverSuggestions by mutableStateOf<List<String>>(emptyList()); private set
     private var discoverSuggestJob: kotlinx.coroutines.Job? = null
+    // Raw (pre-filter) results from the last studio/author lookup, keyed by media type +
+    // lowercased/trimmed creator name — so re-applying Advanced Filters (genre, format,
+    // year, ...) while the Studio/Author field stays the same doesn't re-scrape MAL; the
+    // generic matches() filtering in visibleDiscoverResults just re-runs against this
+    // cached list instead. Lives for the process, same as the other "cached in this VM"
+    // state below (e.g. forumCategories) — no eviction needed at this scale.
+    private val creatorSearchCache = mutableMapOf<Pair<MediaType, String>, List<MediaItem>>()
 
     // Home recommendations row
     var recommendations by mutableStateOf<List<MediaItem>>(emptyList()); private set
@@ -513,44 +520,57 @@ class LibraryViewModel : ViewModel() {
             val api = MalApi(context)
             runCatching {
                 val results =
-                // Manga/novel author search: resolve the typed name to a MAL person id by
-                // searching MAL's own People page directly, then scrape that person's own
-                // MAL page for their full credited-works list — two requests total, both
-                // straight to myanimelist.net, no third-party API involved (see
-                // MalPeopleApi for details). Anime studio search still uses the
-                // ranking-pool + client-filter approach below, since that path already
-                // works well for producers/studios.
+                // Studio (anime) / author (manga) search: resolve the typed name to a MAL
+                // company or person id by searching MAL's own search page directly, then
+                // scrape that studio's/person's own MAL page for their full catalog of
+                // credited works — two requests total, both straight to myanimelist.net,
+                // no Tenrai/third-party API involved (see MalCompanyApi/MalPeopleApi).
+                // Raw (pre-filter) results are cached per name+type in creatorSearchCache,
+                // so re-applying filters (Advanced Filters "Apply", changing genre/format/
+                // etc.) with the same creator doesn't re-scrape MAL — matches() below just
+                // re-filters the cached list, same as every other search path already does.
                 //
                 // This has to be checked *before* the plain-text query branch below, not
-                // after: whenever someone types the author's name into the main search bar
-                // (the natural thing to do) `query` is non-blank, so with the original
-                // ordering that branch always won and this one — the one that actually
-                // resolves the author and pulls their full works list — never ran at all.
-                // The MalPeopleApi lookup underneath it isn't the search itself; the search
-                    // is choosing to call it in the first place.
-                    if (filters.creator.isNotBlank() && t != MediaType.Anime) {
-                        val malPeople = MalPeopleApi()
-                        val authorResults = runCatching {
-                            val personId = malPeople.searchPerson(filters.creator)
-                            // Note: the scraped person page doesn't expose genre tags, so NSFW
-                            // (Hentai) filtering via nsfwFiltered() downstream can't catch an
-                            // adult work here the way it can for results from other search paths.
-                            if (personId == null) emptyList() else malPeople.fetchCreditedWorks("manga", personId, filters.creator)
-                        }.getOrElse { emptyList() }
-                        // When browsing "All" types with a creator filter, also pull in the old
-                        // anime ranking-pool results so studio matches aren't dropped entirely.
-                        val animePool = if (t == null) coroutineScope {
-                            listOf("all", "bypopularity", "favorite").map { rankType -> async { api.ranking(MediaType.Anime, rankType, limit = 500) } }.awaitAll().flatten()
-                        } else emptyList()
-                        // Fall back to the old manga ranking-pool approach (filtered client-side by
-                        // matches()) if we couldn't resolve the author or the scrape came back
-                        // empty, so a lookup failure still shows something instead of a blank screen.
-                        val mangaPool = if (authorResults.isNotEmpty()) authorResults else coroutineScope {
-                            listOf("all", "bypopularity", "favorite", "manga", "novels", "oneshots", "doujin", "manhwa", "manhua").map { rankType ->
-                                async { api.ranking(MediaType.Manga, rankType, limit = 500) }
-                            }.awaitAll().flatten()
+                // after: whenever someone types the studio/author's name into the main
+                // search bar (the natural thing to do) `query` is non-blank, so with the
+                // original ordering that branch always won and this one — the one that
+                // actually resolves the creator and pulls their full works list — never ran
+                // at all. The scrape underneath it isn't the search itself; the search is
+                    // choosing to call it in the first place.
+                    if (filters.creator.isNotBlank()) {
+                        val creatorKey = filters.creator.trim().lowercase()
+                        val animeResults = if (t == MediaType.Manga) emptyList() else creatorSearchCache.getOrPut(MediaType.Anime to creatorKey) {
+                            val malCompany = MalCompanyApi()
+                            val studioResults = runCatching {
+                                val companyId = malCompany.searchCompany(filters.creator)
+                                if (companyId == null) emptyList() else malCompany.fetchWorks(companyId, filters.creator)
+                            }.getOrElse { emptyList() }
+                            // Fall back to the old ranking-pool approach (filtered client-side
+                            // by matches()) only if we couldn't resolve the studio at all, so a
+                            // lookup failure still shows something instead of a blank screen.
+                            studioResults.ifEmpty {
+                                coroutineScope {
+                                    listOf("all", "bypopularity", "favorite").map { rankType -> async { api.ranking(MediaType.Anime, rankType, limit = 500) } }
+                                }.awaitAll().flatten()
+                            }
                         }
-                        (mangaPool + animePool).distinctBy { it.id }
+                        val mangaResults = if (t == MediaType.Anime) emptyList() else creatorSearchCache.getOrPut(MediaType.Manga to creatorKey) {
+                            val malPeople = MalPeopleApi()
+                            val authorResults = runCatching {
+                                val personId = malPeople.searchPerson(filters.creator)
+                                if (personId == null) emptyList() else malPeople.fetchCreditedWorks("manga", personId, filters.creator)
+                            }.getOrElse { emptyList() }
+                            // Same reasoning: fall back to the old manga ranking-pool approach
+                            // only when the author couldn't be resolved / had nothing credited.
+                            authorResults.ifEmpty {
+                                coroutineScope {
+                                    listOf("all", "bypopularity", "favorite", "manga", "novels", "oneshots", "doujin", "manhwa", "manhua").map { rankType ->
+                                        async { api.ranking(MediaType.Manga, rankType, limit = 500) }
+                                    }
+                                }.awaitAll().flatten()
+                            }
+                        }
+                        (animeResults + mangaResults).distinctBy { it.id to it.type }
                     }
                     else if (query.isNotBlank()) api.search(query, t)
                     // Search via Tenrai filters

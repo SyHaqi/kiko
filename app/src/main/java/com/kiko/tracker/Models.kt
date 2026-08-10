@@ -195,6 +195,14 @@ data class MediaItem(
     val nsfw: String = "white",
     // Is title tracked?
     val inUserList: Boolean = true,
+    // Facet names (matching DiscoverFilters field names below, e.g. "genres", "source")
+    // this item simply has no data for — because it came from a scrape that doesn't expose
+    // that facet (e.g. MalPeopleApi's author page has no genre tags, MalCompanyApi's studio
+    // page has no source/rating/airing status) rather than the item genuinely having none.
+    // matches() skips those specific checks instead of treating "no data" as "no match",
+    // which previously made an active genre/theme/etc. filter wipe out every author-search
+    // result outright even when every one of them was a perfectly good match.
+    val unknownFacets: Set<String> = emptySet(),
 )
 // Is title NSFW?
 
@@ -274,18 +282,19 @@ fun airingBucket(raw: String): String = when {
 }
 
 fun MediaItem.matches(f: DiscoverFilters): Boolean {
-    if (f.genres.isNotEmpty() && genres.none { g -> f.genres.any { it.equals(g, ignoreCase = true) } }) return false
-    if (f.themes.isNotEmpty() && contentThemes.none { t -> f.themes.any { it.equals(t, ignoreCase = true) } }) return false
-    if (f.demographics.isNotEmpty() && demographics.none { d -> f.demographics.any { it.equals(d, ignoreCase = true) } }) return false
+    if (f.genres.isNotEmpty() && "genres" !in unknownFacets && genres.none { g -> f.genres.any { it.equals(g, ignoreCase = true) } }) return false
+    if (f.themes.isNotEmpty() && "themes" !in unknownFacets && contentThemes.none { t -> f.themes.any { it.equals(t, ignoreCase = true) } }) return false
+    if (f.demographics.isNotEmpty() && "demographics" !in unknownFacets && demographics.none { d -> f.demographics.any { it.equals(d, ignoreCase = true) } }) return false
     // Studio for anime, author for manga — check every credited name, not just the
     // first-listed one (e.g. an illustrator credited alongside a separate writer).
+    // Always available for studio/author search results, so no unknownFacets gate here.
     if (f.creator.isNotBlank() && allCreators.split(",").map { it.trim() }.none { it.contains(f.creator, ignoreCase = true) }) return false
-    if (f.source.isNotBlank() && !source.equals(f.source, ignoreCase = true)) return false
+    if (f.source.isNotBlank() && "source" !in unknownFacets && !source.equals(f.source, ignoreCase = true)) return false
     if (f.year.isNotBlank() && startDate != f.year) return false
     if (f.season != null && !season.equals(f.season.label, ignoreCase = true)) return false
-    if (f.rating.isNotBlank() && !rating.equals(f.rating, ignoreCase = true)) return false
+    if (f.rating.isNotBlank() && "rating" !in unknownFacets && !rating.equals(f.rating, ignoreCase = true)) return false
     if (f.format.isNotBlank() && !format.equals(f.format, ignoreCase = true)) return false
-    if (f.airingStatus.isNotBlank() && airingBucket(airStatus) != f.airingStatus) return false
+    if (f.airingStatus.isNotBlank() && "airingStatus" !in unknownFacets && airingBucket(airStatus) != f.airingStatus) return false
     return true
 }
 // Full genre taxonomy
