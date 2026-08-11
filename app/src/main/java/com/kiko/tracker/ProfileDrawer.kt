@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -98,7 +99,7 @@ import kotlinx.coroutines.delay
                 ) {
                     // Row 1 — avatar + name, opens the full profile stats page
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp))
                             .clickable { visible = false; onOpenProfile() }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -120,7 +121,7 @@ import kotlinx.coroutines.delay
 
                     // Row 2 — Settings, opens the full settings page
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp))
                             .clickable { visible = false; onOpenSettings() }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

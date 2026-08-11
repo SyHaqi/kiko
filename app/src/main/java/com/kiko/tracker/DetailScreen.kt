@@ -36,6 +36,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -366,7 +367,7 @@ import kotlin.math.roundToInt
                     // Community rank/popularity stats
                     if (item.rank > 0 || item.popularity > 0 || item.listUsers > 0) {
                         Text("Statistics", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 28.dp, bottom = 10.dp))
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Row(Modifier.fillMaxWidth().padding(vertical = 20.dp)) {
                                 if (item.rank > 0) StatBlock(Modifier.weight(1f), "#${item.rank}", "Rank")
                                 if (item.popularity > 0) StatBlock(Modifier.weight(1f), "#${item.popularity}", "Popularity")
@@ -390,7 +391,7 @@ import kotlin.math.roundToInt
                     }
                     if (details.isNotEmpty()) {
                         Text("Details", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                 details.forEachIndexed { i, (label, value) ->
                                     val isCreatorRow = (label == "Studio" || label == "Author") && item.creator.isNotBlank()
@@ -403,7 +404,7 @@ import kotlin.math.roundToInt
 
                     if (item.synonyms.isNotEmpty()) {
                         Text("Alternative titles", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             SelectionContainer {
                                 Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                     item.synonyms.forEachIndexed { i, name ->
@@ -431,7 +432,7 @@ import kotlin.math.roundToInt
                     val themes = openingThemes.map { "OP" to it } + endingThemes.map { "ED" to it }
                     if (themes.isNotEmpty()) {
                         Text("Theme songs", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                 themes.forEachIndexed { i, (kind, text) ->
                                     Row(
@@ -488,7 +489,7 @@ import kotlin.math.roundToInt
                     // Reuse status bar styling
                     statusDistribution?.takeIf { it.total > 0 }?.let { dist ->
                         Text("Status distribution", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
                                 StatBar("Watching", dist.watching, dist.total, c, statusColor("Watching"))
                                 StatBar("Completed", dist.completed, dist.total, c, statusColor("Completed"))
@@ -590,7 +591,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 ) {
     val c = LocalKikoColors.current
     Column(
-        Modifier.width(140.dp).clip(RoundedCornerShape(18.dp)).background(c.surface)
+        Modifier.width(140.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp))
             .let { m -> onClick?.let { m.clickable(enabled = !loading, onClick = it) } ?: m },
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)).background(c.surfaceLow)) {
@@ -631,7 +632,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 @Composable fun PersonCard(imageUrl: String, fallbackLetter: String, name: String, role: String, onClick: (() -> Unit)?) {
     val c = LocalKikoColors.current
     Column(
-        Modifier.width(88.dp).clip(RoundedCornerShape(14.dp)).background(c.surface)
+        Modifier.width(88.dp).clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(14.dp))
             .let { m -> onClick?.let { m.clickable(onClick = it) } ?: m },
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(3f / 4f).clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)).background(c.surfaceLow)) {
@@ -662,7 +663,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 @Composable fun ReviewCard(entry: ReviewEntry, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Column(
-        Modifier.width(260.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).clickable(onClick = onClick).padding(14.dp),
+        Modifier.width(260.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (entry.userImage.isNotBlank()) {
@@ -782,7 +783,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 
             Text(if (item.type == MediaType.Anime) "Episodes watched" else "Chapters read", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
             Row(
-                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).padding(horizontal = 6.dp),
+                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp)).padding(horizontal = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -818,7 +819,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 
             Text(rewatchWord, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
             Row(
-                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).padding(horizontal = 16.dp, vertical = 4.dp),
+                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -826,7 +827,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
                 Switch(checked = rewatching, onCheckedChange = { rewatching = it }, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary))
             }
             Row(
-                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).padding(horizontal = 6.dp),
+                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp)).padding(horizontal = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -841,7 +842,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
                 placeholder = { Text("Comma separated, e.g. comfort watch, rewatch", color = c.muted) },
                 minLines = 3, maxLines = 6,
                 shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = Color.Transparent, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.cardBorder, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
                 modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
             )
 
@@ -851,7 +852,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
                 placeholder = { Text("Write a note about this entry", color = c.muted) },
                 minLines = 3, maxLines = 6,
                 shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = Color.Transparent, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.cardBorder, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
                 modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
             )
         }
@@ -865,7 +866,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     Column(modifier) {
         Text(label, color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).clickable { showPicker = true }.padding(horizontal = 14.dp, vertical = 13.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(14.dp)).clickable { showPicker = true }.padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {

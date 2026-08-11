@@ -269,7 +269,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
             }
         },
         singleLine = true, shape = RoundedCornerShape(18.dp),
-        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = Color.Transparent, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.cardBorder, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
         keyboardOptions = KeyboardOptions(imeAction = if (onSearch != null) ImeAction.Search else ImeAction.Default),
         keyboardActions = KeyboardActions(onSearch = { onSearch?.invoke(); keyboard?.hide() }),
         modifier = Modifier.fillMaxWidth(),
@@ -283,7 +283,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     val c = LocalKikoColors.current
     if (suggestions.isEmpty()) return
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp)),
     ) {
         suggestions.forEachIndexed { index, title ->
             Row(

@@ -38,6 +38,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -223,7 +224,7 @@ import kotlin.math.roundToInt
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
     val time = item.localBroadcast()?.second
-    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = c.surface), elevation = CardDefaults.cardElevation(4.dp), modifier = Modifier.width(264.dp).clickable { onOpenDetail(item) }) {
+    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), elevation = CardDefaults.cardElevation(4.dp), modifier = Modifier.width(264.dp).clickable { onOpenDetail(item) }) {
         Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
             Cover(item, Modifier.size(width = 78.dp, height = 110.dp), showStatus = true)
             Column(Modifier.weight(1f).padding(start = 13.dp)) {
@@ -266,7 +267,7 @@ import kotlin.math.roundToInt
     val c = LocalKikoColors.current
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = c.surface),
+        colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
         elevation = CardDefaults.cardElevation(2.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
@@ -350,7 +351,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
-            Modifier.clip(RoundedCornerShape(12.dp)).background(c.surface).clickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+            Modifier.clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(12.dp)).clickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Sort, "Sort", tint = c.primary, modifier = Modifier.size(16.dp))
@@ -373,7 +374,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box(modifier) {
         Row(
-            Modifier.clip(RoundedCornerShape(12.dp)).background(c.surface).clickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+            Modifier.clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(12.dp)).clickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Sort, "Sort", tint = c.primary, modifier = Modifier.size(16.dp))

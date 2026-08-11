@@ -10,6 +10,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -218,7 +220,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                         if (full.access.isNotBlank()) Pill(full.access, c.surfaceLow, c.muted)
                     }
                     // Segmented tab switcher, matching the app's TypeToggle style
-                    Row(Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(16.dp)).background(c.surfaceLow).padding(4.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(16.dp)).background(c.surfaceLow).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp)).padding(4.dp)) {
                         ClubTab.entries.forEach { t ->
                             val selected = tab == t
                             Box(
@@ -258,7 +260,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
     }
     Column {
         if (club.description.isNotBlank()) {
-            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                 ForumBody(club.description, modifier = Modifier.padding(18.dp))
             }
             Spacer(Modifier.height(18.dp))
@@ -275,7 +277,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                     Text("Open club room")
                 }
             }
-            else -> Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+            else -> Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                 Column {
                     posts.forEachIndexed { index, post ->
                         Row(Modifier.fillMaxWidth().padding(14.dp)) {
@@ -308,7 +310,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
     when {
         loading && club.staff.isEmpty() -> Box(Modifier.fillMaxWidth().padding(top = 30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, modifier = Modifier.size(24.dp), strokeWidth = 2.dp) }
         club.staff.isEmpty() -> Text("No staff listed for this club.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
-        else -> Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+        else -> Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
             Column {
                 club.staff.forEachIndexed { index, staff ->
                     Row(Modifier.fillMaxWidth().clickable(enabled = staff.url.isNotBlank()) { onOpenBrowser(staff.url) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -351,7 +353,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
             error != null -> Text(error!!, color = c.danger, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
             members.isEmpty() -> Text("No members listed for this club.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
             else -> {
-                Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), modifier = Modifier.fillMaxWidth()) {
+                Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                     Column {
                         members.forEachIndexed { index, member ->
                             Row(Modifier.fillMaxWidth().clickable(enabled = member.url.isNotBlank()) { onOpenBrowser(member.url) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {

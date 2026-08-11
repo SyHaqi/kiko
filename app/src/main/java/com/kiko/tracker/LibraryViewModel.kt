@@ -241,6 +241,7 @@ class LibraryViewModel : ViewModel() {
     fun selectProfileStatsTab(type: MediaType) { profileStatsTab = type }
     // NSFW off by default
     var nsfwEnabled by mutableStateOf(false); private set
+    var amoledDark by mutableStateOf(false); private set
     // User profile stats
     var malProfile by mutableStateOf<MalProfile?>(null); private set
     var profileLoading by mutableStateOf(false); private set
@@ -409,6 +410,8 @@ class LibraryViewModel : ViewModel() {
     fun setListFilter(context: Context, filter: String) { listFilter = filter; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_filter", filter).apply() }
     fun loadNsfwPref(context: Context) { nsfwEnabled = settingsPrefs(context).getBoolean("nsfw_enabled", false) }
     fun setNsfw(context: Context, enabled: Boolean) { nsfwEnabled = enabled; settingsPrefs(context).edit().putBoolean("nsfw_enabled", enabled).apply() }
+    fun loadAmoledDark(context: Context) { amoledDark = settingsPrefs(context).getBoolean("amoled_dark", false) }
+    fun setAmoledDark(context: Context, enabled: Boolean) { amoledDark = enabled; settingsPrefs(context).edit().putBoolean("amoled_dark", enabled).apply() }
 
     // Load profile and stats
     fun loadProfile(context: Context) {

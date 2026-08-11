@@ -135,7 +135,10 @@ import kotlin.math.roundToInt
 data class KikoColors(
     val ink: Color, val onPrimary: Color, val primary: Color, val primaryContainer: Color,
     val background: Color, val surface: Color, val surfaceLow: Color, val muted: Color,
-    val lavender: Color, val warm: Color, val danger: Color
+    val lavender: Color, val warm: Color, val danger: Color,
+    // Outline for buttons/cards in AMOLED mode — transparent otherwise, so it's a no-op
+    // everywhere else and doesn't need to be threaded through every existing constructor
+    val cardBorder: Color = Color.Transparent
 )
 // MAL brand palette colors
 
@@ -152,6 +155,17 @@ val DarkKiko = KikoColors(
 )
 
 val LocalKikoColors = staticCompositionLocalOf { LightKiko }
+
+// True-black variant for AMOLED screens — flattens background/surface tones to pure
+// black so OLED pixels can switch off, while keeping accent/text colors untouched.
+// Also gives buttons/cards a hairline border in the same tone as the list separators,
+// so they stay visible against the pure-black background instead of blending into it.
+fun amoledify(colors: KikoColors): KikoColors = colors.copy(
+    background = Color.Black,
+    surface = Color(0xFF000000),
+    surfaceLow = Color(0xFF0A0A0A),
+    cardBorder = colors.muted.copy(alpha = .15f),
+)
 
 val AppFont = FontFamily.SansSerif
 
