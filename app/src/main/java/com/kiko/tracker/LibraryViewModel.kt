@@ -315,7 +315,12 @@ class LibraryViewModel : ViewModel() {
 
     // NSFW-filtered list surfaces
     val visibleItems get() = items.nsfwFiltered(nsfwEnabled)
-    val visibleDiscoverResults get() = discoverResults.nsfwFiltered(nsfwEnabled).filter { it.matches(discoverFilters) }.sortedForDiscover(discoverSort, titleLanguage, discoverQuery)
+    val visibleDiscoverResults: List<MediaItem> get() {
+        val myListKeys = items.mapTo(HashSet()) { it.id to it.type }
+        return discoverResults.nsfwFiltered(nsfwEnabled)
+            .filter { it.matches(discoverFilters, inMyList = (it.id to it.type) in myListKeys) }
+            .sortedForDiscover(discoverSort, titleLanguage, discoverQuery)
+    }
     val visibleDiscoverNewSeason get() = discoverNewSeason.nsfwFiltered(nsfwEnabled)
     val visibleDiscoverUpcoming get() = discoverUpcoming.nsfwFiltered(nsfwEnabled)
     val visibleRecommendations get() = recommendations.nsfwFiltered(nsfwEnabled)
