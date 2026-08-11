@@ -230,6 +230,19 @@ class LibraryViewModel : ViewModel() {
     var scoreFilterViewMode by mutableStateOf(ListViewMode.List); private set
     fun setScoreFilterViewMode(context: Context, mode: ListViewMode) { scoreFilterViewMode = mode; settingsPrefs(context).edit().putString("score_filter_view_mode", mode.name).apply() }
     fun loadScoreFilterViewMode(context: Context) { scoreFilterViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("score_filter_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
+    // Score distribution drill-down sort order — separate pref from list_sort above so
+    // changing one screen's sort doesn't affect the other's
+    var scoreFilterSort by mutableStateOf(ListSort.Score); private set
+    fun setScoreFilterSort(context: Context, sort: ListSort) { scoreFilterSort = sort; settingsPrefs(context).edit().putString("score_filter_sort", sort.name).apply() }
+    fun loadScoreFilterSort(context: Context) { scoreFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("score_filter_sort", ListSort.Score.name)!!) }.getOrDefault(ListSort.Score) }
+    // Year distribution drill-down view mode + sort — same pattern as the score filter
+    // screen's own prefs above, kept separate so the two drill-down screens don't share state
+    var yearFilterViewMode by mutableStateOf(ListViewMode.List); private set
+    fun setYearFilterViewMode(context: Context, mode: ListViewMode) { yearFilterViewMode = mode; settingsPrefs(context).edit().putString("year_filter_view_mode", mode.name).apply() }
+    fun loadYearFilterViewMode(context: Context) { yearFilterViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("year_filter_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
+    var yearFilterSort by mutableStateOf(ListSort.Title); private set
+    fun setYearFilterSort(context: Context, sort: ListSort) { yearFilterSort = sort; settingsPrefs(context).edit().putString("year_filter_sort", sort.name).apply() }
+    fun loadYearFilterSort(context: Context) { yearFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("year_filter_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
     // Profile stats page scroll — a single pixel offset since it's a plain
     // verticalScroll Column, not a LazyColumn with item indices
     var profileScrollOffset by mutableStateOf(0); private set

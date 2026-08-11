@@ -131,7 +131,7 @@ import java.util.UUID
 import kotlin.math.roundToInt
 
 // Full page for the profile drawer's "avatar + name" row — profile stats
-@Composable fun ProfileStatsScreen(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, onBack: () -> Unit, scrollOffset: Int = 0, onSaveScroll: (Int) -> Unit = {}, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }) {
+@Composable fun ProfileStatsScreen(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, onBack: () -> Unit, scrollOffset: Int = 0, onSaveScroll: (Int) -> Unit = {}, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> }) {
     val c = LocalKikoColors.current
     // Leaving the Profile page entirely: reset the Anime/Manga switcher and the
     // remembered scroll offset, so re-opening Profile always starts fresh at the top.
@@ -147,8 +147,7 @@ import kotlin.math.roundToInt
             Text(profile?.name?.ifBlank { "Profile" } ?: "Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         Box(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
-            ProfileStatsSection(connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange, onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) })
-        }
+            ProfileStatsSection(connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange, onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) }, onYearClick = { type, year -> onSaveScroll(scrollState.value); onYearClick(type, year) })        }
     }
 }
 
@@ -181,8 +180,7 @@ import kotlin.math.roundToInt
 
 // Profile header card + full anime/manga stats (used inside the profile drawer's
 // expandable "avatar + name" row). Ends with the score distribution chart.
-@Composable fun ProfileStatsSection(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }) {
-    val c = LocalKikoColors.current
+@Composable fun ProfileStatsSection(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> }) {    val c = LocalKikoColors.current
     val context = LocalContext.current
     Column {
         // Profile header with stats
@@ -297,7 +295,7 @@ import kotlin.math.roundToInt
                                     FormatBreakdownChart(animeItems, c)
                                     Spacer(Modifier.height(24.dp))
                                     Text("YEAR DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                                    YearDistributionChart(animeItems, c)
+                                    YearDistributionChart(animeItems, c, onYearClick = { onYearClick(MediaType.Anime, it) })
                                 }
                             } else {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -339,7 +337,7 @@ import kotlin.math.roundToInt
                                     FormatBreakdownChart(mangaItems, c)
                                     Spacer(Modifier.height(24.dp))
                                     Text("YEAR DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                                    YearDistributionChart(mangaItems, c)
+                                    YearDistributionChart(mangaItems, c, onYearClick = { onYearClick(MediaType.Manga, it) })
                                 }
                             }
                         }
@@ -424,8 +422,8 @@ import kotlin.math.roundToInt
     BackHandler(onBack = onBack)
     var score by remember { mutableStateOf(initialScore) }
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
-    val filtered = remember(typeItems, score) {
-        typeItems.filter { it.myRating > 0 && (score == 0 || it.myRating == score) }.sortedWith(compareByDescending<MediaItem> { it.myRating }.thenBy { it.title })
+    val filtered = remember(typeItems, score, vm.scoreFilterSort, vm.titleLanguage) {
+        typeItems.filter { it.myRating > 0 && (score == 0 || it.myRating == score) }.sortedWithListSort(vm.scoreFilterSort, vm.titleLanguage)
     }
     val isGrid = vm.scoreFilterViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
@@ -436,7 +434,10 @@ import kotlin.math.roundToInt
         ScoreFilterRow(score) { score = it }
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
-            ListViewModeToggle(vm.scoreFilterViewMode) { vm.setScoreFilterViewMode(context, it) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ListViewModeToggle(vm.scoreFilterViewMode) { vm.setScoreFilterViewMode(context, it) }
+                SortMenu(vm.scoreFilterSort) { vm.setScoreFilterSort(context, it) }
+            }
         }
     }
     if (isGrid) {
@@ -482,6 +483,73 @@ import kotlin.math.roundToInt
                 colors = colors,
             )
         }
+    }
+}
+// Opened by tapping a bar in the profile's year distribution chart.
+// Starts on the tapped year; the chip row lets the user switch to any other year that
+// appears in the list, or "All" titles with a known release year. Mirrors
+// ScoreFilterScreen above — same header/list/grid/sort shape, just filtered by release
+// year instead of score (and with no myRating requirement, since year distribution
+// isn't limited to rated titles).
+@Composable fun YearFilterScreen(vm: LibraryViewModel, type: MediaType, initialYear: Int, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    BackHandler(onBack = onBack)
+    var year by remember { mutableStateOf(initialYear) }
+    val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
+    // Same tolerant startDate parsing as YearDistributionChart, so the years offered
+    // here line up with the years the chart actually drew bars for.
+    fun releaseYear(item: MediaItem) = item.startDate.take(4).toIntOrNull()?.takeIf { it in 1900..2100 }
+    val years = remember(typeItems) { typeItems.mapNotNull(::releaseYear).distinct().sortedDescending() }
+    val filtered = remember(typeItems, year, vm.yearFilterSort, vm.titleLanguage) {
+        typeItems.filter { val y = releaseYear(it); y != null && (year == 0 || y == year) }.sortedWithListSort(vm.yearFilterSort, vm.titleLanguage)
+    }
+    val isGrid = vm.yearFilterViewMode == ListViewMode.Grid
+    val header: @Composable () -> Unit = {
+        Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            Text("Year Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+        }
+        YearFilterRow(years, year) { year = it }
+        Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ListViewModeToggle(vm.yearFilterViewMode) { vm.setYearFilterViewMode(context, it) }
+                SortMenu(vm.yearFilterSort) { vm.setYearFilterSort(context, it) }
+            }
+        }
+    }
+    if (isGrid) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
+            items(filtered, key = { it.id }) { item -> ListGridCard(item, onOpenDetail) }
+            if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+        }
+    } else {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            item { header() }
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
+                ListRow(it, onOpenDetail, showType = false)
+                if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+            }
+            if (filtered.isEmpty()) item { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+        }
+    }
+}
+// Year chip row: "All" plus every release year present in the list, most recent first
+
+@Composable fun YearFilterRow(years: List<Int>, current: Int, set: (Int) -> Unit) {
+    val c = LocalKikoColors.current
+    val colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
+        item { FilterChip(selected = current == 0, onClick = { set(0) }, label = { Text("All") }, colors = colors) }
+        items(years) { y -> FilterChip(selected = current == y, onClick = { set(y) }, label = { Text(y.toString()) }, colors = colors) }
     }
 }
 // App info page

@@ -402,7 +402,7 @@ fun scoreBarColor(c: KikoColors, score: Int): Color {
 
 val YearBarColor = Color(0xFF6C56D9) // fixed violet, unrelated to the user's chosen accent
 
-@Composable fun YearDistributionChart(items: List<MediaItem>, c: KikoColors) {
+@Composable fun YearDistributionChart(items: List<MediaItem>, c: KikoColors, onYearClick: ((Int) -> Unit)? = null) {
     // "Compatible with year": tolerate any startDate that begins with a plausible
     // 4-digit year (extra trailing text, non-numeric junk, blanks) rather than crashing
     // or silently dropping the item from the count.
@@ -416,7 +416,10 @@ val YearBarColor = Color(0xFF6C56D9) // fixed violet, unrelated to the user's ch
     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
         items(years, key = { it }) { year ->
             val count = counts[year] ?: 0
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(30.dp)) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.width(30.dp).let { m -> if (onYearClick != null && count > 0) m.clickable { onYearClick(year) } else m },
+            ) {
                 Text(if (count > 0) count.toString() else "", color = c.muted, fontSize = 9.sp)
                 Box(Modifier.fillMaxWidth().height(barSlotHeight), contentAlignment = Alignment.BottomCenter) {
                     Box(

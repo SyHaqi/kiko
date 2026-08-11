@@ -221,7 +221,7 @@ class MainActivity : ComponentActivity() {
         var crashText by mutableStateOf<String?>(if (crashFile.exists()) runCatching { crashFile.readText() }.getOrNull() else null)
         setContent {
             val vm: LibraryViewModel = viewModel()
-            LaunchedEffect(Unit) { vm.loadTheme(this@MainActivity); vm.loadColorSource(this@MainActivity); vm.loadPaletteStyle(this@MainActivity); vm.loadCustomColor(this@MainActivity); vm.loadTitleLanguage(this@MainActivity); vm.loadListFilter(this@MainActivity); vm.loadListSort(this@MainActivity); vm.loadListViewMode(this@MainActivity); vm.loadScoreFilterViewMode(this@MainActivity); vm.loadNsfwPref(this@MainActivity); vm.loadAmoledDark(this@MainActivity); vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity); vm.loadHomeExtras(this@MainActivity) }
+            LaunchedEffect(Unit) { vm.loadTheme(this@MainActivity); vm.loadColorSource(this@MainActivity); vm.loadPaletteStyle(this@MainActivity); vm.loadCustomColor(this@MainActivity); vm.loadTitleLanguage(this@MainActivity); vm.loadListFilter(this@MainActivity); vm.loadListSort(this@MainActivity); vm.loadListViewMode(this@MainActivity); vm.loadScoreFilterViewMode(this@MainActivity); vm.loadScoreFilterSort(this@MainActivity); vm.loadYearFilterViewMode(this@MainActivity); vm.loadYearFilterSort(this@MainActivity); vm.loadNsfwPref(this@MainActivity); vm.loadAmoledDark(this@MainActivity); vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity); vm.loadHomeExtras(this@MainActivity) }
             // Throttled background update check
             LaunchedEffect(Unit) {
                 vm.loadCachedUpdate(this@MainActivity)
