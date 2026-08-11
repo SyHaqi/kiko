@@ -438,9 +438,10 @@ import kotlin.math.roundToInt
             // an unrelated manga with the same numeric id) can produce two rows with the same
             // id. LazyColumn requires unique keys; a collision here throws mid-scroll/fling
             // ("Key ... was already used"), which is what the crash while scrolling was.
-            itemsIndexed(vm.visibleDiscoverResults, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
+            val resultsForList = vm.visibleDiscoverResults
+            itemsIndexed(resultsForList, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
                 SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type)
-                if (index < vm.visibleDiscoverResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
             }
             if (vm.discoverLoadingMore) {
                 item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }

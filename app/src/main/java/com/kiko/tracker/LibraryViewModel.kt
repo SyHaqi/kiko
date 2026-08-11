@@ -319,12 +319,19 @@ class LibraryViewModel : ViewModel() {
 
     // NSFW-filtered list surfaces
     val visibleItems get() = items.nsfwFiltered(nsfwEnabled)
-    val visibleDiscoverResults: List<MediaItem> get() {
+    // Cached via derivedStateOf: filtering the whole (growing, paginated) results list is
+    // read multiple times per recomposition (empty check, itemsIndexed, lastIndex), so this
+    // avoids redoing that work on every read. Deliberately does NOT re-sort discoverResults —
+    // it's already in the right order by construction (sorted once when a page is fetched/
+    // appended, see runDiscoverSearch/loadMoreTitleSearch/selectDiscoverSort). Re-sorting the
+    // whole accumulated list here on every append used to reshuffle rows already on screen
+    // whenever a newly-loaded page's items outranked one you'd already scrolled past.
+    private val visibleDiscoverResultsState by derivedStateOf {
         val myListKeys = items.mapTo(HashSet()) { it.id to it.type }
-        return discoverResults.nsfwFiltered(nsfwEnabled)
+        discoverResults.nsfwFiltered(nsfwEnabled)
             .filter { it.matches(discoverFilters, inMyList = (it.id to it.type) in myListKeys) }
-            .sortedForDiscover(discoverSort, titleLanguage, discoverQuery)
     }
+    val visibleDiscoverResults: List<MediaItem> get() = visibleDiscoverResultsState
     val visibleDiscoverNewSeason get() = discoverNewSeason.nsfwFiltered(nsfwEnabled)
     val visibleDiscoverUpcoming get() = discoverUpcoming.nsfwFiltered(nsfwEnabled)
     val visibleRecommendations get() = recommendations.nsfwFiltered(nsfwEnabled)
@@ -343,7 +350,7 @@ class LibraryViewModel : ViewModel() {
     var discoverResults by mutableStateOf<List<MediaItem>>(emptyList()); private set
     var discoverFilters by mutableStateOf(DiscoverFilters()); private set
     var discoverSort by mutableStateOf(DiscoverSort.Members); private set
-    fun selectDiscoverSort(sort: DiscoverSort) { discoverSort = sort }
+    fun selectDiscoverSort(sort: DiscoverSort) { discoverSort = sort; discoverResults = discoverResults.sortedForDiscover(sort, titleLanguage, discoverQuery) }
     var discoverSearching by mutableStateOf(false); private set
     var discoverError by mutableStateOf<String?>(null); private set
     var discoverHasMore by mutableStateOf(false); private set
@@ -685,8 +692,10 @@ class LibraryViewModel : ViewModel() {
                             rankTypes.map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
                         }.awaitAll().flatten()
                     }.distinctBy { it.id }
-                // Reconcile against user's library
+                // Reconcile against user's library, then establish the display order once,
+                // here, at fetch time — not reactively on every read (see visibleDiscoverResults).
                 results.map { candidate -> items.find { it.id == candidate.id && it.type == candidate.type } ?: candidate }
+                    .sortedForDiscover(discoverSort, titleLanguage, query)
             }
                 .onSuccess { discoverResults = it; discoverError = null }
                 .onFailure { discoverError = it.message ?: "Search failed"; discoverHasMore = false; discoverPaginationSource = DiscoverPaginationSource.None }
@@ -710,11 +719,20 @@ class LibraryViewModel : ViewModel() {
         discoverLoadMoreJob = viewModelScope.launch {
             discoverLoadingMore = true
             runCatching { api.search(discoverQuery, t, offset = discoverResults.size) }
-                // Reconcile against user's library. distinctBy guards against the same
-                // item appearing on two consecutive pages when MAL's own sort has ties at
-                // the page boundary — without it, a repeated id+type would hit the LazyColumn
-                // duplicate-key crash on scroll (see visibleDiscoverResults key in DiscoverScreen).
-                .onSuccess { page -> discoverResults = (discoverResults + page.items.map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }).distinctBy { it.id to it.type }; discoverHasMore = page.hasMore }
+                // Reconcile against user's library, then dedupe against what's already shown
+                // and sort only the newly-fetched items among themselves before appending.
+                // Never re-sorts the already-displayed prefix — that's what used to make rows
+                // already on screen jump position every time a new page landed.
+                .onSuccess { page ->
+                    val existingKeys = discoverResults.mapTo(HashSet()) { it.id to it.type }
+                    val newItems = page.items
+                        .map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }
+                        .filter { (it.id to it.type) !in existingKeys }
+                        .distinctBy { it.id to it.type }
+                        .sortedForDiscover(discoverSort, titleLanguage, discoverQuery)
+                    discoverResults = discoverResults + newItems
+                    discoverHasMore = page.hasMore
+                }
                 .onFailure { discoverHasMore = false }
             discoverLoadingMore = false
         }
@@ -728,9 +746,18 @@ class LibraryViewModel : ViewModel() {
             runCatching {
                 TenraiApi().searchFiltered(kind, id, jikanTypeParam(discoverFilters.format), jikanStatusParam(discoverFilters.airingStatus, kind), page = nextPage, limit = TENRAI_SEARCH_PAGE_LIMIT, includeAdult = nsfwEnabled)
             }
-                // Reconcile against user's library; distinctBy guards the same page-boundary
-                // duplicate scenario as loadMoreTitleSearch above.
-                .onSuccess { page -> discoverResults = (discoverResults + page.items.map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }).distinctBy { it.id to it.type }; discoverHasMore = page.hasMore }
+                // Same reasoning as loadMoreTitleSearch: sort only the new page, append after
+                // the already-displayed items instead of re-sorting the whole merged list.
+                .onSuccess { page ->
+                    val existingKeys = discoverResults.mapTo(HashSet()) { it.id to it.type }
+                    val newItems = page.items
+                        .map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }
+                        .filter { (it.id to it.type) !in existingKeys }
+                        .distinctBy { it.id to it.type }
+                        .sortedForDiscover(discoverSort, titleLanguage, discoverQuery)
+                    discoverResults = discoverResults + newItems
+                    discoverHasMore = page.hasMore
+                }
                 .onFailure { discoverHasMore = false }
             discoverLoadingMore = false
         }

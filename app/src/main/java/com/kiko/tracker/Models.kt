@@ -354,16 +354,22 @@ enum class DiscoverSort(val label: String) { Members("Members"), Score("Score"),
 // Collapse punctuation/symbols (e.g. the ★ in "Stardust★Wink") to spaces so title matching
 // isn't defeated by stylized titles; also lets "startsWith"/word-boundary checks line up.
 
-fun normalizeForTitleMatch(s: String) = s.lowercase().replace(Regex("[^a-z0-9]+"), " ").trim()
-// Match quality against a single candidate string, or null if no match at all
+// Compiled once at class-load instead of on every normalize call — this runs per title,
+// per synonym, per item, per sort, so a fresh Regex() here was a lot of avoidable
+// compilation work as the (paginated, ever-growing) results list got sorted repeatedly.
+private val nonAlnumRegex = Regex("[^a-z0-9]+")
+fun normalizeForTitleMatch(s: String) = s.lowercase().replace(nonAlnumRegex, " ").trim()
+// Match quality against a single candidate string, or null if no match at all.
+// wordBoundaryRegex is query-specific but identical across every candidate/item in a given
+// sort, so callers build it once and pass it in rather than recompiling per call.
 
-fun matchTier(candidate: String, q: String): Int? {
+fun matchTier(candidate: String, q: String, wordBoundaryRegex: Regex): Int? {
     val c = normalizeForTitleMatch(candidate)
     if (c.isBlank()) return null
     return when {
         c == q -> 0
         c.startsWith(q) -> 1
-        Regex("\\b" + Regex.escape(q) + "\\b").containsMatchIn(c) -> 2
+        wordBoundaryRegex.containsMatchIn(c) -> 2
         c.contains(q) -> 3
         else -> null
     }
@@ -372,12 +378,11 @@ fun matchTier(candidate: String, q: String): Int? {
 // matches (e.g. MAL lists "Demon Slayer" as a synonym of the unrelated anime "Onigiri" —
 // that shouldn't out-rank the real "Demon Slayer: Kimetsu no Yaiba" for that query).
 
-fun MediaItem.titleMatchRank(query: String): Int {
-    val q = normalizeForTitleMatch(query)
+fun MediaItem.titleMatchRank(q: String, wordBoundaryRegex: Regex): Int {
     if (q.isBlank()) return Int.MAX_VALUE
-    val primaryRank = listOf(title, titleEnglish).mapNotNull { matchTier(it, q) }.minOrNull()
+    val primaryRank = listOf(title, titleEnglish).mapNotNull { matchTier(it, q, wordBoundaryRegex) }.minOrNull()
     if (primaryRank != null) return primaryRank
-    val synonymRank = synonyms.mapNotNull { matchTier(it, q) }.minOrNull()
+    val synonymRank = synonyms.mapNotNull { matchTier(it, q, wordBoundaryRegex) }.minOrNull()
     return synonymRank?.plus(4) ?: 8
 }
 // Default blank query
@@ -389,7 +394,15 @@ fun List<MediaItem>.sortedForDiscover(sort: DiscoverSort, titleLanguage: TitleLa
         DiscoverSort.Newest -> compareByDescending { it.startDateFull.ifBlank { it.startDate } }
         DiscoverSort.Title -> compareBy { it.resolvedTitle(titleLanguage).lowercase() }
     }
-    return if (query.isBlank()) sortedWith(bySort) else sortedWith(compareBy<MediaItem> { it.titleMatchRank(query) }.then(bySort))
+    if (query.isBlank()) return sortedWith(bySort)
+    // Precompute each item's match rank once (O(n)) instead of inside the comparator, which
+    // a comparison sort invokes O(n log n) times — for n items that's a lot of redundant
+    // string-normalizing/regex work on every re-sort as more pages get appended.
+    val q = normalizeForTitleMatch(query)
+    val wordBoundaryRegex = Regex("\\b" + Regex.escape(q) + "\\b")
+    return map { it to it.titleMatchRank(q, wordBoundaryRegex) }
+        .sortedWith(compareBy<Pair<MediaItem, Int>> { it.second }.thenComparator { a, b -> bySort.compare(a.first, b.first) })
+        .map { it.first }
 }
 
 enum class ForumMode { Boards, Topics }
