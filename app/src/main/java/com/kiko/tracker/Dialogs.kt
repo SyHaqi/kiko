@@ -66,6 +66,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -170,6 +171,60 @@ import kotlin.math.roundToInt
                 }
             }
         },
+    )
+}
+
+// Themed replacement for the bare vm.error banner — every error in the app funnels
+// through here so it always reads as a proper Kiko dialog instead of an ad-hoc toast
+// or a stray line of red text.
+@Composable fun ErrorDialog(message: String, onDismiss: () -> Unit) {
+    val c = LocalKikoColors.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surface,
+        icon = { Icon(Icons.Default.ErrorOutline, null, tint = c.danger) },
+        title = { Text("Something went wrong", color = c.ink) },
+        text = { Text(message, color = c.muted, fontSize = 13.sp) },
+        confirmButton = { TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("OK") } },
+    )
+}
+
+// Shown once, right after a crash-and-relaunch (see MainActivity's uncaught-exception
+// handler). Gives the log itself in a scrollable monospace panel, plus three ways to get
+// it out of the phone: onto the clipboard, saved as a .txt, or straight into the Kiko
+// support server on Discord.
+@Composable fun CrashDialog(crashText: String, onDismiss: () -> Unit, onCopy: () -> Unit, onDownload: () -> Unit, onSendDiscord: () -> Unit) {
+    val c = LocalKikoColors.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surface,
+        icon = { Icon(Icons.Default.WarningAmber, null, tint = c.danger) },
+        title = { Text("Kiko crashed last time", color = c.ink) },
+        text = {
+            Column {
+                Text(
+                    "Here's what went wrong. Copy it, save it as a file, or send it straight to the support server.",
+                    color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp),
+                )
+                Box(
+                    Modifier
+                        .heightIn(max = 240.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(c.surfaceLow)
+                        .verticalScroll(rememberScrollState())
+                        .padding(12.dp),
+                ) {
+                    Text(crashText, color = c.ink, fontSize = 11.sp, lineHeight = 15.sp, fontFamily = FontFamily.Monospace)
+                }
+                Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    HomeActionButton(modifier = Modifier.weight(1f), label = "Copy", icon = Icons.Default.ContentCopy, onClick = onCopy)
+                    HomeActionButton(modifier = Modifier.weight(1f), label = "Save .txt", icon = Icons.Default.Download, onClick = onDownload)
+                    HomeActionButton(modifier = Modifier.weight(1f), label = "Discord", icon = Icons.AutoMirrored.Filled.Send, onClick = onSendDiscord)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("Dismiss") } },
     )
 }
 

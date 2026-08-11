@@ -251,17 +251,16 @@ class MainActivity : ComponentActivity() {
             // Shows once, right after a crash-and-relaunch, so the actual stack
             // trace is one tap away to copy/paste instead of needing adb.
             crashText?.let { text ->
-                AlertDialog(
-                    onDismissRequest = { crashText = null; crashFile.delete() },
-                    title = { Text("Kiko crashed last time") },
-                    text = { Text(text, fontSize = 11.sp, modifier = Modifier.verticalScroll(rememberScrollState())) },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Kiko crash log", text))
-                        }) { Text("Copy") }
+                CrashDialog(
+                    crashText = text,
+                    onDismiss = { crashText = null; crashFile.delete() },
+                    onCopy = { copyCrashLogToClipboard(this@MainActivity, text) },
+                    onDownload = {
+                        saveCrashLogToDownloads(this@MainActivity, text)
+                            .onSuccess { android.widget.Toast.makeText(this@MainActivity, "Saved to $it", android.widget.Toast.LENGTH_LONG).show() }
+                            .onFailure { android.widget.Toast.makeText(this@MainActivity, "Couldn't save the file — try Copy instead", android.widget.Toast.LENGTH_LONG).show() }
                     },
-                    dismissButton = { TextButton(onClick = { crashText = null; crashFile.delete() }) { Text("Dismiss") } },
+                    onSendDiscord = { shareCrashLogToDiscord(this@MainActivity, text) },
                 )
             }
         }

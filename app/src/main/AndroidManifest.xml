@@ -6,6 +6,9 @@
     <!-- Lets Kiko hand a freshly downloaded release APK straight to the system installer instead
          of only being able to point the person at a browser download. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Only used as a fallback for saving the crash log to the public Downloads folder on
+         API 26-28 devices; API 29+ writes there through MediaStore without needing this. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <application
         android:allowBackup="true"
         android:label="Kiko"

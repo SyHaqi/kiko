@@ -135,7 +135,7 @@ import kotlinx.coroutines.coroutineScope
 import java.util.UUID
 import kotlin.math.roundToInt
 
-@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onLocateInList: (MediaItem) -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit) {
+@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onLocateInList: (MediaItem) -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context); vm.loadHomeLatestStack(context) }
@@ -184,7 +184,7 @@ import kotlin.math.roundToInt
                     // Most recently updated in-progress title
                     active?.let { item ->
                         SectionTitle("Continue", "See list", onList)
-                        ContinueCard(item, onClick = { onLocateInList(item) })
+                        ContinueCard(item, onClick = { onLocateInList(item) }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
                     }
                     // Home recent news row
                     if (vm.newsSnapshots.isNotEmpty()) {
@@ -263,7 +263,7 @@ import kotlin.math.roundToInt
 // Tapping it jumps to the entry's spot in My List rather than opening its detail page —
 // "Continue" is meant as a shortcut back into the list, not a detail-page shortcut.
 
-@Composable fun ContinueCard(item: MediaItem, onClick: (MediaItem) -> Unit, modifier: Modifier = Modifier) {
+@Composable fun ContinueCard(item: MediaItem, onClick: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -271,7 +271,7 @@ import kotlin.math.roundToInt
         elevation = CardDefaults.cardElevation(2.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
-        ListRow(item, onClick, showType = false, modifier = Modifier.padding(horizontal = 14.dp))
+        ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, modifier = Modifier.padding(horizontal = 14.dp))
     }
 }
 // Pinterest-style snapshots layout
