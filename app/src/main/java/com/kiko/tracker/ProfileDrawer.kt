@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
@@ -58,13 +60,21 @@ import kotlinx.coroutines.delay
     LaunchedEffect(visible) { if (!visible) { delay(160); onDismiss() } }
 
     Dialog(onDismissRequest = { visible = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        // This Dialog is its own Android window, which isn't guaranteed to start at
+        // absolute screen (0,0) (system insets, dialog window margins, etc.) — so the
+        // anchor (now in absolute screen coordinates, see Avatar's positionOnScreen) has
+        // to be translated into this window's own local coordinates before it's usable
+        // for an offset inside it. Previously this used the raw anchor directly, which is
+        // what let the redrawn avatar land offset from the real one.
+        var dialogRootOnScreen by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+        BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { dialogRootOnScreen = it.positionOnScreen() }) {
             val screenWidthPx = with(density) { maxWidth.toPx() }
             // Fallback anchor (top-right, roughly where the avatar normally sits) in
             // case this ever opens before a real position was captured
-            val a = anchor ?: with(density) {
+            val rawAnchor = anchor ?: with(density) {
                 Rect(screenWidthPx - 20.dp.toPx() - 43.dp.toPx(), 56.dp.toPx(), screenWidthPx - 20.dp.toPx(), 56.dp.toPx() + 43.dp.toPx())
             }
+            val a = if (anchor != null) rawAnchor.translate(-dialogRootOnScreen.x, -dialogRootOnScreen.y) else rawAnchor
             val menuTopPad = with(density) { (a.bottom + 10.dp.toPx()).toDp() }
             val menuEndPad = with(density) { (screenWidthPx - a.right).coerceAtLeast(0f).toDp() }.coerceAtLeast(16.dp)
 

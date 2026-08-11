@@ -102,8 +102,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -369,14 +369,19 @@ fun statusColor(label: String): Color = when {
     label.startsWith("Drop", true) -> StatusDroppedColor
     else -> StatusPlanColor // Plan to watch
 }
-// Fallback avatar tile. Reports its own on-screen bounds (in window coordinates) to
-// onClick so callers can anchor a popup — like AvatarMenu — directly under it, even
-// though that popup is rendered elsewhere in the tree (see Navigation's profileMenuAnchor).
+// Fallback avatar tile. Reports its own true on-screen bounds to onClick so callers can
+// anchor a popup — like AvatarMenu — directly under it, even though that popup renders
+// in its own Dialog window elsewhere in the tree (see Navigation's profileMenuAnchor).
+// positionOnScreen() (absolute screen coordinates) is used rather than boundsInWindow()
+// (coordinates relative to *this* composable's own window) because AvatarMenu's Dialog is
+// a separate Android window with its own origin — window-relative coordinates from the
+// main activity window don't line up inside it, which is what caused the redrawn avatar
+// to appear offset from the real one instead of directly on top of it.
 
 @Composable fun Avatar(picture: String = "", name: String = "", onClick: ((Rect) -> Unit)? = null) {
     val c = LocalKikoColors.current
     var bounds by remember { mutableStateOf(Rect.Zero) }
-    val posMod = Modifier.onGloballyPositioned { bounds = it.boundsInWindow() }
+    val posMod = Modifier.onGloballyPositioned { val pos = it.positionOnScreen(); bounds = Rect(pos.x, pos.y, pos.x + it.size.width, pos.y + it.size.height) }
     val tapMod = if (onClick != null) Modifier.clickable { onClick(bounds) } else Modifier
     if (picture.isNotBlank()) {
         AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(RoundedCornerShape(16.dp)).background(c.warm).then(posMod).then(tapMod))
