@@ -323,6 +323,24 @@ val CommonRatings = listOf("G - All Ages", "PG - Children", "PG-13", "R - 17+ (v
 // Format filter options
 val CommonAnimeFormats = listOf("TV", "OVA", "Movie", "Special", "ONA", "Music")
 val CommonMangaFormats = listOf("Manga", "Novel", "Light Novel", "One Shot", "Doujinshi", "Manhwa", "Manhua", "OEL")
+// App format label -> Jikan/MAL `type` search param, so a single-tag Discover search can
+// have MAL filter by format server-side instead of only after the fact client-side.
+// Returns null for a format Jikan's `type` filter doesn't recognize (falls back to
+// client-side matches() filtering only).
+fun jikanTypeParam(format: String): String? = when (format) {
+    "TV" -> "tv"; "OVA" -> "ova"; "Movie" -> "movie"; "Special" -> "special"; "ONA" -> "ona"; "Music" -> "music"
+    "Manga" -> "manga"; "Novel" -> "novel"; "Light Novel" -> "lightnovel"; "One Shot" -> "oneshot"
+    "Doujinshi" -> "doujinshi"; "Manhwa" -> "manhwa"; "Manhua" -> "manhua"; "OEL" -> "oel"
+    else -> null
+}
+// App airing-status bucket -> Jikan `status` search param. Anime and manga use different
+// vocab for the "ongoing" bucket (airing vs publishing), so kind ("anime"/"manga") matters.
+fun jikanStatusParam(bucket: String, kind: String): String? = when (bucket) {
+    "Ongoing" -> if (kind == "anime") "airing" else "publishing"
+    "Finished" -> "complete"
+    "Upcoming" -> "upcoming"
+    else -> null
+}
 // Format switches media type
 
 fun resolvedDiscoverType(format: String, fallback: String): String = when {

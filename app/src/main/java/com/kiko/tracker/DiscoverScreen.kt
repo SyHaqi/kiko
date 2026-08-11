@@ -384,6 +384,18 @@ import kotlin.math.roundToInt
     // the suggestions list directly under the search bar regardless of scroll position
     var containerBounds by remember { mutableStateOf<Rect?>(null) }
     var searchBarBounds by remember { mutableStateOf<Rect?>(null) }
+    // Load the next page only once the person has actually scrolled to the true end of what's
+    // currently loaded (not a few items early) — that way there's no result-list mutation while
+    // a fling is still carrying them past earlier items, and the spinner row is what they land on
+    // before the next page's items ever appear, rather than more being fetched invisibly ahead of
+    // where they are. Still only fires when results are really still paginated server-side (see
+    // DiscoverPaginationSource/discoverHasMore) — for studio/author, multi-tag, and ranking-chart
+    // results the list has already ended, so this stays a no-op there.
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
+            .distinctUntilChanged()
+            .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 1) vm.loadMoreDiscoverSearch(context) }
+    }
     Box(Modifier.fillMaxSize().onGloballyPositioned { containerBounds = it.boundsInRoot() }) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
@@ -421,9 +433,17 @@ import kotlin.math.roundToInt
                 val emptyMessage = if (vm.discoverQuery.isBlank()) "No results match your filters." else "No results for \"${vm.discoverQuery}\"."
                 item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
             }
-            itemsIndexed(vm.visibleDiscoverResults, key = { _, it -> it.id }) { index, result ->
+            // Keyed by id+type together, not id alone — anime and manga are separate MAL id
+            // spaces, so a search that mixes both kinds (e.g. "stein" matching an anime and
+            // an unrelated manga with the same numeric id) can produce two rows with the same
+            // id. LazyColumn requires unique keys; a collision here throws mid-scroll/fling
+            // ("Key ... was already used"), which is what the crash while scrolling was.
+            itemsIndexed(vm.visibleDiscoverResults, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
                 SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type)
                 if (index < vm.visibleDiscoverResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+            }
+            if (vm.discoverLoadingMore) {
+                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
             }
         }
         GoToTopButton(

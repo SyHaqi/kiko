@@ -54,6 +54,7 @@ data class RecommendedEntry(val malId: Int, val title: String, val cover: String
 
 // One season chart page
 data class SeasonalPage(val items: List<MediaItem>, val hasMore: Boolean)
+data class SearchPage(val items: List<MediaItem>, val hasMore: Boolean)
 
 // Forum subboard entry
 data class ForumSubboard(val id: Int, val title: String)
@@ -179,10 +180,15 @@ class MalApi(private val context: Context) {
     }
 
     // Search anime and manga
-    suspend fun search(query: String, type: MediaType?): List<MediaItem> = withContext(Dispatchers.IO) {
-        if (query.isBlank()) return@withContext emptyList()
-        if (type == null) return@withContext listOf(searchKind(query, "anime"), searchKind(query, "manga")).flatten()
-        searchKind(query, if (type == MediaType.Anime) "anime" else "manga")
+    suspend fun search(query: String, type: MediaType?, offset: Int = 0): SearchPage = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext SearchPage(emptyList(), false)
+        if (type == null) {
+            // Merges both kinds' first page; pagination across two independently-paged
+            // kinds isn't well-defined here, so "more" just means either kind has more.
+            val pages = listOf(searchKind(query, "anime", offset), searchKind(query, "manga", offset))
+            return@withContext SearchPage(pages.flatMap { it.items }, pages.any { it.hasMore })
+        }
+        searchKind(query, if (type == MediaType.Anime) "anime" else "manga", offset)
     }
 
     // Lightweight title-only lookup for search-bar suggestions as the user types.
@@ -409,11 +415,15 @@ class MalApi(private val context: Context) {
         return "$common,$kindSpecific"
     }
 
-    private suspend fun searchKind(query: String, kind: String): List<MediaItem> = withContext(Dispatchers.IO) {
+    private suspend fun searchKind(query: String, kind: String, offset: Int = 0): SearchPage = withContext(Dispatchers.IO) {
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val body = authorized { get("$API/$kind?q=$encoded&limit=25&nsfw=true&fields=${browseFields(kind)}") }
-        val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
-        (0 until arr.length()).map { parseEntry(kind, arr.getJSONObject(it)) }
+        // Small page size so Discover's title search loads in short bursts on scroll,
+        // same as the Tenrai-filtered path (see TENRAI_SEARCH_PAGE_LIMIT).
+        val body = authorized { get("$API/$kind?q=$encoded&limit=10&offset=$offset&nsfw=true&fields=${browseFields(kind)}") }
+        val json = JSONObject(body)
+        val arr = json.optJSONArray("data") ?: return@withContext SearchPage(emptyList(), false)
+        val items = (0 until arr.length()).map { parseEntry(kind, arr.getJSONObject(it)) }
+        SearchPage(items, json.optJSONObject("paging")?.has("next") == true)
     }
 
     // Compute current MAL season

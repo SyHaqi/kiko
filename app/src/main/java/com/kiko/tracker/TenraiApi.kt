@@ -15,6 +15,8 @@ import java.io.IOException
 
 private const val TENRAI = "https://api.tenrai.org/v1"
 
+data class TenraiPage(val items: List<MediaItem>, val hasMore: Boolean)
+
 // Tenrai/Jikan rate-limits to a few requests per second. Requests that get fired
 // faster than that come back 429 and were previously swallowed silently by the
 // callers below (getOrNull/getOrElse), which is why an author search — which fans
@@ -139,6 +141,33 @@ class TenraiApi {
         val body = getRaw(url)
         val arr = JSONObject(body).optJSONArray("data") ?: return emptyList()
         return (0 until arr.length()).map { parseJikanEntry(kind, arr.getJSONObject(it)) }
+    }
+
+    // Single genre/theme/demographic id search, with format ("type") and airing/publish
+    // status filtered server-side by MAL's own search — same as searchByGenreIds's single
+    // page, but returns the real has_next_page flag so the results (and their count) line
+    // up with what the person sees searching that same tag on the MAL website, rather than
+    // a fixed members-sorted candidate pool that silently drops anything outside it.
+    //
+    // has_next_page itself isn't fully trustworthy though: MAL's own search backend is
+    // known to under-report pagination once multiple filters are ANDed together (genre +
+    // type + status, same shape as a "villainess" + "manhwa" + "finished" search) — see
+    // jikan-me/jikan#273, where a genre-filtered search reported only one page of results
+    // when the real total spanned dozens. A page that comes back full (== limit items) is
+    // a far stronger "there's probably more" signal than a `has_next_page: false` flag is a
+    // "there isn't" one, so a full page keeps hasMore true regardless of what the flag says;
+    // only a genuinely short/empty page is trusted to mean we've reached the real end.
+    suspend fun searchFiltered(kind: String, genreId: Int, type: String?, status: String?, page: Int, limit: Int = 25, includeAdult: Boolean): TenraiPage = withContext(Dispatchers.IO) {
+        val sfwParam = if (includeAdult) "" else "&sfw"
+        val typeParam = type?.let { "&type=$it" } ?: ""
+        val statusParam = status?.let { "&status=$it" } ?: ""
+        val url = "$TENRAI/$kind?genres=$genreId&order_by=members&sort=desc&page=$page&limit=$limit$typeParam$statusParam$sfwParam"
+        val body = getRaw(url)
+        val json = JSONObject(body)
+        val arr = json.optJSONArray("data") ?: return@withContext TenraiPage(emptyList(), false)
+        val items = (0 until arr.length()).map { parseJikanEntry(kind, arr.getJSONObject(it)) }
+        val apiHasNext = json.optJSONObject("pagination")?.optBoolean("has_next_page", false) == true
+        TenraiPage(items, apiHasNext || items.size >= limit)
     }
 
     // Fetch one item's full facet data (genres/themes/demographics/source/rating/airing

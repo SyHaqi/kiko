@@ -132,6 +132,10 @@ import java.util.UUID
 import kotlin.math.roundToInt
 
 class LibraryViewModel : ViewModel() {
+    // Page size for the single-tag Tenrai-filtered Discover search (see runDiscoverSearch) —
+    // deliberately small so results load in short bursts as the person scrolls, rather than
+    // one big page up front.
+    private val TENRAI_SEARCH_PAGE_LIMIT = 10
     // Start with empty list
     var items by mutableStateOf(emptyList<MediaItem>()); private set
     var destination by mutableStateOf(Destination.Home)
@@ -342,12 +346,30 @@ class LibraryViewModel : ViewModel() {
     fun selectDiscoverSort(sort: DiscoverSort) { discoverSort = sort }
     var discoverSearching by mutableStateOf(false); private set
     var discoverError by mutableStateOf<String?>(null); private set
+    var discoverHasMore by mutableStateOf(false); private set
+    var discoverLoadingMore by mutableStateOf(false); private set
+    // Which real, further-paginated endpoint (if any) backs the current discoverResults —
+    // the studio/author, multi-tag, and ranking-chart branches already pull their whole
+    // pool in one shot, so for those the list really has ended and there's nothing to load.
+    private enum class DiscoverPaginationSource { None, TitleSearch, TenraiFiltered }
+    private var discoverPaginationSource = DiscoverPaginationSource.None
+    // Stashed only for the TenraiFiltered source, so loadMoreDiscoverSearch() can ask for
+    // the same genre/theme/demographic id + media kind's next page
+    private var discoverTenraiKind: String? = null
+    private var discoverTenraiGenreId: Int? = null
     var discoverNewSeason by mutableStateOf<List<MediaItem>>(emptyList()); private set
     var discoverUpcoming by mutableStateOf<List<MediaItem>>(emptyList()); private set
     var discoverBrowseLoading by mutableStateOf(false); private set
     var discoverBrowseError by mutableStateOf<String?>(null); private set
     private var discoverBrowseLoaded = false
     private var discoverSearchJob: kotlinx.coroutines.Job? = null
+    // Tracks whichever loadMoreTitleSearch/loadMoreTenraiFiltered coroutine is currently
+    // in flight, so a fresh search (e.g. switching the Anime/Manga type chip mid-scroll)
+    // can cancel it — otherwise a stale load-more can resolve after discoverResults has
+    // already been reset for the new search and append the previous type's items into it,
+    // which is both wrong data and a duplicate-key crash risk (see visibleDiscoverResults
+    // key in DiscoverScreen).
+    private var discoverLoadMoreJob: kotlinx.coroutines.Job? = null
     // Lightweight title suggestions shown below the search bar as the user types —
     // just plain title strings the user can tap to fill/submit the search, no thumbnails
     var discoverSuggestions by mutableStateOf<List<String>>(emptyList()); private set
@@ -539,10 +561,13 @@ class LibraryViewModel : ViewModel() {
         discoverScrollIndex = 0; discoverScrollOffset = 0
         discoverSuggestJob?.cancel(); discoverSuggestions = emptyList()
         discoverSearchJob?.cancel()
+        discoverLoadMoreJob?.cancel()
+        discoverHasMore = false; discoverPaginationSource = DiscoverPaginationSource.None
         if (query.isBlank() && !filters.isActive()) { discoverResults = emptyList(); discoverSearching = false; discoverError = null; return }
         if (!MalApi(context).signedIn) { discoverError = "Sign in from Profile to search MyAnimeList"; return }
         discoverSearchJob = viewModelScope.launch {
             discoverSearching = true
+            discoverHasMore = false; discoverPaginationSource = DiscoverPaginationSource.None
             val t = when (type) { "Anime" -> MediaType.Anime; "Manga" -> MediaType.Manga; else -> null }
             val api = MalApi(context)
             runCatching {
@@ -599,29 +624,56 @@ class LibraryViewModel : ViewModel() {
                         }
                         (animeResults + mangaResults).distinctBy { it.id to it.type }
                     }
-                    else if (query.isNotBlank()) api.search(query, t)
+                    else if (query.isNotBlank()) {
+                        // The only branch backed by a real, further-paginated MAL endpoint —
+                        // record that so loadMoreDiscoverSearch() knows it's safe to page it.
+                        val page = api.search(query, t)
+                        discoverPaginationSource = DiscoverPaginationSource.TitleSearch; discoverHasMore = page.hasMore
+                        page.items
+                    }
                     // Search via Tenrai filters
                     else if (filters.genres.isNotEmpty() || filters.themes.isNotEmpty() || filters.demographics.isNotEmpty()) {
                         val tenrai = TenraiApi()
                         val kinds = t?.let { listOf(if (it == MediaType.Anime) "anime" else "manga") } ?: listOf("anime", "manga")
                         // Pick one facet id
                         val names = filters.themes.ifEmpty { filters.genres.ifEmpty { filters.demographics } }
-                        val tenraiResults = runCatching {
-                            coroutineScope {
-                                kinds.map { kind -> async { tenrai.searchByGenreIds(kind, tenrai.resolveGenreIds(kind, names), includeAdult = nsfwEnabled) } }
-                                    .awaitAll().flatten()
-                            }
-                        }.getOrElse { emptyList() }
-                        // Fall back to a broad ranking pool (filtered client-side against the
-                        // chosen genre/theme/demographic by matches()) whenever Tenrai comes back
-                        // empty — not just when it throws. A clean-but-empty response otherwise had
-                        // no safety net, so the first tap could show nothing until a manual retry.
-                        (if (tenraiResults.isNotEmpty()) tenraiResults else coroutineScope {
-                            (t?.let { listOf(it) } ?: MediaType.entries.toList()).flatMap { mt ->
-                                listOf("all", "bypopularity", "favorite").map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
-                            }.awaitAll().flatten()
-                        })
-                            .distinctBy { it.id }
+                        // A single tag against a single media kind — the common case, and the
+                        // only shape that maps onto one real MAL search — gets format/status
+                        // filtered server-side and true pagination via has_next_page, so the
+                        // count matches what searching that same tag shows on the MAL website.
+                        // Anything broader (multiple tags, or "All" media type) can't be mapped
+                        // onto a single paginated search, so it keeps the old members-ranked
+                        // candidate-pool behavior below instead.
+                        val singleKind = kinds.singleOrNull()
+                        val singleId = singleKind?.let { k -> runCatching { tenrai.resolveGenreIds(k, names) }.getOrElse { emptyList() }.singleOrNull() }
+                        val filteredPage = if (singleKind != null && singleId != null) {
+                            runCatching {
+                                tenrai.searchFiltered(singleKind, singleId, jikanTypeParam(filters.format), jikanStatusParam(filters.airingStatus, singleKind), page = 1, limit = TENRAI_SEARCH_PAGE_LIMIT, includeAdult = nsfwEnabled)
+                            }.getOrNull()
+                        } else null
+                        if (filteredPage != null) {
+                            discoverPaginationSource = DiscoverPaginationSource.TenraiFiltered
+                            discoverHasMore = filteredPage.hasMore
+                            discoverTenraiKind = singleKind; discoverTenraiGenreId = singleId
+                            filteredPage.items
+                        } else {
+                            val tenraiResults = runCatching {
+                                coroutineScope {
+                                    kinds.map { kind -> async { tenrai.searchByGenreIds(kind, tenrai.resolveGenreIds(kind, names), includeAdult = nsfwEnabled) } }
+                                        .awaitAll().flatten()
+                                }
+                            }.getOrElse { emptyList() }
+                            // Fall back to a broad ranking pool (filtered client-side against the
+                            // chosen genre/theme/demographic by matches()) whenever Tenrai comes back
+                            // empty — not just when it throws. A clean-but-empty response otherwise had
+                            // no safety net, so the first tap could show nothing until a manual retry.
+                            (if (tenraiResults.isNotEmpty()) tenraiResults else coroutineScope {
+                                (t?.let { listOf(it) } ?: MediaType.entries.toList()).flatMap { mt ->
+                                    listOf("all", "bypopularity", "favorite").map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
+                                }.awaitAll().flatten()
+                            })
+                                .distinctBy { it.id }
+                        }
                     }
                     // Merge multiple ranking charts
                     else coroutineScope {
@@ -637,16 +689,61 @@ class LibraryViewModel : ViewModel() {
                 results.map { candidate -> items.find { it.id == candidate.id && it.type == candidate.type } ?: candidate }
             }
                 .onSuccess { discoverResults = it; discoverError = null }
-                .onFailure { discoverError = it.message ?: "Search failed" }
+                .onFailure { discoverError = it.message ?: "Search failed"; discoverHasMore = false; discoverPaginationSource = DiscoverPaginationSource.None }
             discoverSearching = false
+        }
+    }
+    // Load next page of search results — a no-op unless the current results came from a
+    // real, further-paginated search (see DiscoverPaginationSource / runDiscoverSearch)
+    fun loadMoreDiscoverSearch(context: Context) {
+        if (discoverSearching || discoverLoadingMore || !discoverHasMore) return
+        when (discoverPaginationSource) {
+            DiscoverPaginationSource.TitleSearch -> loadMoreTitleSearch(context)
+            DiscoverPaginationSource.TenraiFiltered -> loadMoreTenraiFiltered()
+            DiscoverPaginationSource.None -> {}
+        }
+    }
+    private fun loadMoreTitleSearch(context: Context) {
+        val api = MalApi(context)
+        if (!api.signedIn) return
+        val t = when (discoverTypeFilter) { "Anime" -> MediaType.Anime; "Manga" -> MediaType.Manga; else -> null }
+        discoverLoadMoreJob = viewModelScope.launch {
+            discoverLoadingMore = true
+            runCatching { api.search(discoverQuery, t, offset = discoverResults.size) }
+                // Reconcile against user's library. distinctBy guards against the same
+                // item appearing on two consecutive pages when MAL's own sort has ties at
+                // the page boundary — without it, a repeated id+type would hit the LazyColumn
+                // duplicate-key crash on scroll (see visibleDiscoverResults key in DiscoverScreen).
+                .onSuccess { page -> discoverResults = (discoverResults + page.items.map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }).distinctBy { it.id to it.type }; discoverHasMore = page.hasMore }
+                .onFailure { discoverHasMore = false }
+            discoverLoadingMore = false
+        }
+    }
+    private fun loadMoreTenraiFiltered() {
+        val kind = discoverTenraiKind ?: return
+        val id = discoverTenraiGenreId ?: return
+        val nextPage = (discoverResults.size / TENRAI_SEARCH_PAGE_LIMIT) + 1
+        discoverLoadMoreJob = viewModelScope.launch {
+            discoverLoadingMore = true
+            runCatching {
+                TenraiApi().searchFiltered(kind, id, jikanTypeParam(discoverFilters.format), jikanStatusParam(discoverFilters.airingStatus, kind), page = nextPage, limit = TENRAI_SEARCH_PAGE_LIMIT, includeAdult = nsfwEnabled)
+            }
+                // Reconcile against user's library; distinctBy guards the same page-boundary
+                // duplicate scenario as loadMoreTitleSearch above.
+                .onSuccess { page -> discoverResults = (discoverResults + page.items.map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }).distinctBy { it.id to it.type }; discoverHasMore = page.hasMore }
+                .onFailure { discoverHasMore = false }
+            discoverLoadingMore = false
         }
     }
     // Return to browse view
     fun exitDiscoverSearch() {
         discoverSort = DiscoverSort.Members
         discoverSearchJob?.cancel()
+        discoverLoadMoreJob?.cancel()
         discoverSuggestJob?.cancel(); discoverSuggestions = emptyList()
         discoverMode = DiscoverMode.Browse; discoverQuery = ""; discoverResults = emptyList(); discoverFilters = DiscoverFilters(); discoverError = null
+        discoverHasMore = false; discoverLoadingMore = false; discoverPaginationSource = DiscoverPaginationSource.None
+        discoverTenraiKind = null; discoverTenraiGenreId = null
         // Drop the raw studio/author lookup cache here rather than letting it live for the
         // whole process — it existed purely so re-applying filters *within* the same results
         // page didn't re-scrape MAL. Once the person leaves the results page that reason is
