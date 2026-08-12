@@ -252,9 +252,10 @@ import kotlin.math.roundToInt
                     Text(headerTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
                 }
                 if (vm.forumSubboards.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 15.dp)) {
-                        item { FilterChip(selected = vm.forumSubboardId == null, onClick = { vm.openForumSubboard(context, null) }, label = { Text("All") }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
-                        items(vm.forumSubboards, key = { it.id }) { sub -> FilterChip(selected = vm.forumSubboardId == sub.id, onClick = { vm.openForumSubboard(context, sub.id) }, label = { Text(sub.title) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                    val subboardListState = rememberLazyListState()
+                    LazyRow(state = subboardListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 15.dp)) {
+                        item { FilterChip(selected = vm.forumSubboardId == null, onClick = { vm.openForumSubboard(context, null); scope.centerChip(subboardListState, 0) }, label = { Text("All") }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                        itemsIndexed(vm.forumSubboards, key = { _, it -> it.id }) { index, sub -> FilterChip(selected = vm.forumSubboardId == sub.id, onClick = { vm.openForumSubboard(context, sub.id); scope.centerChip(subboardListState, index + 1) }, label = { Text(sub.title) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
                     }
                 }
                 if (vm.forumTopicsLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)

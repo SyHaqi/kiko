@@ -573,8 +573,10 @@ import kotlin.math.roundToInt
             )
 
             Text("Source", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(CommonSources) { s -> FilterChip(selected = source == s, onClick = { source = if (source == s) "" else s }, label = { Text(s) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+            val sourceListState = rememberLazyListState()
+            val sourceScope = rememberCoroutineScope()
+            LazyRow(state = sourceListState, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                itemsIndexed(CommonSources) { index, s -> FilterChip(selected = source == s, onClick = { source = if (source == s) "" else s; sourceScope.centerChip(sourceListState, index) }, label = { Text(s) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
             }
 
             Row(Modifier.fillMaxWidth().padding(top = 22.dp)) {

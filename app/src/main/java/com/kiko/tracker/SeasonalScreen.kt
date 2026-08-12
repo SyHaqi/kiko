@@ -219,12 +219,14 @@ import kotlin.math.roundToInt
             IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Release Schedule", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 15.dp)) {
-            items(java.time.DayOfWeek.values().toList()) { day ->
+        val dayListState = rememberLazyListState()
+        val scope = rememberCoroutineScope()
+        LazyRow(state = dayListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 15.dp)) {
+            itemsIndexed(java.time.DayOfWeek.values().toList()) { index, day ->
                 val label = day.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
                 FilterChip(
                     selected = selectedDay == day,
-                    onClick = { selectedDay = day },
+                    onClick = { selectedDay = day; scope.centerChip(dayListState, index) },
                     label = { Text(label) },
                     colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),
                 )
@@ -297,8 +299,10 @@ import kotlin.math.roundToInt
             }
 
             Text("Year", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(years) { y -> FilterChip(selected = y == pendingYear, onClick = { pendingYear = y }, label = { Text(y.toString()) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+            val yearListState = rememberLazyListState()
+            val yearScope = rememberCoroutineScope()
+            LazyRow(state = yearListState, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                itemsIndexed(years) { index, y -> FilterChip(selected = y == pendingYear, onClick = { pendingYear = y; yearScope.centerChip(yearListState, index) }, label = { Text(y.toString()) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
             }
 
             // Consistent filter chip style

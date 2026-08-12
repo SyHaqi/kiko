@@ -237,11 +237,12 @@ import kotlin.math.roundToInt
         Column(Modifier.padding(horizontal = 20.dp)) {
             SearchField(value = vm.stacksBrowseQuery, change = { vm.updateStacksBrowseQuery(it) }, hint = "Search stacks", onSearch = { vm.searchStacksBrowse() })
         }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)) {
-            items(StackBrowseKind.entries.toList()) { k ->
+        val kindListState = rememberLazyListState()
+        LazyRow(state = kindListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)) {
+            itemsIndexed(StackBrowseKind.entries.toList()) { index, k ->
                 FilterChip(
                     selected = activeKind == k,
-                    onClick = { vm.setStacksBrowseKind(k) },
+                    onClick = { vm.setStacksBrowseKind(k); scope.centerChip(kindListState, index) },
                     label = { Text(k.label) },
                     colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),
                 )

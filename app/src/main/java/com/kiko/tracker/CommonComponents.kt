@@ -97,7 +97,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.ui.geometry.Offset
+import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
@@ -350,6 +352,19 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
             .shadow(10.dp, RoundedCornerShape(18.dp)),
     ) {
         SearchSuggestionsList(suggestions) { picked -> dismiss(); onSelect(picked) }
+    }
+}
+
+// Re-centers a scrollable chip row on the tapped chip so neighboring categories peek into
+// view, in one continuous motion (no snap-then-correct jump). Only meant for chip rows that
+// can actually overflow the screen — small fixed rows (e.g. a 2-option toggle) don't need it.
+fun CoroutineScope.centerChip(listState: LazyListState, index: Int) {
+    launch {
+        val info = listState.layoutInfo
+        val itemInfo = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return@launch
+        val viewportCenter = info.viewportStartOffset + (info.viewportEndOffset - info.viewportStartOffset) / 2
+        val itemCenter = itemInfo.offset + itemInfo.size / 2
+        listState.animateScrollBy((itemCenter - viewportCenter).toFloat())
     }
 }
 

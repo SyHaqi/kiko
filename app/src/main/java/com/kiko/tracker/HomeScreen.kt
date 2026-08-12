@@ -527,8 +527,17 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     val c = LocalKikoColors.current
     val progressLabel = if (type == MediaType.Anime) "Watching" else "Reading"
     val labels = listOf("All", progressLabel, "Plan to Watch", "Completed", "On Hold", "Dropped")
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-        items(labels) { label -> FilterChip(selected = current == label, onClick = { set(label) }, label = { Text(label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
+        itemsIndexed(labels) { index, label ->
+            FilterChip(
+                selected = current == label,
+                onClick = { set(label); scope.centerChip(listState, index) },
+                label = { Text(label) },
+                colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),
+            )
+        }
     }
 }
 

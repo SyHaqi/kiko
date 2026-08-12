@@ -476,12 +476,14 @@ import kotlin.math.roundToInt
 @Composable fun ScoreFilterRow(current: Int, set: (Int) -> Unit) {
     val c = LocalKikoColors.current
     val colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-        item { FilterChip(selected = current == 0, onClick = { set(0) }, label = { Text("All") }, colors = colors) }
-        items((10 downTo 1).toList()) { s ->
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
+        item { FilterChip(selected = current == 0, onClick = { set(0); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
+        itemsIndexed((10 downTo 1).toList()) { index, s ->
             FilterChip(
                 selected = current == s,
-                onClick = { set(s) },
+                onClick = { set(s); scope.centerChip(listState, index + 1) },
                 label = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Star, null, tint = if (current == s) c.onPrimary else Color(0xFFFFC107), modifier = Modifier.size(12.dp))
@@ -555,9 +557,11 @@ import kotlin.math.roundToInt
 @Composable fun YearFilterRow(years: List<Int>, current: Int, set: (Int) -> Unit) {
     val c = LocalKikoColors.current
     val colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-        item { FilterChip(selected = current == 0, onClick = { set(0) }, label = { Text("All") }, colors = colors) }
-        items(years) { y -> FilterChip(selected = current == y, onClick = { set(y) }, label = { Text(y.toString()) }, colors = colors) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
+        item { FilterChip(selected = current == 0, onClick = { set(0); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
+        itemsIndexed(years) { index, y -> FilterChip(selected = current == y, onClick = { set(y); scope.centerChip(listState, index + 1) }, label = { Text(y.toString()) }, colors = colors) }
     }
 }
 // App info page

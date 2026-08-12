@@ -766,14 +766,17 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 
             Text("Status", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink)
             val statusOptions = remember(item.type) { WatchStatus.entries.filterNot { it == if (item.type == MediaType.Anime) WatchStatus.Reading else WatchStatus.Watching } }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 9.dp)) {
-                items(statusOptions) { s ->
+            val statusListState = rememberLazyListState()
+            val statusScope = rememberCoroutineScope()
+            LazyRow(state = statusListState, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 9.dp)) {
+                itemsIndexed(statusOptions) { index, s ->
                     FilterChip(
                         selected = status == s,
                         onClick = {
                             status = s
                             // Auto-fill progress to the max when marking as completed
                             if (s == WatchStatus.Completed && item.total > 0) progress = item.total
+                            statusScope.centerChip(statusListState, index)
                         },
                         label = { Text(s.label) },
                         colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),

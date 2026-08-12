@@ -146,8 +146,9 @@ import kotlin.math.roundToInt
                     Text("Ranking", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
                 }
                 TypeToggle(vm.rankingType) { vm.loadRanking(context, it, vm.rankingSort) }
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-                    items(sorts) { sort -> FilterChip(selected = vm.rankingSort == sort, onClick = { vm.loadRanking(context, vm.rankingType, sort) }, label = { Text(sort.label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                val sortListState = rememberLazyListState()
+                LazyRow(state = sortListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
+                    itemsIndexed(sorts) { index, sort -> FilterChip(selected = vm.rankingSort == sort, onClick = { vm.loadRanking(context, vm.rankingType, sort); scope.centerChip(sortListState, index) }, label = { Text(sort.label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
                 }
                 if (vm.rankingLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
                 vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
