@@ -2,7 +2,6 @@ package com.kiko.tracker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -60,7 +59,7 @@ enum class StackBrowseKind(val param: String, val label: String) {
 // (/stacks/{id}, /anime|manga/{id}) rather than CSS classes, since those
 // URL shapes are far less likely to change than markup/class names.
 class StacksApi {
-    private val client = OkHttpClient()
+    private val client = NetworkClient.shared
 
     private fun fetchDoc(url: String): Document {
         val request = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0 (Android) Kiko/1.0").build()

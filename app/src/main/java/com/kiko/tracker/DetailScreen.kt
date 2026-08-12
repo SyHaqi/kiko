@@ -779,7 +779,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
                             statusScope.centerChip(statusListState, index)
                         },
                         label = { Text(s.label) },
-                        colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),
+                        colors = kikoFilterChipColors(),
                     )
                 }
             }

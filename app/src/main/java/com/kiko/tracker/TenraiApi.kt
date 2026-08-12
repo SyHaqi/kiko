@@ -8,7 +8,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.IOException
@@ -52,7 +51,7 @@ private fun reorderName(raw: String): String {
 
 // Genre search via Tenrai
 class TenraiApi {
-    private val client = OkHttpClient()
+    private val client = NetworkClient.shared
 
     // Build genre name-id map
     private object Cache {

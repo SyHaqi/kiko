@@ -244,7 +244,7 @@ import kotlin.math.roundToInt
                     selected = activeKind == k,
                     onClick = { vm.setStacksBrowseKind(k); scope.centerChip(kindListState, index) },
                     label = { Text(k.label) },
-                    colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),
+                    colors = kikoFilterChipColors(),
                 )
             }
         }

@@ -2,7 +2,6 @@ package com.kiko.tracker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -37,7 +36,7 @@ data class ClubPostsPage(val items: List<ClubPost>, val hasMore: Boolean)
 // StacksApi: parse real MAL HTML. Verified against real responses for the
 // club home page, search results, and the full members page.
 class ClubsApi {
-    private val client = OkHttpClient()
+    private val client = NetworkClient.shared
 
     private fun fetchDoc(url: String): Document {
         val request = Request.Builder().url(url)

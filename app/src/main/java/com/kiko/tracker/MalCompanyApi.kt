@@ -2,7 +2,6 @@ package com.kiko.tracker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -31,7 +30,7 @@ import java.io.IOException
 //    directly into the HTML — one request, and it's the studio's *complete* catalog,
 //    not a ranking-chart subset.
 class MalCompanyApi {
-    private val client = OkHttpClient()
+    private val client = NetworkClient.shared
     private val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     // Only used to translate the studio page's numeric genre/theme/demographic ids back
     // into names (a small, static, once-cached reference lookup) — not to search or rank

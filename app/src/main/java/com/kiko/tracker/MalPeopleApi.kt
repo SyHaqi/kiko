@@ -5,7 +5,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -60,7 +59,7 @@ private fun normalizeMangaFormat(malType: String) = when (malType.lowercase()) {
 //    per credited work instead of once for the whole page, since studio pages bake genre ids
 //    directly into each tile and person pages don't.
 class MalPeopleApi {
-    private val client = OkHttpClient()
+    private val client = NetworkClient.shared
     private val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     // Only used to fill in genre/theme/demographic/source/rating data per credited manga
     // (see enrichWithFacets below) — the author's own MAL page doesn't expose any of that,

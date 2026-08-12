@@ -9,7 +9,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.IOException
@@ -113,7 +112,7 @@ class MalApi(private val context: Context) {
     private val prefs = context.getSharedPreferences("mal_session", Context.MODE_PRIVATE)
     val signedIn get() = !prefs.getString("access_token", null).isNullOrBlank()
     // Use OkHttp for PATCH
-    private val client = OkHttpClient()
+    private val client = NetworkClient.shared
 
     fun authUrl(): String {
         val verifier = randomToken(48)

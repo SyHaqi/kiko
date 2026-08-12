@@ -535,7 +535,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 selected = current == label,
                 onClick = { set(label); scope.centerChip(listState, index) },
                 label = { Text(label) },
-                colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),
+                colors = kikoFilterChipColors(),
             )
         }
     }

@@ -2,14 +2,16 @@ package com.kiko.tracker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 // Resolve Tenor GIF URL
 object TenorResolver {
-    private val client = OkHttpClient.Builder()
+    // Built off the shared client (via newBuilder()) so this still reuses the app-wide
+    // connection pool and dispatcher — only the timeouts differ here, deliberately shorter
+    // since a slow Tenor page shouldn't hold up a chat/forum render.
+    private val client = NetworkClient.shared.newBuilder()
         .connectTimeout(6, TimeUnit.SECONDS)
         .readTimeout(6, TimeUnit.SECONDS)
         .build()

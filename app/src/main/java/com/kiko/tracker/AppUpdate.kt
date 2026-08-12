@@ -7,7 +7,6 @@ import android.os.Build
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
@@ -39,7 +38,7 @@ private fun isNewerVersion(remote: String, local: String): Boolean {
 }
 
 class AppUpdateChecker(private val context: Context) {
-    private val client = OkHttpClient()
+    private val client = NetworkClient.shared
     private val prefs = context.getSharedPreferences("kiko_update", Context.MODE_PRIVATE)
 
     // Cache last check

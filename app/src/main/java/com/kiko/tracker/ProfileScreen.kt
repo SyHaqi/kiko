@@ -475,7 +475,7 @@ import kotlin.math.roundToInt
 
 @Composable fun ScoreFilterRow(current: Int, set: (Int) -> Unit) {
     val c = LocalKikoColors.current
-    val colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)
+    val colors = kikoFilterChipColors()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
@@ -556,7 +556,7 @@ import kotlin.math.roundToInt
 
 @Composable fun YearFilterRow(years: List<Int>, current: Int, set: (Int) -> Unit) {
     val c = LocalKikoColors.current
-    val colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)
+    val colors = kikoFilterChipColors()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {

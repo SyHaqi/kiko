@@ -357,6 +357,14 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     }
 }
 
+// Standard FilterChip color scheme used by every filter/category chip row in the app
+// (Home, Discover, Forums, Ranking, Seasonal, Stacks, Profile, Detail). Pulled out so the
+// scheme lives in one place instead of being copy-pasted at every call site.
+@Composable fun kikoFilterChipColors(): SelectableChipColors {
+    val c = LocalKikoColors.current
+    return FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)
+}
+
 // Re-centers a scrollable chip row on the tapped chip so neighboring categories peek into
 // view, in one continuous motion (no snap-then-correct jump). Only meant for chip rows that
 // can actually overflow the screen — small fixed rows (e.g. a 2-option toggle) don't need it.

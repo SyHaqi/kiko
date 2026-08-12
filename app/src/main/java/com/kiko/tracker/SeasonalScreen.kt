@@ -228,7 +228,7 @@ import kotlin.math.roundToInt
                     selected = selectedDay == day,
                     onClick = { selectedDay = day; scope.centerChip(dayListState, index) },
                     label = { Text(label) },
-                    colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary),
+                    colors = kikoFilterChipColors(),
                 )
             }
         }
@@ -302,7 +302,7 @@ import kotlin.math.roundToInt
             val yearListState = rememberLazyListState()
             val yearScope = rememberCoroutineScope()
             LazyRow(state = yearListState, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                itemsIndexed(years) { index, y -> FilterChip(selected = y == pendingYear, onClick = { pendingYear = y; yearScope.centerChip(yearListState, index) }, label = { Text(y.toString()) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                itemsIndexed(years) { index, y -> FilterChip(selected = y == pendingYear, onClick = { pendingYear = y; yearScope.centerChip(yearListState, index) }, label = { Text(y.toString()) }, colors = kikoFilterChipColors()) }
             }
 
             // Consistent filter chip style

@@ -172,8 +172,11 @@ class MainActivity : ComponentActivity() {
             }
             previousHandler?.uncaughtException(thread, throwable)
         }
-        // Register animated GIF decoders + Referer/UA for hotlink-protected images
-        val forumImageClient = okhttp3.OkHttpClient.Builder()
+        // Register animated GIF decoders + Referer/UA for hotlink-protected images.
+        // Built off the shared client (newBuilder()) so Coil's image loading reuses the
+        // same connection pool/dispatcher as the rest of the app's networking instead of
+        // spinning up its own.
+        val forumImageClient = NetworkClient.shared.newBuilder()
             .addInterceptor { chain ->
                 val original = chain.request()
                 // Some MAL image links (older avatars/uploads, pasted forum links) are

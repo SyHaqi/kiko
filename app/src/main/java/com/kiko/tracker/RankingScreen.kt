@@ -148,7 +148,7 @@ import kotlin.math.roundToInt
                 TypeToggle(vm.rankingType) { vm.loadRanking(context, it, vm.rankingSort) }
                 val sortListState = rememberLazyListState()
                 LazyRow(state = sortListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-                    itemsIndexed(sorts) { index, sort -> FilterChip(selected = vm.rankingSort == sort, onClick = { vm.loadRanking(context, vm.rankingType, sort); scope.centerChip(sortListState, index) }, label = { Text(sort.label) }, colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)) }
+                    itemsIndexed(sorts) { index, sort -> FilterChip(selected = vm.rankingSort == sort, onClick = { vm.loadRanking(context, vm.rankingType, sort); scope.centerChip(sortListState, index) }, label = { Text(sort.label) }, colors = kikoFilterChipColors()) }
                 }
                 if (vm.rankingLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
                 vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
