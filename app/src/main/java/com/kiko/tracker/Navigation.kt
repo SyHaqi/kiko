@@ -231,6 +231,12 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var selectedItem by remember { mutableStateOf<MediaItem?>(null) }
     // Related title navigation stack
     var detailStack by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+    // Direction hint for the AnimatedContent transitionSpec below: detail-to-detail
+    // hops (tapping a related/recommended card, or backing out of one) are both
+    // "isFullPage() on both sides" and would otherwise fall through to a flat
+    // cross-fade with no sense of depth. Set right before selectedItem changes so
+    // it's already up to date by the time topScreen recomposes.
+    var detailGoingBack by remember { mutableStateOf(false) }
     // Interest stacks nav state: home -> browse (seeded tab) -> detail. Declared up here
     // (rather than alongside the other overlay flags below) because backDetail()'s
     // Discover-detour restoration needs to write to stackDetailOpen.
@@ -248,6 +254,12 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var discoverReturnDestination by remember { mutableStateOf<Destination?>(null) }
     var discoverReturnStack by remember { mutableStateOf<Pair<Int, String>?>(null) }
     fun openDetail(item: MediaItem) {
+        // Always the start of a brand-new detail chain (a list row, search result,
+        // stack entry, etc. — never a step within an existing related/recommended
+        // chain, that's openRelatedDetail below). Any previously cached chain is now
+        // unreachable, so drop it rather than let it linger in memory.
+        vm.clearDetailCache()
+        detailGoingBack = false
         detailStack = emptyList()
         // A title opened while a Discover detour is still in progress (e.g. tapping
         // another result on the author's search page) is just drilling further into
@@ -257,10 +269,13 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         if (discoverReturnDestination == null) discoverReturnItem = null
         selectedItem = item
     }
-    fun openRelatedDetail(from: MediaItem, to: MediaItem) { detailStack = detailStack + from; selectedItem = to }
+    fun openRelatedDetail(from: MediaItem, to: MediaItem) { detailGoingBack = false; detailStack = detailStack + from; selectedItem = to }
     fun backDetail() {
         val prev = detailStack.lastOrNull()
-        if (prev != null) { selectedItem = prev; detailStack = detailStack.dropLast(1); return }
+        if (prev != null) { detailGoingBack = true; selectedItem = prev; detailStack = detailStack.dropLast(1); return }
+        // Backing out from the root of the related/recommended chain — the whole chain
+        // is now unreachable, so drop everything cached for it (see clearDetailCache()).
+        vm.clearDetailCache()
         selectedItem = null
         // Only restore once the detour's own "return to origin item" stop has already
         // been consumed (discoverReturnItem null) — otherwise this was just closing an
@@ -329,6 +344,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
             discoverReturnStack = stackDetailOpen
         }
         discoverReturnItem = from
+        vm.clearDetailCache()
         selectedItem = null; detailStack = emptyList()
         stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = false
         clubDetailOpen = null
@@ -410,6 +426,14 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             when {
                                 targetState.isFullPage() && !initialState.isFullPage() -> PushEnter togetherWith PushExit
                                 !targetState.isFullPage() && initialState.isFullPage() -> PopEnter togetherWith PopExit
+                                // Related/recommended hops: both sides are TopScreen.Detail, so
+                                // the two branches above don't fire and this used to fall through
+                                // to a flat cross-fade with no sense of direction — tapping into a
+                                // related title and then backing out both looked like the same
+                                // abrupt "pop". Give it the same push (going deeper) / pop (coming
+                                // back) motion the rest of the app uses, driven by detailGoingBack.
+                                targetState is TopScreen.Detail && initialState is TopScreen.Detail ->
+                                    if (detailGoingBack) PopEnter togetherWith PopExit else PushEnter togetherWith PushExit
                                 else -> FadeEnter togetherWith FadeExit
                             }
                         },
@@ -498,7 +522,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                 }
             }
             // Keep sheets inside theme
-            editorItem?.let { EditSheet(it, onDismiss = { editor = null }, onSave = { vm.saveLive(context, it); editor = null }, onDelete = { vm.deleteLive(context, it); editor = null; if (selectedItem?.id == it.id && selectedItem?.type == it.type) { selectedItem = null; detailStack = emptyList() } }) }
+            editorItem?.let { EditSheet(it, onDismiss = { editor = null }, onSave = { vm.saveLive(context, it); editor = null }, onDelete = { vm.deleteLive(context, it); editor = null; if (selectedItem?.id == it.id && selectedItem?.type == it.type) { vm.clearDetailCache(); selectedItem = null; detailStack = emptyList() } }) }
             if (themeOpen) ThemeSheet(vm.themeMode, onDismiss = { themeOpen = false }, onSelect = { vm.setTheme(context, it); themeOpen = false })
             if (colorSourceOpen) ColorSourceSheet(vm.colorSource, vm.customColorHex, onDismiss = { colorSourceOpen = false }, onSelect = { vm.setColorSource(context, it) }, onCustomHexChange = { vm.setCustomColor(context, it) })
             if (paletteStyleOpen) PaletteStyleSheet(vm.paletteStyle, onDismiss = { paletteStyleOpen = false }, onSelect = { vm.setPaletteStyle(context, it); paletteStyleOpen = false })

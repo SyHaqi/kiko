@@ -218,6 +218,31 @@ class LibraryViewModel : ViewModel() {
     private val detailScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
     fun getDetailScroll(id: String) = detailScrollPositions[id] ?: (0 to 0)
     fun saveDetailScroll(id: String, index: Int, offset: Int) { detailScrollPositions[id] = index to offset }
+    // Per-title cache for every DetailScreen sub-section (related, themes, covers,
+    // recommended, status distribution, characters/staff, reviews). Keyed by id+type
+    // since anime and manga ids can collide. Backing DetailScreen's loaders with this
+    // means hopping from a title into a related/recommended entry and back doesn't
+    // refire any network calls or re-show loading skeletons — the whole related ⇄
+    // recommended chain reads from memory. Only cleared once the user backs all the
+    // way out of the chain (see clearDetailCache(), called from Navigation.kt).
+    private data class DetailCache(
+        var resolvedItem: MediaItem? = null,
+        var related: List<RelatedEntry>? = null,
+        var openingThemes: List<String>? = null,
+        var endingThemes: List<String>? = null,
+        var covers: List<String>? = null,
+        var recommended: List<RecommendedEntry>? = null,
+        var statusDistribution: StatusDistribution? = null,
+        var characters: List<CharacterEntry>? = null,
+        var staffList: List<StaffEntry>? = null,
+        var reviews: List<ReviewEntry>? = null,
+    )
+    private val detailCaches = mutableMapOf<Pair<String, MediaType>, DetailCache>()
+    private fun detailCache(id: String, type: MediaType) = detailCaches.getOrPut(id to type) { DetailCache() }
+    // Drops every cached detail sub-section. Call this once the user has fully left
+    // the related/recommended chain (not on every single step back within it), and
+    // when a brand-new, unrelated title is opened from outside any chain.
+    fun clearDetailCache() { detailCaches.clear() }
     // Same idea for a stack's own entry grid — restores scroll position when
     // coming back from an entry's detail page instead of resetting to top
     private val stackDetailScrollPositions = mutableMapOf<Int, Pair<Int, Int>>()
@@ -945,10 +970,12 @@ class LibraryViewModel : ViewModel() {
     // Open related-row title
     fun openRelated(context: Context, entry: RelatedEntry, onLoaded: (MediaItem) -> Unit) {
         val type = if (entry.malType == "anime") MediaType.Anime else MediaType.Manga
+        val cache = detailCache(entry.malId.toString(), type)
+        cache.resolvedItem?.let { onLoaded(it); return }
         relatedLoadingId = entry.malId
         viewModelScope.launch {
             runCatching { MalApi(context).detail(entry.malId, type) }
-                .onSuccess { onLoaded(it) }
+                .onSuccess { cache.resolvedItem = it; onLoaded(it) }
                 .onFailure { error = it.message ?: "Could not load title" }
             relatedLoadingId = null
         }
@@ -1052,39 +1079,54 @@ class LibraryViewModel : ViewModel() {
 
     // Backfill empty related row
     fun backfillRelated(context: Context, id: String, type: MediaType, onFound: (List<RelatedEntry>) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(id, type)
+        cache.related?.let { onFound(it); onDone(); return }
         val intId = id.toIntOrNull()
         if (intId == null) { onDone(); return }
         viewModelScope.launch {
             runCatching { MalApi(context).detail(intId, type) }
-                .onSuccess { fresh -> if (fresh.related.isNotEmpty()) onFound(fresh.related) }
+                .onSuccess { fresh -> if (fresh.related.isNotEmpty()) { cache.related = fresh.related; onFound(fresh.related) } }
             onDone()
         }
     }
 
     // Backfill empty theme fields
     fun backfillThemes(context: Context, id: String, type: MediaType, onFound: (List<String>, List<String>) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(id, type)
+        val cachedOp = cache.openingThemes; val cachedEd = cache.endingThemes
+        if (cachedOp != null || cachedEd != null) { onFound(cachedOp ?: emptyList(), cachedEd ?: emptyList()); onDone(); return }
         val intId = id.toIntOrNull()
         if (intId == null) { onDone(); return }
         viewModelScope.launch {
             runCatching { MalApi(context).detail(intId, type) }
-                .onSuccess { fresh -> if (fresh.openingThemes.isNotEmpty() || fresh.endingThemes.isNotEmpty()) onFound(fresh.openingThemes, fresh.endingThemes) }
+                .onSuccess { fresh ->
+                    if (fresh.openingThemes.isNotEmpty() || fresh.endingThemes.isNotEmpty()) {
+                        cache.openingThemes = fresh.openingThemes; cache.endingThemes = fresh.endingThemes
+                        onFound(fresh.openingThemes, fresh.endingThemes)
+                    }
+                }
             onDone()
         }
     }
 
     // Backfill missing cover gallery
     fun backfillCovers(context: Context, id: String, type: MediaType, onFound: (List<String>) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(id, type)
+        cache.covers?.let { onFound(it); onDone(); return }
         val intId = id.toIntOrNull()
         if (intId == null) { onDone(); return }
         viewModelScope.launch {
             runCatching { MalApi(context).detail(intId, type) }
-                .onSuccess { fresh -> if (fresh.covers.size > 1) onFound(fresh.covers) }
+                .onSuccess { fresh -> if (fresh.covers.size > 1) { cache.covers = fresh.covers; onFound(fresh.covers) } }
             onDone()
         }
     }
 
     // Load characters + staff rows
     fun loadCharactersStaff(item: MediaItem, onFound: (List<CharacterEntry>, List<StaffEntry>) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(item.id, item.type)
+        val cachedChars = cache.characters; val cachedStaff = cache.staffList
+        if (cachedChars != null || cachedStaff != null) { onFound(cachedChars ?: emptyList(), cachedStaff ?: emptyList()); onDone(); return }
         val intId = item.id.toIntOrNull()
         if (intId == null) { onDone(); return }
         val kind = if (item.type == MediaType.Anime) "anime" else "manga"
@@ -1096,30 +1138,39 @@ class LibraryViewModel : ViewModel() {
                     val staffList = async { tenrai.fetchStaff(kind, intId) }
                     chars.await() to staffList.await()
                 }
-            }.onSuccess { (chars, staffList) -> if (chars.isNotEmpty() || staffList.isNotEmpty()) onFound(chars, staffList) }
+            }.onSuccess { (chars, staffList) ->
+                if (chars.isNotEmpty() || staffList.isNotEmpty()) {
+                    cache.characters = chars; cache.staffList = staffList
+                    onFound(chars, staffList)
+                }
+            }
             onDone()
         }
     }
 
     // Load reviews row
     fun loadReviews(item: MediaItem, onFound: (List<ReviewEntry>) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(item.id, item.type)
+        cache.reviews?.let { onFound(it); onDone(); return }
         val intId = item.id.toIntOrNull()
         if (intId == null) { onDone(); return }
         val kind = if (item.type == MediaType.Anime) "anime" else "manga"
         viewModelScope.launch {
             runCatching { TenraiApi().fetchReviews(kind, intId) }
-                .onSuccess { if (it.isNotEmpty()) onFound(it) }
+                .onSuccess { if (it.isNotEmpty()) { cache.reviews = it; onFound(it) } }
             onDone()
         }
     }
 
     // Backfill recommended row
     fun loadUserRecommendations(context: Context, item: MediaItem, onFound: (List<RecommendedEntry>) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(item.id, item.type)
+        cache.recommended?.let { onFound(it); onDone(); return }
         val intId = item.id.toIntOrNull()
         if (intId == null) { onDone(); return }
         viewModelScope.launch {
             runCatching { MalApi(context).userRecommendations(intId, item.type) }
-                .onSuccess { if (it.isNotEmpty()) onFound(it) }
+                .onSuccess { if (it.isNotEmpty()) { cache.recommended = it; onFound(it) } }
             onDone()
         }
     }
@@ -1127,10 +1178,12 @@ class LibraryViewModel : ViewModel() {
     // Open recommended-row title
     fun openRecommended(context: Context, entry: RecommendedEntry, onLoaded: (MediaItem) -> Unit) {
         val type = if (entry.malType == "anime") MediaType.Anime else MediaType.Manga
+        val cache = detailCache(entry.malId.toString(), type)
+        cache.resolvedItem?.let { onLoaded(it); return }
         recommendedLoadingId = entry.malId
         viewModelScope.launch {
             runCatching { MalApi(context).detail(entry.malId, type) }
-                .onSuccess { onLoaded(it) }
+                .onSuccess { cache.resolvedItem = it; onLoaded(it) }
                 .onFailure { error = it.message ?: "Could not load title" }
             recommendedLoadingId = null
         }
@@ -1138,11 +1191,13 @@ class LibraryViewModel : ViewModel() {
 
     // Load status distribution data
     fun loadStatusDistribution(context: Context, item: MediaItem, onFound: (StatusDistribution) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(item.id, item.type)
+        cache.statusDistribution?.let { onFound(it); onDone(); return }
         val intId = item.id.toIntOrNull()
         if (intId == null || item.type != MediaType.Anime) { onDone(); return }
         viewModelScope.launch {
             runCatching { MalApi(context).detail(intId, item.type) }
-                .onSuccess { fresh -> if (fresh.statusDistribution.total > 0) onFound(fresh.statusDistribution) }
+                .onSuccess { fresh -> if (fresh.statusDistribution.total > 0) { cache.statusDistribution = fresh.statusDistribution; onFound(fresh.statusDistribution) } }
             onDone()
         }
     }
