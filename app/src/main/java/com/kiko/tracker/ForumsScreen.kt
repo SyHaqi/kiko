@@ -519,8 +519,12 @@ sealed class BbToken {
     // failure that turned out to be a parsing bug, not a sizing one — now that the
     // URL itself is correct, there's no reason to keep cropping.
     Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
+        // BBCode [img] tags on MAL forums carry no alt text, so there's nothing more specific
+        // to describe this with — but leaving it null means TalkBack skips the image inside a
+        // post entirely, as if it weren't there. A generic label at least tells a screen
+        // reader user an image exists here instead of leaving a silent gap in the post.
         SubcomposeAsyncImage(
-            model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            model = url, contentDescription = "Image", contentScale = androidx.compose.ui.layout.ContentScale.Fit,
             onState = { state ->
                 if (state is AsyncImagePainter.State.Error) {
                     isError = true
@@ -605,7 +609,7 @@ sealed class BbToken {
                 ImageRequest.Builder(context).data(url).size(targetWidthPx, targetHeightPx).build()
             }
             SubcomposeAsyncImage(
-                model = request, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                model = request, contentDescription = "Image, full screen", contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 onState = { state ->
                     isError = state is AsyncImagePainter.State.Error
                     if (state is AsyncImagePainter.State.Error) Log.e("ForumImage", "fullscreen failed to load $url", state.result.throwable)

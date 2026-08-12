@@ -410,11 +410,35 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                         label = "topScreen",
                     ) { screen ->
                         when (screen) {
-                            is TopScreen.Detail -> DetailScreen(screen.item, onBack = ::backDetail, onEdit = { editor = it }, onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } }, relatedLoadingId = vm.relatedLoadingId, onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) }, onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) }, onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) }, onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) }, onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } }, recommendedLoadingId = vm.recommendedLoadingId, onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) }, onLoadCharactersStaff = { forItem, onFound, onDone -> vm.loadCharactersStaff(forItem, onFound, onDone) }, onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) }, onOpenReview = { rev -> reviewOpen = rev to screen.item.title }, onOpenReviewList = { url, _ -> CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) }, initialScroll = vm.getDetailScroll(screen.item.id), onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) }, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), onGenreClick = { genre ->
-                                jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
-                            }, onCreatorClick = { creator ->
-                                jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(creator = creator))
-                            })
+                            is TopScreen.Detail -> DetailScreen(
+                                screen.item,
+                                actions = DetailScreenActions(
+                                    onBack = ::backDetail,
+                                    onEdit = { editor = it },
+                                    onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } },
+                                    onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) },
+                                    onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) },
+                                    onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) },
+                                    onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) },
+                                    onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } },
+                                    onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) },
+                                    onLoadCharactersStaff = { forItem, onFound, onDone -> vm.loadCharactersStaff(forItem, onFound, onDone) },
+                                    onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) },
+                                    onOpenReview = { rev -> reviewOpen = rev to screen.item.title },
+                                    onOpenReviewList = { url, _ -> CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) },
+                                    onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) },
+                                    onGenreClick = { genre ->
+                                        jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
+                                    },
+                                    onCreatorClick = { creator ->
+                                        jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(creator = creator))
+                                    },
+                                ),
+                                relatedLoadingId = vm.relatedLoadingId,
+                                recommendedLoadingId = vm.recommendedLoadingId,
+                                initialScroll = vm.getDetailScroll(screen.item.id),
+                                myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
+                            )
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Seasonal -> SeasonalScreen(vm, onBack = { seasonalOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)

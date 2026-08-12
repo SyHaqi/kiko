@@ -172,7 +172,21 @@ import kotlin.math.roundToInt
     val c = LocalKikoColors.current
     val displayTitle = item.displayTitle()
     Box(modifier.clip(RoundedCornerShape(16.dp)).background(Color(item.color)), contentAlignment = Alignment.Center) {
-        if (item.cover.isNotBlank()) AsyncImage(model = item.cover, contentDescription = displayTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        if (item.cover.isNotBlank()) {
+            val context = LocalContext.current
+            // The global Coil ImageLoader defaults to allowHardware(false) — that trade-off
+            // exists for the many small animated forum stickers that decode back-to-back and
+            // can exhaust the hardware bitmap pool (see the loader setup in MainActivity).
+            // Cover art doesn't share that failure mode — one non-animated image per card,
+            // never a dozen decoding in a burst — so it opts back into hardware bitmaps here
+            // for faster decode/draw instead of inheriting a default that isn't meant for it.
+            AsyncImage(
+                model = ImageRequest.Builder(context).data(item.cover).allowHardware(true).build(),
+                contentDescription = displayTitle,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            )
+        }
         else Text(displayTitle.take(1), fontWeight = FontWeight.Bold, fontSize = 36.sp, color = Color.White.copy(.85f))
         // Optional tracking mark — overrideStatus lets callers supply the real list status for
         // items that weren't sourced from the user's own list (item.inUserList would be false)

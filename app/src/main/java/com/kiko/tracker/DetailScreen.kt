@@ -131,14 +131,38 @@ import kotlinx.coroutines.coroutineScope
 import java.util.UUID
 import kotlin.math.roundToInt
 
-@Composable fun DetailScreen(item: MediaItem, onBack: () -> Unit, onEdit: (MediaItem) -> Unit, onOpenRelated: (RelatedEntry) -> Unit, relatedLoadingId: Int? = null, onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() }, onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenRecommended: (RecommendedEntry) -> Unit = {}, recommendedLoadingId: Int? = null, onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadCharactersStaff: (MediaItem, (List<CharacterEntry>, List<StaffEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() }, onOpenReview: (ReviewEntry) -> Unit = {}, onOpenReviewList: (String, String) -> Unit = { _, _ -> }, onGenreClick: (String) -> Unit = {}, onCreatorClick: (String) -> Unit = {}, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap()) {
+// Groups every DetailScreen callback into one object instead of ~16 separate lambda
+// parameters on the composable itself — the call site was becoming unreadable (one very
+// long argument list with no grouping), and this keeps the plain data params (item,
+// relatedLoadingId, recommendedLoadingId, initialScroll, myListStatus) separate from the
+// actions so it's clear at a glance which is which.
+data class DetailScreenActions(
+    val onBack: () -> Unit,
+    val onEdit: (MediaItem) -> Unit,
+    val onOpenRelated: (RelatedEntry) -> Unit,
+    val onBackfillRelated: (String, MediaType, (List<RelatedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() },
+    val onBackfillThemes: (String, MediaType, (List<String>, List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() },
+    val onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() },
+    val onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onOpenRecommended: (RecommendedEntry) -> Unit = {},
+    val onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onLoadCharactersStaff: (MediaItem, (List<CharacterEntry>, List<StaffEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onOpenReview: (ReviewEntry) -> Unit = {},
+    val onOpenReviewList: (String, String) -> Unit = { _, _ -> },
+    val onGenreClick: (String) -> Unit = {},
+    val onCreatorClick: (String) -> Unit = {},
+    val onLeaveScroll: (Int, Int) -> Unit = { _, _ -> },
+)
+
+@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap()) {
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
     // Track related backfill completion
     var backfilledRelated by remember(item.id) { mutableStateOf<List<RelatedEntry>?>(null) }
     var relatedDone by remember(item.id) { mutableStateOf(item.related.isNotEmpty()) }
     LaunchedEffect(item.id) {
-        if (item.related.isEmpty()) onBackfillRelated(item.id, item.type, { backfilledRelated = it }, { relatedDone = true }) else relatedDone = true
+        if (item.related.isEmpty()) actions.onBackfillRelated(item.id, item.type, { backfilledRelated = it }, { relatedDone = true }) else relatedDone = true
     }
     val related = backfilledRelated ?: item.related
     // Recheck themes if missing
@@ -146,42 +170,45 @@ import kotlin.math.roundToInt
     var themesDone by remember(item.id) { mutableStateOf(item.openingThemes.isNotEmpty() || item.endingThemes.isNotEmpty()) }
     LaunchedEffect(item.id) {
         if (item.openingThemes.isEmpty() && item.endingThemes.isEmpty()) {
-            onBackfillThemes(item.id, item.type, { op, ed -> backfilledThemes = op to ed }, { themesDone = true })
+            actions.onBackfillThemes(item.id, item.type, { op, ed -> backfilledThemes = op to ed }, { themesDone = true })
         } else themesDone = true
     }
     val (openingThemes, endingThemes) = backfilledThemes ?: (item.openingThemes to item.endingThemes)
     // Characters + staff rows
     var characters by remember(item.id) { mutableStateOf<List<CharacterEntry>>(emptyList()) }
     var staffList by remember(item.id) { mutableStateOf<List<StaffEntry>>(emptyList()) }
-    LaunchedEffect(item.id) { onLoadCharactersStaff(item, { chars, stf -> characters = chars; staffList = stf }, {}) }
+    LaunchedEffect(item.id) { actions.onLoadCharactersStaff(item, { chars, stf -> characters = chars; staffList = stf }, {}) }
     var reviews by remember(item.id) { mutableStateOf<List<ReviewEntry>>(emptyList()) }
-    LaunchedEffect(item.id) { onLoadReviews(item, { reviews = it }, {}) }
+    LaunchedEffect(item.id) { actions.onLoadReviews(item, { reviews = it }, {}) }
     // Recheck cover gallery non-blocking
     var backfilledCovers by remember(item.id) { mutableStateOf<List<String>?>(null) }
     LaunchedEffect(item.id) {
-        if (item.covers.size <= 1) onBackfillCovers(item.id, item.type, { backfilledCovers = it }, {})
+        if (item.covers.size <= 1) actions.onBackfillCovers(item.id, item.type, { backfilledCovers = it }, {})
     }
     val covers = backfilledCovers ?: item.covers
     // Recommended row loads async
     var recommended by remember(item.id) { mutableStateOf<List<RecommendedEntry>>(emptyList()) }
-    LaunchedEffect(item.id) { onLoadRecommended(item, { recommended = it }, {}) }
+    LaunchedEffect(item.id) { actions.onLoadRecommended(item, { recommended = it }, {}) }
     // Status distribution loads async
     var statusDistribution by remember(item.id) { mutableStateOf<StatusDistribution?>(null) }
-    LaunchedEffect(item.id) { onLoadStatusDistribution(item, { statusDistribution = it }, {}) }
+    LaunchedEffect(item.id) { actions.onLoadStatusDistribution(item, { statusDistribution = it }, {}) }
     // Fresh scroll state per-title
     val listState = remember(item.id) { LazyListState(initialScroll.first, initialScroll.second) }
     // Save spot on leave
     DisposableEffect(item.id) {
-        onDispose { onLeaveScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
+        onDispose { actions.onLeaveScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
     }
-    // Share single decoded painter
+    // Share single decoded painter. Opts into hardware bitmaps (allowHardware(true)) here
+    // rather than inheriting the app's global allowHardware(false) default — that default
+    // exists for forum threads decoding many small animated stickers back-to-back (see the
+    // Coil setup in MainActivity), not a single large poster image like this one.
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val coverPainter = rememberAsyncImagePainter(
-        model = ImageRequest.Builder(context).data(item.cover.ifBlank { null }).size(Size.ORIGINAL).build()
+        model = ImageRequest.Builder(context).data(item.cover.ifBlank { null }).size(Size.ORIGINAL).allowHardware(true).build()
     )
     val coverReady = item.cover.isBlank() || coverPainter.state is AsyncImagePainter.State.Success || coverPainter.state is AsyncImagePainter.State.Error
-    BackHandler(onBack = onBack)
+    BackHandler(onBack = actions.onBack)
     // Load all sections upfront
     if (!coverReady || !relatedDone || !themesDone) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary) }
@@ -200,7 +227,7 @@ import kotlin.math.roundToInt
                     Box(Modifier.fillMaxWidth().height(248.dp).clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))) {
                         if (backdropUrl != null) {
                             AsyncImage(
-                                model = backdropUrl, contentDescription = null,
+                                model = ImageRequest.Builder(context).data(backdropUrl).allowHardware(true).build(), contentDescription = null,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                             )
@@ -212,7 +239,7 @@ import kotlin.math.roundToInt
                         // General darkening overlay
                         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .32f), Color.Black.copy(alpha = .7f)))))
                         IconButton(
-                            onClick = onBack,
+                            onClick = actions.onBack,
                             modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .32f)),
                         ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
                         var moreOpen by remember(item.id) { mutableStateOf(false) }
@@ -269,7 +296,7 @@ import kotlin.math.roundToInt
                                 ) {
                                     // Fit, not cropped, cover
                                     AsyncImage(
-                                        model = gallery[page], contentDescription = item.displayTitle(),
+                                        model = ImageRequest.Builder(context).data(gallery[page]).allowHardware(true).build(), contentDescription = item.displayTitle(),
                                         modifier = Modifier.fillMaxWidth(0.86f).aspectRatio(2f / 3f).clip(RoundedCornerShape(16.dp)),
                                         contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                                     )
@@ -346,7 +373,7 @@ import kotlin.math.roundToInt
                     if (item.genres.isNotEmpty()) {
                         Text("GENRES", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            item.genres.forEach { g -> GenreChip(g, onClick = { onGenreClick(g) }) }
+                            item.genres.forEach { g -> GenreChip(g, onClick = { actions.onGenreClick(g) }) }
                         }
                     }
                     val meta = listOfNotNull(item.creator.takeIf { it.isNotBlank() }, aired.takeIf { it.isNotBlank() })
@@ -395,7 +422,7 @@ import kotlin.math.roundToInt
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                 details.forEachIndexed { i, (label, value) ->
                                     val isCreatorRow = (label == "Studio" || label == "Author") && item.creator.isNotBlank()
-                                    InfoRow(label, value, onClick = if (isCreatorRow) { { onCreatorClick(item.creator) } } else null)
+                                    InfoRow(label, value, onClick = if (isCreatorRow) { { actions.onCreatorClick(item.creator) } } else null)
                                     if (i != details.lastIndex) HorizontalDivider(color = c.surfaceLow)
                                 }
                             }
@@ -452,20 +479,20 @@ import kotlin.math.roundToInt
                     if (reviews.isNotEmpty()) {
                         Row(Modifier.fillMaxWidth().padding(top = 26.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("Reviews", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.weight(1f))
-                            Text("See more", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.clickable { onOpenReviewList(malReviewsUrl(item), itemDisplayTitle) })
+                            Text("See more", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.clickable { actions.onOpenReviewList(malReviewsUrl(item), itemDisplayTitle) })
                         }
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(reviews, key = { it.malId }) { rev -> ReviewCard(rev, onClick = { onOpenReview(rev) }) }
+                            items(reviews, key = { it.malId }) { rev -> ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) }
                         }
                     }
 
                     if (related.isNotEmpty()) {
                         Text("Related", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(related) { rel ->
+                            items(related, key = { "${it.relation}-${it.malId}-${it.title}" }) { rel ->
                                 RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId, myStatus = myListStatus[rel.malId to (if (rel.malType == "manga") MediaType.Manga else MediaType.Anime)]) {
                                     // Fallback to web search
-                                    if (rel.malId > 0) onOpenRelated(rel) else uriHandler.openUri(malUrl(rel))
+                                    if (rel.malId > 0) actions.onOpenRelated(rel) else uriHandler.openUri(malUrl(rel))
                                 }
                             }
                         }
@@ -476,7 +503,7 @@ import kotlin.math.roundToInt
                         Text("Recommended", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             items(recommended, key = { it.malId }) { rec ->
-                                RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { onOpenRecommended(rec) }
+                                RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) }
                             }
                         }
                     }
@@ -503,7 +530,7 @@ import kotlin.math.roundToInt
             }
         }
         ExtendedFloatingActionButton(
-            onClick = { onEdit(item) },
+            onClick = { actions.onEdit(item) },
             icon = { Icon(if (item.inUserList) Icons.Default.Edit else Icons.Default.Add, if (item.inUserList) "Edit" else "Add", tint = c.onPrimary) },
             text = { Text(if (item.inUserList) item.status.label else "Add", fontWeight = FontWeight.Bold, color = c.onPrimary) },
             containerColor = c.primary,
