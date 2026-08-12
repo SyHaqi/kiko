@@ -355,11 +355,17 @@ import kotlin.math.roundToInt
     onClick: () -> Unit
 ) {
     val c = LocalKikoColors.current
+    // Same fix as AiringNextCard: use the clickable Card(onClick=) overload instead of
+    // our own .kikoClickable on the passed-in modifier, so the press ripple/scale stays
+    // clipped to the card's rounded shape instead of showing as a square hint.
+    val interactionSource = remember { MutableInteractionSource() }
     Card(
+        onClick = onClick,
+        interactionSource = interactionSource,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = modifier.kikoClickable(onClick = onClick)
+        modifier = modifier.pressScale(interactionSource)
     ) {
         Row(
             Modifier.padding(vertical = 16.dp, horizontal = 12.dp),

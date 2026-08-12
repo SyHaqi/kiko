@@ -351,11 +351,17 @@ import kotlin.math.roundToInt
     LaunchedEffect(stack.id) {
         if (covers.isEmpty()) covers = runCatching { StacksApi().topCovers(stack.id) }.getOrElse { emptyList() }
     }
+    // Card(onClick=) overload, not a plain Card + .kikoClickable — see AiringNextCard
+    // for why: Card's own rounded clip wraps the passed-in modifier, so a ripple
+    // attached there draws outside the clip and shows as a square hint.
+    val interactionSource = remember { MutableInteractionSource() }
     Card(
+        onClick = onClick,
+        interactionSource = interactionSource,
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).kikoClickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).pressScale(interactionSource),
     ) {
         Column {
             StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)))
@@ -380,11 +386,14 @@ import kotlin.math.roundToInt
     LaunchedEffect(stack.id) {
         if (covers.isEmpty()) covers = runCatching { StacksApi().topCovers(stack.id) }.getOrElse { emptyList() }
     }
+    val interactionSource = remember { MutableInteractionSource() }
     Card(
+        onClick = onClick,
+        interactionSource = interactionSource,
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.width(250.dp).kikoClickable(onClick = onClick),
+        modifier = Modifier.width(250.dp).pressScale(interactionSource),
     ) {
         Column {
             StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)))

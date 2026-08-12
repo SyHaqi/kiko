@@ -249,11 +249,14 @@ import kotlin.math.roundToInt
 @Composable fun ScheduleRow(item: MediaItem, time: java.time.LocalTime, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
+    val interactionSource = remember { MutableInteractionSource() }
     Card(
+        onClick = { onOpenDetail(item) },
+        interactionSource = interactionSource,
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).kikoClickable { onOpenDetail(item) },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).pressScale(interactionSource),
     ) {
         Row(Modifier.padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
             Cover(item, Modifier.size(width = 58.dp, height = 82.dp), showStatus = true)

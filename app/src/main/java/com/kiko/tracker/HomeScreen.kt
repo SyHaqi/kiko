@@ -227,7 +227,19 @@ import kotlin.math.roundToInt
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
     val time = item.localBroadcast()?.second
-    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), elevation = CardDefaults.cardElevation(4.dp), modifier = Modifier.width(264.dp).kikoClickable { onOpenDetail(item) }) {
+    // Uses the clickable Card(onClick=) overload rather than a plain Card + our own
+    // .kikoClickable — Card's internal shape-clip is applied *after* whatever modifier
+    // is passed in, so a ripple/press-scale attached to the passed-in modifier draws
+    // outside that clip and shows as a square hint over the rounded card. The onClick
+    // overload's own interaction layer is clipped to `shape` correctly; we still get
+    // our press-scale by driving it off the same interactionSource.
+    val interactionSource = remember { MutableInteractionSource() }
+    Card(
+        onClick = { onOpenDetail(item) },
+        interactionSource = interactionSource,
+        shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), elevation = CardDefaults.cardElevation(4.dp),
+        modifier = Modifier.width(264.dp).pressScale(interactionSource),
+    ) {
         Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
             Cover(item, Modifier.size(width = 78.dp, height = 110.dp), showStatus = true)
             Column(Modifier.weight(1f).padding(start = 13.dp)) {
