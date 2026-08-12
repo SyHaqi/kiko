@@ -25,6 +25,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -137,6 +138,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import java.util.UUID
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable fun BottomBar(selected: Destination, select: (Destination) -> Unit) { val c = LocalKikoColors.current; NavigationBar(containerColor = c.surface, tonalElevation = 4.dp) { Destination.entries.forEach { d -> NavigationBarItem(selected = d == selected, onClick = { select(d) }, icon = { Icon(d.icon, null) }, label = { Text(d.label) }, colors = NavigationBarItemDefaults.colors(selectedIconColor = c.primary, selectedTextColor = c.primary, unselectedIconColor = c.muted, unselectedTextColor = c.muted, indicatorColor = c.primaryContainer)) } } }
@@ -358,13 +360,22 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 // Re-centers a scrollable chip row on the tapped chip so neighboring categories peek into
 // view, in one continuous motion (no snap-then-correct jump). Only meant for chip rows that
 // can actually overflow the screen — small fixed rows (e.g. a 2-option toggle) don't need it.
+// Uses an explicit eased tween rather than animateScrollBy's default spring, which is stiff
+// enough to read as an abrupt snap rather than a glide, especially over the short distances
+// most chip taps cover.
+private val chipCenterEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+
 fun CoroutineScope.centerChip(listState: LazyListState, index: Int) {
     launch {
         val info = listState.layoutInfo
         val itemInfo = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return@launch
         val viewportCenter = info.viewportStartOffset + (info.viewportEndOffset - info.viewportStartOffset) / 2
         val itemCenter = itemInfo.offset + itemInfo.size / 2
-        listState.animateScrollBy((itemCenter - viewportCenter).toFloat())
+        val distance = (itemCenter - viewportCenter).toFloat()
+        // Scale duration with distance so a neighboring chip glides quickly while a far-off
+        // one gets a longer, still-smooth travel time.
+        val duration = (abs(distance) / 2.2f).roundToInt().coerceIn(220, 420)
+        listState.animateScrollBy(distance, animationSpec = tween(durationMillis = duration, easing = chipCenterEasing))
     }
 }
 
