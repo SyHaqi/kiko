@@ -298,6 +298,18 @@ import kotlin.math.roundToInt
                     }
                 }
 
+                // Trending manga row
+                if (vm.visibleTrendingManga.isNotEmpty()) {
+                    item {
+                        SectionTitle("Trending manga", "", {})
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                            items(vm.visibleTrendingManga, key = { it.id }) { item ->
+                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
+                            }
+                        }
+                    }
+                }
+
                 // Loading and error states
                 if (vm.discoverBrowseLoading) {
                     item {

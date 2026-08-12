@@ -335,6 +335,7 @@ class LibraryViewModel : ViewModel() {
     val visibleDiscoverNewSeason get() = discoverNewSeason.nsfwFiltered(nsfwEnabled)
     val visibleDiscoverUpcoming get() = discoverUpcoming.nsfwFiltered(nsfwEnabled)
     val visibleRecommendations get() = recommendations.nsfwFiltered(nsfwEnabled)
+    val visibleTrendingManga get() = trendingManga.nsfwFiltered(nsfwEnabled)
     val visibleRankingResults get() = rankingResults.nsfwFiltered(nsfwEnabled)
     // Filter to premieres only
     val visibleSeasonalResults: List<MediaItem> get() {
@@ -392,6 +393,9 @@ class LibraryViewModel : ViewModel() {
 
     // Home recommendations row
     var recommendations by mutableStateOf<List<MediaItem>>(emptyList()); private set
+    // Trending manga row (manga has no personalized suggestions endpoint on MAL, so this
+    // uses the popularity ranking as a stand-in for "trending")
+    var trendingManga by mutableStateOf<List<MediaItem>>(emptyList()); private set
     private var homeExtrasLoaded = false
 
     // Ranking chart state
@@ -498,11 +502,13 @@ class LibraryViewModel : ViewModel() {
             discoverBrowseLoading = false
         }
     }
-    // Load recommendations row
+    // Load recommendations + trending manga rows
     fun loadHomeExtras(context: Context) {
         if (homeExtrasLoaded || !MalApi(context).signedIn) return
         homeExtrasLoaded = true
-        viewModelScope.launch { runCatching { MalApi(context).animeSuggestions(100) }.onSuccess { recommendations = it } }
+        val api = MalApi(context)
+        viewModelScope.launch { runCatching { api.animeSuggestions(100) }.onSuccess { recommendations = it } }
+        viewModelScope.launch { runCatching { api.ranking(MediaType.Manga, "bypopularity", limit = 10) }.onSuccess { trendingManga = it } }
     }
     // (Re)run ranking chart
     fun loadRanking(context: Context, type: MediaType, sort: RankingSort) {
