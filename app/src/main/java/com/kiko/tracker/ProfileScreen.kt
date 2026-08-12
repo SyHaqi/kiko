@@ -68,6 +68,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -131,7 +132,12 @@ import java.util.UUID
 import kotlin.math.roundToInt
 
 // Full page for the profile drawer's "avatar + name" row — profile stats
-@Composable fun ProfileStatsScreen(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, onBack: () -> Unit, scrollOffset: Int = 0, onSaveScroll: (Int) -> Unit = {}, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> }) {
+@Composable fun ProfileStatsScreen(
+    connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, onBack: () -> Unit,
+    scrollOffset: Int = 0, onSaveScroll: (Int) -> Unit = {}, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {},
+    onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> },
+    onSignOut: () -> Unit = {}, refreshing: Boolean = false, onRefresh: () -> Unit = {},
+) {
     val c = LocalKikoColors.current
     // Leaving the Profile page entirely: reset the Anime/Manga switcher and the
     // remembered scroll offset, so re-opening Profile always starts fresh at the top.
@@ -139,15 +145,36 @@ import kotlin.math.roundToInt
     // separately below — that round trip is meant to preserve both.)
     val exitProfile = { onBack(); onStatsTabChange(MediaType.Anime); onSaveScroll(0) }
     BackHandler(onBack = exitProfile)
+    // Confirm before signing out — moved here from Settings so sign out lives with the
+    // account it signs out of, reachable straight from the top-right of Profile.
+    var confirmSignOut by remember { mutableStateOf(false) }
+    if (confirmSignOut) {
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            containerColor = c.surface,
+            title = { Text("Sign out?", color = c.ink) },
+            text = { Text("Are you sure you want to sign out of your MyAnimeList account?", color = c.muted) },
+            confirmButton = { TextButton(onClick = { confirmSignOut = false; onSignOut() }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Sign out") } },
+            dismissButton = { TextButton(onClick = { confirmSignOut = false }, colors = ButtonDefaults.textButtonColors(contentColor = c.muted)) { Text("Cancel") } },
+        )
+    }
     // Restore scroll position on return from the score distribution drill-down instead of resetting to top
     val scrollState = rememberScrollState(initial = scrollOffset)
-    Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 20.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = exitProfile, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-            Text(profile?.name?.ifBlank { "Profile" } ?: "Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+    PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 20.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = exitProfile, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                Text(profile?.name?.ifBlank { "Profile" } ?: "Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp).weight(1f))
+                if (connected) {
+                    IconButton(onClick = { confirmSignOut = true }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) {
+                        Icon(Icons.AutoMirrored.Filled.Logout, "Sign out", tint = c.danger, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+            Box(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
+                ProfileStatsSection(connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange, onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) }, onYearClick = { type, year -> onSaveScroll(scrollState.value); onYearClick(type, year) })
+            }
         }
-        Box(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
-            ProfileStatsSection(connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange, onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) }, onYearClick = { type, year -> onSaveScroll(scrollState.value); onYearClick(type, year) })        }
     }
 }
 
@@ -157,7 +184,7 @@ import kotlin.math.roundToInt
     nsfwEnabled: Boolean, onNsfwChange: (Boolean) -> Unit,
     amoledDark: Boolean, onAmoledDarkChange: (Boolean) -> Unit,
     onThemeClick: () -> Unit, onColorClick: () -> Unit, onPaletteClick: () -> Unit, onTitleLanguageClick: () -> Unit,
-    updateInfo: AppUpdateInfo?, onAboutClick: () -> Unit, onSignOut: () -> Unit, onBack: () -> Unit,
+    updateInfo: AppUpdateInfo?, onAboutClick: () -> Unit, onBack: () -> Unit,
 ) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
@@ -172,7 +199,7 @@ import kotlin.math.roundToInt
                 nsfwEnabled = nsfwEnabled, onNsfwChange = onNsfwChange,
                 amoledDark = amoledDark, onAmoledDarkChange = onAmoledDarkChange,
                 onThemeClick = onThemeClick, onColorClick = onColorClick, onPaletteClick = onPaletteClick, onTitleLanguageClick = onTitleLanguageClick,
-                updateInfo = updateInfo, onAboutClick = onAboutClick, onSignOut = onSignOut,
+                updateInfo = updateInfo, onAboutClick = onAboutClick,
             )
         }
     }
@@ -359,28 +386,17 @@ import kotlin.math.roundToInt
     }
 }
 
-// Settings list — theme, color, palette, title language, adult content, about,
-// and (when signed in) sign out. Lives in the profile drawer's "Settings" row.
+// Settings list — theme, color, palette, title language, adult content, about.
+// Lives in the profile drawer's "Settings" row. Sign out moved to the Profile page
+// (top-right of ProfileStatsScreen) — it lives with the account it signs out of.
 @Composable fun SettingsSection(
     connected: Boolean, themeMode: ThemeMode, colorSource: ColorSource, paletteStyle: PaletteStyle, titleLanguage: TitleLanguage,
     nsfwEnabled: Boolean, onNsfwChange: (Boolean) -> Unit,
     amoledDark: Boolean = false, onAmoledDarkChange: (Boolean) -> Unit = {},
     onThemeClick: () -> Unit, onColorClick: () -> Unit, onPaletteClick: () -> Unit, onTitleLanguageClick: () -> Unit,
-    updateInfo: AppUpdateInfo? = null, onAboutClick: () -> Unit = {}, onSignOut: () -> Unit = {},
+    updateInfo: AppUpdateInfo? = null, onAboutClick: () -> Unit = {},
 ) {
     val c = LocalKikoColors.current
-    // Confirm before signing out
-    var confirmSignOut by remember { mutableStateOf(false) }
-    if (confirmSignOut) {
-        AlertDialog(
-            onDismissRequest = { confirmSignOut = false },
-            containerColor = c.surface,
-            title = { Text("Sign out?", color = c.ink) },
-            text = { Text("Are you sure you want to sign out of your MyAnimeList account?", color = c.muted) },
-            confirmButton = { TextButton(onClick = { confirmSignOut = false; onSignOut() }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Sign out") } },
-            dismissButton = { TextButton(onClick = { confirmSignOut = false }, colors = ButtonDefaults.textButtonColors(contentColor = c.muted)) { Text("Cancel") } },
-        )
-    }
     Column {
         ListItem(headlineContent = { Text("Theme", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(themeMode.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Palette, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onThemeClick))
         ListItem(headlineContent = { Text("Color", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(colorSource.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.ColorLens, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onColorClick))
@@ -403,14 +419,6 @@ import kotlin.math.roundToInt
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onAboutClick),
         )
-        if (connected) {
-            ListItem(
-                headlineContent = { Text("Sign out", fontWeight = FontWeight.Bold, color = c.danger) },
-                leadingContent = { Icon(Icons.AutoMirrored.Filled.Logout, null, tint = c.danger) },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable { confirmSignOut = true },
-            )
-        }
     }
 }
 
