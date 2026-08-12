@@ -237,7 +237,8 @@ import kotlin.math.roundToInt
         Column(Modifier.padding(horizontal = 20.dp)) {
             SearchField(value = vm.stacksBrowseQuery, change = { vm.updateStacksBrowseQuery(it) }, hint = "Search stacks", onSearch = { vm.searchStacksBrowse() })
         }
-        val kindListState = rememberLazyListState()
+        val kindListState = rememberLazyListState(initialFirstVisibleItemIndex = StackBrowseKind.entries.indexOf(activeKind).coerceAtLeast(0))
+        LaunchedEffect(Unit) { centerChip(kindListState, StackBrowseKind.entries.indexOf(activeKind).coerceAtLeast(0)) }
         LazyRow(state = kindListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)) {
             itemsIndexed(StackBrowseKind.entries.toList()) { index, k ->
                 FilterChip(

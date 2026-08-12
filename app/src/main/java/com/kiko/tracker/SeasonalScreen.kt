@@ -223,8 +223,11 @@ import kotlin.math.roundToInt
             IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Release Schedule", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
-        val dayListState = rememberLazyListState()
+        val dayListState = rememberLazyListState(initialFirstVisibleItemIndex = java.time.DayOfWeek.values().indexOf(initialDay))
         val scope = rememberCoroutineScope()
+        // Opens pre-selected to "today" (or whichever day was tapped) — land scrolled near
+        // it immediately rather than leaving that chip off past the edge until swiped to.
+        LaunchedEffect(Unit) { centerChip(dayListState, java.time.DayOfWeek.values().indexOf(initialDay)) }
         LazyRow(state = dayListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 15.dp)) {
             itemsIndexed(java.time.DayOfWeek.values().toList()) { index, day ->
                 val label = day.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())

@@ -480,11 +480,18 @@ import kotlin.math.roundToInt
 @Composable fun ScoreFilterRow(current: Int, set: (Int) -> Unit) {
     val c = LocalKikoColors.current
     val colors = kikoFilterChipColors()
-    val listState = rememberLazyListState()
+    val scores = remember { (10 downTo 1).toList() }
+    val initialIndex = remember { if (current == 0) 0 else scores.indexOf(current) + 1 }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
     val scope = rememberCoroutineScope()
+    // Land already-scrolled near the pre-selected chip (e.g. tapping a bar in the score
+    // chart opens this screen with that score already chosen), then nudge it the rest of
+    // the way to center — otherwise the chip confirming which score you're looking at
+    // stays scrolled off past the edge until you manually swipe the row to find it.
+    LaunchedEffect(Unit) { centerChip(listState, initialIndex) }
     LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
         item { FilterChip(selected = current == 0, onClick = { set(0); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
-        itemsIndexed((10 downTo 1).toList()) { index, s ->
+        itemsIndexed(scores) { index, s ->
             FilterChip(
                 selected = current == s,
                 onClick = { set(s); scope.centerChip(listState, index + 1) },
@@ -565,8 +572,10 @@ import kotlin.math.roundToInt
 @Composable fun YearFilterRow(years: List<Int>, current: Int, set: (Int) -> Unit) {
     val c = LocalKikoColors.current
     val colors = kikoFilterChipColors()
-    val listState = rememberLazyListState()
+    val initialIndex = remember { if (current == 0) 0 else years.indexOf(current) + 1 }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
     val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { centerChip(listState, initialIndex) }
     LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
         item { FilterChip(selected = current == 0, onClick = { set(0); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
         itemsIndexed(years) { index, y -> FilterChip(selected = current == y, onClick = { set(y); scope.centerChip(listState, index + 1) }, label = { Text(y.toString()) }, colors = colors) }
