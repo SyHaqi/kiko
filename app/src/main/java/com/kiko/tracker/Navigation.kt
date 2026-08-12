@@ -31,6 +31,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -148,11 +150,15 @@ fun SyncSystemBars(darkTheme: Boolean, background: Color) {
 
 // Shared navigation transition motion
 
+// Shared navigation transition motion — push/pop get a faint scale on top of the
+// fade+slide so the screen underneath reads as physically receding/advancing
+// (matching the depth cue Android's own activity transitions use), not just sliding.
+
 val PushEnter = fadeIn(tween(260)) + slideInHorizontally(tween(260)) { it / 4 }
 
-val PushExit = fadeOut(tween(150))
+val PushExit = fadeOut(tween(150)) + scaleOut(tween(220), targetScale = .96f)
 
-val PopEnter = fadeIn(tween(220))
+val PopEnter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = .96f)
 
 val PopExit = fadeOut(tween(260)) + slideOutHorizontally(tween(260)) { it / 4 }
 

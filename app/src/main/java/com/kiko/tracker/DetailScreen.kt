@@ -270,10 +270,12 @@ data class DetailScreenActions(
                         }
                     }
                     // Poster position below button
+                    val posterInteraction = remember { MutableInteractionSource() }
                     Box(
                         Modifier.padding(start = 20.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f)
                             .shadow(10.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color(item.color))
-                            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { showFullCover = true },
+                            .pressScale(posterInteraction, scale = 0.94f)
+                            .clickable(indication = null, interactionSource = posterInteraction) { showFullCover = true },
                     ) {
                         if (item.cover.isNotBlank()) {
                             Image(painter = coverPainter, contentDescription = displayTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
@@ -446,13 +448,13 @@ data class DetailScreenActions(
                     if (characters.isNotEmpty()) {
                         Text("Characters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(characters, key = { it.malId }) { ch -> CharacterCard(ch, uriHandler) }
+                            itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch -> StaggeredItem(i) { CharacterCard(ch, uriHandler) } }
                         }
                     }
                     if (staffList.isNotEmpty()) {
                         Text("Staff", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(staffList, key = { it.malId }) { st -> StaffCard(st, uriHandler) }
+                            itemsIndexed(staffList, key = { _, it -> it.malId }) { i, st -> StaggeredItem(i) { StaffCard(st, uriHandler) } }
                         }
                     }
 
@@ -463,7 +465,7 @@ data class DetailScreenActions(
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                 themes.forEachIndexed { i, (kind, text) ->
                                     Row(
-                                        Modifier.fillMaxWidth().clickable { uriHandler.openUri(youtubeSearchUrl("$text $itemDisplayTitle")) }.padding(vertical = 11.dp),
+                                        Modifier.fillMaxWidth().kikoClickable { uriHandler.openUri(youtubeSearchUrl("$text $itemDisplayTitle")) }.padding(vertical = 11.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Text(kind, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.width(28.dp))
@@ -482,17 +484,19 @@ data class DetailScreenActions(
                             Text("See more", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.clickable { actions.onOpenReviewList(malReviewsUrl(item), itemDisplayTitle) })
                         }
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(reviews, key = { it.malId }) { rev -> ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) }
+                            itemsIndexed(reviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
                         }
                     }
 
                     if (related.isNotEmpty()) {
                         Text("Related", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items(related, key = { "${it.relation}-${it.malId}-${it.title}" }) { rel ->
-                                RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId, myStatus = myListStatus[rel.malId to (if (rel.malType == "manga") MediaType.Manga else MediaType.Anime)]) {
-                                    // Fallback to web search
-                                    if (rel.malId > 0) actions.onOpenRelated(rel) else uriHandler.openUri(malUrl(rel))
+                            itemsIndexed(related, key = { _, it -> "${it.relation}-${it.malId}-${it.title}" }) { i, rel ->
+                                StaggeredItem(i) {
+                                    RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId, myStatus = myListStatus[rel.malId to (if (rel.malType == "manga") MediaType.Manga else MediaType.Anime)]) {
+                                        // Fallback to web search
+                                        if (rel.malId > 0) actions.onOpenRelated(rel) else uriHandler.openUri(malUrl(rel))
+                                    }
                                 }
                             }
                         }
@@ -502,8 +506,8 @@ data class DetailScreenActions(
                     if (recommended.isNotEmpty()) {
                         Text("Recommended", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                            items(recommended, key = { it.malId }) { rec ->
-                                RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) }
+                            itemsIndexed(recommended, key = { _, it -> it.malId }) { i, rec ->
+                                StaggeredItem(i) { RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) } }
                             }
                         }
                     }
@@ -542,7 +546,7 @@ data class DetailScreenActions(
 @Composable fun InfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
     val c = LocalKikoColors.current
     Row(
-        Modifier.fillMaxWidth().let { if (onClick != null) it.clickable(onClick = onClick) else it }.padding(vertical = 11.dp),
+        Modifier.fillMaxWidth().let { if (onClick != null) it.kikoClickable(onClick = onClick) else it }.padding(vertical = 11.dp),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, color = c.muted, fontSize = 13.sp)
@@ -619,7 +623,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     val c = LocalKikoColors.current
     Column(
         Modifier.width(140.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp))
-            .let { m -> onClick?.let { m.clickable(enabled = !loading, onClick = it) } ?: m },
+            .let { m -> onClick?.let { m.kikoClickable(enabled = !loading, onClick = it) } ?: m },
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)).background(c.surfaceLow)) {
             if (imageUrl.isNotBlank()) {
@@ -660,7 +664,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     val c = LocalKikoColors.current
     Column(
         Modifier.width(88.dp).clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(14.dp))
-            .let { m -> onClick?.let { m.clickable(onClick = it) } ?: m },
+            .let { m -> onClick?.let { m.kikoClickable(onClick = it) } ?: m },
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(3f / 4f).clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)).background(c.surfaceLow)) {
             if (imageUrl.isNotBlank()) {
@@ -690,7 +694,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 @Composable fun ReviewCard(entry: ReviewEntry, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Column(
-        Modifier.width(260.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(14.dp),
+        Modifier.width(260.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp)).kikoClickable(onClick = onClick).padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (entry.userImage.isNotBlank()) {
@@ -896,7 +900,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     Column(modifier) {
         Text(label, color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(14.dp)).clickable { showPicker = true }.padding(horizontal = 14.dp, vertical = 13.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(14.dp)).kikoClickable { showPicker = true }.padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {

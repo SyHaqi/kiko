@@ -169,6 +169,9 @@ import kotlin.math.roundToInt
                     if (vm.forumBoardsLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
                     vm.forumBoardsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                 }
+                if (vm.forumBoardsLoading && vm.forumCategories.isEmpty()) {
+                    item { TopicRowSkeletonGroup(5) }
+                }
                 // Grouped category board card
                 vm.forumCategories.forEach { category ->
                     item { Text(category.title.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp)) }
@@ -196,7 +199,7 @@ import kotlin.math.roundToInt
 
 @Composable fun ForumBoardRow(board: ForumBoard, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {
             Icon(Icons.Default.Forum, null, tint = c.primary, modifier = Modifier.size(20.dp))
         }
@@ -264,9 +267,17 @@ import kotlin.math.roundToInt
             if (!vm.forumTopicsLoading && vm.forumTopics.isEmpty() && vm.forumTopicsError == null) {
                 item { Text("No topics found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
             }
-            itemsIndexed(vm.forumTopics, key = { _, it -> it.id }) { index, topic ->
-                if (vm.forumIsNewsBoard) NewsTopicRow(topic) { openTopic(topic) } else ForumTopicRow(topic) { openTopic(topic) }
-                if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+            if (vm.forumTopicsLoading && vm.forumTopics.isEmpty()) {
+                item { TopicRowSkeletonGroup(6) }
+            } else {
+                itemsIndexed(vm.forumTopics, key = { _, it -> it.id }) { index, topic ->
+                    StaggeredItem(index) {
+                        Column {
+                            if (vm.forumIsNewsBoard) NewsTopicRow(topic) { openTopic(topic) } else ForumTopicRow(topic) { openTopic(topic) }
+                            if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        }
+                    }
+                }
             }
             if (vm.forumLoadingMore) {
                 item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
@@ -283,7 +294,7 @@ import kotlin.math.roundToInt
 
 @Composable fun ForumTopicRow(topic: ForumTopic, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
+    Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
         if (topic.author.avatar.isNotBlank()) {
             AsyncImage(model = topic.author.avatar, contentDescription = topic.author.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(36.dp).clip(CircleShape).background(c.warm))
         } else {
@@ -311,7 +322,7 @@ import kotlin.math.roundToInt
 
 @Composable fun NewsTopicRow(topic: ForumTopic, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.Top) {
+    Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.Top) {
         Box(Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(16.dp)).background(c.surfaceLow).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
             if (topic.imageUrl != null) {
                 AsyncImage(model = topic.imageUrl, contentDescription = topic.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
@@ -398,8 +409,12 @@ import kotlin.math.roundToInt
                 poll?.let { ForumPollCard(it, Modifier.padding(top = 6.dp, bottom = 6.dp)) }
             }
             itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
-                ForumPostCard(post, isOriginalPost = post.number == 1)
-                if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                StaggeredItem(index) {
+                    Column {
+                        ForumPostCard(post, isOriginalPost = post.number == 1)
+                        if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                    }
+                }
             }
             if (loadingMore) {
                 item {

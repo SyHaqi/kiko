@@ -398,10 +398,10 @@ import kotlin.math.roundToInt
 ) {
     val c = LocalKikoColors.current
     Column {
-        ListItem(headlineContent = { Text("Theme", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(themeMode.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Palette, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onThemeClick))
-        ListItem(headlineContent = { Text("Color", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(colorSource.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.ColorLens, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onColorClick))
-        ListItem(headlineContent = { Text("Color palette", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(paletteStyle.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Gradient, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onPaletteClick))
-        ListItem(headlineContent = { Text("Title language", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(titleLanguage.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Translate, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onTitleLanguageClick))
+        ListItem(headlineContent = { Text("Theme", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(themeMode.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Palette, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).kikoClickable(onClick = onThemeClick))
+        ListItem(headlineContent = { Text("Color", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(colorSource.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.ColorLens, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).kikoClickable(onClick = onColorClick))
+        ListItem(headlineContent = { Text("Color palette", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(paletteStyle.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Gradient, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).kikoClickable(onClick = onPaletteClick))
+        ListItem(headlineContent = { Text("Title language", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(titleLanguage.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Translate, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(16.dp)).kikoClickable(onClick = onTitleLanguageClick))
         // Pure-black backgrounds for OLED/AMOLED screens — only takes effect while dark theme is active
         ListItem(headlineContent = { Text("AMOLED black", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text("True black backgrounds in dark mode, saves battery on AMOLED screens", color = c.muted) }, leadingContent = { Icon(Icons.Default.DarkMode, null, tint = c.primary) }, trailingContent = { Switch(checked = amoledDark, onCheckedChange = onAmoledDarkChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
         ListItem(headlineContent = { Text("Adult content", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(if (nsfwEnabled) "Hentai-rated titles are shown" else "Hentai-rated titles are hidden", color = c.muted) }, leadingContent = { Icon(Icons.Default.VisibilityOff, null, tint = c.primary) }, trailingContent = { Switch(checked = nsfwEnabled, onCheckedChange = onNsfwChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
@@ -417,7 +417,7 @@ import kotlin.math.roundToInt
             },
             trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onAboutClick),
+            modifier = Modifier.clip(RoundedCornerShape(16.dp)).kikoClickable(onClick = onAboutClick),
         )
     }
 }
@@ -457,15 +457,19 @@ import kotlin.math.roundToInt
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-            items(filtered, key = { it.id }) { item -> ListGridCard(item, onOpenDetail) }
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index) { ListGridCard(item, onOpenDetail) } }
             if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles at this score yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
         }
     } else {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item { header() }
             itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                ListRow(it, onOpenDetail, showType = false)
-                if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                StaggeredItem(index) {
+                    Column {
+                        ListRow(it, onOpenDetail, showType = false)
+                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                    }
+                }
             }
             if (filtered.isEmpty()) item { Text("No titles at this score yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
         }
@@ -538,15 +542,19 @@ import kotlin.math.roundToInt
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-            items(filtered, key = { it.id }) { item -> ListGridCard(item, onOpenDetail) }
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index) { ListGridCard(item, onOpenDetail) } }
             if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
         }
     } else {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item { header() }
             itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                ListRow(it, onOpenDetail, showType = false)
-                if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                StaggeredItem(index) {
+                    Column {
+                        ListRow(it, onOpenDetail, showType = false)
+                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                    }
+                }
             }
             if (filtered.isEmpty()) item { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
         }

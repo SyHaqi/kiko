@@ -26,6 +26,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -74,6 +75,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -147,21 +149,45 @@ import kotlin.math.roundToInt
 
 // Unused params kept intentionally
 
+// Base "breathing" fill, plus a diagonal highlight band that sweeps across every
+// skeleton on screen in lockstep (one shared infinite transition per block keeps
+// them visually synced rather than pulsing out of phase with each other).
 @Composable fun SkeletonBlock(modifier: Modifier, shape: RoundedCornerShape = RoundedCornerShape(12.dp)) {
     val c = LocalKikoColors.current
     val transition = rememberInfiniteTransition(label = "skeleton")
     val alpha by transition.animateFloat(
-        initialValue = 0.35f, targetValue = 0.75f,
+        initialValue = 0.35f, targetValue = 0.6f,
         animationSpec = infiniteRepeatable(animation = tween(700), repeatMode = RepeatMode.Reverse),
         label = "skeletonAlpha",
     )
-    Box(modifier.clip(shape).background(c.surfaceLow.copy(alpha = alpha)))
+    val sweep by transition.animateFloat(
+        initialValue = -0.4f, targetValue = 1.4f,
+        animationSpec = infiniteRepeatable(animation = tween(1100, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+        label = "skeletonSweep",
+    )
+    Box(
+        modifier
+            .clip(shape)
+            .background(c.surfaceLow.copy(alpha = alpha))
+            .drawWithContent {
+                drawContent()
+                val bandWidth = size.width * 0.5f
+                val x = sweep * (size.width + bandWidth)
+                drawRect(
+                    brush = Brush.linearGradient(
+                        colors = listOf(Color.Transparent, c.ink.copy(alpha = .08f), Color.Transparent),
+                        start = Offset(x - bandWidth, 0f),
+                        end = Offset(x, size.height),
+                    ),
+                )
+            },
+    )
 }
 // Continue card placeholder
 
 @Composable fun MiniCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
-    Column(Modifier.width(118.dp).clickable { onOpenDetail(item) }) {
+    Column(Modifier.width(118.dp).kikoClickable { onOpenDetail(item) }) {
         Cover(item, Modifier.fillMaxWidth().height(150.dp), showStatus = true)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         Text(if (item.status == WatchStatus.Plan) "Saved for later" else progressLabel(item), color = c.primary, fontWeight = FontWeight.Medium, fontSize = 11.sp)
@@ -257,7 +283,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
         MediaType.entries.forEach { t ->
             val selected = current == t
             Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (selected) c.primary else Color.Transparent).clickable { set(t) }.padding(vertical = 10.dp),
+                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (selected) c.primary else Color.Transparent).kikoClickable { set(t) }.padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(if (t == MediaType.Anime) "Anime" else "Manga", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (selected) c.onPrimary else c.muted)
@@ -305,7 +331,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     ) {
         suggestions.forEachIndexed { index, title ->
             Row(
-                Modifier.fillMaxWidth().clickable { onSelect(title) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth().kikoClickable { onSelect(title) }.padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Default.Search, null, tint = c.muted, modifier = Modifier.size(16.dp))
@@ -430,7 +456,7 @@ fun statusColor(label: String): Color = when {
     val c = LocalKikoColors.current
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val posMod = Modifier.onGloballyPositioned { val pos = it.positionOnScreen(); bounds = Rect(pos.x, pos.y, pos.x + it.size.width, pos.y + it.size.height) }
-    val tapMod = if (onClick != null) Modifier.clickable { onClick(bounds) } else Modifier
+    val tapMod = if (onClick != null) Modifier.kikoClickable { onClick(bounds) } else Modifier
     if (picture.isNotBlank()) {
         AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(RoundedCornerShape(16.dp)).background(c.warm).then(posMod).then(tapMod))
     } else {
@@ -453,7 +479,7 @@ fun statusColor(label: String): Color = when {
         Modifier
             .clip(RoundedCornerShape(10.dp))
             .border(1.dp, c.muted.copy(alpha = .35f), RoundedCornerShape(10.dp))
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+            .let { if (onClick != null) it.kikoClickable(onClick = onClick) else it }
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
         Text(text, color = c.ink, fontWeight = FontWeight.Medium, fontSize = 12.sp)

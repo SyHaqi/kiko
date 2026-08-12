@@ -153,7 +153,11 @@ import kotlin.math.roundToInt
                 if (vm.rankingLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
                 vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
             }
-            itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it -> RankingRow(index + 1, it, onOpenDetail) }
+            if (vm.rankingLoading && vm.visibleRankingResults.isEmpty()) {
+                item { ListRowSkeletonGroup(6) }
+            } else {
+                itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index) { RankingRow(index + 1, it, onOpenDetail) } }
+            }
             if (!vm.rankingLoading && vm.visibleRankingResults.isEmpty() && vm.rankingError == null) {
                 item { Text("No results.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             }
@@ -169,7 +173,7 @@ import kotlin.math.roundToInt
 
 @Composable fun RankingRow(position: Int, item: MediaItem, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(19.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(19.dp)).clickable { onOpenDetail(item) }.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(19.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(19.dp)).kikoClickable { onOpenDetail(item) }.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(32.dp), contentAlignment = Alignment.Center) { Text("#$position", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.primary) }
         Cover(item, Modifier.size(width = 54.dp, height = 76.dp), showStatus = true)
         Column(Modifier.weight(1f).padding(horizontal = 13.dp)) {

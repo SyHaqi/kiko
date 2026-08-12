@@ -182,7 +182,7 @@ import kotlin.math.roundToInt
             },
             trailingContent = { if (updateChecking) CircularProgressIndicator(Modifier.size(18.dp), color = c.primary, strokeWidth = 2.dp) else Icon(Icons.Default.ChevronRight, null, tint = c.muted) },
             colors = ListItemDefaults.colors(containerColor = c.surface),
-            modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(enabled = !updateChecking, onClick = onCheckForUpdate),
+            modifier = Modifier.clip(RoundedCornerShape(16.dp)).kikoClickable(enabled = !updateChecking, onClick = onCheckForUpdate),
         )
         Spacer(Modifier.height(28.dp))
         // Community links row

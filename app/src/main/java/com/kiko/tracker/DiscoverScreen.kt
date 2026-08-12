@@ -266,8 +266,8 @@ import kotlin.math.roundToInt
                         SectionTitle("New this season", "See all", onSeasonal)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             // Cap row at 7
-                            items(vm.visibleDiscoverNewSeason.take(7), key = { it.id }) { item ->
-                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
+                            itemsIndexed(vm.visibleDiscoverNewSeason.take(7), key = { _, it -> it.id }) { index, item ->
+                                StaggeredItem(index) { BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
                             }
                         }
                     }
@@ -278,8 +278,8 @@ import kotlin.math.roundToInt
                     item {
                         SectionTitle("Top 10 upcoming", "", {})
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                            items(vm.visibleDiscoverUpcoming, key = { it.id }) { item ->
-                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
+                            itemsIndexed(vm.visibleDiscoverUpcoming, key = { _, it -> it.id }) { index, item ->
+                                StaggeredItem(index) { BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
                             }
                         }
                     }
@@ -291,8 +291,8 @@ import kotlin.math.roundToInt
                         SectionTitle("You might like", "See more", onRecommendations)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             // Cap row at 7; full list is in the "See more" grid
-                            items(vm.visibleRecommendations.take(7), key = { it.id }) { item ->
-                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
+                            itemsIndexed(vm.visibleRecommendations.take(7), key = { _, it -> it.id }) { index, item ->
+                                StaggeredItem(index) { BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
                             }
                         }
                     }
@@ -359,7 +359,7 @@ import kotlin.math.roundToInt
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = modifier.clickable(onClick = onClick)
+        modifier = modifier.kikoClickable(onClick = onClick)
     ) {
         Row(
             Modifier.padding(vertical = 16.dp, horizontal = 12.dp),
@@ -451,9 +451,17 @@ import kotlin.math.roundToInt
             // id. LazyColumn requires unique keys; a collision here throws mid-scroll/fling
             // ("Key ... was already used"), which is what the crash while scrolling was.
             val resultsForList = vm.visibleDiscoverResults
-            itemsIndexed(resultsForList, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
-                SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type)
-                if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+            if (vm.discoverSearching && resultsForList.isEmpty()) {
+                item { ListRowSkeletonGroup(6) }
+            } else {
+                itemsIndexed(resultsForList, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
+                    StaggeredItem(index) {
+                        Column {
+                            SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type)
+                            if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                        }
+                    }
+                }
             }
             if (vm.discoverLoadingMore) {
                 item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
@@ -482,7 +490,7 @@ import kotlin.math.roundToInt
 @Composable fun FilterIconButton(active: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     Box(
-        modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(if (active) c.primary else c.surface).clickable(onClick = onClick),
+        modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(if (active) c.primary else c.surface).kikoClickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(Icons.Default.Tune, "Advanced filters", tint = if (active) c.onPrimary else c.ink) }
 }
@@ -566,7 +574,7 @@ import kotlin.math.roundToInt
             Text("My List", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { listInclusion = listInclusion.next() }.padding(vertical = 6.dp),
+                modifier = Modifier.clip(RoundedCornerShape(12.dp)).kikoClickable { listInclusion = listInclusion.next() }.padding(vertical = 6.dp),
             ) {
                 ListInclusionCheckbox(listInclusion)
                 Text("In my list", color = c.ink, fontSize = 14.sp, modifier = Modifier.padding(start = 10.dp))
@@ -660,7 +668,7 @@ import kotlin.math.roundToInt
             .width(118.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(bg)
-            .combinedClickable(
+            .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )
@@ -684,7 +692,7 @@ import kotlin.math.roundToInt
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(bg)
-            .combinedClickable(
+            .kikoCombinedClickable(
                 enabled = !loading,
                 onClick = onTap,
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit() } },
@@ -767,12 +775,13 @@ fun formatExact(n: Int): String = "%,d".format(n)
                 }
             }
             if (vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp), color = c.primary, trackColor = c.surfaceLow)
+                items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
+            } else {
+                itemsIndexed(vm.visibleRecommendations, key = { _, it -> it.id }) { index, item ->
+                    StaggeredItem(index) {
+                        RecommendationGridCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
+                    }
                 }
-            }
-            items(vm.visibleRecommendations, key = { it.id }) { item ->
-                RecommendationGridCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
             }
             if (!vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -799,7 +808,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(bg)
-            .combinedClickable(
+            .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )

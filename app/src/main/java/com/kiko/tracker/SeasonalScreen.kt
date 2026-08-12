@@ -176,7 +176,11 @@ import kotlin.math.roundToInt
                     Spacer(Modifier.height(14.dp))
                 }
             }
-            items(vm.visibleSeasonalResults, key = { it.id }) { SeasonalGridCard(it, openTitle) }
+            if (vm.seasonalLoading && vm.visibleSeasonalResults.isEmpty()) {
+                items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
+            } else {
+                itemsIndexed(vm.visibleSeasonalResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index) { SeasonalGridCard(it, openTitle) } }
+            }
             if (!vm.seasonalLoading && vm.visibleSeasonalResults.isEmpty() && vm.seasonalError == null) {
                 item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles for this season.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             }
@@ -236,7 +240,7 @@ import kotlin.math.roundToInt
             if (dayItems.isEmpty()) {
                 item { Text("No releases on this day.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             }
-            items(dayItems, key = { it.first.id }) { (item, _, time) -> ScheduleRow(item, time, onOpenDetail) }
+            itemsIndexed(dayItems, key = { _, it -> it.first.id }) { index, (item, _, time) -> StaggeredItem(index) { ScheduleRow(item, time, onOpenDetail) } }
         }
     }
 }
@@ -249,7 +253,7 @@ import kotlin.math.roundToInt
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { onOpenDetail(item) },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).kikoClickable { onOpenDetail(item) },
     ) {
         Row(Modifier.padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
             Cover(item, Modifier.size(width = 58.dp, height = 82.dp), showStatus = true)
@@ -323,7 +327,7 @@ import kotlin.math.roundToInt
             // Continuing titles filter toggle
             Row(
                 Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp))
-                    .clickable { pendingContinuing = !pendingContinuing }
+                    .kikoClickable { pendingContinuing = !pendingContinuing }
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -351,7 +355,7 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
 
 @Composable fun SeasonalGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
-    Column(Modifier.fillMaxWidth().clickable { onOpenDetail(item) }) {
+    Column(Modifier.fillMaxWidth().kikoClickable { onOpenDetail(item) }) {
         Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f), showStatus = true)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         if (item.score > 0) {
@@ -371,7 +375,7 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
 
 @Composable fun SeasonIconButton(selected: Boolean, season: SeasonName, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Box(Modifier.size(46.dp).clip(CircleShape).background(if (selected) c.primary else Color.Transparent).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(46.dp).clip(CircleShape).background(if (selected) c.primary else Color.Transparent).kikoClickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(season.icon, season.label, tint = if (selected) c.onPrimary else c.muted, modifier = Modifier.size(21.dp))
     }
 }

@@ -115,9 +115,17 @@ import kotlinx.coroutines.launch
             } else if (!loading && vm.clubsList.isEmpty() && error == null) {
                 item { Text("No clubs found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
             }
-            itemsIndexed(visibleClubs, key = { _, club -> club.id }) { index, club ->
-                ClubRow(club) { openClub(club) }
-                if (index < visibleClubs.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+            if (loading && visibleClubs.isEmpty()) {
+                item { ListRowSkeletonGroup(6) }
+            } else {
+                itemsIndexed(visibleClubs, key = { _, club -> club.id }) { index, club ->
+                    StaggeredItem(index) {
+                        Column {
+                            ClubRow(club) { openClub(club) }
+                            if (index < visibleClubs.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                        }
+                    }
+                }
             }
             if (visibleClubs.isNotEmpty() && canShowMore) {
                 item {
@@ -144,7 +152,7 @@ import kotlinx.coroutines.launch
 // single truncated line.
 @Composable fun ClubRow(club: MalClub, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         if (club.image.isNotBlank()) {
             AsyncImage(model = club.image, contentDescription = club.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(18.dp)).background(c.warm))
         } else {
@@ -224,7 +232,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                         ClubTab.entries.forEach { t ->
                             val selected = tab == t
                             Box(
-                                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (selected) c.primary else Color.Transparent).clickable { tab = t }.padding(vertical = 10.dp),
+                                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (selected) c.primary else Color.Transparent).kikoClickable { tab = t }.padding(vertical = 10.dp),
                                 contentAlignment = Alignment.Center,
                             ) { Text(t.label, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (selected) c.onPrimary else c.muted) }
                         }
@@ -308,12 +316,12 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
 @Composable private fun ClubCabinetSection(club: MalClub, loading: Boolean, onOpenBrowser: (String) -> Unit) {
     val c = LocalKikoColors.current
     when {
-        loading && club.staff.isEmpty() -> Box(Modifier.fillMaxWidth().padding(top = 30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, modifier = Modifier.size(24.dp), strokeWidth = 2.dp) }
+        loading && club.staff.isEmpty() -> TopicRowSkeletonGroup(5)
         club.staff.isEmpty() -> Text("No staff listed for this club.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
         else -> Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
             Column {
                 club.staff.forEachIndexed { index, staff ->
-                    Row(Modifier.fillMaxWidth().clickable(enabled = staff.url.isNotBlank()) { onOpenBrowser(staff.url) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().kikoClickable(enabled = staff.url.isNotBlank()) { onOpenBrowser(staff.url) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(38.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
                             Text(staff.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
                         }
@@ -349,14 +357,14 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
     }
     Column {
         when {
-            loading -> Box(Modifier.fillMaxWidth().padding(top = 30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, modifier = Modifier.size(24.dp), strokeWidth = 2.dp) }
+            loading -> TopicRowSkeletonGroup(5)
             error != null -> Text(error!!, color = c.danger, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
             members.isEmpty() -> Text("No members listed for this club.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
             else -> {
                 Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                     Column {
                         members.forEachIndexed { index, member ->
-                            Row(Modifier.fillMaxWidth().clickable(enabled = member.url.isNotBlank()) { onOpenBrowser(member.url) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.fillMaxWidth().kikoClickable(enabled = member.url.isNotBlank()) { onOpenBrowser(member.url) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                 if (member.image.isNotBlank()) {
                                     AsyncImage(model = member.image, contentDescription = member.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(38.dp).clip(CircleShape).background(c.warm))
                                 } else {

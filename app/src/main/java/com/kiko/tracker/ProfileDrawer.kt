@@ -110,7 +110,7 @@ import kotlinx.coroutines.delay
                     // Row 1 — avatar + name, opens the full profile stats page
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp))
-                            .clickable { visible = false; onOpenProfile() }.padding(12.dp),
+                            .kikoClickable { visible = false; onOpenProfile() }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (profile?.picture?.isNotBlank() == true) {
@@ -132,7 +132,7 @@ import kotlinx.coroutines.delay
                     // Row 2 — Settings, opens the full settings page
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp))
-                            .clickable { visible = false; onOpenSettings() }.padding(12.dp),
+                            .kikoClickable { visible = false; onOpenSettings() }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.size(43.dp).clip(RoundedCornerShape(14.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {

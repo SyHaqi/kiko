@@ -182,9 +182,12 @@ import kotlin.math.roundToInt
                         AiringNextRow(airingNext, trackedOpenDetail)
                     }
                     // Most recently updated in-progress title
-                    active?.let { item ->
+                    if (active != null) {
                         SectionTitle("Continue", "See list", onList)
-                        ContinueCard(item, onClick = { onLocateInList(item) }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
+                        ContinueCard(active, onClick = { onLocateInList(active) }, onLongPress = onEdit, isSelected = selectedItem?.id == active.id && selectedItem?.type == active.type)
+                    } else if (vm.loading) {
+                        SectionTitle("Continue", "See list", onList)
+                        ContinueCardSkeleton()
                     }
                     // Home recent news row
                     if (vm.newsSnapshots.isNotEmpty()) {
@@ -224,7 +227,7 @@ import kotlin.math.roundToInt
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
     val time = item.localBroadcast()?.second
-    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), elevation = CardDefaults.cardElevation(4.dp), modifier = Modifier.width(264.dp).clickable { onOpenDetail(item) }) {
+    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), elevation = CardDefaults.cardElevation(4.dp), modifier = Modifier.width(264.dp).kikoClickable { onOpenDetail(item) }) {
         Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
             Cover(item, Modifier.size(width = 78.dp, height = 110.dp), showStatus = true)
             Column(Modifier.weight(1f).padding(start = 13.dp)) {
@@ -246,7 +249,7 @@ import kotlin.math.roundToInt
 @Composable fun HomeActionButton(modifier: Modifier = Modifier, label: String, icon: ImageVector, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Row(
-        modifier.clip(RoundedCornerShape(18.dp)).background(c.primaryContainer).clickable(onClick = onClick).padding(vertical = 15.dp, horizontal = 14.dp),
+        modifier.clip(RoundedCornerShape(18.dp)).background(c.primaryContainer).kikoClickable(onClick = onClick).padding(vertical = 15.dp, horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
@@ -296,7 +299,7 @@ import kotlin.math.roundToInt
             .fillMaxWidth()
             .height(if (tall) 210.dp else 160.dp)
             .clip(RoundedCornerShape(18.dp))
-            .clickable { onOpenTopic(snapshot.topicId, snapshot.title) },
+            .kikoClickable { onOpenTopic(snapshot.topicId, snapshot.title) },
     ) {
         AsyncImage(model = snapshot.imageUrl, contentDescription = snapshot.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
         Box(
@@ -351,7 +354,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
-            Modifier.clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(12.dp)).clickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+            Modifier.clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(12.dp)).kikoClickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Sort, "Sort", tint = c.primary, modifier = Modifier.size(16.dp))
@@ -374,7 +377,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box(modifier) {
         Row(
-            Modifier.clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(12.dp)).clickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+            Modifier.clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(12.dp)).kikoClickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Sort, "Sort", tint = c.primary, modifier = Modifier.size(16.dp))
@@ -450,17 +453,29 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-                    items(filtered, key = { it.id }) { item -> ListGridCard(item, openItem, onIncrement, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
-                    if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                    if (vm.loading && filtered.isEmpty()) {
+                        items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
+                    } else {
+                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index) { ListGridCard(item, openItem, onIncrement, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) } }
+                    }
+                    if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
                     item { header() }
-                    itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                        ListRow(it, openItem, onIncrement, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type)
-                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                    if (vm.loading && filtered.isEmpty()) {
+                        item { ListRowSkeletonGroup(6) }
+                    } else {
+                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
+                            StaggeredItem(index) {
+                                Column {
+                                    ListRow(it, openItem, onIncrement, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type)
+                                    if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                                }
+                            }
+                        }
                     }
-                    if (filtered.isEmpty()) item { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                    if (!vm.loading && filtered.isEmpty()) item { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
             }
         }
@@ -479,7 +494,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         Modifier
             .clip(RoundedCornerShape(12.dp))
             .background(c.surface)
-            .clickable { onSelect(if (current == ListViewMode.List) ListViewMode.Grid else ListViewMode.List) }
+            .kikoClickable { onSelect(if (current == ListViewMode.List) ListViewMode.Grid else ListViewMode.List) }
             .padding(horizontal = 9.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -502,7 +517,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(bg)
-            .combinedClickable(
+            .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )
@@ -551,7 +566,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(bg)
-            .combinedClickable(
+            .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )

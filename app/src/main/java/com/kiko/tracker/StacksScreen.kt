@@ -174,20 +174,20 @@ import kotlin.math.roundToInt
                 }
             }
             if (vm.stacksHomeLoading) {
-                item { Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(26.dp)) } }
+                item { ListRowSkeletonGroup(4) }
             }
             if (spotlightStacks.isNotEmpty()) {
                 // Spotlight row — the curated Challenge/Manga/Anime picks side by side instead of stacked full-width
                 item { StackSectionHeader("Spotlight", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(spotlightStacks, key = { (prefix, s) -> "$prefix-${s.id}" }) { (_, s) -> StackSpotlightCard(s) { openStack(s) } }
+                        itemsIndexed(spotlightStacks, key = { _, (prefix, s) -> "$prefix-${s.id}" }) { index, (_, s) -> StaggeredItem(index) { StackSpotlightCard(s) { openStack(s) } } }
                     }
                 }
             }
             if (vm.stacksHomeRecent.isNotEmpty()) {
                 item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
-                items(vm.stacksHomeRecent, key = { "rc-${it.id}" }) { s -> StackListRow(s) { openStack(s) } }
+                itemsIndexed(vm.stacksHomeRecent, key = { _, it -> "rc-${it.id}" }) { index, s -> StaggeredItem(index) { StackListRow(s) { openStack(s) } } }
             }
         }
         GoToTopButton(
@@ -253,11 +253,19 @@ import kotlin.math.roundToInt
                 if (vm.stacksBrowseResults.isEmpty() && !vm.stacksBrowseLoading) {
                     item { Text("No stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
                 }
-                itemsIndexed(vm.stacksBrowseResults, key = { _, it -> it.id }) { index, s ->
-                    StackListRow(s) { openStack(s) }
-                    if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                if (vm.stacksBrowseLoading && vm.stacksBrowseResults.isEmpty()) {
+                    item { ListRowSkeletonGroup(6) }
+                } else {
+                    itemsIndexed(vm.stacksBrowseResults, key = { _, it -> it.id }) { index, s ->
+                        StaggeredItem(index) {
+                            Column {
+                                StackListRow(s) { openStack(s) }
+                                if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                            }
+                        }
+                    }
                 }
-                if (vm.stacksBrowseLoading) {
+                if (vm.stacksBrowseLoading && vm.stacksBrowseResults.isNotEmpty()) {
                     item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
                 }
             }
@@ -347,7 +355,7 @@ import kotlin.math.roundToInt
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).kikoClickable(onClick = onClick),
     ) {
         Column {
             StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)))
@@ -376,7 +384,7 @@ import kotlin.math.roundToInt
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.width(250.dp).clickable(onClick = onClick),
+        modifier = Modifier.width(250.dp).kikoClickable(onClick = onClick),
     ) {
         Column {
             StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)))
@@ -403,7 +411,7 @@ import kotlin.math.roundToInt
         if (covers.isEmpty()) covers = runCatching { StacksApi().topCovers(stack.id, limit = 2) }.getOrElse { emptyList() }
     }
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
         StackCoverCollage(covers, modifier = Modifier.width(84.dp).height(118.dp))
@@ -507,7 +515,9 @@ import kotlin.math.roundToInt
                     item(span = { GridItemSpan(maxLineSpan) }) { Text("No entries in this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 20.dp), textAlign = TextAlign.Center) }
                 }
                 itemsIndexed(d.entries, key = { _, e -> e.malId }) { i, entry ->
-                    StackEntryGridCard(i + 1, entry, loading = loadingId == entry.malId, myStatus = myListStatus[entry.malId to entry.type], onClick = { onOpenEntry(entry) }, onLongPress = { onEditEntry(entry) }, isSelected = selectedItem?.id == entry.malId.toString() && selectedItem?.type == entry.type)
+                    StaggeredItem(i) {
+                        StackEntryGridCard(i + 1, entry, loading = loadingId == entry.malId, myStatus = myListStatus[entry.malId to entry.type], onClick = { onOpenEntry(entry) }, onLongPress = { onEditEntry(entry) }, isSelected = selectedItem?.id == entry.malId.toString() && selectedItem?.type == entry.type)
+                    }
                 }
             }
         }
@@ -565,7 +575,7 @@ import kotlin.math.roundToInt
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(bg)
-            .combinedClickable(
+            .kikoCombinedClickable(
                 enabled = !loading,
                 onClick = onClick,
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit() } },
