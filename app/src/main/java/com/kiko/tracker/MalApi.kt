@@ -18,6 +18,16 @@ import java.security.SecureRandom
 private const val API = "https://api.myanimelist.net/v2"
 const val MAL_REDIRECT = "com.kiko.tracker://oauth/callback"
 
+// Android's bundled org.json (unlike the plain json.org reference library) converts a JSON
+// `null` value to the *string* "null" instead of throwing or returning empty — its NULL
+// sentinel overrides toString() to return "null", and getString()/optString() both stringify
+// via String.valueOf() rather than checking for the sentinel. MAL occasionally returns an
+// explicit `"title": null` for entries that otherwise have a valid id/cover, which meant those
+// rows silently rendered the literal text "null" instead of a real title. This helper reads a
+// title field safely, filtering out that sentinel string and blank values.
+private fun JSONObject.safeTitle(key: String = "title"): String =
+    optString(key).takeIf { it.isNotBlank() && it != "null" } ?: ""
+
 private fun prettify(raw: String) = raw.split('_').filter { it.isNotBlank() }.joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
 private fun prettifyFormat(raw: String) = when (raw.lowercase()) {
     "tv" -> "TV"; "ova" -> "OVA"; "ona" -> "ONA"; "oel" -> "OEL"
@@ -209,7 +219,7 @@ class MalApi(private val context: Context) {
         val encoded = URLEncoder.encode(query, "UTF-8")
         val body = runCatching { authorized { get("$API/$kind?q=$encoded&limit=$limit&nsfw=true&fields=id,title") } }.getOrElse { return@withContext emptyList() }
         val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
-        (0 until arr.length()).mapNotNull { arr.getJSONObject(it).optJSONObject("node")?.optString("title")?.takeIf { t -> t.isNotBlank() } }
+        (0 until arr.length()).mapNotNull { arr.getJSONObject(it).optJSONObject("node")?.safeTitle()?.takeIf { t -> t.isNotBlank() } }
     }
 
     // Current season anime list
@@ -473,8 +483,8 @@ class MalApi(private val context: Context) {
         }
         val creator = allCreators.firstOrNull() ?: ""
         val altTitleNode = n.optJSONObject("alternative_titles")
-        val titleEnglish = altTitleNode?.optString("en") ?: ""
-        val japaneseTitle = altTitleNode?.optString("ja")?.takeIf { it.isNotBlank() }
+        val titleEnglish = altTitleNode?.safeTitle("en") ?: ""
+        val japaneseTitle = altTitleNode?.safeTitle("ja")?.takeIf { it.isNotBlank() }
         val synonymsArr = altTitleNode?.optJSONArray("synonyms")
         val synonyms = listOfNotNull(japaneseTitle) +
                 (synonymsArr?.let { arr2 -> (0 until arr2.length()).map { arr2.getString(it) } } ?: emptyList())
@@ -490,7 +500,7 @@ class MalApi(private val context: Context) {
                 val nodePicture = node.optJSONObject("main_picture")
                 RelatedEntry(
                     relation = prettify(r.optString("relation_type")),
-                    title = node.getString("title"),
+                    title = node.safeTitle(),
                     malId = node.optInt("id", 0),
                     malType = malType,
                     cover = nodePicture?.optString("large")?.takeIf { it.isNotBlank() } ?: nodePicture?.optString("medium") ?: "",
@@ -527,7 +537,7 @@ class MalApi(private val context: Context) {
                 val nodePicture = node.optJSONObject("main_picture")
                 RecommendedEntry(
                     malId = node.optInt("id", 0),
-                    title = node.optString("title"),
+                    title = node.safeTitle(),
                     cover = nodePicture?.optString("large")?.takeIf { it.isNotBlank() } ?: nodePicture?.optString("medium") ?: "",
                     votes = r.optInt("num_recommendations", 0),
                     malType = kind,
@@ -536,7 +546,10 @@ class MalApi(private val context: Context) {
         } ?: emptyList()
         return MediaItem(
             id = n.getInt("id").toString(),
-            title = n.getString("title"),
+            title = n.safeTitle().takeIf { it.isNotBlank() }
+                ?: titleEnglish.takeIf { it.isNotBlank() }
+                ?: synonyms.firstOrNull()
+                ?: "Untitled",
             type = if (kind == "anime") MediaType.Anime else MediaType.Manga,
             status = status,
             progress = if (kind == "anime") s.optInt("num_episodes_watched") else s.optInt("num_chapters_read"),
