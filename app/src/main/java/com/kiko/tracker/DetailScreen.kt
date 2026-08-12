@@ -155,6 +155,45 @@ data class DetailScreenActions(
     val onLeaveScroll: (Int, Int) -> Unit = { _, _ -> },
 )
 
+// Loading placeholder shaped like the real header below (backdrop + overlapping
+// poster + title block + genre chips + synopsis lines) — shown instead of a bare
+// spinner while cover/related/themes are still resolving, so the page reads as
+// "this detail page is arriving" rather than blank-then-pop. Back stays tappable
+// the whole time so loading never traps the user.
+@Composable fun DetailScreenSkeleton(onBack: () -> Unit) {
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Box(Modifier.fillMaxWidth()) {
+                Box(Modifier.fillMaxWidth().height(248.dp).clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))) {
+                    SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(0.dp))
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .32f)),
+                    ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
+                }
+                Box(Modifier.padding(start = 20.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f).shadow(10.dp, RoundedCornerShape(16.dp))) {
+                    SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(16.dp))
+                }
+            }
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                SkeletonBlock(Modifier.padding(top = 18.dp).width(96.dp).height(12.dp))
+                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.75f).height(26.dp))
+                SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.4f).height(14.dp))
+                SkeletonBlock(Modifier.padding(top = 18.dp).fillMaxWidth(0.55f).height(14.dp))
+                Row(Modifier.padding(top = 20.dp)) {
+                    repeat(3) { i -> SkeletonBlock(Modifier.padding(end = 8.dp).width(if (i == 1) 78.dp else 64.dp).height(28.dp), shape = RoundedCornerShape(10.dp)) }
+                }
+                SkeletonBlock(Modifier.padding(top = 26.dp).width(90.dp).height(18.dp))
+                Column(Modifier.padding(top = 12.dp)) {
+                    SkeletonBlock(Modifier.fillMaxWidth().height(13.dp))
+                    SkeletonBlock(Modifier.padding(top = 9.dp).fillMaxWidth().height(13.dp))
+                    SkeletonBlock(Modifier.padding(top = 9.dp).fillMaxWidth(0.65f).height(13.dp))
+                }
+            }
+        }
+    }
+}
+
 @Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap()) {
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
@@ -211,7 +250,7 @@ data class DetailScreenActions(
     BackHandler(onBack = actions.onBack)
     // Load all sections upfront
     if (!coverReady || !relatedDone || !themesDone) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary) }
+        DetailScreenSkeleton(onBack = actions.onBack)
         return
     }
     Box(Modifier.fillMaxSize()) {
