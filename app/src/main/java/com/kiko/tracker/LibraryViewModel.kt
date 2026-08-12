@@ -698,7 +698,18 @@ class LibraryViewModel : ViewModel() {
                     .sortedForDiscover(discoverSort, titleLanguage, query)
             }
                 .onSuccess { discoverResults = it; discoverError = null }
-                .onFailure { discoverError = it.message ?: "Search failed"; discoverHasMore = false; discoverPaginationSource = DiscoverPaginationSource.None }
+                .onFailure {
+                    // Cancellation isn't a real failure — it fires whenever a newer search
+                    // supersedes this one (e.g. tapping the Manga chip while Anime is still
+                    // loading cancels this job via discoverSearchJob?.cancel() above). Plain
+                    // runCatching catches CancellationException like any other Throwable, so
+                    // without this check the superseded job would stomp discoverError with
+                    // "StandaloneCoroutine was cancelled" right after the new search's own
+                    // results had already rendered. Rethrowing lets it finish cancelling
+                    // silently instead, the way coroutine cancellation is meant to work.
+                    if (it is kotlinx.coroutines.CancellationException) throw it
+                    discoverError = it.message ?: "Search failed"; discoverHasMore = false; discoverPaginationSource = DiscoverPaginationSource.None
+                }
             discoverSearching = false
         }
     }
