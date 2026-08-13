@@ -339,9 +339,15 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var submittedQuery by remember { mutableStateOf("") }
     val typeTab = vm.listTypeTab
     val effectiveFilter = normalizeFilterForType(vm.listFilter, typeTab)
-    val filtered = vm.visibleItems
-        .filter { it.type == typeTab && (effectiveFilter == "All" || it.status.label == effectiveFilter) && it.title.contains(submittedQuery, true) }
-        .sortedWithListSort(vm.listSort, vm.titleLanguage)
+    // Was recomputing filter+sort over the whole list on every recomposition — including
+    // ones triggered by unrelated state like vm.loading toggling during a background sync
+    // — instead of only when the inputs that actually affect the result change. Same
+    // remember(...) pattern ScoreFilterScreen/YearFilterScreen already use below.
+    val filtered = remember(vm.items, vm.nsfwEnabled, typeTab, effectiveFilter, submittedQuery, vm.listSort, vm.titleLanguage) {
+        vm.visibleItems
+            .filter { it.type == typeTab && (effectiveFilter == "All" || it.status.label == effectiveFilter) && it.title.contains(submittedQuery, true) }
+            .sortedWithListSort(vm.listSort, vm.titleLanguage)
+    }
     val isGrid = vm.listViewMode == ListViewMode.Grid
     // Restore list scroll position (shared between list/grid since both are single-column-index scroll states)
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.listScrollIndex, initialFirstVisibleItemScrollOffset = vm.listScrollOffset)
