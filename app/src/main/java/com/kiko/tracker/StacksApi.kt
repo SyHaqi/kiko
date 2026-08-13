@@ -2,11 +2,8 @@ package com.kiko.tracker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.Request
-import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.io.IOException
 
 private const val MAL = "https://myanimelist.net"
 
@@ -61,14 +58,8 @@ enum class StackBrowseKind(val param: String, val label: String) {
 class StacksApi {
     private val client = NetworkClient.shared
 
-    private fun fetchDoc(url: String): Document {
-        val request = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0 (Android) Kiko/1.0").build()
-        client.newCall(request).execute().use { resp ->
-            val body = resp.body?.string() ?: ""
-            if (!resp.isSuccessful) throw IOException("MAL request failed (${resp.code})")
-            return Jsoup.parse(body, url)
-        }
-    }
+    // Deliberately its own distinct UA rather than MAL_DESKTOP_USER_AGENT (see class doc).
+    private fun fetchDoc(url: String): Document = client.fetchMalDocument(url, userAgent = "Mozilla/5.0 (Android) Kiko/1.0")
 
     // Browse or search stacks by type
     suspend fun search(kind: StackBrowseKind, query: String = "", page: Int = 1): List<StackSummary> = withContext(Dispatchers.IO) {
@@ -97,7 +88,6 @@ class StacksApi {
 
     // Flattened element text with non-breaking spaces folded to regular spaces —
     // MAL renders separators like "N Entries" with &nbsp;, which plain \s won't match
-    private fun normText(el: Element): String = el.text().replace('\u00A0', ' ')
 
     // Marks the end of a stack's descriptive text. Browse/search rows print
     // "N Entries" (e.g. "50 Entries"). The single-stack detail page's stop
@@ -123,7 +113,7 @@ class StacksApi {
     private fun rowContainer(a: Element, maxLevels: Int = 8): Element {
         var el: Element = a
         repeat(maxLevels) {
-            if (descriptionStop.containsMatchIn(normText(el))) return el
+            if (descriptionStop.containsMatchIn(normalizeWhitespace(el))) return el
             el = el.parent() ?: return el
         }
         return el
@@ -137,7 +127,7 @@ class StacksApi {
             val title = a.text().trim().takeIf { it.isNotBlank() } ?: return@forEach
             if (seen.containsKey(id)) return@forEach
             val container = rowContainer(a)
-            val text = normText(container)
+            val text = normalizeWhitespace(container)
             val type = Regex("\\b(Anime|Manga)\\b").find(text)?.groupValues?.get(1).orEmpty()
             val author = Regex("by\\s+([\\w\\-.]+)").find(text)?.groupValues?.get(1).orEmpty()
             val entryCount = Regex("(\\d+)\\s+Entries").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
@@ -233,7 +223,7 @@ class StacksApi {
             is Element -> sibling.text().trim()
             else -> ""
         }
-        val bodyText = normText(doc.body())
+        val bodyText = normalizeWhitespace(doc.body())
         val type = Regex("\\b(Anime|Manga)\\b").find(bodyText)?.groupValues?.get(1).orEmpty()
         // The description itself sits in its own dedicated element too
         // (class="introduction"), right above the my-list/mean-score stats —

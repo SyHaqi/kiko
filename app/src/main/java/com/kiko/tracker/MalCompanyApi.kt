@@ -2,11 +2,8 @@ package com.kiko.tracker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.Request
-import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.io.IOException
 
 // Resolves a studio/producer name typed into the Discover filter to a MAL company id,
 // then scrapes that company's own MAL page for every anime it's credited on — the same
@@ -31,20 +28,12 @@ import java.io.IOException
 //    not a ranking-chart subset.
 class MalCompanyApi {
     private val client = NetworkClient.shared
-    private val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     // Only used to translate the studio page's numeric genre/theme/demographic ids back
     // into names (a small, static, once-cached reference lookup) — not to search or rank
     // anything, so this doesn't reintroduce the "missing catalog" problem above.
     private val tenrai = TenraiApi()
 
-    private fun fetchDoc(url: String): Document {
-        val request = Request.Builder().url(url).header("User-Agent", userAgent).build()
-        client.newCall(request).execute().use { resp ->
-            val body = resp.body?.string() ?: ""
-            if (!resp.isSuccessful) throw IOException("MAL request failed (${resp.code}): $url")
-            return Jsoup.parse(body, url)
-        }
-    }
+    private fun fetchDoc(url: String): Document = client.fetchMalDocument(url)
 
     // Resolve a typed studio name (e.g. "Madhouse") to its MAL company id via MAL's own
     // company search results page. Returns the first (best-ranked) result whose link text

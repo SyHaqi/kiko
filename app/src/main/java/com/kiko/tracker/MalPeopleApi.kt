@@ -5,21 +5,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import okhttp3.Request
-import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.io.IOException
-
-// "Last, First" to "First Last"
-private fun reorderMalName(raw: String): String {
-    val parts = raw.split(", ")
-    return if (parts.size == 2) "${parts[1]} ${parts[0]}" else raw
-}
-private fun normalizeMangaFormat(malType: String) = when (malType.lowercase()) {
-    "one-shot", "oneshot" -> "One Shot"
-    else -> malType
-}
 
 // Resolves an author/artist name typed into the Discover filter to a MAL person id, then
 // scrapes that person's own MAL page for their credited manga — no third-party API
@@ -60,20 +47,12 @@ private fun normalizeMangaFormat(malType: String) = when (malType.lowercase()) {
 //    directly into each tile and person pages don't.
 class MalPeopleApi {
     private val client = NetworkClient.shared
-    private val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     // Only used to fill in genre/theme/demographic/source/rating data per credited manga
     // (see enrichWithFacets below) — the author's own MAL page doesn't expose any of that,
     // same reasoning MalCompanyApi documents for why it needs Tenrai's facet id maps.
     private val tenrai = TenraiApi()
 
-    private fun fetchDoc(url: String): Document {
-        val request = Request.Builder().url(url).header("User-Agent", userAgent).build()
-        client.newCall(request).execute().use { resp ->
-            val body = resp.body?.string() ?: ""
-            if (!resp.isSuccessful) throw IOException("MAL request failed (${resp.code}): $url")
-            return Jsoup.parse(body, url)
-        }
-    }
+    private fun fetchDoc(url: String): Document = client.fetchMalDocument(url)
 
     // Resolve a typed author name (e.g. "Suzuhito Yasuda") to their MAL person id via
     // MAL's own person search results page. Rows display "Last, First" (sometimes with
@@ -108,7 +87,7 @@ class MalPeopleApi {
     suspend fun fetchCreditedWorks(kind: String, personId: Int, queriedName: String): List<MediaItem> = withContext(Dispatchers.IO) {
         runCatching {
             val doc = fetchDoc("https://myanimelist.net/people/$personId")
-            val creatorLabel = doc.selectFirst("h1.title-name strong")?.text()?.let(::reorderMalName)?.takeIf { it.isNotBlank() }
+            val creatorLabel = doc.selectFirst("h1.title-name strong")?.text()?.let(::reorderMalPersonName)?.takeIf { it.isNotBlank() }
             val allCreators = listOfNotNull(creatorLabel, queriedName.takeIf { it.isNotBlank() }).distinct().joinToString(", ")
             val tableClass = if (kind == "anime") "js-table-people-staff" else "js-table-people-manga"
             val rowClass = if (kind == "anime") "js-people-staff" else "js-people-manga"
@@ -154,18 +133,13 @@ class MalPeopleApi {
         return fetchCreditedWorks("manga", personId, name)
     }
 
-    // MAL serves the credited-works table's thumbnails through a resizing proxy path like
-    // "/r/50x70/images/manga/3/122224.jpg" — the same pattern ClubsApi strips for club/member
-    // avatars. Removing the "/r/WxH/" segment returns the original, full-resolution cover.
-    private fun fullResUrl(url: String): String = url.replaceFirst(Regex("/r/\\d+x\\d+(?:-\\d+)?/"), "/")
-
     private fun parseWorkRow(kind: String, row: Element, creator: String, allCreators: String): MediaItem? {
         val link = row.selectFirst("a.js-people-title") ?: return null
         val title = link.text().takeIf { it.isNotBlank() } ?: return null
         val id = Regex("/$kind/(\\d+)").find(link.attr("href"))?.groupValues?.get(1)?.toIntOrNull() ?: return null
         val cover = row.selectFirst("img")?.let { img ->
             val raw = img.attr("data-src").ifBlank { img.attr("src") }
-            fullResUrl(img.absUrl(if (img.hasAttr("data-src")) "data-src" else "src").ifBlank { raw })
+            fullResMalImage(img.absUrl(if (img.hasAttr("data-src")) "data-src" else "src").ifBlank { raw })
         }.orEmpty()
         // e.g. "TV, Fall 2014" or "Light Novel, 2017"
         val infoParts = row.selectFirst("div[class*=info-text]")?.text()?.split(", ", limit = 2).orEmpty()
@@ -192,7 +166,7 @@ class MalPeopleApi {
             creator = creator,
             allCreators = allCreators,
             startDate = year,
-            format = if (kind == "manga") normalizeMangaFormat(format) else format,
+            format = if (kind == "manga") normalizeMangaFormatLabel(format) else format,
             nsfw = "white",
             inUserList = false,
             unknownFacets = unknownFacets,

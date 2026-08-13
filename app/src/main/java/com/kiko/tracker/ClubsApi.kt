@@ -2,11 +2,8 @@ package com.kiko.tracker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.Request
-import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.io.IOException
 
 private const val MAL = "https://myanimelist.net"
 
@@ -38,18 +35,7 @@ data class ClubPostsPage(val items: List<ClubPost>, val hasMore: Boolean)
 class ClubsApi {
     private val client = NetworkClient.shared
 
-    private fun fetchDoc(url: String): Document {
-        val request = Request.Builder().url(url)
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
-            .build()
-        client.newCall(request).execute().use { resp ->
-            val body = resp.body?.string() ?: ""
-            if (!resp.isSuccessful) throw IOException("MAL request failed (${resp.code})")
-            return Jsoup.parse(body, url)
-        }
-    }
-
-    private fun normText(el: Element): String = el.text().replace('\u00A0', ' ')
+    private fun fetchDoc(url: String): Document = client.fetchMalDocument(url)
 
     // First usable image URL under an element (avatar, club icon, etc.)
     // MAL lazy-loads almost everything via data-src, with src only as a placeholder
@@ -58,16 +44,11 @@ class ClubsApi {
             for (attr in listOf("data-src", "src")) {
                 val raw = img.attr(attr)
                 if (raw.isBlank() || raw.startsWith("data:")) continue
-                return fullResUrl(img.absUrl(attr).ifBlank { raw })
+                return fullResMalImage(img.absUrl(attr).ifBlank { raw })
             }
         }
         return ""
     }
-
-    // MAL serves club/member thumbnails through a resizing proxy path like
-    // "/r/50x70/images/clubs/8/209342.jpg" — stripping the "/r/WxH/" segment
-    // returns the same image at its original, much higher-resolution size.
-    private fun fullResUrl(url: String): String = url.replaceFirst(Regex("/r/\\d+x\\d+(?:-\\d+)?/"), "/")
 
     // Elements between a "normal_header" section heading and the next one —
     // MAL groups sidebar content (Club Staff, Anime Relations, etc.) this way
@@ -119,11 +100,11 @@ class ClubsApi {
         val name = doc.selectFirst("h1.h1")?.text()?.trim().orEmpty()
         // The club's own picture is the first image in the 300px-wide right sidebar
         val image = doc.selectFirst("td[width=300] img")?.let { imageUrl(it.parent() ?: it) }.orEmpty()
-        val statsText = normText(doc)
+        val statsText = normalizeWhitespace(doc)
         val members = Regex("Members:\\s*([\\d,]+)").find(statsText)?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull() ?: 0
         // Category used to be pulled with a regex over the whole flattened
         // page (statsText). Its stop condition assumed "\n" boundaries that
-        // don't actually exist once normText() collapses everything to
+        // don't actually exist once normalizeWhitespace() collapses everything to
         // single spaces, so the non-greedy match never found anywhere to
         // stop and ran to the end of the entire page — that's what showed
         // up as the giant pill. Reading the specific stats row directly
@@ -143,7 +124,7 @@ class ClubsApi {
         // hand, which is only as safe as our assumptions about what sits
         // next to it in the parsed DOM.
         val description = doc.selectFirst("div.club-information-header + div.clearfix")
-            ?.let { normText(it) }.orEmpty().trim()
+            ?.let { normalizeWhitespace(it) }.orEmpty().trim()
         val staff = sectionAfterHeading(doc, "Club Staff").filter { it.hasClass("borderClass") }.mapNotNull { row ->
             val a = row.selectFirst("a[href^=/profile/]") ?: return@mapNotNull null
             val role = Regex("\\(([^)]+)\\)").find(row.text())?.groupValues?.get(1).orEmpty()
@@ -174,7 +155,7 @@ class ClubsApi {
             // Body text is everything in the cell minus the name/timestamp header row
             val bodyClone = body.clone()
             bodyClone.selectFirst("div")?.remove()
-            val text = normText(bodyClone).trim()
+            val text = normalizeWhitespace(bodyClone).trim()
             ClubPost(username = username, avatar = avatar, body = text.take(600), postedLabel = postedLabel)
         }
     }
@@ -186,7 +167,7 @@ class ClubsApi {
         val doc = fetchDoc("$MAL/clubs.php?id=$id&action=view&t=members&show=$show")
         val items = parseMembers(doc)
         // "Total Members: N" on the page gives an exact count when present
-        val total = Regex("Total Members:\\s*([\\d,]+)").find(normText(doc))?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull()
+        val total = Regex("Total Members:\\s*([\\d,]+)").find(normalizeWhitespace(doc))?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull()
         val hasMore = if (total != null) page * 36 < total else items.size >= 30
         ClubMembersPage(items, hasMore)
     }

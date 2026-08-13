@@ -39,15 +39,6 @@ private fun normalizeSource(jikanSource: String) = when (jikanSource.lowercase()
     "" , "null" -> ""
     else -> jikanSource.split(' ', '-').joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
 }
-private fun normalizeMangaFormat(jikanType: String) = when (jikanType.lowercase()) {
-    "one-shot", "oneshot" -> "One Shot"
-    else -> jikanType
-}
-// "Last, First" to "First Last"
-private fun reorderName(raw: String): String {
-    val parts = raw.split(", ")
-    return if (parts.size == 2) "${parts[1]} ${parts[0]}" else raw
-}
 
 // Genre search via Tenrai
 class TenraiApi {
@@ -192,7 +183,7 @@ class TenraiApi {
                 val ch = o.optJSONObject("character") ?: return@mapNotNull null
                 CharacterEntry(
                     malId = ch.optInt("mal_id"),
-                    name = reorderName(ch.optString("name")),
+                    name = reorderMalPersonName(ch.optString("name")),
                     image = ch.optJSONObject("images")?.optJSONObject("jpg")?.optString("image_url").orEmpty(),
                     role = o.optString("role").ifBlank { "Supporting" },
                     url = ch.optString("url"),
@@ -211,7 +202,7 @@ class TenraiApi {
                 val positions = o.optJSONArray("positions")
                 StaffEntry(
                     malId = person.optInt("mal_id"),
-                    name = reorderName(person.optString("name")),
+                    name = reorderMalPersonName(person.optString("name")),
                     image = person.optJSONObject("images")?.optJSONObject("jpg")?.optString("image_url").orEmpty(),
                     role = positions?.let { p -> (0 until p.length()).joinToString(", ") { p.getString(it) } }.orEmpty(),
                     url = person.optString("url"),
@@ -288,7 +279,7 @@ class TenraiApi {
         val allCreators = if (kind == "anime") {
             n.optJSONArray("studios")?.let { arr -> (0 until arr.length()).mapNotNull { arr.getJSONObject(it).optString("name").takeIf { s -> s.isNotBlank() } } } ?: emptyList()
         } else {
-            n.optJSONArray("authors")?.let { arr -> (0 until arr.length()).mapNotNull { reorderName(arr.getJSONObject(it).optString("name")).takeIf { s -> s.isNotBlank() } } } ?: emptyList()
+            n.optJSONArray("authors")?.let { arr -> (0 until arr.length()).mapNotNull { reorderMalPersonName(arr.getJSONObject(it).optString("name")).takeIf { s -> s.isNotBlank() } } } ?: emptyList()
         }
         val creator = allCreators.firstOrNull() ?: ""
         val titlesArr = n.optJSONArray("titles")
@@ -323,7 +314,7 @@ class TenraiApi {
             allCreators = allCreators.joinToString(", "),
             startDate = startDateFull.take(4),
             season = season,
-            format = n.optString("type").takeIf { it.isNotBlank() && it != "null" }?.let { if (kind == "manga") normalizeMangaFormat(it) else it } ?: "",
+            format = n.optString("type").takeIf { it.isNotBlank() && it != "null" }?.let { if (kind == "manga") normalizeMangaFormatLabel(it) else it } ?: "",
             airStatus = n.optString("status"),
             source = normalizeSource(n.optString("source")),
             rating = normalizeRating(n.optString("rating")),
