@@ -457,6 +457,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onOpenReview = { rev -> reviewOpen = rev to screen.item.title },
                                     onOpenReviewList = { url, _ -> CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) },
                                     onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) },
+                                    onLeaveRelatedScroll = { index, offset -> vm.saveRelatedRowScroll(screen.item.id, screen.item.type, index, offset) },
+                                    onLeaveRecommendedScroll = { index, offset -> vm.saveRecommendedRowScroll(screen.item.id, screen.item.type, index, offset) },
                                     onGenreClick = { genre ->
                                         jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
                                     },
@@ -467,6 +469,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 relatedLoadingId = vm.relatedLoadingId,
                                 recommendedLoadingId = vm.recommendedLoadingId,
                                 initialScroll = vm.getDetailScroll(screen.item.id),
+                                initialRelatedScroll = vm.getRelatedRowScroll(screen.item.id, screen.item.type),
+                                initialRecommendedScroll = vm.getRecommendedRowScroll(screen.item.id, screen.item.type),
                                 myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
                             )
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)

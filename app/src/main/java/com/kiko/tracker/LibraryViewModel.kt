@@ -236,6 +236,8 @@ class LibraryViewModel : ViewModel() {
         var characters: List<CharacterEntry>? = null,
         var staffList: List<StaffEntry>? = null,
         var reviews: List<ReviewEntry>? = null,
+        var relatedScroll: Pair<Int, Int> = 0 to 0,
+        var recommendedScroll: Pair<Int, Int> = 0 to 0,
     )
     private val detailCaches = mutableMapOf<Pair<String, MediaType>, DetailCache>()
     private fun detailCache(id: String, type: MediaType) = detailCaches.getOrPut(id to type) { DetailCache() }
@@ -243,6 +245,16 @@ class LibraryViewModel : ViewModel() {
     // the related/recommended chain (not on every single step back within it), and
     // when a brand-new, unrelated title is opened from outside any chain.
     fun clearDetailCache() { detailCaches.clear() }
+    // Scroll position for the Related/Recommended horizontal rows on the detail
+    // page — separate from getDetailScroll/saveDetailScroll above, which track the
+    // page's own vertical scroll. Without this, tapping an entry partway through
+    // either row and coming back snapped it to the first item, since a LazyRow's
+    // default scroll state doesn't survive this composable being torn down and
+    // rebuilt on every related/recommended hop.
+    fun getRelatedRowScroll(id: String, type: MediaType) = detailCache(id, type).relatedScroll
+    fun saveRelatedRowScroll(id: String, type: MediaType, index: Int, offset: Int) { detailCache(id, type).relatedScroll = index to offset }
+    fun getRecommendedRowScroll(id: String, type: MediaType) = detailCache(id, type).recommendedScroll
+    fun saveRecommendedRowScroll(id: String, type: MediaType, index: Int, offset: Int) { detailCache(id, type).recommendedScroll = index to offset }
     // Same idea for a stack's own entry grid — restores scroll position when
     // coming back from an entry's detail page instead of resetting to top
     private val stackDetailScrollPositions = mutableMapOf<Int, Pair<Int, Int>>()

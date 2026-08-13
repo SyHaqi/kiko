@@ -153,6 +153,8 @@ data class DetailScreenActions(
     val onGenreClick: (String) -> Unit = {},
     val onCreatorClick: (String) -> Unit = {},
     val onLeaveScroll: (Int, Int) -> Unit = { _, _ -> },
+    val onLeaveRelatedScroll: (Int, Int) -> Unit = { _, _ -> },
+    val onLeaveRecommendedScroll: (Int, Int) -> Unit = { _, _ -> },
 )
 
 // Loading placeholder shaped like the real header below (backdrop + overlapping
@@ -194,7 +196,7 @@ data class DetailScreenActions(
     }
 }
 
-@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap()) {
+@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap()) {
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
     // Track related backfill completion
@@ -233,9 +235,20 @@ data class DetailScreenActions(
     LaunchedEffect(item.id) { actions.onLoadStatusDistribution(item, { statusDistribution = it }, {}) }
     // Fresh scroll state per-title
     val listState = remember(item.id) { LazyListState(initialScroll.first, initialScroll.second) }
+    // Related/recommended rows get their own remembered scroll state too — without
+    // this, tapping an entry mid-scroll and coming back snaps the row back to its
+    // first item, since a plain rememberLazyListState() resets whenever this
+    // composable is torn down and rebuilt (see AnimatedContent's key-based teardown
+    // in Navigation.kt).
+    val relatedListState = remember(item.id) { LazyListState(initialRelatedScroll.first, initialRelatedScroll.second) }
+    val recommendedListState = remember(item.id) { LazyListState(initialRecommendedScroll.first, initialRecommendedScroll.second) }
     // Save spot on leave
     DisposableEffect(item.id) {
-        onDispose { actions.onLeaveScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
+        onDispose {
+            actions.onLeaveScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+            actions.onLeaveRelatedScroll(relatedListState.firstVisibleItemIndex, relatedListState.firstVisibleItemScrollOffset)
+            actions.onLeaveRecommendedScroll(recommendedListState.firstVisibleItemIndex, recommendedListState.firstVisibleItemScrollOffset)
+        }
     }
     // Share single decoded painter. Opts into hardware bitmaps (allowHardware(true)) here
     // rather than inheriting the app's global allowHardware(false) default — that default
@@ -529,7 +542,7 @@ data class DetailScreenActions(
 
                     if (related.isNotEmpty()) {
                         Text("Related", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        LazyRow(state = relatedListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(related, key = { _, it -> "${it.relation}-${it.malId}-${it.title}" }) { i, rel ->
                                 StaggeredItem(i) {
                                     RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId, myStatus = myListStatus[rel.malId to (if (rel.malType == "manga") MediaType.Manga else MediaType.Anime)]) {
@@ -544,7 +557,7 @@ data class DetailScreenActions(
                     // Recommendations from MAL endpoint
                     if (recommended.isNotEmpty()) {
                         Text("Recommended", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                        LazyRow(state = recommendedListState, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             itemsIndexed(recommended, key = { _, it -> it.malId }) { i, rec ->
                                 StaggeredItem(i) { RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) } }
                             }
