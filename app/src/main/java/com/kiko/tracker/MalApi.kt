@@ -7,6 +7,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.Request
@@ -123,6 +125,14 @@ class MalApi(private val context: Context) {
     val signedIn get() = !prefs.getString("access_token", null).isNullOrBlank()
     // Use OkHttp for PATCH
     private val client = NetworkClient.shared
+
+    companion object {
+        // The "News Discussion" board id never changes, but newsSnapshots() used to
+        // re-fetch the entire forum board hierarchy on every call (including every
+        // pull-to-refresh) just to look it up again. Caching it process-wide cuts one
+        // full round trip off of every Home news-row load after the first.
+        @Volatile private var newsBoardIdCache: Int? = null
+    }
 
     fun authUrl(): String {
         val verifier = randomToken(48)
@@ -317,13 +327,21 @@ class MalApi(private val context: Context) {
                 isLocked = t.optBoolean("is_locked"),
             )
         }
+        // Thumbnails aren't in the topics-list response, so each one needs its own
+        // /forum/topic/{id} fetch. Firing all of these at once (e.g. 16 requests for a
+        // 10-item news row) piles onto whatever else the screen is already loading and
+        // makes MAL's API noticeably slower to answer any of them. Capping how many run
+        // at once keeps this row's cost bounded instead of spiking request count.
+        val thumbnailGate = Semaphore(4)
         val withCovers = if (!withThumbnails) items else items.map { topic ->
             async {
                 if (topic.isLocked) topic
-                else runCatching { forumTopic(topic.id, limit = 1) }.getOrNull()
-                    ?.posts?.firstOrNull()?.body
-                    ?.let { firstImageUrl(it) }
-                    ?.let { topic.copy(imageUrl = it) } ?: topic
+                else thumbnailGate.withPermit {
+                    runCatching { forumTopic(topic.id, limit = 1) }.getOrNull()
+                        ?.posts?.firstOrNull()?.body
+                        ?.let { firstImageUrl(it) }
+                        ?.let { topic.copy(imageUrl = it) } ?: topic
+                }
             }
         }.awaitAll()
         ForumTopicsPage(withCovers, json.optJSONObject("paging")?.has("next") == true)
@@ -350,19 +368,19 @@ class MalApi(private val context: Context) {
 
     // Latest news snapshots
     suspend fun newsSnapshots(limit: Int = 10): List<NewsSnapshot> = withContext(Dispatchers.IO) {
-        val newsBoardId = forumBoards()
+        // Cached after the first lookup (see companion object) so this doesn't cost a
+        // full /forum/boards round trip on every load, including pull-to-refresh.
+        val newsBoardId = newsBoardIdCache ?: forumBoards()
             .flatMap { it.boards }
             .firstOrNull { it.title.equals("News Discussion", ignoreCase = true) }
-            ?.id ?: return@withContext emptyList()
-        val topics = forumTopics(boardId = newsBoardId, limit = limit + 6).items.filterNot { it.isLocked }
-        topics.map { topic ->
-            async {
-                runCatching { forumTopic(topic.id, limit = 1) }.getOrNull()
-                    ?.posts?.firstOrNull()?.body
-                    ?.let { firstImageUrl(it) }
-                    ?.let { NewsSnapshot(topicId = topic.id, title = topic.title, imageUrl = it) }
-            }
-        }.awaitAll().filterNotNull().take(limit)
+            ?.id?.also { newsBoardIdCache = it }
+        ?: return@withContext emptyList()
+        // Reuses forumTopics' own (now rate-limited) thumbnail fetch instead of
+        // running a second, separate N-requests-at-once pass over the same topics.
+        forumTopics(boardId = newsBoardId, limit = limit + 6, withThumbnails = true).items
+            .filterNot { it.isLocked }
+            .mapNotNull { topic -> topic.imageUrl?.let { NewsSnapshot(topicId = topic.id, title = topic.title, imageUrl = it) } }
+            .take(limit)
     }
 
     suspend fun update(item: MediaItem): Unit = withContext(Dispatchers.IO) {
