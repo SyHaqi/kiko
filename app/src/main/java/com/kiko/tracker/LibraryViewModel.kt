@@ -260,6 +260,26 @@ class LibraryViewModel : ViewModel() {
     private val stackDetailScrollPositions = mutableMapOf<Int, Pair<Int, Int>>()
     fun getStackDetailScroll(stackId: Int) = stackDetailScrollPositions[stackId] ?: (0 to 0)
     fun saveStackDetailScroll(stackId: Int, index: Int, offset: Int) { stackDetailScrollPositions[stackId] = index to offset }
+    // A stack's fetched entries, keyed by stack id — populated once per stack so
+    // opening an entry from the grid and pressing back doesn't re-fetch (and
+    // re-show a spinner for) the whole stack every time. mutableStateMapOf so
+    // Compose recomposes StackDetailScreen when an entry lands. Cleared once the
+    // user leaves the Interest Stacks section entirely (see clearStackDetailCache).
+    private val stackDetailCache = mutableStateMapOf<Int, StackDetail>()
+    private val stackDetailFailedIds = mutableStateMapOf<Int, Boolean>()
+    fun getCachedStackDetail(stackId: Int): StackDetail? = stackDetailCache[stackId]
+    fun stackDetailLoadFailed(stackId: Int): Boolean = stackDetailFailedIds[stackId] == true
+    fun loadStackDetail(stackId: Int) {
+        if (stackDetailCache.containsKey(stackId) || stackDetailFailedIds[stackId] == true) return
+        viewModelScope.launch {
+            val fetched = runCatching { StacksApi().detail(stackId) }.getOrNull()
+            if (fetched != null) stackDetailCache[stackId] = fetched else stackDetailFailedIds[stackId] = true
+        }
+    }
+    // Drops every cached stack's entries — call once the whole Interest Stacks
+    // flow is left (not on every single back-tap within it), so the cache
+    // doesn't grow unbounded and the next visit picks up fresh data from MAL.
+    fun clearStackDetailCache() { stackDetailCache.clear(); stackDetailFailedIds.clear() }
     // Reset scroll on sort
     fun selectListTypeTab(t: MediaType) { listTypeTab = t; listScrollIndex = 0; listScrollOffset = 0 }
     fun setListSort(context: Context, sort: ListSort) { listSort = sort; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_sort", sort.name).apply() }

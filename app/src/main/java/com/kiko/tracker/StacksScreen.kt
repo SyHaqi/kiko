@@ -439,23 +439,22 @@ import kotlin.math.roundToInt
 // One stack's entries — header (back button + title), description, "my progress"
 // breakdown against the signed-in user's list, then a seasonal-chart-style grid
 
-@Composable fun StackDetailScreen(stackId: Int, initialTitle: String, loadingId: Int?, myListStatus: Map<Pair<Int, MediaType>, WatchStatus>, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit, onEditEntry: (StackTitleEntry) -> Unit = {}, selectedItem: MediaItem? = null) {
+@Composable fun StackDetailScreen(vm: LibraryViewModel, stackId: Int, initialTitle: String, loadingId: Int?, myListStatus: Map<Pair<Int, MediaType>, WatchStatus>, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit, onEditEntry: (StackTitleEntry) -> Unit = {}, selectedItem: MediaItem? = null) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     BackHandler(onBack = onBack)
-    var detail by remember(stackId) { mutableStateOf<StackDetail?>(null) }
-    var loadFailed by remember(stackId) { mutableStateOf(false) }
-    LaunchedEffect(stackId) {
-        loadFailed = false
-        detail = runCatching { StacksApi().detail(stackId) }.getOrNull()
-        if (detail == null) loadFailed = true
-    }
+    // Entries live in the ViewModel's cache, keyed by stack id — this only kicks
+    // off a fetch the first time a given stack is opened; returning here after
+    // opening an entry reads straight from the cache instead of re-fetching.
+    val detail = vm.getCachedStackDetail(stackId)
+    val loadFailed = detail == null && vm.stackDetailLoadFailed(stackId)
+    LaunchedEffect(stackId) { vm.loadStackDetail(stackId) }
     val gridState = rememberLazyGridState()
-    // Entries are fetched fresh over the network each time this screen is (re)composed,
-    // so the grid is empty at the moment gridState is created — an initial index/offset
-    // set then would just get clamped to 0 and never revisited. Instead, jump to the saved
-    // position once the real entries have actually landed (only the first time per visit,
-    // so the user's own subsequent scrolling isn't fought).
+    // On a cache miss the grid is still empty at the moment gridState is created —
+    // an initial index/offset set then would just get clamped to 0 and never
+    // revisited. Instead, jump to the saved position once the real entries have
+    // actually landed (only the first time per visit, so the user's own
+    // subsequent scrolling isn't fought). On a cache hit this fires immediately.
     var scrollRestored by remember(stackId) { mutableStateOf(false) }
     LaunchedEffect(detail) {
         val d = detail
@@ -498,7 +497,7 @@ import kotlin.math.roundToInt
                         }
                     }
                     if (detail == null && !loadFailed) {
-                        Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(24.dp)) }
+                        StackDetailHeaderSkeleton()
                     } else if (loadFailed) {
                         Text("Couldn't load this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center)
                     }
@@ -519,6 +518,10 @@ import kotlin.math.roundToInt
                         Spacer(Modifier.height(4.dp))
                     }
                 }
+            }
+            if (detail == null && !loadFailed) {
+                // Skeletal grid placeholder while the stack's entries are still loading
+                items(9) { i -> StaggeredItem(i) { StackEntryGridCardSkeleton() } }
             }
             detail?.let { d ->
                 if (d.entries.isEmpty() && !loadFailed) {
@@ -570,6 +573,44 @@ import kotlin.math.roundToInt
                 }
             }
         }
+    }
+}
+// Loading placeholder for the detail header (type pill + byline, description
+// lines, "my progress" bar) — shown instead of a bare spinner while the stack's
+// entries are still being fetched, so the page reads as "this is arriving"
+// rather than blank-then-pop. Shape mirrors the real header block above.
+
+@Composable fun StackDetailHeaderSkeleton() {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SkeletonBlock(Modifier.width(64.dp).height(22.dp), shape = RoundedCornerShape(50))
+            SkeletonBlock(Modifier.padding(start = 9.dp).width(96.dp).height(13.dp))
+        }
+        Column(Modifier.padding(top = 12.dp)) {
+            SkeletonBlock(Modifier.fillMaxWidth().height(13.dp))
+            SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.7f).height(13.dp))
+        }
+        Box(Modifier.padding(top = 14.dp)) { SkeletonBlock(Modifier.width(140.dp).height(12.dp)) }
+        Column(Modifier.padding(top = 18.dp)) {
+            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                SkeletonBlock(Modifier.width(90.dp).height(11.dp))
+                SkeletonBlock(Modifier.width(70.dp).height(11.dp))
+            }
+            SkeletonBlock(Modifier.padding(top = 10.dp).fillMaxWidth().height(8.dp), shape = RoundedCornerShape(50))
+        }
+        Spacer(Modifier.height(4.dp))
+    }
+}
+// Loading placeholder for a single StackEntryGridCard — cover tile + rank badge
+// + two text bars, shown in a full grid's worth while the stack is loading
+
+@Composable fun StackEntryGridCardSkeleton() {
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().aspectRatio(0.72f)) {
+            SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(16.dp))
+        }
+        SkeletonBlock(Modifier.padding(top = 7.dp).fillMaxWidth(0.85f).height(12.dp))
+        SkeletonBlock(Modifier.padding(top = 5.dp).fillMaxWidth(0.4f).height(11.dp))
     }
 }
 // Grid card for a title inside a stack — cover with rank badge + tracking status mark,
