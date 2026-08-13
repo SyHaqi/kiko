@@ -21,12 +21,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -170,6 +165,52 @@ fun ContinueCardSkeleton(modifier: Modifier = Modifier) {
             SkeletonBlock(Modifier.fillMaxWidth(0.7f).height(16.dp))
             SkeletonBlock(Modifier.padding(top = 10.dp).fillMaxWidth(0.4f).height(12.dp))
             SkeletonBlock(Modifier.padding(top = 14.dp).fillMaxWidth(0.55f).height(8.dp))
+        }
+    }
+}
+
+/** Stand-in for a single [AiringNextCard]: cover-sized block + title/time bars. */
+@Composable
+fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    Row(
+        modifier
+            .width(264.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(c.surface)
+            .padding(13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SkeletonBlock(Modifier.size(width = 78.dp, height = 110.dp), shape = RoundedCornerShape(16.dp))
+        Column(Modifier.padding(start = 13.dp).weight(1f)) {
+            SkeletonBlock(Modifier.fillMaxWidth(0.85f).height(14.dp))
+            SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.5f).height(14.dp))
+            SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.6f).height(11.dp))
+        }
+    }
+}
+
+/** A row of [AiringNextCardSkeleton]s, staggered in — Home's "Airing next" first-load state. */
+@Composable
+fun AiringNextRowSkeleton() {
+    Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+        repeat(3) { i -> StaggeredItem(i) { AiringNextCardSkeleton() } }
+    }
+}
+
+/** Stand-in for [SnapshotsGrid]'s Pinterest-style two-column layout — same
+ *  alternating tall/short rhythm as the real cards so the page doesn't reflow
+ *  once the images land. */
+@Composable
+fun SnapshotsGridSkeleton() {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            SkeletonBlock(Modifier.fillMaxWidth().height(210.dp), shape = RoundedCornerShape(18.dp))
+            SkeletonBlock(Modifier.fillMaxWidth().height(160.dp), shape = RoundedCornerShape(18.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            SkeletonBlock(Modifier.fillMaxWidth().height(160.dp), shape = RoundedCornerShape(18.dp))
+            SkeletonBlock(Modifier.fillMaxWidth().height(210.dp), shape = RoundedCornerShape(18.dp))
         }
     }
 }

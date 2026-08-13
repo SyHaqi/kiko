@@ -180,6 +180,9 @@ import kotlin.math.roundToInt
                     if (airingNext.isNotEmpty()) {
                         SectionTitle("Airing next", "See all") { onSchedule(today) }
                         AiringNextRow(airingNext, trackedOpenDetail)
+                    } else if (vm.discoverBrowseLoading) {
+                        SectionTitle("Airing next", "See all") { onSchedule(today) }
+                        AiringNextRowSkeleton()
                     }
                     // Most recently updated in-progress title
                     if (active != null) {
@@ -193,6 +196,9 @@ import kotlin.math.roundToInt
                     if (vm.newsSnapshots.isNotEmpty()) {
                         SectionTitle("Snapshots", "See news", onSeeNews)
                         SnapshotsGrid(vm.newsSnapshots, trackedOpenTopic)
+                    } else if (vm.newsSnapshotsLoading) {
+                        SectionTitle("Snapshots", "See news", onSeeNews)
+                        SnapshotsGridSkeleton()
                     }
                     // Freshest Interest Stack teaser
                     vm.homeLatestStack?.let { stack ->
