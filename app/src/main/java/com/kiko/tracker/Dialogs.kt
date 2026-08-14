@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -166,17 +167,29 @@ import androidx.compose.ui.unit.sp
                     }
                     // Expand only Custom row — basic fade/size transition, matching the app's other reveals
                     AnimatedVisibility(visible = source == ColorSource.Custom && current == ColorSource.Custom, enter = fadeIn(tween(180)), exit = fadeOut(tween(140))) {
-                        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
                             val valid = parseHexColor(customHex) != null
-                            Box(Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).background(if (valid) parseHexColor(customHex)!! else c.surfaceLow).border(1.dp, c.muted.copy(alpha = .4f), RoundedCornerShape(6.dp)))
-                            OutlinedTextField(
-                                value = customHex, onValueChange = { onCustomHexChange(it.take(7)) },
-                                modifier = Modifier.weight(1f).padding(start = 12.dp),
-                                singleLine = true, prefix = { Text("#", color = c.muted) },
-                                isError = !valid,
-                                supportingText = { if (!valid) Text("6-digit hex, e.g. 2E51A2", color = c.danger, fontSize = 11.sp) },
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                            val liveColor = parseHexColor(customHex) ?: c.primary
+
+                            HsvColorPicker(
+                                color = liveColor,
+                                onColorChange = { picked ->
+                                    onCustomHexChange(String.format("%06X", 0xFFFFFF and picked.toArgb()))
+                                },
+                                modifier = Modifier.padding(bottom = 14.dp),
                             )
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).background(if (valid) liveColor else c.surfaceLow).border(1.dp, c.muted.copy(alpha = .4f), RoundedCornerShape(6.dp)))
+                                OutlinedTextField(
+                                    value = customHex, onValueChange = { onCustomHexChange(it.take(7)) },
+                                    modifier = Modifier.weight(1f).padding(start = 12.dp),
+                                    singleLine = true, prefix = { Text("#", color = c.muted) },
+                                    isError = !valid,
+                                    supportingText = { if (!valid) Text("6-digit hex, e.g. 2E51A2", color = c.danger, fontSize = 11.sp) },
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                                )
+                            }
                         }
                     }
                 }
