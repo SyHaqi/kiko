@@ -461,7 +461,6 @@ import kotlinx.coroutines.launch
     var rating by remember { mutableStateOf(current.rating) }
     var format by remember { mutableStateOf(current.format) }
     var airingStatus by remember { mutableStateOf(current.airingStatus) }
-    var listInclusion by remember { mutableStateOf(current.listInclusion) }
     val airingOptions = listOf("Ongoing", "Finished", "Upcoming")
     val formatOptions = when (type) { "Anime" -> CommonAnimeFormats; "Manga" -> CommonMangaFormats; else -> CommonAnimeFormats + CommonMangaFormats }
     // Opens half-screen (partially expanded); drag up to go full screen, drag down
@@ -491,17 +490,6 @@ import kotlinx.coroutines.launch
             Text("Status", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 airingOptions.forEach { s -> FilterChip(selected = airingStatus == s, onClick = { airingStatus = if (airingStatus == s) "" else s }, label = { Text(s) }, colors = kikoFilterChipColors()) }
-            }
-
-            // Tri-state: tap cycles empty -> checked ("only in my list") -> crossed
-            // ("hide titles in my list") -> empty again.
-            Text("My List", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clip(RoundedCornerShape(12.dp)).kikoClickable { listInclusion = listInclusion.next() }.padding(vertical = 6.dp),
-            ) {
-                ListInclusionCheckbox(listInclusion)
-                Text("In my list", color = c.ink, fontSize = 14.sp, modifier = Modifier.padding(start = 10.dp))
             }
 
             // Anime searches by studio, manga by author — both stored in DiscoverFilters.creator.
@@ -549,34 +537,15 @@ import kotlinx.coroutines.launch
 
             Row(Modifier.fillMaxWidth().padding(top = 26.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 TextButton(
-                    onClick = { genres = emptySet(); explicitGenres = emptySet(); themes = emptySet(); demographics = emptySet(); creator = ""; source = ""; year = ""; season = null; rating = ""; format = ""; airingStatus = ""; listInclusion = ListInclusion.Neither },
+                    onClick = { genres = emptySet(); explicitGenres = emptySet(); themes = emptySet(); demographics = emptySet(); creator = ""; source = ""; year = ""; season = null; rating = ""; format = ""; airingStatus = "" },
                     modifier = Modifier.weight(1f),
                 ) { Text("Reset", color = c.muted, fontWeight = FontWeight.Bold) }
                 Button(
-                    onClick = { onApply(DiscoverFilters(genres + explicitGenres, themes, demographics, creator.trim(), source, year, season, rating, format, airingStatus, listInclusion)) },
+                    onClick = { onApply(DiscoverFilters(genres + explicitGenres, themes, demographics, creator.trim(), source, year, season, rating, format, airingStatus)) },
                     colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
                     modifier = Modifier.weight(2f),
                 ) { Text("Apply filters", fontWeight = FontWeight.Bold) }
             }
-        }
-    }
-}
-// Tri-state checkbox for the "In my list" filter: empty square, filled check
-// (Include), or filled cross (Exclude) — matches the FilterChip/border styling
-// used elsewhere in this sheet rather than the default Material checkbox.
-
-@Composable fun ListInclusionCheckbox(state: ListInclusion) {
-    val c = LocalKikoColors.current
-    val borderColor = when (state) { ListInclusion.Neither -> c.cardBorder; ListInclusion.Include -> c.primary; ListInclusion.Exclude -> c.danger }
-    val fillColor = when (state) { ListInclusion.Neither -> Color.Transparent; ListInclusion.Include -> c.primary; ListInclusion.Exclude -> c.danger }
-    Box(
-        Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).background(fillColor).border(1.5.dp, borderColor, RoundedCornerShape(6.dp)),
-        contentAlignment = Alignment.Center,
-    ) {
-        when (state) {
-            ListInclusion.Include -> Icon(Icons.Default.Check, null, tint = c.onPrimary, modifier = Modifier.size(16.dp))
-            ListInclusion.Exclude -> Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.size(16.dp))
-            ListInclusion.Neither -> {}
         }
     }
 }

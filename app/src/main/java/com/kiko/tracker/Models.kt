@@ -146,13 +146,6 @@ enum class PaletteStyle(val label: String) { TonalSpot("Tonal Spot"), Neutral("N
 enum class DiscoverMode { Browse, Results }
 // Discover advanced filters
 
-// Whether a discovered title should be required to be in / excluded from / unrelated
-// to the user's own list — cycles empty -> Include -> Exclude -> empty via the "In my
-// list" checkbox in the advanced filter sheet.
-enum class ListInclusion { Neither, Include, Exclude }
-// Cycles the checkbox: empty -> Include -> Exclude -> empty
-fun ListInclusion.next(): ListInclusion = when (this) { ListInclusion.Neither -> ListInclusion.Include; ListInclusion.Include -> ListInclusion.Exclude; ListInclusion.Exclude -> ListInclusion.Neither }
-
 data class DiscoverFilters(
     val genres: Set<String> = emptySet(),
     val themes: Set<String> = emptySet(),
@@ -167,9 +160,8 @@ data class DiscoverFilters(
     val format: String = "",
     // Finished, Ongoing, Upcoming
     val airingStatus: String = "",
-    val listInclusion: ListInclusion = ListInclusion.Neither,
 ) {
-    fun isActive() = genres.isNotEmpty() || themes.isNotEmpty() || demographics.isNotEmpty() || creator.isNotBlank() || source.isNotBlank() || year.isNotBlank() || season != null || rating.isNotBlank() || format.isNotBlank() || airingStatus.isNotBlank() || listInclusion != ListInclusion.Neither
+    fun isActive() = genres.isNotEmpty() || themes.isNotEmpty() || demographics.isNotEmpty() || creator.isNotBlank() || source.isNotBlank() || year.isNotBlank() || season != null || rating.isNotBlank() || format.isNotBlank() || airingStatus.isNotBlank()
 }
 // Groups raw airing/publishing text
 
@@ -180,7 +172,7 @@ fun airingBucket(raw: String): String = when {
     else -> ""
 }
 
-fun MediaItem.matches(f: DiscoverFilters, inMyList: Boolean = false): Boolean {
+fun MediaItem.matches(f: DiscoverFilters): Boolean {
     if (f.genres.isNotEmpty() && "genres" !in unknownFacets && genres.none { g -> f.genres.any { it.equals(g, ignoreCase = true) } }) return false
     if (f.themes.isNotEmpty() && "themes" !in unknownFacets && contentThemes.none { t -> f.themes.any { it.equals(t, ignoreCase = true) } }) return false
     if (f.demographics.isNotEmpty() && "demographics" !in unknownFacets && demographics.none { d -> f.demographics.any { it.equals(d, ignoreCase = true) } }) return false
@@ -194,8 +186,6 @@ fun MediaItem.matches(f: DiscoverFilters, inMyList: Boolean = false): Boolean {
     if (f.rating.isNotBlank() && "rating" !in unknownFacets && !rating.equals(f.rating, ignoreCase = true)) return false
     if (f.format.isNotBlank() && !format.equals(f.format, ignoreCase = true)) return false
     if (f.airingStatus.isNotBlank() && "airingStatus" !in unknownFacets && airingBucket(airStatus) != f.airingStatus) return false
-    if (f.listInclusion == ListInclusion.Include && !inMyList) return false
-    if (f.listInclusion == ListInclusion.Exclude && inMyList) return false
     return true
 }
 // Full genre taxonomy

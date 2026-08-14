@@ -306,9 +306,8 @@ class LibraryViewModel : ViewModel() {
     // whole accumulated list here on every append used to reshuffle rows already on screen
     // whenever a newly-loaded page's items outranked one you'd already scrolled past.
     private val visibleDiscoverResultsState by derivedStateOf {
-        val myListKeys = items.mapTo(HashSet()) { it.id to it.type }
         discoverResults.nsfwFiltered(nsfwEnabled)
-            .filter { it.matches(discoverFilters, inMyList = (it.id to it.type) in myListKeys) }
+            .filter { it.matches(discoverFilters) }
     }
     val visibleDiscoverResults: List<MediaItem> get() = visibleDiscoverResultsState
     val visibleDiscoverNewSeason get() = discoverNewSeason.nsfwFiltered(nsfwEnabled)
