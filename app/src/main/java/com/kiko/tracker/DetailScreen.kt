@@ -137,6 +137,8 @@ data class DetailScreenActions(
     }
     val related = backfilledRelated ?: item.related
     // Recheck themes if missing — same cache-seeded reasoning as related above.
+    // Anime-only: manga has no OP/ED field on MAL, so manga skips straight to done
+    // rather than firing a network call that could never come back with anything.
     var backfilledThemes by remember(item.id) {
         mutableStateOf(
             if (cachedSnapshot?.openingThemes != null || cachedSnapshot?.endingThemes != null)
@@ -144,9 +146,9 @@ data class DetailScreenActions(
             else null
         )
     }
-    var themesDone by remember(item.id) { mutableStateOf(item.openingThemes.isNotEmpty() || item.endingThemes.isNotEmpty() || cachedSnapshot?.openingThemes != null || cachedSnapshot?.endingThemes != null) }
+    var themesDone by remember(item.id) { mutableStateOf(item.type != MediaType.Anime || item.openingThemes.isNotEmpty() || item.endingThemes.isNotEmpty() || cachedSnapshot?.openingThemes != null || cachedSnapshot?.endingThemes != null) }
     LaunchedEffect(item.id) {
-        if (item.openingThemes.isEmpty() && item.endingThemes.isEmpty() && cachedSnapshot?.openingThemes == null && cachedSnapshot?.endingThemes == null) {
+        if (item.type == MediaType.Anime && item.openingThemes.isEmpty() && item.endingThemes.isEmpty() && cachedSnapshot?.openingThemes == null && cachedSnapshot?.endingThemes == null) {
             actions.onBackfillThemes(item.id, item.type, { op, ed -> backfilledThemes = op to ed }, { themesDone = true })
         } else themesDone = true
     }

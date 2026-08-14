@@ -1046,13 +1046,24 @@ class LibraryViewModel : ViewModel() {
         if (intId == null) { onDone(); return }
         viewModelScope.launch {
             runCatching { MalApi(context).detail(intId, type) }
-                .onSuccess { fresh -> if (fresh.related.isNotEmpty()) { cache.related = fresh.related; onFound(fresh.related) } }
+                // Cache the result even when empty — a title with genuinely no related
+                // entries (common for standalone manga/webtoons) would otherwise never
+                // satisfy isNotEmpty(), leaving cache.related null forever and forcing
+                // a fresh network fetch (and the full-page skeleton, see coverReady/
+                // relatedDone/themesDone below) every single time this screen remounts.
+                .onSuccess { fresh -> cache.related = fresh.related; if (fresh.related.isNotEmpty()) onFound(fresh.related) }
             onDone()
         }
     }
 
-    // Backfill empty theme fields
+    // Backfill empty theme fields — anime only. Manga has no OP/ED field on MAL at
+    // all, so a fetch here could never come back non-empty; without this guard the
+    // old code kept the network call but only ever cached a *non-empty* result,
+    // meaning it silently refired every time a manga detail page was mounted or
+    // returned to, instead of remembering "checked, nothing there" like it does
+    // for anime titles that happen to have no themes.
     fun backfillThemes(context: Context, id: String, type: MediaType, onFound: (List<String>, List<String>) -> Unit, onDone: () -> Unit = {}) {
+        if (type != MediaType.Anime) { onDone(); return }
         val cache = detailCache(id, type)
         val cachedOp = cache.openingThemes; val cachedEd = cache.endingThemes
         if (cachedOp != null || cachedEd != null) { onFound(cachedOp ?: emptyList(), cachedEd ?: emptyList()); onDone(); return }
@@ -1061,10 +1072,10 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching { MalApi(context).detail(intId, type) }
                 .onSuccess { fresh ->
-                    if (fresh.openingThemes.isNotEmpty() || fresh.endingThemes.isNotEmpty()) {
-                        cache.openingThemes = fresh.openingThemes; cache.endingThemes = fresh.endingThemes
-                        onFound(fresh.openingThemes, fresh.endingThemes)
-                    }
+                    // Cache the result either way (even empty) so an anime title that
+                    // genuinely has no themes also stops refetching after this.
+                    cache.openingThemes = fresh.openingThemes; cache.endingThemes = fresh.endingThemes
+                    if (fresh.openingThemes.isNotEmpty() || fresh.endingThemes.isNotEmpty()) onFound(fresh.openingThemes, fresh.endingThemes)
                 }
             onDone()
         }
@@ -1078,7 +1089,7 @@ class LibraryViewModel : ViewModel() {
         if (intId == null) { onDone(); return }
         viewModelScope.launch {
             runCatching { MalApi(context).detail(intId, type) }
-                .onSuccess { fresh -> if (fresh.covers.size > 1) { cache.covers = fresh.covers; onFound(fresh.covers) } }
+                .onSuccess { fresh -> cache.covers = fresh.covers; if (fresh.covers.size > 1) onFound(fresh.covers) }
             onDone()
         }
     }
@@ -1100,10 +1111,8 @@ class LibraryViewModel : ViewModel() {
                     chars.await() to staffList.await()
                 }
             }.onSuccess { (chars, staffList) ->
-                if (chars.isNotEmpty() || staffList.isNotEmpty()) {
-                    cache.characters = chars; cache.staffList = staffList
-                    onFound(chars, staffList)
-                }
+                cache.characters = chars; cache.staffList = staffList
+                if (chars.isNotEmpty() || staffList.isNotEmpty()) onFound(chars, staffList)
             }
             onDone()
         }
@@ -1118,7 +1127,7 @@ class LibraryViewModel : ViewModel() {
         val kind = if (item.type == MediaType.Anime) "anime" else "manga"
         viewModelScope.launch {
             runCatching { TenraiApi().fetchReviews(kind, intId) }
-                .onSuccess { if (it.isNotEmpty()) { cache.reviews = it; onFound(it) } }
+                .onSuccess { cache.reviews = it; if (it.isNotEmpty()) onFound(it) }
             onDone()
         }
     }
@@ -1131,7 +1140,7 @@ class LibraryViewModel : ViewModel() {
         if (intId == null) { onDone(); return }
         viewModelScope.launch {
             runCatching { MalApi(context).userRecommendations(intId, item.type) }
-                .onSuccess { if (it.isNotEmpty()) { cache.recommended = it; onFound(it) } }
+                .onSuccess { cache.recommended = it; if (it.isNotEmpty()) onFound(it) }
             onDone()
         }
     }
