@@ -107,10 +107,11 @@ class LibraryViewModel : ViewModel() {
     }
     fun appendClubsResults(page: ClubsPage, pageNumber: Int) { clubsList = clubsList + page.items; clubsHasMore = page.hasMore; clubsPage = pageNumber }
     fun revealMoreClubs(count: Int) { clubsVisibleCount = count }
-    // Per-title detail scroll
-    private val detailScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
-    fun getDetailScroll(id: String) = detailScrollPositions[id] ?: (0 to 0)
-    fun saveDetailScroll(id: String, index: Int, offset: Int) { detailScrollPositions[id] = index to offset }
+    // Per-title detail scroll — keyed by id+type, same as detailCaches below, since
+    // anime and manga ids can collide.
+    private val detailScrollPositions = mutableMapOf<Pair<String, MediaType>, Pair<Int, Int>>()
+    fun getDetailScroll(id: String, type: MediaType) = detailScrollPositions[id to type] ?: (0 to 0)
+    fun saveDetailScroll(id: String, type: MediaType, index: Int, offset: Int) { detailScrollPositions[id to type] = index to offset }
     // Per-title cache for every DetailScreen sub-section (related, themes, covers,
     // recommended, status distribution, characters/staff, reviews). Keyed by id+type
     // since anime and manga ids can collide. Backing DetailScreen's loaders with this
@@ -134,10 +135,38 @@ class LibraryViewModel : ViewModel() {
     )
     private val detailCaches = mutableMapOf<Pair<String, MediaType>, DetailCache>()
     private fun detailCache(id: String, type: MediaType) = detailCaches.getOrPut(id to type) { DetailCache() }
-    // Drops every cached detail sub-section. Call this once the user has fully left
-    // the related/recommended chain (not on every single step back within it), and
-    // when a brand-new, unrelated title is opened from outside any chain.
-    fun clearDetailCache() { detailCaches.clear() }
+    // Read-only look at whatever's already cached for a title, without creating an
+    // entry if there's nothing there yet (unlike detailCache() above). DetailScreen
+    // uses this to seed its local state directly from the cache on first composition,
+    // instead of always starting "empty/not-done" and waiting a frame for a
+    // LaunchedEffect to catch up — that gap is what made returning from a title's
+    // Reviews page (or any other overlay that tears DetailScreen down and rebuilds it)
+    // flash the loading skeleton even though the data was already sitting in memory.
+    data class DetailCacheSnapshot(
+        val related: List<RelatedEntry>?,
+        val openingThemes: List<String>?,
+        val endingThemes: List<String>?,
+        val covers: List<String>?,
+        val recommended: List<RecommendedEntry>?,
+        val statusDistribution: StatusDistribution?,
+        val characters: List<CharacterEntry>?,
+        val staffList: List<StaffEntry>?,
+        val reviews: List<ReviewEntry>?,
+    )
+    fun peekDetailCache(id: String, type: MediaType): DetailCacheSnapshot? = detailCaches[id to type]?.let {
+        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.staffList, it.reviews)
+    }
+    // Drops every cached detail sub-section, and every remembered scroll position —
+    // call this once the user has fully left the related/recommended chain (not on
+    // every single step back within it), and when a brand-new, unrelated title is
+    // opened from outside any chain.
+    fun clearDetailCache() { detailCaches.clear(); detailScrollPositions.clear() }
+    // Drops the cache + scroll position for exactly one title — call this when
+    // stepping back past that single title within an active chain (see backDetail()
+    // in Navigation.kt), so a title that's no longer reachable going forward doesn't
+    // leave stale cached data/position lingering until the whole chain is eventually
+    // backed out of.
+    fun forgetDetailPage(id: String, type: MediaType) { detailCaches.remove(id to type); detailScrollPositions.remove(id to type) }
     // Scroll position for the Related/Recommended horizontal rows on the detail
     // page — separate from getDetailScroll/saveDetailScroll above, which track the
     // page's own vertical scroll. Without this, tapping an entry partway through

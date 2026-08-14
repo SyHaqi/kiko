@@ -174,8 +174,17 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     }
     fun openRelatedDetail(from: MediaItem, to: MediaItem) { detailGoingBack = false; detailStack = detailStack + from; selectedItem = to }
     fun backDetail() {
+        val leaving = selectedItem
         val prev = detailStack.lastOrNull()
-        if (prev != null) { detailGoingBack = true; selectedItem = prev; detailStack = detailStack.dropLast(1); return }
+        if (prev != null) {
+            detailGoingBack = true; selectedItem = prev; detailStack = detailStack.dropLast(1)
+            // Stepped back one level — the title just left isn't reachable going forward
+            // from here (tapping a different related/recommended card from prev opens a
+            // fresh title anyway), so drop its cache/position now rather than let it
+            // linger until the whole chain is eventually backed out of.
+            leaving?.let { vm.forgetDetailPage(it.id, it.type) }
+            return
+        }
         // Backing out from the root of the related/recommended chain — the whole chain
         // is now unreachable, so drop everything cached for it (see clearDetailCache()).
         vm.clearDetailCache()
@@ -359,7 +368,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) },
                                     onOpenReview = { rev -> reviewOpen = rev to screen.item.title },
                                     onOpenReviewList = { url, _ -> CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) },
-                                    onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, index, offset) },
+                                    onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, screen.item.type, index, offset) },
                                     onLeaveRelatedScroll = { index, offset -> vm.saveRelatedRowScroll(screen.item.id, screen.item.type, index, offset) },
                                     onLeaveRecommendedScroll = { index, offset -> vm.saveRecommendedRowScroll(screen.item.id, screen.item.type, index, offset) },
                                     onGenreClick = { genre ->
@@ -371,9 +380,10 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 ),
                                 relatedLoadingId = vm.relatedLoadingId,
                                 recommendedLoadingId = vm.recommendedLoadingId,
-                                initialScroll = vm.getDetailScroll(screen.item.id),
+                                initialScroll = vm.getDetailScroll(screen.item.id, screen.item.type),
                                 initialRelatedScroll = vm.getRelatedRowScroll(screen.item.id, screen.item.type),
                                 initialRecommendedScroll = vm.getRecommendedRowScroll(screen.item.id, screen.item.type),
+                                cachedSnapshot = vm.peekDetailCache(screen.item.id, screen.item.type),
                                 myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
                             )
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)

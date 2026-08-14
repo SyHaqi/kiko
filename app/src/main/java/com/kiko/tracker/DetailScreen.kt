@@ -122,42 +122,53 @@ data class DetailScreenActions(
     }
 }
 
-@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap()) {
+@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null) {
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
-    // Track related backfill completion
-    var backfilledRelated by remember(item.id) { mutableStateOf<List<RelatedEntry>?>(null) }
-    var relatedDone by remember(item.id) { mutableStateOf(item.related.isNotEmpty()) }
+    // Track related backfill completion. Seeded from cachedSnapshot (not just
+    // item.related) so a title whose related row only ever got filled in via
+    // backfill — not present on the original MediaItem — doesn't flash the loading
+    // skeleton every time this composable is torn down and rebuilt (e.g. going into
+    // a review and back), even though the data was already sitting in the cache.
+    var backfilledRelated by remember(item.id) { mutableStateOf(cachedSnapshot?.related) }
+    var relatedDone by remember(item.id) { mutableStateOf(item.related.isNotEmpty() || cachedSnapshot?.related != null) }
     LaunchedEffect(item.id) {
-        if (item.related.isEmpty()) actions.onBackfillRelated(item.id, item.type, { backfilledRelated = it }, { relatedDone = true }) else relatedDone = true
+        if (item.related.isEmpty() && cachedSnapshot?.related == null) actions.onBackfillRelated(item.id, item.type, { backfilledRelated = it }, { relatedDone = true }) else relatedDone = true
     }
     val related = backfilledRelated ?: item.related
-    // Recheck themes if missing
-    var backfilledThemes by remember(item.id) { mutableStateOf<Pair<List<String>, List<String>>?>(null) }
-    var themesDone by remember(item.id) { mutableStateOf(item.openingThemes.isNotEmpty() || item.endingThemes.isNotEmpty()) }
+    // Recheck themes if missing — same cache-seeded reasoning as related above.
+    var backfilledThemes by remember(item.id) {
+        mutableStateOf(
+            if (cachedSnapshot?.openingThemes != null || cachedSnapshot?.endingThemes != null)
+                cachedSnapshot?.openingThemes.orEmpty() to cachedSnapshot?.endingThemes.orEmpty()
+            else null
+        )
+    }
+    var themesDone by remember(item.id) { mutableStateOf(item.openingThemes.isNotEmpty() || item.endingThemes.isNotEmpty() || cachedSnapshot?.openingThemes != null || cachedSnapshot?.endingThemes != null) }
     LaunchedEffect(item.id) {
-        if (item.openingThemes.isEmpty() && item.endingThemes.isEmpty()) {
+        if (item.openingThemes.isEmpty() && item.endingThemes.isEmpty() && cachedSnapshot?.openingThemes == null && cachedSnapshot?.endingThemes == null) {
             actions.onBackfillThemes(item.id, item.type, { op, ed -> backfilledThemes = op to ed }, { themesDone = true })
         } else themesDone = true
     }
     val (openingThemes, endingThemes) = backfilledThemes ?: (item.openingThemes to item.endingThemes)
-    // Characters + staff rows
-    var characters by remember(item.id) { mutableStateOf<List<CharacterEntry>>(emptyList()) }
-    var staffList by remember(item.id) { mutableStateOf<List<StaffEntry>>(emptyList()) }
+    // Characters + staff rows — seeded from cache so they don't blank out and
+    // reload on every remount either.
+    var characters by remember(item.id) { mutableStateOf(cachedSnapshot?.characters ?: emptyList()) }
+    var staffList by remember(item.id) { mutableStateOf(cachedSnapshot?.staffList ?: emptyList()) }
     LaunchedEffect(item.id) { actions.onLoadCharactersStaff(item, { chars, stf -> characters = chars; staffList = stf }, {}) }
-    var reviews by remember(item.id) { mutableStateOf<List<ReviewEntry>>(emptyList()) }
+    var reviews by remember(item.id) { mutableStateOf(cachedSnapshot?.reviews ?: emptyList()) }
     LaunchedEffect(item.id) { actions.onLoadReviews(item, { reviews = it }, {}) }
-    // Recheck cover gallery non-blocking
-    var backfilledCovers by remember(item.id) { mutableStateOf<List<String>?>(null) }
+    // Recheck cover gallery non-blocking — seeded from cache too.
+    var backfilledCovers by remember(item.id) { mutableStateOf(cachedSnapshot?.covers) }
     LaunchedEffect(item.id) {
-        if (item.covers.size <= 1) actions.onBackfillCovers(item.id, item.type, { backfilledCovers = it }, {})
+        if (item.covers.size <= 1 && cachedSnapshot?.covers == null) actions.onBackfillCovers(item.id, item.type, { backfilledCovers = it }, {})
     }
     val covers = backfilledCovers ?: item.covers
-    // Recommended row loads async
-    var recommended by remember(item.id) { mutableStateOf<List<RecommendedEntry>>(emptyList()) }
+    // Recommended row loads async — seeded from cache too.
+    var recommended by remember(item.id) { mutableStateOf(cachedSnapshot?.recommended ?: emptyList()) }
     LaunchedEffect(item.id) { actions.onLoadRecommended(item, { recommended = it }, {}) }
-    // Status distribution loads async
-    var statusDistribution by remember(item.id) { mutableStateOf<StatusDistribution?>(null) }
+    // Status distribution loads async — seeded from cache too.
+    var statusDistribution by remember(item.id) { mutableStateOf(cachedSnapshot?.statusDistribution) }
     LaunchedEffect(item.id) { actions.onLoadStatusDistribution(item, { statusDistribution = it }, {}) }
     // Fresh scroll state per-title
     val listState = remember(item.id) { LazyListState(initialScroll.first, initialScroll.second) }
