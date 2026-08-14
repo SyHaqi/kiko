@@ -228,6 +228,34 @@ fun jikanStatusParam(bucket: String, kind: String): String? = when (bucket) {
     "Upcoming" -> "upcoming"
     else -> null
 }
+// App format label -> MAL's own numeric `type` code on anime.php/manga.php's advanced
+// search filter (read straight off each page's <select name="type"> options — not Jikan's
+// string codes, which don't apply once the search itself goes straight to MAL). Anime and
+// manga each have their own numbering, so kind matters; null falls back to client-side
+// matches() filtering only, same as jikanTypeParam.
+fun malAnimeTypeCode(format: String): String? = when (format) {
+    "TV" -> "1"; "OVA" -> "2"; "Movie" -> "3"; "Special" -> "4"; "ONA" -> "5"; "Music" -> "6"
+    else -> null
+}
+fun malMangaTypeCode(format: String): String? = when (format) {
+    "Manga" -> "1"; "Light Novel" -> "2"; "One Shot" -> "3"; "Doujinshi" -> "4"
+    "Manhwa" -> "5"; "Manhua" -> "6"; "Novel" -> "8"
+    else -> null
+}
+// Dispatches to whichever of the two above applies — a blank format (nothing picked in the
+// filter sheet) is deliberately distinct from one that doesn't map to a MAL code for this
+// kind (e.g. "TV" while kind == "manga"): both return null, but callers never hit the
+// second case since DiscoverFilters.format is only ever set from CommonAnimeFormats or
+// CommonMangaFormats to begin with.
+fun malTypeCode(kind: String, format: String): String? = if (kind == "anime") malAnimeTypeCode(format) else malMangaTypeCode(format)
+// App airing-status bucket -> MAL's own numeric `status` code (again read off the page's
+// own <select name="status">, separate options for anime vs manga).
+fun malStatusCode(bucket: String, kind: String): String? = when (bucket) {
+    "Finished" -> "2"
+    "Ongoing" -> "1"
+    "Upcoming" -> "3"
+    else -> null
+}
 // Format switches media type
 
 fun resolvedDiscoverType(format: String, fallback: String): String = when {
@@ -237,7 +265,7 @@ fun resolvedDiscoverType(format: String, fallback: String): String = when {
 }
 // Sort order options
 
-enum class DiscoverSort(val label: String) { Members("Members"), Score("Score"), Newest("Newest"), Title("Title") }
+enum class DiscoverSort(val label: String) { Relevance("Relevance"), Members("Members"), Score("Score"), Newest("Newest"), Title("Title") }
 // Collapse punctuation/symbols (e.g. the ★ in "Stardust★Wink") to spaces so title matching
 // isn't defeated by stylized titles; also lets "startsWith"/word-boundary checks line up.
 
@@ -275,7 +303,21 @@ fun MediaItem.titleMatchRank(q: String, wordBoundaryRegex: Regex): Int {
 // Default blank query
 
 fun List<MediaItem>.sortedForDiscover(sort: DiscoverSort, titleLanguage: TitleLanguage, query: String = ""): List<MediaItem> {
+    // Relevance leaves items in whatever order the source already returned them in — that's
+    // MAL's own result order (its default, un-sorted search-page order for genre/theme
+    // browsing, or its search relevance ranking for a text query) rather than something this
+    // app recomputes. sortedBy is a stable sort, so items that tie on match rank keep their
+    // original relative order instead of being reshuffled by some other field.
+    if (sort == DiscoverSort.Relevance) {
+        if (query.isBlank()) return this
+        val q = normalizeForTitleMatch(query)
+        val wordBoundaryRegex = Regex("\\b" + Regex.escape(q) + "\\b")
+        return map { it to it.titleMatchRank(q, wordBoundaryRegex) }
+            .sortedBy { it.second }
+            .map { it.first }
+    }
     val bySort: Comparator<MediaItem> = when (sort) {
+        DiscoverSort.Relevance -> error("handled above")
         DiscoverSort.Members -> compareByDescending { it.listUsers }
         DiscoverSort.Score -> compareByDescending { it.score }
         DiscoverSort.Newest -> compareByDescending { it.startDateFull.ifBlank { it.startDate } }

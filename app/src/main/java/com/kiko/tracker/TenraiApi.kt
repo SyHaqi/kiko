@@ -113,7 +113,10 @@ class TenraiApi {
         }.toMap()
     }
 
-    // Build broad candidate pool
+    // Superseded by MalGenreApi.search, which scrapes MAL's own advanced search directly
+    // instead of Tenrai's members-ranked candidate pool (capped at each chart's top ~500).
+    // Left in place only in case something still needs a raw Tenrai genre search; no
+    // current call site uses this.
     suspend fun searchByGenreIds(kind: String, ids: List<Int>, pages: Int = 2, limit: Int = 50, includeAdult: Boolean): List<MediaItem> {
         if (ids.isEmpty()) return emptyList()
         return withContext(Dispatchers.IO) {
@@ -147,6 +150,8 @@ class TenraiApi {
     // a far stronger "there's probably more" signal than a `has_next_page: false` flag is a
     // "there isn't" one, so a full page keeps hasMore true regardless of what the flag says;
     // only a genuinely short/empty page is trusted to mean we've reached the real end.
+    // Superseded by MalGenreApi.search — see the doc note on searchByGenreIds above. No
+    // current call site uses this.
     suspend fun searchFiltered(kind: String, genreId: Int, type: String?, status: String?, page: Int, limit: Int = 25, includeAdult: Boolean): TenraiPage = withContext(Dispatchers.IO) {
         val sfwParam = if (includeAdult) "" else "&sfw"
         val typeParam = type?.let { "&type=$it" } ?: ""
