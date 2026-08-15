@@ -61,12 +61,16 @@ class StacksApi {
     // Deliberately its own distinct UA rather than MAL_DESKTOP_USER_AGENT (see class doc).
     private fun fetchDoc(url: String): Document = client.fetchMalDocument(url, userAgent = "Mozilla/5.0 (Android) Kiko/1.0")
 
-    // Browse or search stacks by type
-    suspend fun search(kind: StackBrowseKind, query: String = "", page: Int = 1): List<StackSummary> = withContext(Dispatchers.IO) {
+    // Browse or search stacks by type. limit stops parsing (not fetching — the whole page
+    // still has to download either way) once that many rows are found, for callers that
+    // only keep the first one or two results anyway (e.g. Home's single-stack teaser) —
+    // no reason to run every regex in parseSummaries against every row on the page just to
+    // throw all but the first one away.
+    suspend fun search(kind: StackBrowseKind, query: String = "", page: Int = 1, limit: Int? = null): List<StackSummary> = withContext(Dispatchers.IO) {
         val typeParam = if (kind.param.isBlank()) "" else "type=${kind.param}&"
         val q = if (query.isBlank()) "" else "q=" + java.net.URLEncoder.encode(query, "UTF-8") + "&"
         val url = "$MAL/stacks/search?$typeParam${q}p=$page"
-        parseSummaries(fetchDoc(url))
+        parseSummaries(fetchDoc(url), limit)
     }
 
     // First usable image URLs under an element, preferring MAL's own CDN paths
@@ -120,12 +124,13 @@ class StacksApi {
     }
 
     // Title anchors that point straight at a stack, deduped by id
-    private fun parseSummaries(doc: Document): List<StackSummary> {
+    private fun parseSummaries(doc: Document, limit: Int? = null): List<StackSummary> {
         val seen = LinkedHashMap<Int, StackSummary>()
-        doc.select("a[href~=(?i)^https?://myanimelist\\.net/stacks/\\d+$]").forEach { a ->
-            val id = a.attr("href").substringAfterLast("/stacks/").substringBefore("?").toIntOrNull() ?: return@forEach
-            val title = a.text().trim().takeIf { it.isNotBlank() } ?: return@forEach
-            if (seen.containsKey(id)) return@forEach
+        for (a in doc.select("a[href~=(?i)^https?://myanimelist\\.net/stacks/\\d+$]")) {
+            if (limit != null && seen.size >= limit) break
+            val id = a.attr("href").substringAfterLast("/stacks/").substringBefore("?").toIntOrNull() ?: continue
+            val title = a.text().trim().takeIf { it.isNotBlank() } ?: continue
+            if (seen.containsKey(id)) continue
             val container = rowContainer(a)
             val text = normalizeWhitespace(container)
             val type = Regex("\\b(Anime|Manga)\\b").find(text)?.groupValues?.get(1).orEmpty()

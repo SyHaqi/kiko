@@ -1009,10 +1009,12 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             val api = StacksApi()
             coroutineScope {
-                val ch = async { runCatching { api.search(StackBrowseKind.Challenges).take(2) }.getOrElse { emptyList() } }
-                val mg = async { runCatching { api.search(StackBrowseKind.Manga).take(1) }.getOrElse { emptyList() } }
-                val an = async { runCatching { api.search(StackBrowseKind.Anime).take(1) }.getOrElse { emptyList() } }
-                val mal = async { runCatching { api.search(StackBrowseKind.MyAnimeList).take(1) }.getOrElse { emptyList() } }
+                // limit matches each row's own .take() below — no reason to parse every
+                // stack on the page just to discard all but the first one or two.
+                val ch = async { runCatching { api.search(StackBrowseKind.Challenges, limit = 2) }.getOrElse { emptyList() } }
+                val mg = async { runCatching { api.search(StackBrowseKind.Manga, limit = 1) }.getOrElse { emptyList() } }
+                val an = async { runCatching { api.search(StackBrowseKind.Anime, limit = 1) }.getOrElse { emptyList() } }
+                val mal = async { runCatching { api.search(StackBrowseKind.MyAnimeList, limit = 1) }.getOrElse { emptyList() } }
                 val rc = async { runCatching { api.search(StackBrowseKind.All) }.getOrElse { emptyList() } }
                 stacksHomeChallenges = ch.await(); stacksHomeManga = mg.await(); stacksHomeAnime = an.await(); stacksHomeMal = mal.await(); stacksHomeRecent = rc.await()
             }
@@ -1028,7 +1030,7 @@ class LibraryViewModel : ViewModel() {
         if ((homeLatestStackLoaded && !force) || !MalApi(context).signedIn) return
         homeLatestStackLoaded = true
         viewModelScope.launch {
-            homeLatestStack = runCatching { StacksApi().search(StackBrowseKind.All).firstOrNull() }.getOrNull()
+            homeLatestStack = runCatching { StacksApi().search(StackBrowseKind.All, limit = 1).firstOrNull() }.getOrNull()
         }
     }
 
