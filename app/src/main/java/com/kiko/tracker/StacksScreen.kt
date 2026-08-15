@@ -16,6 +16,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
@@ -109,8 +111,17 @@ import kotlinx.coroutines.launch
                 // Spotlight row — the curated Challenge/Manga/Anime picks side by side instead of stacked full-width
                 item { StackSectionHeader("Spotlight", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
                 item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        itemsIndexed(spotlightStacks, key = { _, (prefix, s) -> "$prefix-${s.id}" }) { index, (_, s) -> StaggeredItem(index) { StackSpotlightCard(s) { openStack(s) } } }
+                    // Non-lazy + IntrinsicSize.Max so every card is measured against the
+                    // tallest one and stretches to match it — this is also what stops the
+                    // row (and everything below it) from resizing as you scroll horizontally
+                    // past cards with/without a description.
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()).height(IntrinsicSize.Max),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        spotlightStacks.forEachIndexed { index, (_, s) ->
+                            StaggeredItem(index, modifier = Modifier.fillMaxHeight()) { StackSpotlightCard(s, modifier = Modifier.fillMaxHeight()) { openStack(s) } }
+                        }
                     }
                 }
             }
@@ -310,7 +321,7 @@ import kotlinx.coroutines.launch
 // Spotlight card — fixed-width version of StackFeaturedCard for the horizontal
 // Challenge/Manga/Anime spotlight row on the stacks homepage
 
-@Composable fun StackSpotlightCard(stack: StackSummary, onClick: () -> Unit) {
+@Composable fun StackSpotlightCard(stack: StackSummary, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     var covers by remember(stack.id) { mutableStateOf(stack.covers) }
     LaunchedEffect(stack.id) {
@@ -323,17 +334,21 @@ import kotlinx.coroutines.launch
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.width(250.dp).pressScale(interactionSource),
+        modifier = modifier.width(250.dp).pressScale(interactionSource),
     ) {
-        Column {
+        Column(Modifier.fillMaxHeight()) {
             StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)))
-            Column(Modifier.padding(14.dp)) {
+            // weight(1f) lets this text block stretch to fill whatever extra height the row
+            // gave the card (see the fillMaxHeight() row below), with the Spacer pushing the
+            // stats row to the bottom instead of leaving it stranded right under the title.
+            Column(Modifier.padding(14.dp).weight(1f)) {
                 if (stack.tags.isNotEmpty()) Box(Modifier.padding(bottom = 8.dp)) { StackTagsRow(stack.tags) }
                 Text(stack.title, style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (stack.author.isNotBlank()) Text("by ${stack.author}", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 5.dp))
                 if (stack.description.isNotBlank()) {
                     Text(stack.description, color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
                 }
+                Spacer(Modifier.weight(1f))
                 Box(Modifier.padding(top = 10.dp)) { StackStatsRow(stack.entryCount, stack.restacks, stack.updatedLabel) }
             }
         }

@@ -79,11 +79,12 @@ fun Modifier.kikoCombinedClickable(
 // ---------------------------------------------------------------------------
 
 @Composable
-fun StaggeredItem(index: Int, content: @Composable () -> Unit) {
+fun StaggeredItem(index: Int, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val visibleState = remember(index) { MutableTransitionState(false).apply { targetState = true } }
     val delay = (index * 30).coerceAtMost(240)
     AnimatedVisibility(
         visibleState = visibleState,
+        modifier = modifier,
         enter = fadeIn(tween(260, delayMillis = delay)) +
                 slideInVertically(tween(260, delayMillis = delay), initialOffsetY = { it / 8 }),
     ) {
