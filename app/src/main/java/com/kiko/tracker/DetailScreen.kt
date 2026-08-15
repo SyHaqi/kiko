@@ -646,7 +646,14 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 // Recommended card same style
 
 @Composable fun RecommendedCard(entry: RecommendedEntry, loading: Boolean = false, myStatus: WatchStatus? = null, onClick: () -> Unit) {
-    val subtitle = if (entry.votes > 0) "${entry.votes} recommend${if (entry.votes == 1) "s" else ""}" else "Recommended"
+    // AutoRec entries have no real vote count (see RecommendedEntry.isAuto) — labeling
+    // them "Recommended" like a real user pick would misrepresent where the pick came
+    // from, so they get MAL's own "AutoRec" label instead.
+    val subtitle = when {
+        entry.isAuto -> "AutoRec"
+        entry.votes > 0 -> "${entry.votes} recommend${if (entry.votes == 1) "s" else ""}"
+        else -> "Recommended"
+    }
     DetailRowCard(imageUrl = entry.cover, fallbackLetter = entry.title.take(1), title = entry.title, subtitle = subtitle, loading = loading, myStatus = myStatus, onClick = onClick)
 }
 // Compact card for characters/staff rows

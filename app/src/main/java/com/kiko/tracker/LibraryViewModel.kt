@@ -1072,13 +1072,27 @@ class LibraryViewModel : ViewModel() {
         val intId = id.toIntOrNull()
         if (intId == null) { onDone(); return }
         viewModelScope.launch {
-            runCatching { MalApi(context).detail(intId, type) }
-                // Cache the result even when empty — a title with genuinely no related
-                // entries (common for standalone manga/webtoons) would otherwise never
-                // satisfy isNotEmpty(), leaving cache.related null forever and forcing
-                // a fresh network fetch (and the full-page skeleton, see coverReady/
-                // relatedDone/themesDone below) every single time this screen remounts.
-                .onSuccess { fresh -> cache.related = fresh.related; if (fresh.related.isNotEmpty()) onFound(fresh.related) }
+            // The official API's related_anime/related_manga fields are same-type only in
+            // practice — an anime detail request reliably returns related_anime but usually
+            // comes back empty for related_manga (manga/light novel adaptations), and vice
+            // versa on manga pages — even though MAL's own Related Entries box on the
+            // website always lists every direction. So that box is scraped directly
+            // (MalDetailScrapeApi) and merged with whatever the API did return; the API
+            // result stays as a fallback if the scrape itself fails.
+            val apiRelated = runCatching { MalApi(context).detail(intId, type).related }.getOrElse { emptyList() }
+            val scraped = runCatching { MalDetailScrapeApi().fetch(intId, type).related }.getOrElse { emptyList() }
+            // Entries with a resolved malId are deduped by (id, type); a handful of very
+            // old/obscure related titles have no malId at all (MAL never linked them to a
+            // page), so those are kept as-is, deduped by title instead so they don't all
+            // collapse onto the same "id 0" key.
+            val merged = (scraped + apiRelated).distinctBy { if (it.malId > 0) "id:${it.malType}:${it.malId}" else "title:${it.malType}:${it.title}" }
+            // Cache the result even when empty — a title with genuinely no related
+            // entries (common for standalone manga/webtoons) would otherwise never
+            // satisfy isNotEmpty(), leaving cache.related null forever and forcing
+            // a fresh network fetch (and the full-page skeleton, see coverReady/
+            // relatedDone/themesDone below) every single time this screen remounts.
+            cache.related = merged
+            if (merged.isNotEmpty()) onFound(merged)
             onDone()
         }
     }
@@ -1166,8 +1180,17 @@ class LibraryViewModel : ViewModel() {
         val intId = item.id.toIntOrNull()
         if (intId == null) { onDone(); return }
         viewModelScope.launch {
-            runCatching { MalApi(context).userRecommendations(intId, item.type) }
-                .onSuccess { cache.recommended = it; if (it.isNotEmpty()) onFound(it) }
+            // The website's Recommendations widget is scraped directly since it's a
+            // superset of what the official API can give us: it includes every real
+            // user-submitted recommendation (same data the API's `recommendations` field
+            // has) plus MAL's own algorithmic "AutoRec" picks, which the API never exposes
+            // and which is what actually fills the widget for newer/lower-traffic titles
+            // that don't have enough real user recs yet. The official API call is kept only
+            // as a fallback in case the scrape itself fails.
+            val scraped = runCatching { MalDetailScrapeApi().fetch(intId, item.type).recommended }.getOrElse { emptyList() }
+            val result = scraped.ifEmpty { runCatching { MalApi(context).userRecommendations(intId, item.type) }.getOrElse { emptyList() } }
+            cache.recommended = result
+            if (result.isNotEmpty()) onFound(result)
             onDone()
         }
     }

@@ -60,8 +60,11 @@ private fun firstImageUrl(body: String): String? =
     firstImgTagRegex.find(body)?.groupValues?.get(1)
         ?: firstBareImageUrlRegex.find(body)?.value
 
-// User-submitted title recommendation
-data class RecommendedEntry(val malId: Int, val title: String, val cover: String, val votes: Int, val malType: String = "anime")
+// User-submitted title recommendation. isAuto marks a MAL "AutoRec" entry — an
+// algorithmically-generated pick the website shows in place of (or alongside) real
+// user-submitted recommendations for titles that don't have enough of those yet. AutoRec
+// entries have no real vote count, so votes is always 0 for them.
+data class RecommendedEntry(val malId: Int, val title: String, val cover: String, val votes: Int, val malType: String = "anime", val isAuto: Boolean = false)
 
 // One season chart page
 data class SeasonalPage(val items: List<MediaItem>, val hasMore: Boolean)
