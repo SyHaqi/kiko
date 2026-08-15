@@ -201,7 +201,34 @@ class LibraryViewModel : ViewModel() {
     // Drops every cached stack's entries — call once the whole Interest Stacks
     // flow is left (not on every single back-tap within it), so the cache
     // doesn't grow unbounded and the next visit picks up fresh data from MAL.
-    fun clearStackDetailCache() { stackDetailCache.clear(); stackDetailFailedIds.clear() }
+    fun clearStackDetailCache() { stackDetailCache.clear(); stackDetailFailedIds.clear(); stackCoverCache.clear(); stackCoverInFlight.clear() }
+    // Cover thumbnails for a stack's browse/search/spotlight row, keyed by stack id.
+    // Those summaries almost never ship cover images themselves (see StacksApi.topCovers,
+    // which has to fetch the whole detail page just to read a couple of entry covers off
+    // it) — every row used to call that directly and independently the moment it scrolled
+    // into view, so a 50-row Recent list meant up to 50 separate full-page fetches, and
+    // scrolling back to a row already seen re-fetched it again since nothing remembered
+    // the result outside that one composable instance. This cache makes it happen at most
+    // once per stack for the life of the Interest Stacks session (cleared alongside
+    // stackDetailCache above), reuses stackDetailCache for free when that stack's full
+    // detail was already loaded some other way, and stackCoverInFlight stops two rows
+    // referencing the same stack (e.g. it showing in both Spotlight and Recent) from
+    // firing overlapping requests for it.
+    private val stackCoverCache = mutableStateMapOf<Int, List<String>>()
+    private val stackCoverInFlight = mutableSetOf<Int>()
+    fun getCachedStackCovers(stackId: Int): List<String>? = stackCoverCache[stackId]
+    fun loadStackCovers(stackId: Int) {
+        if (stackCoverCache.containsKey(stackId) || stackId in stackCoverInFlight) return
+        stackDetailCache[stackId]?.let { detail ->
+            stackCoverCache[stackId] = detail.entries.mapNotNull { it.cover.takeIf(String::isNotBlank) }.take(3)
+            return
+        }
+        stackCoverInFlight += stackId
+        viewModelScope.launch {
+            stackCoverCache[stackId] = runCatching { StacksApi().topCovers(stackId) }.getOrElse { emptyList() }
+            stackCoverInFlight -= stackId
+        }
+    }
     // Reset scroll on sort
     fun selectListTypeTab(t: MediaType) { listTypeTab = t; listScrollIndex = 0; listScrollOffset = 0 }
     fun setListSort(context: Context, sort: ListSort) { listSort = sort; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_sort", sort.name).apply() }

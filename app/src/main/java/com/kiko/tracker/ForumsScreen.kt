@@ -475,7 +475,11 @@ sealed class BbToken {
         // post entirely, as if it weren't there. A generic label at least tells a screen
         // reader user an image exists here instead of leaving a silent gap in the post.
         SubcomposeAsyncImage(
-            model = url, contentDescription = "Image", contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            // See the ImageLoader setup in MainActivity for why this is the one spot in the
+            // app that opts back OUT of hardware bitmaps: a post can carry a dozen+ small
+            // reaction stickers decoding back-to-back, which can exhaust the GPU-driver-limited
+            // hardware bitmap pool and crash natively with no catchable exception.
+            model = ImageRequest.Builder(context).data(url).allowHardware(false).build(), contentDescription = "Image", contentScale = androidx.compose.ui.layout.ContentScale.Fit,
             onState = { state ->
                 if (state is AsyncImagePainter.State.Error) {
                     isError = true

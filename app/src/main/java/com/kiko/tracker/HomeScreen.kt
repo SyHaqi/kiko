@@ -121,7 +121,7 @@ import kotlinx.coroutines.launch
                     // Freshest Interest Stack teaser
                     vm.homeLatestStack?.let { stack ->
                         SectionTitle("Interest Stacks", "See all", onOpenStacks)
-                        StackFeaturedCard(stack) { onOpenStack(stack.id, stack.title) }
+                        StackFeaturedCard(stack, vm) { onOpenStack(stack.id, stack.title) }
                     }
                     if (vm.authChecked && !vm.signedIn && !vm.loading) {
                         Column(Modifier.fillMaxWidth().padding(top = 50.dp), horizontalAlignment = Alignment.CenterHorizontally) {

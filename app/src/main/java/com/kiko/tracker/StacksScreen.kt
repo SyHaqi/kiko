@@ -120,14 +120,14 @@ import kotlinx.coroutines.launch
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         spotlightStacks.forEachIndexed { index, (_, s) ->
-                            StaggeredItem(index, modifier = Modifier.fillMaxHeight()) { StackSpotlightCard(s, modifier = Modifier.fillMaxHeight()) { openStack(s) } }
+                            StaggeredItem(index, modifier = Modifier.fillMaxHeight()) { StackSpotlightCard(s, vm, modifier = Modifier.fillMaxHeight()) { openStack(s) } }
                         }
                     }
                 }
             }
             if (vm.stacksHomeRecent.isNotEmpty()) {
                 item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
-                itemsIndexed(vm.stacksHomeRecent, key = { _, it -> "rc-${it.id}" }) { index, s -> StaggeredItem(index) { StackListRow(s) { openStack(s) } } }
+                itemsIndexed(vm.stacksHomeRecent, key = { _, it -> "rc-${it.id}" }) { index, s -> StaggeredItem(index) { StackListRow(s, vm) { openStack(s) } } }
             }
         }
         GoToTopButton(
@@ -200,7 +200,7 @@ import kotlinx.coroutines.launch
                     itemsIndexed(vm.stacksBrowseResults, key = { _, it -> it.id }) { index, s ->
                         StaggeredItem(index) {
                             Column {
-                                StackListRow(s) { openStack(s) }
+                                StackListRow(s, vm) { openStack(s) }
                                 if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
                             }
                         }
@@ -286,12 +286,13 @@ import kotlinx.coroutines.launch
 }
 // Featured stacks-homepage card — big cover banner, tags, description, stats
 
-@Composable fun StackFeaturedCard(stack: StackSummary, onClick: () -> Unit) {
+@Composable fun StackFeaturedCard(stack: StackSummary, vm: LibraryViewModel, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    var covers by remember(stack.id) { mutableStateOf(stack.covers) }
-    LaunchedEffect(stack.id) {
-        if (covers.isEmpty()) covers = runCatching { StacksApi().topCovers(stack.id) }.getOrElse { emptyList() }
-    }
+    // See loadStackCovers on the ViewModel — cached/deduped per stack id rather than every
+    // card independently re-fetching the whole stack detail page just for its covers.
+    val cachedCovers = vm.getCachedStackCovers(stack.id)
+    val covers = stack.covers.ifEmpty { cachedCovers ?: emptyList() }
+    LaunchedEffect(stack.id) { if (stack.covers.isEmpty()) vm.loadStackCovers(stack.id) }
     // Card(onClick=) overload, not a plain Card + .kikoClickable — see AiringNextCard
     // for why: Card's own rounded clip wraps the passed-in modifier, so a ripple
     // attached there draws outside the clip and shows as a square hint.
@@ -321,12 +322,14 @@ import kotlinx.coroutines.launch
 // Spotlight card — fixed-width version of StackFeaturedCard for the horizontal
 // Challenge/Manga/Anime spotlight row on the stacks homepage
 
-@Composable fun StackSpotlightCard(stack: StackSummary, modifier: Modifier = Modifier, onClick: () -> Unit) {
+@Composable fun StackSpotlightCard(stack: StackSummary, vm: LibraryViewModel, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    var covers by remember(stack.id) { mutableStateOf(stack.covers) }
-    LaunchedEffect(stack.id) {
-        if (covers.isEmpty()) covers = runCatching { StacksApi().topCovers(stack.id) }.getOrElse { emptyList() }
-    }
+    // Browse/search summaries almost never ship cover images themselves, so this falls back
+    // to a per-stack fetch — routed through the ViewModel's cache (see loadStackCovers) so
+    // it only ever happens once per stack for the session, not once per row per scroll pass.
+    val cachedCovers = vm.getCachedStackCovers(stack.id)
+    val covers = stack.covers.ifEmpty { cachedCovers ?: emptyList() }
+    LaunchedEffect(stack.id) { if (stack.covers.isEmpty()) vm.loadStackCovers(stack.id) }
     val interactionSource = remember { MutableInteractionSource() }
     Card(
         onClick = onClick,
@@ -356,14 +359,13 @@ import kotlinx.coroutines.launch
 }
 // Recent-stacks list row — mirrors SearchResultRow's discover layout (cover left, tags/description/stats right)
 
-@Composable fun StackListRow(stack: StackSummary, onClick: () -> Unit) {
+@Composable fun StackListRow(stack: StackSummary, vm: LibraryViewModel, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    // Browse/search rows don't ship cover images themselves, so fetch the
-    // top entry covers from the stack's own page once this row is visible
-    var covers by remember(stack.id) { mutableStateOf(stack.covers) }
-    LaunchedEffect(stack.id) {
-        if (covers.isEmpty()) covers = runCatching { StacksApi().topCovers(stack.id, limit = 2) }.getOrElse { emptyList() }
-    }
+    // Same on-demand-and-cached cover fetch as StackSpotlightCard above (see loadStackCovers)
+    // — just takes 2 of the cached/shipped covers here instead of 3.
+    val cachedCovers = vm.getCachedStackCovers(stack.id)
+    val covers = stack.covers.ifEmpty { cachedCovers ?: emptyList() }.take(2)
+    LaunchedEffect(stack.id) { if (stack.covers.isEmpty()) vm.loadStackCovers(stack.id) }
     Row(
         Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 14.dp),
         verticalAlignment = Alignment.Top,

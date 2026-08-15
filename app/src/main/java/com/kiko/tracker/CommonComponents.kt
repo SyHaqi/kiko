@@ -36,7 +36,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
@@ -57,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -118,15 +116,8 @@ import kotlin.math.roundToInt
     val displayTitle = item.displayTitle()
     Box(modifier.clip(RoundedCornerShape(16.dp)).background(Color(item.color)), contentAlignment = Alignment.Center) {
         if (item.cover.isNotBlank()) {
-            val context = LocalContext.current
-            // The global Coil ImageLoader defaults to allowHardware(false) — that trade-off
-            // exists for the many small animated forum stickers that decode back-to-back and
-            // can exhaust the hardware bitmap pool (see the loader setup in MainActivity).
-            // Cover art doesn't share that failure mode — one non-animated image per card,
-            // never a dozen decoding in a burst — so it opts back into hardware bitmaps here
-            // for faster decode/draw instead of inheriting a default that isn't meant for it.
             AsyncImage(
-                model = ImageRequest.Builder(context).data(item.cover).allowHardware(true).build(),
+                model = item.cover,
                 contentDescription = displayTitle,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,

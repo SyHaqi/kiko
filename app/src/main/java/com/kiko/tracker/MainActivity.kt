@@ -94,20 +94,14 @@ class MainActivity : ComponentActivity() {
                 .components {
                     if (Build.VERSION.SDK_INT >= 28) add(coil.decode.ImageDecoderDecoder.Factory()) else add(coil.decode.GifDecoder.Factory())
                 }
-                // Forum threads can carry a dozen+ small reaction stickers
-                // (image.myanimelist.net/ui/...), some animated. With
-                // ImageDecoderDecoder on API 28+, every one of those decodes into a
-                // *hardware* bitmap by default (allowHardware defaults to true) —
-                // those come from a small, GPU-driver-limited buffer pool, not
-                // regular heap memory. Scrolling fast through a thread with many
-                // small images back-to-back is exactly the scenario that exhausts
-                // that pool, and the failure is frequently a hard native crash that
-                // never surfaces as a catchable Java exception (no stack trace, no
-                // error dialog — it just dies). Forcing software (ARGB_8888)
-                // bitmaps trades a little decode performance for not hitting that
-                // pool limit at all, which is the right trade for a list of many
-                // small stickers.
-                .allowHardware(false)
+                // Hardware bitmaps (the Coil/platform default) stay on globally now — cover
+                // art, avatars, banners, and every other single-image spot in the app decode
+                // and draw faster with them, and there's only ever one such image in flight
+                // per card. The one real exhaustion risk is a forum post with a dozen+ small
+                // reaction stickers decoding back-to-back against the GPU-driver-limited
+                // hardware bitmap pool — that's scoped to allowHardware(false) locally, on
+                // just the ForumImage composable that renders those, instead of paying the
+                // software-decode cost for every image everywhere.
                 .build()
         )
         routeIntentUri(intent?.data)
