@@ -475,8 +475,14 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, color = c.ink,
             minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp),
         )
-        if (onIncrement != null && item.total > 0) {
-            LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp).clip(RoundedCornerShape(4.dp)), color = statusColor(item.status), trackColor = c.surfaceLow)
+        // Always reserve the progress bar's footprint (top padding + height), even when
+        // there's nothing to show (e.g. an ongoing manga with no known chapter total) —
+        // otherwise the chapter/episode counter below shifts up on cards that skip the
+        // bar, misaligning it against neighboring cards in the same grid row that have one.
+        Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp)) {
+            if (onIncrement != null && item.total > 0) {
+                LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(4.dp)), color = statusColor(item.status), trackColor = c.surfaceLow)
+            }
         }
         // Small always-on inset (independent of the selection `pad`) so the rounded 18dp
         // card corner doesn't clip the leading character of this bottom-most line.
