@@ -210,7 +210,7 @@ import kotlinx.coroutines.launch
         elevation = CardDefaults.cardElevation(2.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
-        ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, modifier = Modifier.padding(horizontal = 14.dp))
+        ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = Modifier.padding(horizontal = 14.dp))
     }
 }
 // Pinterest-style snapshots layout
@@ -511,7 +511,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     }
 }
 
-@Composable fun ListRow(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, showType: Boolean = true, modifier: Modifier = Modifier, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
+@Composable fun ListRow(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, showType: Boolean = true, modifier: Modifier = Modifier, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, showChevron: Boolean = false) {
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "rowSelectBg")
@@ -560,6 +560,10 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 colors = ButtonDefaults.filledTonalButtonColors(containerColor = c.primaryContainer, contentColor = c.primary),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
             ) { Text("+1", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+        } else if (showChevron) {
+            // No increment action here (e.g. the Home "Continue" card) — a chevron fills the
+            // trailing slot instead of leaving it blank, signaling the row is tappable.
+            Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(22.dp))
         }
     }
 }
