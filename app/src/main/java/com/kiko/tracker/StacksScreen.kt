@@ -83,11 +83,23 @@ import kotlinx.coroutines.launch
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                    // Open stacks home in browser
-                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) {
-                        Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
+                    // "Open in browser" and "Search" grouped into one pill (divider between) rather
+                    // than two identical boxed buttons sitting flush against each other — same
+                    // treatment reads as one deliberate control instead of a visual collision.
+                    Row(
+                        Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(c.surface)
+                            .border(1.dp, c.cardBorder, RoundedCornerShape(13.dp)),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks")) }, modifier = Modifier.size(38.dp)) {
+                            Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
+                        }
+                        Box(Modifier.width(1.dp).height(18.dp).background(c.cardBorder))
+                        IconButton(onClick = { openBrowse(StackBrowseKind.All) }, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.Search, "Search stacks", tint = c.ink) }
                     }
-                    IconButton(onClick = { openBrowse(StackBrowseKind.All) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.Search, "Search stacks", tint = c.ink) }
                 }
             }
             if (vm.stacksHomeLoading) {
