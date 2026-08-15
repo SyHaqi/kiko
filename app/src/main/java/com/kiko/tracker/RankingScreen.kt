@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
     LaunchedEffect(vm.rankingType, vm.rankingSort) { vm.loadRanking(context, vm.rankingType, vm.rankingSort) }
     val sorts = if (vm.rankingType == MediaType.Anime) RankingSort.entries.toList() else RankingSort.entries.filterNot { it == RankingSort.Upcoming }
     val listState = rememberLazyListState()
+    val staggerSeen = rememberStaggerMemory()
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     Box(Modifier.fillMaxSize()) {
@@ -55,7 +56,7 @@ import kotlinx.coroutines.launch
             if (vm.rankingLoading && vm.visibleRankingResults.isEmpty()) {
                 item { ListRowSkeletonGroup(6) }
             } else {
-                itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index) { RankingRow(index + 1, it, onOpenDetail) } }
+                itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index, staggerSeen) { RankingRow(index + 1, it, onOpenDetail) } }
             }
             if (!vm.rankingLoading && vm.visibleRankingResults.isEmpty() && vm.rankingError == null) {
                 item { Text("No results.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }

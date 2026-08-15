@@ -348,6 +348,7 @@ import coil.compose.AsyncImage
     val filtered = remember(typeItems, score, vm.scoreFilterSort, vm.titleLanguage) {
         typeItems.filter { it.myRating > 0 && (score == 0 || it.myRating == score) }.sortedWithListSort(vm.scoreFilterSort, vm.titleLanguage)
     }
+    val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.scoreFilterViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -372,14 +373,14 @@ import coil.compose.AsyncImage
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index) { ListGridCard(item, onOpenDetail) } }
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
             if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles at this score yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
         }
     } else {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item { header() }
             itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                StaggeredItem(index) {
+                StaggeredItem(index, staggerSeen) {
                     Column {
                         ListRow(it, onOpenDetail, showType = false)
                         if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
@@ -440,6 +441,7 @@ import coil.compose.AsyncImage
     val filtered = remember(typeItems, year, vm.yearFilterSort, vm.titleLanguage) {
         typeItems.filter { val y = releaseYear(it); y != null && (year == 0 || y == year) }.sortedWithListSort(vm.yearFilterSort, vm.titleLanguage)
     }
+    val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.yearFilterViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -464,14 +466,14 @@ import coil.compose.AsyncImage
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index) { ListGridCard(item, onOpenDetail) } }
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
             if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
         }
     } else {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item { header() }
             itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                StaggeredItem(index) {
+                StaggeredItem(index, staggerSeen) {
                     Column {
                         ListRow(it, onOpenDetail, showType = false)
                         if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))

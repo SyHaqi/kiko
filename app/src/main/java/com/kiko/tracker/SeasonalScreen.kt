@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
     LaunchedEffect(Unit) { if (vm.seasonalResults.isEmpty()) vm.loadSeasonal(context, vm.seasonalYear, vm.seasonalSeason, vm.seasonalSort, vm.seasonalContinuingOnly) }
     var browseOpen by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = vm.seasonalScrollIndex, initialFirstVisibleItemScrollOffset = vm.seasonalScrollOffset)
+    val staggerSeen = rememberStaggerMemory()
     // Save position before navigating
     val openTitle: (MediaItem) -> Unit = remember(onOpenDetail) {
         { item -> vm.saveSeasonalScroll(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset); onOpenDetail(item) }
@@ -89,7 +90,7 @@ import kotlinx.coroutines.launch
             if (vm.seasonalLoading && vm.visibleSeasonalResults.isEmpty()) {
                 items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
             } else {
-                itemsIndexed(vm.visibleSeasonalResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index) { SeasonalGridCard(it, openTitle) } }
+                itemsIndexed(vm.visibleSeasonalResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index, staggerSeen) { SeasonalGridCard(it, openTitle) } }
             }
             if (!vm.seasonalLoading && vm.visibleSeasonalResults.isEmpty() && vm.seasonalError == null) {
                 item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles for this season.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }

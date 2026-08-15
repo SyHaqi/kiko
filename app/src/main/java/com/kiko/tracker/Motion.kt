@@ -24,6 +24,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -78,9 +79,32 @@ fun Modifier.kikoCombinedClickable(
 // fresh item), instead of just popping into existence.
 // ---------------------------------------------------------------------------
 
+// Per-list "have we already played this item's entrance once" memory. Hoist one of
+// these per screen (rememberStaggerMemory()) and pass it into StaggeredItem alongside
+// the item's index. Without it (seen == null, the default), behavior is unchanged —
+// every re-entry into view replays the animation, same as before.
+//
+// Why this is needed at all: a LazyColumn/Grid disposes an item's composition when it
+// scrolls out of the retained window and creates a brand-new one when it scrolls back
+// into view, so `remember(index)` *inside* StaggeredItem alone has no memory of "this
+// index already played its entrance" — scrolling up and down through a long list kept
+// replaying the fade+slide for every row on every pass, which is both unnecessary
+// recomposition/animation work and, more noticeably, makes fast back-and-forth
+// scrolling look like content is constantly "arriving" instead of just being there.
+// A plain (non-snapshot) MutableSet is enough since it's only ever read once per item
+// at that item's own first composition and written imperatively — nothing else needs
+// to observe it changing.
 @Composable
-fun StaggeredItem(index: Int, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val visibleState = remember(index) { MutableTransitionState(false).apply { targetState = true } }
+fun rememberStaggerMemory(): MutableSet<Int> = remember { mutableSetOf() }
+
+@Composable
+fun StaggeredItem(index: Int, seen: MutableSet<Int>? = null, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val alreadySeen = seen?.contains(index) == true
+    // Starting MutableTransitionState's initialState at true (when alreadySeen) means
+    // initialState == targetState, so AnimatedVisibility skips the enter animation
+    // entirely and just shows the content — no special-cased "instant" enter needed.
+    val visibleState = remember(index) { MutableTransitionState(alreadySeen).apply { targetState = true } }
+    if (seen != null) LaunchedEffect(index) { seen += index }
     val delay = (index * 30).coerceAtMost(240)
     AnimatedVisibility(
         visibleState = visibleState,

@@ -352,6 +352,10 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             .sortedWithListSort(vm.listSort, vm.titleLanguage)
     }
     val isGrid = vm.listViewMode == ListViewMode.Grid
+    // Shared between grid and list mode (both walk the same `filtered` index order) so an
+    // index that's already played its entrance in one view mode doesn't replay it after
+    // switching to the other, and so scrolling back up doesn't replay it at all.
+    val staggerSeen = rememberStaggerMemory()
     // Restore list scroll position (shared between list/grid since both are single-column-index scroll states)
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.listScrollIndex, initialFirstVisibleItemScrollOffset = vm.listScrollOffset)
     val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = vm.listScrollIndex, initialFirstVisibleItemScrollOffset = vm.listScrollOffset)
@@ -401,7 +405,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     if (vm.loading && filtered.isEmpty()) {
                         items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
                     } else {
-                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index) { ListGridCard(item, openItem, onIncrement, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) } }
+                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, openItem, onIncrement, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) } }
                     }
                     if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
@@ -412,7 +416,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                         item { ListRowSkeletonGroup(6) }
                     } else {
                         itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                            StaggeredItem(index) {
+                            StaggeredItem(index, staggerSeen) {
                                 Column {
                                     ListRow(it, openItem, onIncrement, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type)
                                     if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))

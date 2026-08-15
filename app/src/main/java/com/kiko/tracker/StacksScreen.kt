@@ -65,6 +65,7 @@ import kotlinx.coroutines.launch
     LaunchedEffect(Unit) { vm.loadStacksHome() }
     // Restore scroll position on return
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.stacksHomeScrollIndex, initialFirstVisibleItemScrollOffset = vm.stacksHomeScrollOffset)
+    val staggerSeen = rememberStaggerMemory()
     val saveScroll = { vm.saveStacksHomeScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
     val openStack: (StackSummary) -> Unit = { s -> saveScroll(); onOpenStack(s.id, s.title) }
     val openBrowse: (StackBrowseKind) -> Unit = { k -> saveScroll(); onOpenBrowse(k) }
@@ -127,7 +128,7 @@ import kotlinx.coroutines.launch
             }
             if (vm.stacksHomeRecent.isNotEmpty()) {
                 item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
-                itemsIndexed(vm.stacksHomeRecent, key = { _, it -> "rc-${it.id}" }) { index, s -> StaggeredItem(index) { StackListRow(s, vm) { openStack(s) } } }
+                itemsIndexed(vm.stacksHomeRecent, key = { _, it -> "rc-${it.id}" }) { index, s -> StaggeredItem(index, staggerSeen) { StackListRow(s, vm) { openStack(s) } } }
             }
         }
         GoToTopButton(
@@ -159,6 +160,7 @@ import kotlinx.coroutines.launch
     LaunchedEffect(initialKind) { vm.setStacksBrowseKind(initialKind) }
     val activeKind = vm.stacksBrowseActiveKind ?: initialKind
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.stacksBrowseScrollIndex, initialFirstVisibleItemScrollOffset = vm.stacksBrowseScrollOffset)
+    val staggerSeen = rememberStaggerMemory()
     val openStack: (StackSummary) -> Unit = { s -> vm.saveStacksBrowseScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenStack(s.id, s.title) }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
@@ -198,7 +200,7 @@ import kotlinx.coroutines.launch
                     item { ListRowSkeletonGroup(6) }
                 } else {
                     itemsIndexed(vm.stacksBrowseResults, key = { _, it -> it.id }) { index, s ->
-                        StaggeredItem(index) {
+                        StaggeredItem(index, staggerSeen) {
                             Column {
                                 StackListRow(s, vm) { openStack(s) }
                                 if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))

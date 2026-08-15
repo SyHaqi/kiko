@@ -305,6 +305,7 @@ import kotlinx.coroutines.launch
     var query by remember { mutableStateOf(vm.discoverQuery) }
     var filterSheetOpen by remember { mutableStateOf(false) }
     BackHandler(onBack = onExitResults)
+    val staggerSeen = rememberStaggerMemory()
     // Restore results scroll position
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.discoverScrollIndex, initialFirstVisibleItemScrollOffset = vm.discoverScrollOffset)
     val openResult: (MediaItem) -> Unit = { result ->
@@ -379,7 +380,7 @@ import kotlinx.coroutines.launch
                 item { ListRowSkeletonGroup(6) }
             } else {
                 itemsIndexed(resultsForList, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
-                    StaggeredItem(index) {
+                    StaggeredItem(index, staggerSeen) {
                         Column {
                             SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type)
                             if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
@@ -649,6 +650,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
     // Same id+type keyed status map used elsewhere so recs the user already tracks show their mark
     val myListStatus = remember(vm.items) { vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap() }
     val gridState = rememberLazyGridState()
+    val staggerSeen = rememberStaggerMemory()
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 } }
 
@@ -671,7 +673,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
                 items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
             } else {
                 itemsIndexed(vm.visibleRecommendations, key = { _, it -> it.id }) { index, item ->
-                    StaggeredItem(index) {
+                    StaggeredItem(index, staggerSeen) {
                         RecommendationGridCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
                     }
                 }
