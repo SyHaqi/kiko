@@ -166,9 +166,14 @@ data class DetailScreenActions(
         if (item.covers.size <= 1 && cachedSnapshot?.covers == null) actions.onBackfillCovers(item.id, item.type, { backfilledCovers = it }, {})
     }
     val covers = backfilledCovers ?: item.covers
-    // Recommended row loads async — seeded from cache too.
+    // Recommended row loads async — seeded from cache too. Tracked with its own
+    // "done" flag (same pattern as relatedDone above) so the skeleton doesn't clear
+    // before this resolves — without it, manga pages (whose themesDone is instant,
+    // see below) reveal the page before this fetch finishes, and Recommended visibly
+    // pops in a beat later instead of appearing with everything else.
     var recommended by remember(item.id) { mutableStateOf(cachedSnapshot?.recommended ?: emptyList()) }
-    LaunchedEffect(item.id) { actions.onLoadRecommended(item, { recommended = it }, {}) }
+    var recommendedDone by remember(item.id) { mutableStateOf(cachedSnapshot?.recommended != null) }
+    LaunchedEffect(item.id) { actions.onLoadRecommended(item, { recommended = it }, { recommendedDone = true }) }
     // Status distribution loads async — seeded from cache too.
     var statusDistribution by remember(item.id) { mutableStateOf(cachedSnapshot?.statusDistribution) }
     LaunchedEffect(item.id) { actions.onLoadStatusDistribution(item, { statusDistribution = it }, {}) }
@@ -201,7 +206,7 @@ data class DetailScreenActions(
     val coverReady = item.cover.isBlank() || coverPainter.state is AsyncImagePainter.State.Success || coverPainter.state is AsyncImagePainter.State.Error
     BackHandler(onBack = actions.onBack)
     // Load all sections upfront
-    if (!coverReady || !relatedDone || !themesDone) {
+    if (!coverReady || !relatedDone || !themesDone || !recommendedDone) {
         DetailScreenSkeleton(onBack = actions.onBack)
         return
     }
