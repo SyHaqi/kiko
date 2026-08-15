@@ -169,11 +169,11 @@ import kotlinx.coroutines.launch
             Column(Modifier.weight(1f).padding(start = 13.dp)) {
                 Text(item.displayTitle(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(13.dp))
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(13.dp).padding(top = 1.dp))
                     Text(
                         listOfNotNull(item.nextEpisodeLabel(), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
-                        color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
+                        color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
                     )
                 }
             }

@@ -379,6 +379,27 @@ fun MediaItem.localBroadcast(): Pair<java.time.DayOfWeek, java.time.LocalTime>? 
     val local = anchor.withZoneSameInstant(java.time.ZoneId.systemDefault())
     return local.dayOfWeek to local.toLocalTime()
 }
+// Which episode number the next broadcast slot (today, tomorrow, or N days out) is —
+// computed from the series' first air date plus the weekly broadcast cadence, entirely in
+// JST since that's the zone the weekly slot is actually anchored to; a week is 7 days
+// regardless of the viewer's own timezone, so this stays correct without needing to touch
+// localBroadcast()'s local-time conversion (that's for display only). Best-effort: shows
+// aren't guaranteed to release exactly weekly with zero breaks, so this can drift by a
+// week around a skipped episode — same caveat as any other schedule-inferred field here.
+private fun MediaItem.nextEpisodeNumber(): Int? {
+    val dow = runCatching { java.time.DayOfWeek.valueOf(broadcastDay.uppercase(java.util.Locale.US)) }.getOrNull() ?: return null
+    val time = runCatching { java.time.LocalTime.parse(broadcastTime) }.getOrDefault(java.time.LocalTime.MIDNIGHT)
+    val startDate = runCatching { java.time.LocalDate.parse(startDateFull) }.getOrNull() ?: return null
+    val jst = java.time.ZoneId.of("Asia/Tokyo")
+    val firstAir = startDate.with(java.time.temporal.TemporalAdjusters.nextOrSame(dow)).atTime(time).atZone(jst)
+    val nowJst = java.time.ZonedDateTime.now(jst)
+    var nextAir = nowJst.toLocalDate().with(java.time.temporal.TemporalAdjusters.nextOrSame(dow)).atTime(time).atZone(jst)
+    if (nextAir.isBefore(nowJst)) nextAir = nextAir.plusWeeks(1)
+    if (nextAir.isBefore(firstAir)) return 1
+    val weeksBetween = java.time.Duration.between(firstAir, nextAir).toDays() / 7
+    val epNum = weeksBetween.toInt() + 1
+    return if (total > 0) minOf(epNum, total) else epNum
+}
 // Next episode air label
 
 fun MediaItem.nextEpisodeLabel(): String? {
@@ -388,10 +409,11 @@ fun MediaItem.nextEpisodeLabel(): String? {
     var next = now.toLocalDate().with(java.time.temporal.TemporalAdjusters.nextOrSame(day)).atTime(time)
     if (next.isBefore(now)) next = next.plusDays(7)
     val hoursAway = java.time.Duration.between(now, next).toHours()
+    val epNum = nextEpisodeNumber()
     return when {
-        hoursAway < 24 -> "Airs today"
-        hoursAway < 48 -> "Airs tomorrow"
-        else -> "Next ep in ${hoursAway / 24}d"
+        hoursAway < 24 -> if (epNum != null) "Ep. $epNum airs today" else "Airs today"
+        hoursAway < 48 -> if (epNum != null) "Ep. $epNum airs tomorrow" else "Airs tomorrow"
+        else -> if (epNum != null) "Ep. $epNum in ${hoursAway / 24}d" else "Next ep in ${hoursAway / 24}d"
     }
 }
 // Locale time format

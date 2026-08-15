@@ -632,7 +632,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
         }
         // Fixed height text block
         Column(Modifier.fillMaxWidth().height(112.dp).padding(10.dp)) {
-            if (label != null) Text(label.uppercase(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (label != null) Text(label.uppercase(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 10.sp, lineHeight = 13.sp, letterSpacing = 1.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(title, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 15.sp, minLines = 3, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = if (label != null) 4.dp else 0.dp))
             if (subtitle != null) Text(subtitle, color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
         }
