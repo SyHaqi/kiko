@@ -263,10 +263,10 @@ import kotlinx.coroutines.launch
     }
 }
 
-fun progressLabel(i: MediaItem) = if (i.progress == 0) i.status.label else "${i.progress}${if (i.total > 0) " of ${i.total}" else ""} ${if (i.type == MediaType.Anime) "episodes" else "chapters"}"
+fun progressLabel(i: MediaItem) = if (i.progress == 0) i.status.label else "${i.progress} of ${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "episodes" else "chapters"}"
 // Same as progressLabel, but with "episodes"/"chapters" shortened to "ep."/"ch." — used only in
 // the grid tile, where the card is too narrow to reliably fit the full word at 10sp.
-fun compactProgressLabel(i: MediaItem) = if (i.progress == 0) i.status.label else "${i.progress}${if (i.total > 0) " of ${i.total}" else ""} ${if (i.type == MediaType.Anime) "ep." else "ch."}"
+fun compactProgressLabel(i: MediaItem) = if (i.progress == 0) i.status.label else "${i.progress} of ${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "ep." else "ch."}"
 // Format field fallback
 
 fun formatLabel(i: MediaItem): String = i.format.ifBlank { if (i.type == MediaType.Anime) "Anime" else "Manga" }
@@ -476,9 +476,11 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp),
         )
         // Always reserve the progress bar's footprint (top padding + height), even when
-        // there's nothing to show (e.g. an ongoing manga with no known chapter total) —
-        // otherwise the chapter/episode counter below shifts up on cards that skip the
-        // bar, misaligning it against neighboring cards in the same grid row that have one.
+        // there's nothing to show, so the chapter/episode counter below stays aligned
+        // across every card in the grid row regardless of what each one renders inside.
+        // Total unknown (e.g. an ongoing manga MAL hasn't published a chapter count for
+        // yet) intentionally shows no bar — an animated indeterminate one read as busy/
+        // distracting, so the "2 of ? chapters" text below carries that case on its own.
         Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp)) {
             if (onIncrement != null && item.total > 0) {
                 LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(4.dp)), color = statusColor(item.status), trackColor = c.surfaceLow)
