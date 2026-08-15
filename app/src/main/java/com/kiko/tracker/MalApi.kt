@@ -134,6 +134,13 @@ class MalApi(private val context: Context) {
         @Volatile private var newsBoardIdCache: Int? = null
     }
 
+    // MAL's official anime/manga search endpoint hard-rejects any `q` longer than 64
+    // characters with a 400 ("invalid q"/"bad_request") instead of truncating it
+    // server-side — and plenty of real titles (long light-novel-style names, full
+    // Japanese titles with subtitles) blow past that. Clamp client-side so a long
+    // title still searches on its first 64 characters instead of erroring out entirely.
+    private fun clampMalQuery(query: String) = query.take(64)
+
     fun authUrl(): String {
         val verifier = randomToken(48)
         val state = randomToken(18)
@@ -226,7 +233,7 @@ class MalApi(private val context: Context) {
     }
 
     private suspend fun suggestKind(query: String, kind: String, limit: Int): List<String> = withContext(Dispatchers.IO) {
-        val encoded = URLEncoder.encode(query, "UTF-8")
+        val encoded = URLEncoder.encode(clampMalQuery(query), "UTF-8")
         val body = runCatching { authorized { get("$API/$kind?q=$encoded&limit=$limit&nsfw=true&fields=id,title") } }.getOrElse { return@withContext emptyList() }
         val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
         (0 until arr.length()).mapNotNull { arr.getJSONObject(it).optJSONObject("node")?.safeTitle()?.takeIf { t -> t.isNotBlank() } }
@@ -443,7 +450,7 @@ class MalApi(private val context: Context) {
     }
 
     private suspend fun searchKind(query: String, kind: String, offset: Int = 0): SearchPage = withContext(Dispatchers.IO) {
-        val encoded = URLEncoder.encode(query, "UTF-8")
+        val encoded = URLEncoder.encode(clampMalQuery(query), "UTF-8")
         // Small page size so Discover's title search loads in short bursts on scroll,
         // same as the Tenrai-filtered path (see TENRAI_SEARCH_PAGE_LIMIT).
         val body = authorized { get("$API/$kind?q=$encoded&limit=10&offset=$offset&nsfw=true&fields=${browseFields(kind)}") }
