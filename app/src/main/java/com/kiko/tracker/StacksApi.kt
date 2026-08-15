@@ -255,9 +255,13 @@ class StacksApi {
         hits.groupBy { it.id }.forEach { (id, group) ->
             val title = group.map { it.a.text().trim() }.firstOrNull { it.isNotBlank() } ?: return@forEach
             // Best-effort cosmetic fields only — anything missing gets
-            // backfilled accurately from MalApi the moment the entry opens
+            // backfilled accurately from MalApi the moment the entry opens.
+            // NOTE: `text` also contains the title (same container as the format/year),
+            // so the format capture must be anchored to a real MAL format token — an
+            // unanchored "any letters," pattern will happily swallow part or all of the
+            // title whenever it precedes ", <year>" in the scraped text.
             val text = group.joinToString(" ") { (it.a.closest("div, li, article") ?: it.a.parent() ?: it.a).text() }
-            val formatYear = Regex("([A-Za-z][A-Za-z\\- ]*),\\s*(\\d{4})").find(text)
+            val formatYear = Regex("\\b(TV|Movie|OVA|ONA|Special|Music|Light Novel|Manga|Novel|One-shot|Doujinshi|Manhwa|Manhua|OEL)\\b,?\\s*(\\d{4})").find(text)
             val score = Regex("\\b(\\d\\.\\d{2})\\b").find(text)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
             val cover = group.firstNotNullOfOrNull { coverUrls(it.a, limit = 1).firstOrNull() }.orEmpty()
             out[id] = StackTitleEntry(id, group.first().type, title, cover, formatYear?.groupValues?.get(1)?.trim().orEmpty(), formatYear?.groupValues?.get(2).orEmpty(), score)

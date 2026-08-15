@@ -264,6 +264,9 @@ import kotlinx.coroutines.launch
 }
 
 fun progressLabel(i: MediaItem) = if (i.progress == 0) i.status.label else "${i.progress}${if (i.total > 0) " of ${i.total}" else ""} ${if (i.type == MediaType.Anime) "episodes" else "chapters"}"
+// Same as progressLabel, but with "episodes"/"chapters" shortened to "ep."/"ch." — used only in
+// the grid tile, where the card is too narrow to reliably fit the full word at 10sp.
+fun compactProgressLabel(i: MediaItem) = if (i.progress == 0) i.status.label else "${i.progress}${if (i.total > 0) " of ${i.total}" else ""} ${if (i.type == MediaType.Anime) "ep." else "ch."}"
 // Format field fallback
 
 fun formatLabel(i: MediaItem): String = i.format.ifBlank { if (i.type == MediaType.Anime) "Anime" else "Manga" }
@@ -475,7 +478,9 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         if (onIncrement != null && item.total > 0) {
             LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp).clip(RoundedCornerShape(4.dp)), color = statusColor(item.status), trackColor = c.surfaceLow)
         }
-        Text(progressLabel(item), color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
+        // Small always-on inset (independent of the selection `pad`) so the rounded 18dp
+        // card corner doesn't clip the leading character of this bottom-most line.
+        Text(compactProgressLabel(item), color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp, start = 3.dp, bottom = 2.dp))
     }
 }
 // Anime/Manga segmented switch

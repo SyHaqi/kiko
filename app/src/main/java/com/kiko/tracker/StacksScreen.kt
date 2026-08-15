@@ -588,13 +588,18 @@ import kotlinx.coroutines.launch
                 ) { Icon(Icons.Default.Check, "Selected", tint = c.onPrimary, modifier = Modifier.size(13.dp)) }
             }
         }
-        Text(entry.title, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
+        // start/bottom inset kept on both this and the meta line below — either can end up
+        // being the card's bottom-most line (meta is hidden when format+year+score are all
+        // missing, e.g. some manga entries), so both need protection from the corner clip.
+        Text(entry.title, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp, start = 3.dp, bottom = 2.dp))
         val meta = buildString {
             val fmt = listOfNotNull(entry.format.takeIf { it.isNotBlank() }, entry.year.takeIf { it.isNotBlank() }).joinToString(", ")
             if (fmt.isNotBlank()) append(fmt)
             if (entry.score > 0) { if (isNotEmpty()) append(" · "); append("★ %.2f".format(entry.score)) }
         }
-        if (meta.isNotBlank()) Text(meta, color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
+        // Small always-on inset (independent of the selection `pad`) so the rounded 18dp
+        // card corner doesn't clip the leading character of this bottom-most line.
+        if (meta.isNotBlank()) Text(meta, color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp, start = 3.dp, bottom = 2.dp))
     }
 }
 
