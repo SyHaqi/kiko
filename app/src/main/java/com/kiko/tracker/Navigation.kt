@@ -377,6 +377,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onCreatorClick = { creator ->
                                         jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(creator = creator))
                                     },
+                                    onLoadAiringEpisode = { forItem -> vm.loadAiringEpisode(forItem) },
                                 ),
                                 relatedLoadingId = vm.relatedLoadingId,
                                 recommendedLoadingId = vm.recommendedLoadingId,
@@ -385,6 +386,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 initialRecommendedScroll = vm.getRecommendedRowScroll(screen.item.id, screen.item.type),
                                 cachedSnapshot = vm.peekDetailCache(screen.item.id, screen.item.type),
                                 myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
+                                airingEpisode = vm.getCachedAiring(screen.item.id)?.episode,
                             )
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Seasonal -> SeasonalScreen(vm, onBack = { seasonalOpen = false }, onOpenDetail = ::openDetail)

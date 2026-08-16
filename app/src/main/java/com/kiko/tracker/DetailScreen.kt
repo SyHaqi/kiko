@@ -81,6 +81,10 @@ data class DetailScreenActions(
     val onLeaveScroll: (Int, Int) -> Unit = { _, _ -> },
     val onLeaveRelatedScroll: (Int, Int) -> Unit = { _, _ -> },
     val onLeaveRecommendedScroll: (Int, Int) -> Unit = { _, _ -> },
+    // Kicks off the best-effort AniList lookup for the confirmed next-episode number (see
+    // LibraryViewModel.loadAiringEpisode) — the result itself arrives via the airingEpisode
+    // param below, same split as relatedLoadingId/onBackfillRelated above.
+    val onLoadAiringEpisode: (MediaItem) -> Unit = {},
 )
 
 // Loading placeholder shaped like the real header below (backdrop + overlapping
@@ -122,7 +126,8 @@ data class DetailScreenActions(
     }
 }
 
-@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null) {
+@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null, airingEpisode: Int? = null) {
+    LaunchedEffect(item.id) { actions.onLoadAiringEpisode(item) }
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
     // Track related backfill completion. Seeded from cachedSnapshot (not just
@@ -356,7 +361,7 @@ data class DetailScreenActions(
                         }
                     }
                     // Next episode airing time
-                    item.nextEpisodeLabel()?.let { label ->
+                    item.nextEpisodeLabel(airingEpisode)?.let { label ->
                         val is24Hour = systemIs24Hour()
                         val airTime = item.localBroadcast()?.second
                         Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -229,6 +229,26 @@ class LibraryViewModel : ViewModel() {
             stackCoverInFlight -= stackId
         }
     }
+    // AniList's confirmed nextAiringEpisode for a currently-airing show, keyed by MAL id —
+    // overrides MediaItem.nextEpisodeNumber()'s date-math guess (see Models.kt) wherever
+    // AniList has an answer, since that guess drifts after a real-world delay/hiatus (a
+    // skipped week still counts as "one week elapsed" in the date math). A null cache entry
+    // is a resolved "AniList had nothing" (or the fetch failed) — callers just keep showing
+    // the date-math label in that case, so it's cached too, to avoid refetching every
+    // recomposition. Never persisted or cleared on refresh: it's a live, small, per-session
+    // lookup, not something that goes stale across a single app session.
+    private val airingCache = mutableStateMapOf<String, AiringInfo?>()
+    private val airingInFlight = mutableSetOf<String>()
+    fun getCachedAiring(malId: String): AiringInfo? = airingCache[malId]
+    fun loadAiringEpisode(item: MediaItem) {
+        val malId = item.id.toIntOrNull() ?: return
+        if (item.id in airingCache || item.id in airingInFlight) return
+        airingInFlight += item.id
+        viewModelScope.launch {
+            airingCache[item.id] = runCatching { AniListApi().nextAiringEpisode(malId) }.getOrNull()
+            airingInFlight -= item.id
+        }
+    }
     // Reset scroll on sort
     fun selectListTypeTab(t: MediaType) { listTypeTab = t; listScrollIndex = 0; listScrollOffset = 0 }
     fun setListSort(context: Context, sort: ListSort) { listSort = sort; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_sort", sort.name).apply() }

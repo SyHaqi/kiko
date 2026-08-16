@@ -97,7 +97,7 @@ import kotlinx.coroutines.launch
                     )
                     if (airingNext.isNotEmpty()) {
                         SectionTitle("Airing next", "See all") { onSchedule(today) }
-                        AiringNextRow(airingNext, trackedOpenDetail)
+                        AiringNextRow(airingNext, vm, trackedOpenDetail)
                     } else if (vm.discoverBrowseLoading) {
                         SectionTitle("Airing next", "See all") { onSchedule(today) }
                         AiringNextRowSkeleton()
@@ -105,7 +105,7 @@ import kotlinx.coroutines.launch
                     // Most recently updated in-progress title
                     if (active != null) {
                         SectionTitle("Continue", "See list", onList)
-                        ContinueCard(active, onClick = { onLocateInList(active) }, onLongPress = onEdit, isSelected = selectedItem?.id == active.id && selectedItem?.type == active.type)
+                        ContinueCard(active, vm, onClick = { onLocateInList(active) }, onLongPress = onEdit, isSelected = selectedItem?.id == active.id && selectedItem?.type == active.type)
                     } else if (vm.loading) {
                         SectionTitle("Continue", "See list", onList)
                         ContinueCardSkeleton()
@@ -142,15 +142,20 @@ import kotlinx.coroutines.launch
 }
 // Airing next row order
 
-@Composable fun AiringNextRow(items: List<MediaItem>, onOpenDetail: (MediaItem) -> Unit) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) { items(items, key = { it.id }) { AiringNextCard(it, onOpenDetail) } }
+@Composable fun AiringNextRow(items: List<MediaItem>, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) { items(items, key = { it.id }) { AiringNextCard(it, vm, onOpenDetail) } }
 }
 // Airing next card layout
 
-@Composable fun AiringNextCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit) {
+@Composable fun AiringNextCard(item: MediaItem, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
     val time = item.localBroadcast()?.second
+    // Best-effort AniList lookup for the real next-episode number (see LibraryViewModel.
+    // loadAiringEpisode) — fires once per id per session and just leaves the date-math
+    // guess on screen until/unless it resolves.
+    LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
+    val confirmedEpisode = vm.getCachedAiring(item.id)?.episode
     // Uses the clickable Card(onClick=) overload rather than a plain Card + our own
     // .kikoClickable — Card's internal shape-clip is applied *after* whatever modifier
     // is passed in, so a ripple/press-scale attached to the passed-in modifier draws
@@ -172,7 +177,7 @@ import kotlinx.coroutines.launch
                 Row(verticalAlignment = Alignment.Top) {
                     Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(13.dp).padding(top = 1.dp))
                     Text(
-                        listOfNotNull(item.nextEpisodeLabel(), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
+                        listOfNotNull(item.nextEpisodeLabel(confirmedEpisode), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
                         color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
                     )
                 }
@@ -202,7 +207,7 @@ import kotlinx.coroutines.launch
 // Tapping it jumps to the entry's spot in My List rather than opening its detail page —
 // "Continue" is meant as a shortcut back into the list, not a detail-page shortcut.
 
-@Composable fun ContinueCard(item: MediaItem, onClick: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, modifier: Modifier = Modifier) {
+@Composable fun ContinueCard(item: MediaItem, vm: LibraryViewModel, onClick: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -210,7 +215,7 @@ import kotlinx.coroutines.launch
         elevation = CardDefaults.cardElevation(2.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
-        ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = Modifier.padding(horizontal = 14.dp))
+        ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = Modifier.padding(horizontal = 14.dp), vm = vm)
     }
 }
 // Pinterest-style snapshots layout
@@ -418,7 +423,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                         itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                             StaggeredItem(index, staggerSeen) {
                                 Column {
-                                    ListRow(it, openItem, onIncrement, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type)
+                                    ListRow(it, openItem, onIncrement, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, vm = vm)
                                     if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
                                 }
                             }
@@ -515,9 +520,13 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     }
 }
 
-@Composable fun ListRow(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, showType: Boolean = true, modifier: Modifier = Modifier, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, showChevron: Boolean = false) {
+// vm is optional (and, when passed, only used for the AniList episode-number lookup below) —
+// screens that don't pass one just keep showing the plain date-math guess, same as before.
+@Composable fun ListRow(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, showType: Boolean = true, modifier: Modifier = Modifier, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, showChevron: Boolean = false, vm: LibraryViewModel? = null) {
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
+    if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
+    val confirmedEpisode = vm?.getCachedAiring(item.id)?.episode
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "rowSelectBg")
     val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "rowSelectPad")
     Row(
@@ -547,7 +556,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth(0.75f).padding(top = 9.dp).height(4.dp).clip(RoundedCornerShape(4.dp)), color = statusColor(item.status), trackColor = c.surfaceLow)
             }
             Text(progressLabel(item), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-            item.nextEpisodeLabel()?.let { label ->
+            item.nextEpisodeLabel(confirmedEpisode)?.let { label ->
                 Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
                     Text(label, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))

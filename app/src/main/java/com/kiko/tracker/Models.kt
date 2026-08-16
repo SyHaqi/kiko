@@ -402,14 +402,18 @@ private fun MediaItem.nextEpisodeNumber(): Int? {
 }
 // Next episode air label
 
-fun MediaItem.nextEpisodeLabel(): String? {
+// confirmedEpisode, when supplied, is AniList's nextAiringEpisode.episode (see AniListApi) —
+// staff-curated and correct across delays/hiatuses, unlike nextEpisodeNumber()'s date-math
+// guess below. Callers pass it in once LibraryViewModel.loadAiringEpisode resolves it;
+// until then (or if AniList has nothing for this id), this falls back to the guess.
+fun MediaItem.nextEpisodeLabel(confirmedEpisode: Int? = null): String? {
     if (!airStatus.equals("Currently Airing", ignoreCase = true)) return null
     val (day, time) = localBroadcast() ?: return null
     val now = java.time.LocalDateTime.now()
     var next = now.toLocalDate().with(java.time.temporal.TemporalAdjusters.nextOrSame(day)).atTime(time)
     if (next.isBefore(now)) next = next.plusDays(7)
     val hoursAway = java.time.Duration.between(now, next).toHours()
-    val epNum = nextEpisodeNumber()
+    val epNum = confirmedEpisode ?: nextEpisodeNumber()
     return when {
         hoursAway < 24 -> if (epNum != null) "Ep. $epNum airs today" else "Airs today"
         hoursAway < 48 -> if (epNum != null) "Ep. $epNum airs tomorrow" else "Airs tomorrow"
