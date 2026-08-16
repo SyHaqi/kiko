@@ -268,18 +268,21 @@ import kotlinx.coroutines.launch
     }
 }
 
-fun progressLabel(i: MediaItem) = if (i.progress == 0) i.status.label else "${i.progress} of ${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "episodes" else "chapters"}"
+fun progressLabel(i: MediaItem) = if (i.progress == 0) i.status.displayLabel(i.type) else "${i.progress} of ${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "episodes" else "chapters"}"
 // Same as progressLabel, but with "episodes"/"chapters" shortened to "ep."/"ch." — used only in
 // the grid tile, where the card is too narrow to reliably fit the full word at 10sp.
-fun compactProgressLabel(i: MediaItem) = if (i.progress == 0) i.status.label else "${i.progress} of ${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "ep." else "ch."}"
+fun compactProgressLabel(i: MediaItem) = if (i.progress == 0) i.status.displayLabel(i.type) else "${i.progress} of ${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "ep." else "ch."}"
 // Format field fallback
 
 fun formatLabel(i: MediaItem): String = i.format.ifBlank { if (i.type == MediaType.Anime) "Anime" else "Manga" }
 
 // Translate status label
 
-fun normalizeFilterForType(filter: String, type: MediaType): String =
-    if (filter == "Watching" || filter == "Reading") (if (type == MediaType.Anime) "Watching" else "Reading") else filter
+fun normalizeFilterForType(filter: String, type: MediaType): String = when (filter) {
+    "Watching", "Reading" -> if (type == MediaType.Anime) "Watching" else "Reading"
+    "Plan to Watch", "Plan to Read" -> if (type == MediaType.Anime) "Plan to Watch" else "Plan to Read"
+    else -> filter
+}
 // My List sort logic
 
 fun MediaItem.resolvedTitle(pref: TitleLanguage): String =
@@ -353,7 +356,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     // remember(...) pattern ScoreFilterScreen/YearFilterScreen already use below.
     val filtered = remember(vm.items, vm.nsfwEnabled, typeTab, effectiveFilter, submittedQuery, vm.listSort, vm.titleLanguage) {
         vm.visibleItems
-            .filter { it.type == typeTab && (effectiveFilter == "All" || it.status.label == effectiveFilter) && it.title.contains(submittedQuery, true) }
+            .filter { it.type == typeTab && (effectiveFilter == "All" || it.status.displayLabel(typeTab) == effectiveFilter) && it.title.contains(submittedQuery, true) }
             .sortedWithListSort(vm.listSort, vm.titleLanguage)
     }
     val isGrid = vm.listViewMode == ListViewMode.Grid
@@ -505,7 +508,8 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
 @Composable fun FilterRow(current: String, set: (String) -> Unit, type: MediaType) {
     val c = LocalKikoColors.current
     val progressLabel = if (type == MediaType.Anime) "Watching" else "Reading"
-    val labels = listOf("All", progressLabel, "Plan to Watch", "Completed", "On Hold", "Dropped")
+    val planLabel = if (type == MediaType.Anime) "Plan to Watch" else "Plan to Read"
+    val labels = listOf("All", progressLabel, planLabel, "Completed", "On Hold", "Dropped")
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {

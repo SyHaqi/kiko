@@ -537,7 +537,7 @@ data class DetailScreenActions(
         ExtendedFloatingActionButton(
             onClick = { actions.onEdit(item) },
             icon = { Icon(if (item.inUserList) Icons.Default.Edit else Icons.Default.Add, if (item.inUserList) "Edit" else "Add", tint = c.onPrimary) },
-            text = { Text(if (item.inUserList) item.status.label else "Add", fontWeight = FontWeight.Bold, color = c.onPrimary) },
+            text = { Text(if (item.inUserList) item.status.displayLabel(item.type) else "Add", fontWeight = FontWeight.Bold, color = c.onPrimary) },
             containerColor = c.primary,
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
         )
@@ -817,7 +817,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
                             if (s == WatchStatus.Completed && item.total > 0) progress = item.total
                             statusScope.centerChip(statusListState, index)
                         },
-                        label = { Text(s.label) },
+                        label = { Text(s.displayLabel(item.type)) },
                         colors = kikoFilterChipColors(),
                     )
                 }

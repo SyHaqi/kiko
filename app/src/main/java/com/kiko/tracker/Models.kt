@@ -133,6 +133,15 @@ enum class MediaType { Anime, Manga }
 
 enum class WatchStatus(val label: String) { Watching("Watching"), Reading("Reading"), Plan("Plan to Watch"), Completed("Completed"), OnHold("On Hold"), Dropped("Dropped") }
 
+// WatchStatus.label is fixed per enum value — that works for Watching/Reading because MAL's
+// own API has two separate status strings for those ("watching"/"reading"), so they're two
+// separate enum values already. "Plan to watch" has no manga counterpart on MAL's side (it's
+// a single "plan_to_watch" status for both types — see MalApi.update/parseEntry), so Plan
+// stays one enum value/API string and the type-aware wording is only applied here, at
+// display time.
+fun WatchStatus.displayLabel(type: MediaType): String =
+    if (this == WatchStatus.Plan && type == MediaType.Manga) "Plan to Read" else label
+
 enum class Destination(val label: String, val icon: ImageVector) { Home("Home", Icons.Default.Home), List("My list", Icons.Default.List), Discover("Discover", Icons.Default.Search), Forums("Forums", Icons.Default.Forum), Clubs("Clubs", Icons.Default.Groups) }
 
 enum class ThemeMode(val label: String) { System("System"), Light("Light"), Dark("Dark") }
