@@ -146,7 +146,14 @@ import kotlinx.coroutines.launch
             if (dayItems.isEmpty()) {
                 item { Text("No releases on this day.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             }
-            itemsIndexed(dayItems, key = { _, it -> it.first.id }) { index, (item, _, time) -> StaggeredItem(index) { ScheduleRow(item, time, onOpenDetail) } }
+            itemsIndexed(dayItems, key = { _, it -> it.first.id }) { index, (item, _, time) ->
+                StaggeredItem(index) {
+                    Column {
+                        ScheduleRow(item, time, onOpenDetail)
+                        if (index < dayItems.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                    }
+                }
+            }
         }
     }
 }
@@ -155,30 +162,27 @@ import kotlinx.coroutines.launch
 @Composable fun ScheduleRow(item: MediaItem, time: java.time.LocalTime, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
-    val interactionSource = remember { MutableInteractionSource() }
-    Card(
-        onClick = { onOpenDetail(item) },
-        interactionSource = interactionSource,
-        shape = RoundedCornerShape(kikoCorner(22.dp)),
-        colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).pressScale(interactionSource),
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(16.dp)))
+            .kikoClickable { onOpenDetail(item) }
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
-            Cover(item, Modifier.size(width = 58.dp, height = 82.dp), showStatus = true)
-            Column(Modifier.weight(1f).padding(start = 14.dp, end = 8.dp)) {
-                Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${formatLabel(item)} · ${item.genre}", color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
-                Row(
-                    Modifier.padding(top = 9.dp).clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
-                    Text(localizedTimeLabel(time, is24Hour), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 5.dp))
-                }
+        Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true)
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
+            Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text("${formatLabel(item)} · ${item.genre}", color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+            Row(
+                Modifier.padding(top = 9.dp).clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
+                Text(localizedTimeLabel(time, is24Hour), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 5.dp))
             }
-            Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(20.dp))
         }
+        Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(20.dp))
     }
 }
 // Seasonal browse filter sheet

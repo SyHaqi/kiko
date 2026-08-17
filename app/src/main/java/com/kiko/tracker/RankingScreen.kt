@@ -56,7 +56,14 @@ import kotlinx.coroutines.launch
             if (vm.rankingLoading && vm.visibleRankingResults.isEmpty()) {
                 item { ListRowSkeletonGroup(6) }
             } else {
-                itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index, staggerSeen) { RankingRow(index + 1, it, onOpenDetail) } }
+                itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it ->
+                    StaggeredItem(index, staggerSeen) {
+                        Column {
+                            RankingRow(index + 1, it, onOpenDetail)
+                            if (index < vm.visibleRankingResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                        }
+                    }
+                }
             }
             if (!vm.rankingLoading && vm.visibleRankingResults.isEmpty() && vm.rankingError == null) {
                 item { Text("No results.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
@@ -73,20 +80,27 @@ import kotlinx.coroutines.launch
 
 @Composable fun RankingRow(position: Int, item: MediaItem, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(kikoCorner(19.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(19.dp))).kikoClickable { onOpenDetail(item) }.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(32.dp), contentAlignment = Alignment.Center) { Text("#$position", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.primary) }
-        Cover(item, Modifier.size(width = 54.dp, height = 76.dp), showStatus = true)
-        Column(Modifier.weight(1f).padding(horizontal = 13.dp)) {
-            Text(item.displayTitle(), fontWeight = FontWeight.Bold, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${item.type} · ${item.genre}", color = c.muted, fontSize = 12.sp)
-        }
-        if (item.score > 0) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(14.dp))
-                Text("%.2f".format(item.score), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(16.dp)))
+            .kikoClickable { onOpenDetail(item) }
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(28.dp), contentAlignment = Alignment.Center) { Text("#$position", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.primary) }
+        Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true)
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
+            Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text("${item.type} · ${item.genre}", color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+            if (item.score > 0) {
+                Row(Modifier.padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
+                    Text("%.2f".format(item.score), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+                }
+            } else if (item.listUsers > 0) {
+                Text(formatCount(item.listUsers), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 7.dp))
             }
-        } else if (item.listUsers > 0) {
-            Text(formatCount(item.listUsers), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
     }
 }
