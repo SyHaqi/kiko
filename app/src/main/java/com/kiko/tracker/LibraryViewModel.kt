@@ -526,7 +526,19 @@ class LibraryViewModel : ViewModel() {
         discoverBrowseLoading = true
         viewModelScope.launch {
             val api = MalApi(context)
-            runCatching { api.seasonalAnime(100) to api.upcomingAnime(10) }
+            // These two endpoints don't depend on each other, but `a() to b()` was awaiting
+            // them one after another — the second request didn't even start until the first
+            // fully returned. Home's "Airing next" row (the first content Home shows) waits
+            // on discoverNewSeason, so that serial round-trip was a direct hit to how fast
+            // Home had anything to display. Firing both under one coroutineScope like
+            // loadStacksHome() already does below lets them run concurrently instead.
+            runCatching {
+                coroutineScope {
+                    val season = async { api.seasonalAnime(100) }
+                    val up = async { api.upcomingAnime(10) }
+                    season.await() to up.await()
+                }
+            }
                 .onSuccess { (season, up) -> discoverNewSeason = season; discoverUpcoming = up; discoverBrowseError = null }
                 .onFailure { discoverBrowseError = it.message ?: "Could not load Discover" }
             discoverBrowseLoading = false

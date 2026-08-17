@@ -302,6 +302,12 @@ import kotlinx.coroutines.launch
     // Long-press to edit — same fetch-full-detail-first step as tapping through,
     // since a bare search result row doesn't carry everything EditSheet wants.
     val editResult: (MediaItem) -> Unit = { result -> vm.openDiscoverDetail(context, result, onEdit) }
+    // Search results come straight from the MAL search endpoint, not the user's own list, so
+    // each result's baked-in status is just a snapshot from when the search ran — it doesn't
+    // update on its own after tracking/editing a title from its detail page and coming back.
+    // Same id+type keyed override used for the Discover browse rows/recommendations below,
+    // recomputed whenever vm.items changes so the badge here stays live too.
+    val myListStatus = remember(vm.items) { vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap() }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     // Bounds (in root coordinates) of the outer Box and the search row, used to float
@@ -369,7 +375,7 @@ import kotlinx.coroutines.launch
                 itemsIndexed(resultsForList, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
                     StaggeredItem(index, staggerSeen) {
                         Column {
-                            SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type)
+                            SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type, myStatus = result.id.toIntOrNull()?.let { myListStatus[it to result.type] })
                             if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
                         }
                     }
@@ -566,7 +572,7 @@ import kotlinx.coroutines.launch
 }
 // Discover search result row
 
-@Composable fun SearchResultRow(item: MediaItem, loading: Boolean, onTap: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false) {
+@Composable fun SearchResultRow(item: MediaItem, loading: Boolean, onTap: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null) {
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "searchResultSelectBg")
@@ -585,7 +591,7 @@ import kotlinx.coroutines.launch
         verticalAlignment = Alignment.Top,
     ) {
         Box(Modifier.width(84.dp).height(118.dp)) {
-            Cover(item, Modifier.fillMaxSize(), showStatus = true, selected = isSelected)
+            Cover(item, Modifier.fillMaxSize(), showStatus = true, overrideStatus = myStatus, selected = isSelected)
             if (item.score > 0) {
                 Row(
                     Modifier.align(Alignment.BottomStart).padding(6.dp).clip(RoundedCornerShape(kikoCorner(8.dp))).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 6.dp, vertical = 3.dp),
