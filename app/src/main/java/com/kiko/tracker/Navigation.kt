@@ -439,7 +439,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onEdit = { editor = it },
                                     selectedItem = editor
                                 )
-                                Destination.Seasonal -> SeasonalScreen(vm, onBack = { vm.destination = Destination.Home }, onOpenDetail = ::openDetail)
+                                Destination.Seasonal -> SeasonalScreen(vm, onOpenDetail = ::openDetail)
                                 Destination.Community -> CommunityScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onOpenClub = { clubDetailOpen = it })
                             }
                         }

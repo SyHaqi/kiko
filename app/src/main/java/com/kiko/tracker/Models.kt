@@ -142,7 +142,7 @@ enum class WatchStatus(val label: String) { Watching("Watching"), Reading("Readi
 fun WatchStatus.displayLabel(type: MediaType): String =
     if (this == WatchStatus.Plan && type == MediaType.Manga) "Plan to Read" else label
 
-enum class Destination(val label: String, val icon: ImageVector) { Home("Home", Icons.Default.Home), List("My list", Icons.Default.List), Discover("Discover", Icons.Default.Search), Seasonal("Seasonal", Icons.Default.DateRange), Community("Community", Icons.Default.Groups) }
+enum class Destination(val label: String, val icon: ImageVector) { Home("Home", Icons.Default.Home), List("My list", Icons.Default.List), Discover("Discover", Icons.Default.Search), Seasonal("Seasonal", Icons.Default.DateRange), Community("Hub", Icons.Default.Groups) }
 
 // Sub-tab within the combined Community destination (Forums + Clubs behind one switcher header)
 enum class CommunityTab(val label: String) { Forums("Forums"), Clubs("Clubs") }

@@ -39,11 +39,9 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
-@Composable fun SeasonalScreen(vm: LibraryViewModel, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
+@Composable fun SeasonalScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
-    val handleBack = { vm.resetSeasonal(); onBack() }
-    BackHandler(onBack = handleBack)
     // Fetch only on entry
     LaunchedEffect(Unit) { if (vm.seasonalResults.isEmpty()) vm.loadSeasonal(context, vm.seasonalYear, vm.seasonalSeason, vm.seasonalSort, vm.seasonalContinuingOnly) }
     var browseOpen by remember { mutableStateOf(false) }
@@ -74,13 +72,8 @@ import kotlinx.coroutines.launch
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column {
-                    Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = handleBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-                        Column(Modifier.padding(start = 12.dp)) {
-                            Text("Seasonal Chart", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Text("${vm.seasonalSeason.label} ${vm.seasonalYear}", style = MaterialTheme.typography.titleLarge, color = c.ink)
-                        }
-                    }
+                    AppHeader("Seasonal", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
+                    Text("${vm.seasonalSeason.label} ${vm.seasonalYear}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                     if (vm.seasonalLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), color = c.primary, trackColor = c.surfaceLow)
                     vm.seasonalError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) }
                     Spacer(Modifier.height(14.dp))
