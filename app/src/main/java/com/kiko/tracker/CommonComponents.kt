@@ -8,6 +8,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.fadeIn
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -216,6 +218,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     // Anchor's measured width, so the menu below can match it exactly instead of
     // shrink-wrapping to its own (different) content and reading as a mismatched size.
     var anchorWidthPx by remember { mutableStateOf(0) }
+    val arrowRotation by animateFloatAsState(if (expanded) 180f else 0f, label = "switcherArrowRotation")
     Row(Modifier.fillMaxWidth().padding(horizontal = horizontalPadding, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Box {
             Row(
@@ -227,21 +230,21 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(labelFor(current), fontFamily = AppFont, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp, letterSpacing = (-1).sp, color = c.ink)
-                Icon(Icons.Default.KeyboardArrowDown, contentDescription = switchDescription, tint = c.muted, modifier = Modifier.padding(start = 2.dp).size(28.dp))
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = switchDescription, tint = c.muted, modifier = Modifier.padding(start = 2.dp).size(28.dp).rotate(arrowRotation))
             }
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 containerColor = c.surface,
+                shape = RoundedCornerShape(kikoCorner(18.dp)),
                 modifier = Modifier.width(with(density) { anchorWidthPx.toDp() }),
             ) {
                 options.forEach { opt ->
                     val selected = opt == current
                     DropdownMenuItem(
                         text = { Text(labelFor(opt), fontWeight = FontWeight.Bold, color = if (selected) c.accent else c.ink) },
-                        leadingIcon = if (selected) { { Icon(Icons.Default.Check, null, tint = c.accent) } } else null,
-                        // Selected row gets a filled background (not just tinted text) so
-                        // the "this one is active" state reads clearly at a glance.
+                        // Selected row gets a filled background plus accent text — that's
+                        // enough to read as "active" on its own, no separate checkmark needed.
                         modifier = if (selected) Modifier.background(c.primaryContainer) else Modifier,
                         onClick = { expanded = false; onSelect(opt) },
                     )

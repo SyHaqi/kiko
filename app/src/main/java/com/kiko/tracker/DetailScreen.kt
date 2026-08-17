@@ -248,7 +248,7 @@ data class DetailScreenActions(
                                 onClick = { moreOpen = true },
                                 modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .32f)),
                             ) { Icon(Icons.Default.MoreVert, "More options", tint = Color.White) }
-                            DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                            DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp))) {
                                 DropdownMenuItem(
                                     text = { Text("Share") },
                                     leadingIcon = { Icon(Icons.Default.Share, null) },
