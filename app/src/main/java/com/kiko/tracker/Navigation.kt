@@ -75,7 +75,6 @@ val FadeExit = fadeOut(tween(150))
 sealed class TopScreen {
     data class Detail(val item: MediaItem) : TopScreen()
     object Ranking : TopScreen()
-    object Seasonal : TopScreen()
     // Full grid of "You might like" recommendations
     object Recommendations : TopScreen()
     // Seed initial schedule day
@@ -109,7 +108,6 @@ sealed class TopScreen {
 fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.Detail -> "detail:${item.id}"
     TopScreen.Ranking -> "ranking"
-    TopScreen.Seasonal -> "seasonal"
     TopScreen.Recommendations -> "recommendations"
     is TopScreen.Schedule -> "schedule"
     is TopScreen.Topic -> "topic:$topicId"
@@ -126,7 +124,7 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.Tab -> "tab:$destination"
 }
 
-fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Seasonal || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter
+fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter
 
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}) {
@@ -216,7 +214,6 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     }
     // Home full-screen destinations
     var rankingOpen by remember { mutableStateOf(false) }
-    var seasonalOpen by remember { mutableStateOf(false) }
     var recommendationsOpen by remember { mutableStateOf(false) }
     // Schedule day to open
     var scheduleOpen by remember { mutableStateOf(false) }
@@ -262,7 +259,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         selectedItem = null; detailStack = emptyList()
         stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = false
         clubDetailOpen = null
-        rankingOpen = false; seasonalOpen = false; recommendationsOpen = false; scheduleOpen = false
+        rankingOpen = false; recommendationsOpen = false; scheduleOpen = false
         forumTopicOpen = null; aboutOpen = false; reviewOpen = null
         profileStatsOpen = false; settingsPageOpen = false; scoreFilterOpen = null; yearFilterOpen = null
         vm.destination = Destination.Discover
@@ -275,7 +272,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Prefer live item copy — same id+type requirement as above
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && !rankingOpen && !seasonalOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && (vm.destination != Destination.Home || discoverReturnItem != null)) {
+    BackHandler(enabled = detailItem == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && (vm.destination != Destination.Home || discoverReturnItem != null)) {
         val returnItem = discoverReturnItem
         if (returnItem != null && vm.destination == Destination.Discover) {
             discoverReturnItem = null
@@ -312,14 +309,13 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         ) {
             Scaffold(
                 containerColor = c.background,
-                bottomBar = { if (detailItem == null && !rankingOpen && !seasonalOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null) BottomBar(vm.destination) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
+                bottomBar = { if (detailItem == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null) BottomBar(vm.destination) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val topScreen = when {
                         reviewOpen != null -> TopScreen.Review(reviewOpen!!.first, reviewOpen!!.second)
                         detailItem != null -> TopScreen.Detail(detailItem)
                         rankingOpen -> TopScreen.Ranking
-                        seasonalOpen -> TopScreen.Seasonal
                         recommendationsOpen -> TopScreen.Recommendations
                         scheduleOpen -> TopScreen.Schedule(scheduleInitialDay)
                         stackDetailOpen != null -> TopScreen.StackDetail(stackDetailOpen!!.first, stackDetailOpen!!.second)
@@ -392,7 +388,6 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 airingEpisode = vm.getCachedAiring(screen.item.id)?.episode,
                             )
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
-                            TopScreen.Seasonal -> SeasonalScreen(vm, onBack = { seasonalOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
                             is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)
                             is TopScreen.Topic -> ForumTopicScreen(vm, topicId = screen.topicId, title = screen.title, onBack = { forumTopicOpen = null })
@@ -427,13 +422,13 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 onBack = { settingsPageOpen = false },
                             )
                             is TopScreen.Tab -> when (screen.destination) {
-                                Destination.Home -> HomeScreen(vm, onOpenDetail = ::openDetail, onList = { vm.destination = Destination.List }, onLocateInList = { item -> vm.locateInList(context, item); vm.destination = Destination.List }, onDiscover = { vm.destination = Destination.Discover }, onRanking = { rankingOpen = true }, onSeasonal = { seasonalOpen = true }, onSchedule = ::openSchedule, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onSeeNews = { vm.destination = Destination.Community; vm.selectCommunityTab(context, CommunityTab.Forums); vm.openNewsBoard(context) }, onOpenStack = { id, title -> stackDetailOpen = id to title }, onOpenStacks = ::openStacks, onSignIn = onSignIn, onEdit = { editor = it }, selectedItem = editor)
+                                Destination.Home -> HomeScreen(vm, onOpenDetail = ::openDetail, onList = { vm.destination = Destination.List }, onLocateInList = { item -> vm.locateInList(context, item); vm.destination = Destination.List }, onDiscover = { vm.destination = Destination.Discover }, onRanking = { rankingOpen = true }, onSeasonal = { vm.destination = Destination.Seasonal }, onSchedule = ::openSchedule, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onSeeNews = { vm.destination = Destination.Community; vm.selectCommunityTab(context, CommunityTab.Forums); vm.openNewsBoard(context) }, onOpenStack = { id, title -> stackDetailOpen = id to title }, onOpenStacks = ::openStacks, onSignIn = onSignIn, onEdit = { editor = it }, selectedItem = editor)
                                 Destination.List -> ListScreen(vm, onOpenDetail = ::openDetail, onIncrement = { vm.saveLive(context, it) }, onEdit = { editor = it }, selectedItem = editor)
                                 Destination.Discover -> DiscoverScreen(
                                     vm,
                                     onOpenDetail = ::openDetail,
                                     onRanking = { rankingOpen = true },
-                                    onSeasonal = { seasonalOpen = true },
+                                    onSeasonal = { vm.destination = Destination.Seasonal },
                                     onStacks = ::openStacks,
                                     onRecommendations = { recommendationsOpen = true },
                                     onExitResults = {
@@ -444,6 +439,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onEdit = { editor = it },
                                     selectedItem = editor
                                 )
+                                Destination.Seasonal -> SeasonalScreen(vm, onBack = { vm.destination = Destination.Home }, onOpenDetail = ::openDetail)
                                 Destination.Community -> CommunityScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onOpenClub = { clubDetailOpen = it })
                             }
                         }

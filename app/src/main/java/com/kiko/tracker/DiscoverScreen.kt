@@ -137,25 +137,15 @@ import kotlinx.coroutines.launch
 
                 Spacer(Modifier.height(14.dp))
 
-                // Ranking and Seasonal share the top row; Interest Stacks gets its own
-                // full-width button below, edge-to-edge within the screen's padding
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    DiscoverActionButton(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.TrendingUp,
-                        label = "Rankings",
-                        onClick = onRanking
-                    )
-                    DiscoverActionButton(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.DateRange,
-                        label = "Seasonal",
-                        onClick = onSeasonal
-                    )
-                }
+                // Seasonal now lives in its own bottom tab, to the right of Discover;
+                // Rankings and Interest Stacks keep their full-width buttons here,
+                // edge-to-edge within the screen's padding
+                DiscoverActionButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = Icons.Default.TrendingUp,
+                    label = "Rankings",
+                    onClick = onRanking
+                )
                 Spacer(Modifier.height(12.dp))
                 DiscoverActionButton(
                     modifier = Modifier.fillMaxWidth(),
