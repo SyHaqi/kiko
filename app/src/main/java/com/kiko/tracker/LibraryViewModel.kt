@@ -1050,7 +1050,10 @@ class LibraryViewModel : ViewModel() {
                 val mg = async { runCatching { api.search(StackBrowseKind.Manga, limit = 1) }.getOrElse { emptyList() } }
                 val an = async { runCatching { api.search(StackBrowseKind.Anime, limit = 1) }.getOrElse { emptyList() } }
                 val mal = async { runCatching { api.search(StackBrowseKind.MyAnimeList, limit = 1) }.getOrElse { emptyList() } }
-                val rc = async { runCatching { api.search(StackBrowseKind.All) }.getOrElse { emptyList() } }
+                // Home's "Recent" row only ever shows a handful — the rest is one tap
+                // away via "See all" / search (which opens the full paginated browse
+                // screen), so there's no reason to fetch or render more than that here.
+                val rc = async { runCatching { api.search(StackBrowseKind.All, limit = 5) }.getOrElse { emptyList() } }
                 stacksHomeChallenges = ch.await(); stacksHomeManga = mg.await(); stacksHomeAnime = an.await(); stacksHomeMal = mal.await(); stacksHomeRecent = rc.await()
             }
             stacksHomeLoading = false
