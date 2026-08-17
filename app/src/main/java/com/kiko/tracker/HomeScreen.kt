@@ -88,28 +88,18 @@ import kotlinx.coroutines.launch
     ) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
-                // Classic mode used to open under a solid nav-bar-blue band, mirroring MAL's
-                // own homepage — but that flat color block reads as a stray banner sitting on
-                // top of everything else, so the title now blends into the page like every
-                // other header in the app, and the avatar just floats on the same background.
                 AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
                 Column(Modifier.padding(horizontal = 20.dp)) {
                     // Use device current date
-                    if (!c.classic) {
-                        Text(
-                            java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault()),
-                            color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
-                        )
-                    }
-                    // Classic: the day/date used to sit under the header band on its own line.
-                    // That line's gone now, so it rides along in the "Airing next" title instead —
-                    // the two swap back and forth in place rather than both needing their own row.
-                    val todayLabel = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault())
+                    Text(
+                        java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault()),
+                        color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
+                    )
                     if (airingNext.isNotEmpty()) {
-                        SectionTitle("Airing next", "See all", click = { onSchedule(today) }, alternateTitle = todayLabel)
+                        SectionTitle("Airing next", "See all", click = { onSchedule(today) })
                         AiringNextRow(airingNext, vm, trackedOpenDetail)
                     } else if (vm.discoverBrowseLoading) {
-                        SectionTitle("Airing next", "See all", click = { onSchedule(today) }, alternateTitle = todayLabel)
+                        SectionTitle("Airing next", "See all", click = { onSchedule(today) })
                         AiringNextRowSkeleton()
                     }
                     // Most recently updated in-progress title
@@ -153,23 +143,7 @@ import kotlinx.coroutines.launch
 // Airing next row order
 
 @Composable fun AiringNextRow(items: List<MediaItem>, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit) {
-    val c = LocalKikoColors.current
-    if (c.classic) {
-        // MAL's own "Top Airing Anime" panel is a boxed list with hairline row dividers
-        // and zero gap between rows — no card shadows, no spacing. Mirrored here as a
-        // horizontal filmstrip: one shared outer border, a 1dp divider between frames
-        // instead of a gap, so consecutive cards actually touch.
-        LazyRow(Modifier.fillMaxWidth().border(1.dp, c.cardBorder), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-            itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
-                Row(Modifier.height(IntrinsicSize.Min)) {
-                    if (index > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(c.cardBorder))
-                    AiringNextCard(item, vm, onOpenDetail)
-                }
-            }
-        }
-    } else {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) { items(items, key = { it.id }) { AiringNextCard(it, vm, onOpenDetail) } }
-    }
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) { items(items, key = { it.id }) { AiringNextCard(it, vm, onOpenDetail) } }
 }
 // Airing next card layout
 
@@ -193,8 +167,8 @@ import kotlinx.coroutines.launch
         onClick = { onOpenDetail(item) },
         interactionSource = interactionSource,
         shape = RoundedCornerShape(kikoCorner(22.dp)), colors = CardDefaults.cardColors(containerColor = c.surface),
-        border = if (c.classic) null else BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(if (c.classic) 0.dp else 4.dp),
+        border = BorderStroke(1.dp, c.cardBorder),
+        elevation = CardDefaults.cardElevation(4.dp),
         modifier = Modifier.width(264.dp).pressScale(interactionSource),
     ) {
         Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -227,51 +201,16 @@ import kotlinx.coroutines.launch
     }
 }
 
-// alternateTitle: classic-only. When set, the title periodically crossfades between `title`
-// and `alternateTitle` instead of sitting static — used to fold the day/date into the "Airing
-// next" header now that it no longer has its own line under the blue band.
-@Composable fun SectionTitle(title: String, action: String, click: () -> Unit, alternateTitle: String? = null) {
+@Composable fun SectionTitle(title: String, action: String, click: () -> Unit) {
     val c = LocalKikoColors.current
     Column(Modifier.fillMaxWidth()) {
         Row(
-            // Classic: pull the title down closer to its own rule (was 8dp) — the rule below
-            // is now what separates title from content, so title-to-rule should read tighter
-            // than rule-to-content does.
-            Modifier.fillMaxWidth().padding(top = if (c.classic) 22.dp else 29.dp, bottom = if (c.classic) 4.dp else 13.dp),
+            Modifier.fillMaxWidth().padding(top = 29.dp, bottom = 13.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (c.classic) {
-                if (alternateTitle != null) {
-                    // Swap every few seconds rather than on any particular event — a plain
-                    // timed loop, so the title is never left mid-fade if this leaves composition.
-                    var showAlternate by remember { mutableStateOf(false) }
-                    LaunchedEffect(alternateTitle) {
-                        while (true) {
-                            kotlinx.coroutines.delay(4000)
-                            showAlternate = !showAlternate
-                        }
-                    }
-                    AnimatedContent(
-                        targetState = showAlternate,
-                        transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(400)) },
-                        label = "sectionTitleSwap",
-                    ) { alt ->
-                        Text(if (alt) alternateTitle else title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
-                    }
-                } else {
-                    Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
-                }
-                TextButton(onClick = click, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text(action, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.accent) }
-            } else {
-                Text(title, style = MaterialTheme.typography.headlineSmall, color = c.ink)
-                TextButton(onClick = click) { Text(action, fontWeight = FontWeight.Bold, color = c.accent) }
-            }
+            Text(title, style = MaterialTheme.typography.headlineSmall, color = c.ink)
+            TextButton(onClick = click) { Text(action, fontWeight = FontWeight.Bold, color = c.accent) }
         }
-        // Classic mode: title sits above the rule, like MAL's own section headers, rather
-        // than the rule announcing the section from above. Bottom padding on the rule itself
-        // (rather than relying on the next composable's own spacing) keeps it from butting
-        // straight up against whatever card/row follows.
-        if (c.classic) HorizontalDivider(thickness = 1.dp, color = c.cardBorder, modifier = Modifier.padding(bottom = 10.dp))
     }
 }
 
@@ -286,7 +225,7 @@ import kotlinx.coroutines.launch
     Card(
         shape = RoundedCornerShape(kikoCorner(20.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(if (c.classic) 0.dp else 2.dp),
+        elevation = CardDefaults.cardElevation(2.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
         ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = Modifier.padding(horizontal = 14.dp), vm = vm)
@@ -315,7 +254,6 @@ import kotlinx.coroutines.launch
             .fillMaxWidth()
             .height(if (tall) 210.dp else 160.dp)
             .clip(RoundedCornerShape(kikoCorner(18.dp)))
-            .then(if (c.classic) Modifier.border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(18.dp))) else Modifier)
             .kikoClickable { onOpenTopic(snapshot.topicId, snapshot.title) },
     ) {
         AsyncImage(model = snapshot.imageUrl, contentDescription = snapshot.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
@@ -454,7 +392,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     val header: @Composable () -> Unit = {
         // Type switcher lives in the header itself now (tap the title to open Anime/Manga menu)
         // instead of a separate full-width toggle row underneath — saves vertical space.
-        TypeSwitcherHeader(typeTab, { vm.selectListTypeTab(it) }, 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
+        TypeSwitcherHeader(typeTab, { vm.selectListTypeTab(context, it) }, 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
         SearchField(query, { query = it }, "Search your list", onSearch = { submittedQuery = query }, onClear = { query = ""; submittedQuery = "" })
         FilterRow(effectiveFilter, { vm.setListFilter(context, it) }, typeTab)

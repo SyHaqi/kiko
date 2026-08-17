@@ -223,6 +223,15 @@ fun AiringNextRowSkeleton() {
     }
 }
 
+/** Stand-in for [AiringNextBannerCard]: one full-width backdrop block, sized to match
+ *  the banner's own height so the page doesn't reflow once the real slide lands. */
+@Composable
+fun AiringNextBannerSkeleton() {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 34.dp)) {
+        SkeletonBlock(Modifier.fillMaxWidth().height(200.dp), shape = RoundedCornerShape(kikoCorner(26.dp)))
+    }
+}
+
 /** Stand-in for [SnapshotsGrid]'s Pinterest-style two-column layout — same
  *  alternating tall/short rhythm as the real cards so the page doesn't reflow
  *  once the images land. */

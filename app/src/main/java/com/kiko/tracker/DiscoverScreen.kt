@@ -281,7 +281,7 @@ import kotlinx.coroutines.launch
         interactionSource = interactionSource,
         shape = RoundedCornerShape(kikoCorner(16.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(if (c.classic) 0.dp else 2.dp),
+        elevation = CardDefaults.cardElevation(2.dp),
         modifier = modifier.pressScale(interactionSource)
     ) {
         Row(

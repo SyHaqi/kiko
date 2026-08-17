@@ -66,7 +66,7 @@ class LibraryViewModel : ViewModel() {
     // surfaces items in that status), then finds its index in that same filtered/sorted
     // order to scroll to.
     fun locateInList(context: Context, item: MediaItem) {
-        selectListTypeTab(item.type)
+        selectListTypeTab(context, item.type)
         setListFilter(context, normalizeFilterForType("Watching", item.type))
         val ordered = visibleItems.filter { it.type == item.type && it.status.label == normalizeFilterForType("Watching", item.type) }.sortedWithListSort(listSort, titleLanguage)
         val idx = ordered.indexOfFirst { it.id == item.id && it.type == item.type }
@@ -250,7 +250,8 @@ class LibraryViewModel : ViewModel() {
         }
     }
     // Reset scroll on sort
-    fun selectListTypeTab(t: MediaType) { listTypeTab = t; listScrollIndex = 0; listScrollOffset = 0 }
+    fun selectListTypeTab(context: Context, t: MediaType) { listTypeTab = t; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_type_tab", t.name).apply() }
+    fun loadListTypeTab(context: Context) { listTypeTab = runCatching { MediaType.valueOf(settingsPrefs(context).getString("list_type_tab", MediaType.Anime.name)!!) }.getOrDefault(MediaType.Anime) }
     fun setListSort(context: Context, sort: ListSort) { listSort = sort; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_sort", sort.name).apply() }
     fun loadListSort(context: Context) { listSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("list_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
     fun setListViewMode(context: Context, mode: ListViewMode) { listViewMode = mode; settingsPrefs(context).edit().putString("list_view_mode", mode.name).apply() }
@@ -285,9 +286,6 @@ class LibraryViewModel : ViewModel() {
     // NSFW off by default
     var nsfwEnabled by mutableStateOf(false); private set
     var amoledDark by mutableStateOf(false); private set
-    // "Classic UI" — reskins the app to mirror MyAnimeList's actual current site (see
-    // ClassicKiko in Theme.kt) instead of the normal Material palette/shapes.
-    var classicUi by mutableStateOf(false); private set
     // User profile stats
     var malProfile by mutableStateOf<MalProfile?>(null); private set
     var profileLoading by mutableStateOf(false); private set
@@ -491,8 +489,6 @@ class LibraryViewModel : ViewModel() {
     fun setNsfw(context: Context, enabled: Boolean) { nsfwEnabled = enabled; settingsPrefs(context).edit().putBoolean("nsfw_enabled", enabled).apply() }
     fun loadAmoledDark(context: Context) { amoledDark = settingsPrefs(context).getBoolean("amoled_dark", false) }
     fun setAmoledDark(context: Context, enabled: Boolean) { amoledDark = enabled; settingsPrefs(context).edit().putBoolean("amoled_dark", enabled).apply() }
-    fun loadClassicUi(context: Context) { classicUi = settingsPrefs(context).getBoolean("classic_ui", false) }
-    fun setClassicUi(context: Context, enabled: Boolean) { classicUi = enabled; settingsPrefs(context).edit().putBoolean("classic_ui", enabled).apply() }
 
     // Load profile and stats
     fun loadProfile(context: Context) {

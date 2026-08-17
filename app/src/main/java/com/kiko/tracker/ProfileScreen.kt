@@ -97,7 +97,6 @@ import coil.compose.AsyncImage
     connected: Boolean, themeMode: ThemeMode, colorSource: ColorSource, paletteStyle: PaletteStyle, titleLanguage: TitleLanguage,
     nsfwEnabled: Boolean, onNsfwChange: (Boolean) -> Unit,
     amoledDark: Boolean, onAmoledDarkChange: (Boolean) -> Unit,
-    classicUi: Boolean = false, onClassicUiChange: (Boolean) -> Unit = {},
     onThemeClick: () -> Unit, onColorClick: () -> Unit, onPaletteClick: () -> Unit, onTitleLanguageClick: () -> Unit,
     updateInfo: AppUpdateInfo?, onAboutClick: () -> Unit, onBack: () -> Unit,
 ) {
@@ -113,7 +112,6 @@ import coil.compose.AsyncImage
                 connected = connected, themeMode = themeMode, colorSource = colorSource, paletteStyle = paletteStyle, titleLanguage = titleLanguage,
                 nsfwEnabled = nsfwEnabled, onNsfwChange = onNsfwChange,
                 amoledDark = amoledDark, onAmoledDarkChange = onAmoledDarkChange,
-                classicUi = classicUi, onClassicUiChange = onClassicUiChange,
                 onThemeClick = onThemeClick, onColorClick = onColorClick, onPaletteClick = onPaletteClick, onTitleLanguageClick = onTitleLanguageClick,
                 updateInfo = updateInfo, onAboutClick = onAboutClick,
             )
@@ -309,7 +307,6 @@ import coil.compose.AsyncImage
     connected: Boolean, themeMode: ThemeMode, colorSource: ColorSource, paletteStyle: PaletteStyle, titleLanguage: TitleLanguage,
     nsfwEnabled: Boolean, onNsfwChange: (Boolean) -> Unit,
     amoledDark: Boolean = false, onAmoledDarkChange: (Boolean) -> Unit = {},
-    classicUi: Boolean = false, onClassicUiChange: (Boolean) -> Unit = {},
     onThemeClick: () -> Unit, onColorClick: () -> Unit, onPaletteClick: () -> Unit, onTitleLanguageClick: () -> Unit,
     updateInfo: AppUpdateInfo? = null, onAboutClick: () -> Unit = {},
 ) {
@@ -321,9 +318,6 @@ import coil.compose.AsyncImage
         ListItem(headlineContent = { Text("Title language", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(titleLanguage.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Translate, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onTitleLanguageClick))
         // Pure-black backgrounds for OLED/AMOLED screens — only takes effect while dark theme is active
         ListItem(headlineContent = { Text("AMOLED black", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text("True black backgrounds in dark mode, saves battery on AMOLED screens", color = c.muted) }, leadingContent = { Icon(Icons.Default.DarkMode, null, tint = c.primary) }, trailingContent = { Switch(checked = amoledDark, onCheckedChange = onAmoledDarkChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
-        // Reskins the app to mirror MyAnimeList's actual current site — overrides Theme/
-        // Color/Color palette/AMOLED while active, since ClassicKiko is a fixed palette
-        ListItem(headlineContent = { Text("Classic UI", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text("Reskins Kiko to look like the MyAnimeList website", color = c.muted) }, leadingContent = { Icon(Icons.Default.Web, null, tint = c.primary) }, trailingContent = { Switch(checked = classicUi, onCheckedChange = onClassicUiChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
         ListItem(headlineContent = { Text("Adult content", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(if (nsfwEnabled) "Hentai-rated titles are shown" else "Hentai-rated titles are hidden", color = c.muted) }, leadingContent = { Icon(Icons.Default.VisibilityOff, null, tint = c.primary) }, trailingContent = { Switch(checked = nsfwEnabled, onCheckedChange = onNsfwChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
         // Tap opens about page
         ListItem(

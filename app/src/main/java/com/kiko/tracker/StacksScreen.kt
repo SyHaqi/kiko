@@ -303,7 +303,7 @@ import kotlinx.coroutines.launch
         interactionSource = interactionSource,
         shape = RoundedCornerShape(kikoCorner(22.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(if (c.classic) 0.dp else 2.dp),
+        elevation = CardDefaults.cardElevation(2.dp),
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).pressScale(interactionSource),
     ) {
         Column {
@@ -337,7 +337,7 @@ import kotlinx.coroutines.launch
         interactionSource = interactionSource,
         shape = RoundedCornerShape(kikoCorner(22.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(if (c.classic) 0.dp else 2.dp),
+        elevation = CardDefaults.cardElevation(2.dp),
         modifier = modifier.width(250.dp).pressScale(interactionSource),
     ) {
         Column(Modifier.fillMaxHeight()) {
