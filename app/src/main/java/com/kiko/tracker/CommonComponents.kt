@@ -219,9 +219,9 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
             Row(
                 Modifier
                     .onGloballyPositioned { anchorWidthPx = it.size.width }
-                    .clip(RoundedCornerShape(kikoCorner(13.dp)))
+                    .clip(RoundedCornerShape(kikoCorner(4.dp)))
                     .kikoClickable { expanded = true }
-                    .padding(vertical = 8.dp, horizontal = 6.dp),
+                    .padding(start = 0.dp, top = 0.dp, end = 6.dp, bottom = 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(if (current == MediaType.Anime) "Anime" else "Manga", fontFamily = AppFont, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp, letterSpacing = (-1).sp, color = c.ink)
