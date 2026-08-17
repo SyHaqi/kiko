@@ -173,25 +173,11 @@ fun TopicRowSkeletonGroup(count: Int = 6) {
     }
 }
 
-/** Stand-in for the Home "Continue" card while the first sync hasn't landed yet. */
+/** Stand-in for the Home "Continue" row while the first sync hasn't landed yet — same
+ *  plain [ListRowSkeleton] shape used for My List/search rows, no card box around it. */
 @Composable
 fun ContinueCardSkeleton(modifier: Modifier = Modifier) {
-    val c = LocalKikoColors.current
-    Row(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(kikoCorner(20.dp)))
-            .background(c.surface)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SkeletonBlock(Modifier.size(width = 84.dp, height = 118.dp), shape = RoundedCornerShape(kikoCorner(16.dp)))
-        Column(Modifier.padding(start = 16.dp).weight(1f)) {
-            SkeletonBlock(Modifier.fillMaxWidth(0.7f).height(16.dp))
-            SkeletonBlock(Modifier.padding(top = 10.dp).fillMaxWidth(0.4f).height(12.dp))
-            SkeletonBlock(Modifier.padding(top = 14.dp).fillMaxWidth(0.55f).height(8.dp))
-        }
-    }
+    ListRowSkeleton(modifier)
 }
 
 /** Stand-in for a single [AiringNextCard]: cover-sized block + title/time bars. */

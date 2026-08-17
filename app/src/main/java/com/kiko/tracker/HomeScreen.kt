@@ -205,22 +205,15 @@ import kotlinx.coroutines.launch
     }
 }
 
-// Inline "Continue" card, docked under Airing Next — the same row style and size used for
-// entries in My List (ListRow below), just wrapped in a card so it stands out as its own
-// section. Lives in the normal scroll flow, so there's no dismiss/pin gesture to manage.
-// Tapping it jumps to the entry's spot in My List rather than opening its detail page —
-// "Continue" is meant as a shortcut back into the list, not a detail-page shortcut.
+// Inline "Continue" entry, docked under Airing Next — plain [ListRow], same as My List and
+// search results, with no card wrapper around it. There's no list "around" a single entry
+// here, so boxing it like a card implied a container that doesn't exist. Lives in the normal
+// scroll flow, so there's no dismiss/pin gesture to manage. Tapping it jumps to the entry's
+// spot in My List rather than opening its detail page — "Continue" is meant as a shortcut
+// back into the list, not a detail-page shortcut.
 
 @Composable fun ContinueCard(item: MediaItem, vm: LibraryViewModel, onClick: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, modifier: Modifier = Modifier) {
-    val c = LocalKikoColors.current
-    Card(
-        shape = RoundedCornerShape(kikoCorner(20.dp)),
-        colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(2.dp),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = Modifier.padding(horizontal = 14.dp), vm = vm)
-    }
+    ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = modifier, vm = vm)
 }
 // Pinterest-style snapshots layout
 
