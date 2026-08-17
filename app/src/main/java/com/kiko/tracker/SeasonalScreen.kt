@@ -38,8 +38,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 
-@Composable fun SeasonalScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit) {
+@Composable fun SeasonalScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     // Fetch only on entry
@@ -82,7 +87,7 @@ import kotlinx.coroutines.launch
             if (vm.seasonalLoading && vm.visibleSeasonalResults.isEmpty()) {
                 items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
             } else {
-                itemsIndexed(vm.visibleSeasonalResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index, staggerSeen) { SeasonalGridCard(it, openTitle) } }
+                itemsIndexed(vm.visibleSeasonalResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index, staggerSeen) { SeasonalGridCard(it, openTitle, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type) } }
             }
             if (!vm.seasonalLoading && vm.visibleSeasonalResults.isEmpty() && vm.seasonalError == null) {
                 item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles for this season.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
@@ -266,22 +271,52 @@ import kotlinx.coroutines.launch
 fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons.Default.Group; SeasonalSort.Score -> Icons.Default.Star }
 // Seasonal chart grid tile
 
-@Composable fun SeasonalGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit) {
+@Composable fun SeasonalGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
-    Column(Modifier.fillMaxWidth().kikoClickable { onOpenDetail(item) }) {
-        Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f), showStatus = true)
-        Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
-        if (item.score > 0) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
-                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
-                Text("%.2f".format(item.score), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
-            }
+    val haptic = LocalHapticFeedback.current
+    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "seasonalGridSelectBg")
+    val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "seasonalGridSelectPad")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(18.dp)))
+            .background(bg)
+            .kikoCombinedClickable(
+                onClick = { onOpenDetail(item) },
+                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
+            )
+            .animateContentSize()
+            .padding(pad)
+    ) {
+        Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f), showStatus = true, selected = isSelected)
+        Text(
+            item.displayTitle(),
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            color = c.ink,
+            minLines = 2,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 7.dp)
+        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
+            Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
+            Text(
+                if (item.score > 0) "%.2f".format(item.score) else "N/A",
+                color = c.muted,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 3.dp)
+            )
         }
-        if (item.listUsers > 0) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                Icon(Icons.Default.Group, null, tint = c.muted, modifier = Modifier.size(11.dp))
-                Text(formatCount(item.listUsers), color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
-            }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+            Icon(Icons.Default.Group, null, tint = c.muted, modifier = Modifier.size(11.dp))
+            Text(
+                if (item.listUsers > 0) formatCount(item.listUsers) else "N/A",
+                color = c.muted,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 3.dp)
+            )
         }
     }
 }

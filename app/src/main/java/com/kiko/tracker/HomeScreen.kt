@@ -96,31 +96,31 @@ import kotlinx.coroutines.launch
                         color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
                     )
                     if (airingNext.isNotEmpty()) {
-                        SectionTitle("Airing next", "See all", click = { onSchedule(today) })
+                        SectionTitle("Airing next", "See all", click = { onSchedule(today) }, topDivider = true)
                         AiringNextRow(airingNext, vm, trackedOpenDetail)
                     } else if (vm.discoverBrowseLoading) {
-                        SectionTitle("Airing next", "See all", click = { onSchedule(today) })
+                        SectionTitle("Airing next", "See all", click = { onSchedule(today) }, topDivider = true)
                         AiringNextRowSkeleton()
                     }
                     // Most recently updated in-progress title
                     if (active != null) {
-                        SectionTitle("Continue", "See list", onList)
+                        SectionTitle("Continue", "See list", onList, topDivider = true)
                         ContinueCard(active, vm, onClick = { onLocateInList(active) }, onLongPress = onEdit, isSelected = selectedItem?.id == active.id && selectedItem?.type == active.type)
                     } else if (vm.loading) {
-                        SectionTitle("Continue", "See list", onList)
+                        SectionTitle("Continue", "See list", onList, topDivider = true)
                         ContinueCardSkeleton()
                     }
                     // Home recent news row
                     if (vm.newsSnapshots.isNotEmpty()) {
-                        SectionTitle("Snapshots", "See news", onSeeNews)
+                        SectionTitle("Snapshots", "See news", onSeeNews, topDivider = true)
                         SnapshotsGrid(vm.newsSnapshots, trackedOpenTopic)
                     } else if (vm.newsSnapshotsLoading) {
-                        SectionTitle("Snapshots", "See news", onSeeNews)
+                        SectionTitle("Snapshots", "See news", onSeeNews, topDivider = true)
                         SnapshotsGridSkeleton()
                     }
                     // Freshest Interest Stack teaser
                     vm.homeLatestStack?.let { stack ->
-                        SectionTitle("Interest Stacks", "See all", onOpenStacks)
+                        SectionTitle("Interest Stacks", "See all", onOpenStacks, topDivider = true)
                         StackFeaturedCard(stack, vm) { onOpenStack(stack.id, stack.title) }
                     }
                     if (vm.authChecked && !vm.signedIn && !vm.loading) {
@@ -192,15 +192,21 @@ import kotlinx.coroutines.launch
     }
 }
 
-@Composable fun SectionTitle(title: String, action: String, click: () -> Unit) {
+@Composable fun SectionTitle(title: String, action: String, click: () -> Unit, topDivider: Boolean = false) {
     val c = LocalKikoColors.current
     Column(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.fillMaxWidth().padding(top = 29.dp, bottom = 13.dp),
+            Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, color = c.ink)
+            Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink)
             TextButton(onClick = click) { Text(action, fontWeight = FontWeight.Bold, color = c.accent) }
+        }
+        // Inset section separator, directly under the title row — sits within the page's own
+        // horizontal padding, so unlike the My List row divider (which starts after the cover)
+        // this one is flush with the surrounding content's edges rather than the screen's.
+        if (topDivider) {
+            HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
         }
     }
 }
