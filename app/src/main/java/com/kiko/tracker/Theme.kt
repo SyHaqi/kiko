@@ -34,13 +34,18 @@ data class KikoColors(
 val LightKiko = KikoColors(
     ink = Color(0xFF1B1B1F), onPrimary = Color.White, primary = Color(0xFF2E51A2), primaryContainer = Color(0xFFE1E7F5),
     background = Color(0xFFFFFFFF), surface = Color(0xFFF8F8F8), surfaceLow = Color(0xFFEDEDED), muted = Color(0xFF6D6D6D),
-    lavender = Color(0xFFEAF0FF), warm = Color(0xFFFFE9C7), danger = Color(0xFFB3261E)
+    lavender = Color(0xFFEAF0FF), warm = Color(0xFFFFE9C7), danger = Color(0xFFB3261E),
+    // Was fully transparent, so cards/search bars/buttons had nothing but a ~2-3%
+    // surface-vs-background tint to read against — nearly invisible, especially in
+    // light mode. A real hairline (same trick amoledify already uses) fixes that.
+    cardBorder = Color(0xFF6D6D6D).copy(alpha = 0.16f),
 )
 
 val DarkKiko = KikoColors(
     ink = Color(0xFFEDEDED), onPrimary = Color(0xFF14203D), primary = Color(0xFFABC4ED), primaryContainer = Color(0xFF24365E),
     background = Color(0xFF121212), surface = Color(0xFF181818), surfaceLow = Color(0xFF222222), muted = Color(0xFFA3A3A3),
-    lavender = Color(0xFF1F2A44), warm = Color(0xFF463A28), danger = Color(0xFFFFB4AB)
+    lavender = Color(0xFF1F2A44), warm = Color(0xFF463A28), danger = Color(0xFFFFB4AB),
+    cardBorder = Color(0xFFA3A3A3).copy(alpha = 0.16f),
 )
 
 val LocalKikoColors = staticCompositionLocalOf { LightKiko }
@@ -99,31 +104,41 @@ fun themedPalette(seed: Color, style: PaletteStyle, dark: Boolean): KikoColors {
         PaletteStyle.Neutral -> Triple(0.18f, 0.10f, 0.02f)
         PaletteStyle.Monochrome -> Triple(0f, 0f, 0f)
     }
-    return if (!dark) KikoColors(
-        ink = hslColor(hue, neutralSat, 0.12f),
-        onPrimary = Color.White,
-        primary = hslColor(hue, accentSat, 0.46f),
-        primaryContainer = hslColor(hue, containerSat, 0.88f),
-        background = hslColor(hue, neutralSat, 0.975f),
-        surface = hslColor(hue, neutralSat * 0.6f, 0.995f),
-        surfaceLow = hslColor(hue, neutralSat, 0.95f),
-        muted = hslColor(hue, neutralSat, 0.45f),
-        lavender = hslColor(hue + 40f, containerSat, 0.93f),
-        warm = hslColor(hue - 150f, containerSat, 0.87f),
-        danger = Color(0xFFB3261E),
-    ) else KikoColors(
-        ink = hslColor(hue, neutralSat, 0.94f),
-        onPrimary = hslColor(hue, neutralSat, 0.10f),
-        primary = hslColor(hue, accentSat, 0.74f),
-        primaryContainer = hslColor(hue, containerSat, 0.30f),
-        background = hslColor(hue, neutralSat, 0.08f),
-        surface = hslColor(hue, neutralSat, 0.13f),
-        surfaceLow = hslColor(hue, neutralSat, 0.17f),
-        muted = hslColor(hue, neutralSat, 0.68f),
-        lavender = hslColor(hue + 40f, containerSat, 0.18f),
-        warm = hslColor(hue - 150f, containerSat, 0.21f),
-        danger = Color(0xFFFFB4AB),
-    )
+    return if (!dark) run {
+        val mutedColor = hslColor(hue, neutralSat, 0.45f)
+        KikoColors(
+            ink = hslColor(hue, neutralSat, 0.12f),
+            onPrimary = Color.White,
+            primary = hslColor(hue, accentSat, 0.46f),
+            primaryContainer = hslColor(hue, containerSat, 0.88f),
+            background = hslColor(hue, neutralSat, 0.975f),
+            surface = hslColor(hue, neutralSat * 0.6f, 0.995f),
+            surfaceLow = hslColor(hue, neutralSat, 0.95f),
+            muted = mutedColor,
+            lavender = hslColor(hue + 40f, containerSat, 0.93f),
+            warm = hslColor(hue - 150f, containerSat, 0.87f),
+            danger = Color(0xFFB3261E),
+            // See LightKiko/DarkKiko — same hairline-border fix, tinted to this seed's hue
+            // instead of a fixed gray so generated/dynamic themes get it too.
+            cardBorder = mutedColor.copy(alpha = 0.16f),
+        )
+    } else run {
+        val mutedColor = hslColor(hue, neutralSat, 0.68f)
+        KikoColors(
+            ink = hslColor(hue, neutralSat, 0.94f),
+            onPrimary = hslColor(hue, neutralSat, 0.10f),
+            primary = hslColor(hue, accentSat, 0.74f),
+            primaryContainer = hslColor(hue, containerSat, 0.30f),
+            background = hslColor(hue, neutralSat, 0.08f),
+            surface = hslColor(hue, neutralSat, 0.13f),
+            surfaceLow = hslColor(hue, neutralSat, 0.17f),
+            muted = mutedColor,
+            lavender = hslColor(hue + 40f, containerSat, 0.18f),
+            warm = hslColor(hue - 150f, containerSat, 0.21f),
+            danger = Color(0xFFFFB4AB),
+            cardBorder = mutedColor.copy(alpha = 0.16f),
+        )
+    }
 }
 // Resolve palette seed color
 

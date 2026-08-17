@@ -118,7 +118,7 @@ import kotlinx.coroutines.launch
                 // Search bar and filter
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.onGloballyPositioned { searchBarBounds = it.boundsInRoot() },
+                    modifier = Modifier.height(IntrinsicSize.Min).onGloballyPositioned { searchBarBounds = it.boundsInRoot() },
                 ) {
                     Box(Modifier.weight(1f)) {
                         SearchField(
@@ -270,7 +270,6 @@ import kotlinx.coroutines.launch
         interactionSource = interactionSource,
         shape = RoundedCornerShape(kikoCorner(16.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(2.dp),
         modifier = modifier.pressScale(interactionSource)
     ) {
         Row(
@@ -330,7 +329,7 @@ import kotlinx.coroutines.launch
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.onGloballyPositioned { searchBarBounds = it.boundsInRoot() },
+                    modifier = Modifier.height(IntrinsicSize.Min).onGloballyPositioned { searchBarBounds = it.boundsInRoot() },
                 ) {
                     Box(Modifier.weight(1f)) {
                         SearchField(
@@ -403,7 +402,10 @@ import kotlinx.coroutines.launch
 @Composable fun FilterIconButton(active: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     Box(
-        modifier.size(52.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (active) c.primary else c.surface).kikoClickable(onClick = onClick),
+        modifier.fillMaxHeight().aspectRatio(1f).clip(RoundedCornerShape(kikoCorner(18.dp)))
+            .background(if (active) c.primary else c.surface)
+            .border(1.dp, if (active) Color.Transparent else c.cardBorder, RoundedCornerShape(kikoCorner(18.dp)))
+            .kikoClickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(Icons.Default.Tune, "Advanced filters", tint = if (active) c.onPrimary else c.ink) }
 }
