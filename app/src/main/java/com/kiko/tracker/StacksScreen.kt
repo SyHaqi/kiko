@@ -31,7 +31,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -84,7 +83,7 @@ import kotlinx.coroutines.launch
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
                     // "Open in browser" and "Search" grouped into one pill (divider between) rather
                     // than two identical boxed buttons sitting flush against each other — same
@@ -92,9 +91,9 @@ import kotlinx.coroutines.launch
                     Row(
                         Modifier
                             .height(38.dp)
-                            .clip(RoundedCornerShape(13.dp))
+                            .clip(RoundedCornerShape(kikoCorner(13.dp)))
                             .background(c.surface)
-                            .border(1.dp, c.cardBorder, RoundedCornerShape(13.dp)),
+                            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp))),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks")) }, modifier = Modifier.size(38.dp)) {
@@ -145,7 +144,7 @@ import kotlinx.coroutines.launch
     Row(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.weight(1f))
         TextButton(onClick = onSeeAll, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
-            Text("See all", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.primary)
+            Text("See all", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.accent)
         }
     }
 }
@@ -173,7 +172,7 @@ import kotlinx.coroutines.launch
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         Column(Modifier.padding(horizontal = 20.dp)) {
@@ -241,7 +240,7 @@ import kotlinx.coroutines.launch
 
 @Composable fun StackCoverCollage(covers: List<String>, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
-    Box(modifier.clip(RoundedCornerShape(14.dp))) {
+    Box(modifier.clip(RoundedCornerShape(kikoCorner(14.dp)))) {
         if (covers.isEmpty()) {
             Box(Modifier.fillMaxSize().background(c.primaryContainer), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.Layers, null, tint = c.primary, modifier = Modifier.size(22.dp))
@@ -261,7 +260,7 @@ import kotlinx.coroutines.launch
     val c = LocalKikoColors.current
     if (tags.isEmpty()) return
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        tags.forEach { tag -> if (tag == "Challenge") Pill(tag, c.warm, c.ink) else Pill(tag, c.primaryContainer, c.primary) }
+        tags.forEach { tag -> if (tag == "Challenge") Pill(tag, c.warm, c.ink) else Pill(tag, c.primaryContainer, c.accent) }
     }
 }
 // Small "N Entries · Restacks" meta pill row shared by browse row and detail header
@@ -277,11 +276,11 @@ import kotlinx.coroutines.launch
         if (restacks > 0) {
             Spacer(Modifier.weight(1f))
             Row(
-                Modifier.clip(RoundedCornerShape(50)).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 4.dp),
+                Modifier.clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.Layers, null, tint = c.primary, modifier = Modifier.size(11.dp))
-                Text(restacks.toString(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                Icon(Icons.Default.Layers, null, tint = c.accent, modifier = Modifier.size(11.dp))
+                Text(restacks.toString(), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
             }
         }
     }
@@ -302,13 +301,13 @@ import kotlinx.coroutines.launch
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(kikoCorner(22.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(2.dp),
+        elevation = CardDefaults.cardElevation(if (c.classic) 0.dp else 2.dp),
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).pressScale(interactionSource),
     ) {
         Column {
-            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)))
+            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(topStart = kikoCorner(22.dp), topEnd = kikoCorner(22.dp))))
             Column(Modifier.padding(16.dp)) {
                 Text(stack.title, style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (stack.tags.isNotEmpty()) Box(Modifier.padding(top = 9.dp)) { StackTagsRow(stack.tags) }
@@ -336,13 +335,13 @@ import kotlinx.coroutines.launch
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(kikoCorner(22.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(2.dp),
+        elevation = CardDefaults.cardElevation(if (c.classic) 0.dp else 2.dp),
         modifier = modifier.width(250.dp).pressScale(interactionSource),
     ) {
         Column(Modifier.fillMaxHeight()) {
-            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)))
+            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(topStart = kikoCorner(22.dp), topEnd = kikoCorner(22.dp))))
             // weight(1f) lets this text block stretch to fill whatever extra height the row
             // gave the card (see the fillMaxHeight() row below), with the Spacer pushing the
             // stats row to the bottom instead of leaving it stranded right under the title.
@@ -437,10 +436,10 @@ import kotlinx.coroutines.launch
                     // Back button gets real breathing room below it before the type pill,
                     // matching the spacing every other detail header in the app uses
                     Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                        IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                         Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
                         // Open this stack in browser
-                        IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks/$stackId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) {
+                        IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks/$stackId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) {
                             Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
                         }
                     }
@@ -514,7 +513,7 @@ import kotlinx.coroutines.launch
                     val n = tracked.count { it == st }
                     if (n > 0) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(9.dp).clip(CircleShape).background(statusColor(st)))
+                            Box(Modifier.size(9.dp).clip(kikoCircleShape()).background(statusColor(st)))
                             Text("${st.label} $n", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
                         }
                     }
@@ -531,7 +530,7 @@ import kotlinx.coroutines.launch
 @Composable fun StackDetailHeaderSkeleton() {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SkeletonBlock(Modifier.width(64.dp).height(22.dp), shape = RoundedCornerShape(50))
+            SkeletonBlock(Modifier.width(64.dp).height(22.dp), shape = kikoPillShape())
             SkeletonBlock(Modifier.padding(start = 9.dp).width(96.dp).height(13.dp))
         }
         Column(Modifier.padding(top = 12.dp)) {
@@ -544,7 +543,7 @@ import kotlinx.coroutines.launch
                 SkeletonBlock(Modifier.width(90.dp).height(11.dp))
                 SkeletonBlock(Modifier.width(70.dp).height(11.dp))
             }
-            SkeletonBlock(Modifier.padding(top = 10.dp).fillMaxWidth().height(8.dp), shape = RoundedCornerShape(50))
+            SkeletonBlock(Modifier.padding(top = 10.dp).fillMaxWidth().height(8.dp), shape = kikoPillShape())
         }
         Spacer(Modifier.height(4.dp))
     }
@@ -555,7 +554,7 @@ import kotlinx.coroutines.launch
 @Composable fun StackEntryGridCardSkeleton() {
     Column(Modifier.fillMaxWidth()) {
         Box(Modifier.fillMaxWidth().aspectRatio(0.72f)) {
-            SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(16.dp))
+            SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(kikoCorner(16.dp)))
         }
         SkeletonBlock(Modifier.padding(top = 7.dp).fillMaxWidth(0.85f).height(12.dp))
         SkeletonBlock(Modifier.padding(top = 5.dp).fillMaxWidth(0.4f).height(11.dp))
@@ -572,7 +571,7 @@ import kotlinx.coroutines.launch
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(kikoCorner(18.dp)))
             .background(bg)
             .kikoCombinedClickable(
                 enabled = !loading,
@@ -582,13 +581,13 @@ import kotlinx.coroutines.launch
             .animateContentSize()
             .padding(pad)
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(0.72f).clip(RoundedCornerShape(16.dp)).background(c.surfaceLow).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp))) {
+        Box(Modifier.fillMaxWidth().aspectRatio(0.72f).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceLow).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(16.dp)))) {
             if (entry.cover.isNotBlank()) {
                 AsyncImage(model = entry.cover, contentDescription = entry.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
                 Text(entry.title.take(1), fontWeight = FontWeight.Bold, fontSize = 30.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }
-            Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
+            Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(kikoPillShape()).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
                 Text(number.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
             myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopEnd).padding(6.dp)) }
@@ -614,7 +613,7 @@ import kotlinx.coroutines.launch
                 modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
             ) {
                 Box(
-                    Modifier.size(22.dp).clip(CircleShape).background(c.primary).border(1.5.dp, Color.White.copy(alpha = .9f), CircleShape),
+                    Modifier.size(22.dp).clip(kikoCircleShape()).background(c.primary).border(1.5.dp, Color.White.copy(alpha = .9f), kikoCircleShape()),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Default.Check, "Selected", tint = c.onPrimary, modifier = Modifier.size(13.dp)) }
             }

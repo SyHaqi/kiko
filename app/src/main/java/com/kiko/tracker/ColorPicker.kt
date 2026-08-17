@@ -5,7 +5,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -85,11 +84,11 @@ private fun SaturationValueSquare(hue: Float, sat: Float, value: Float, onChange
         Modifier
             .fillMaxWidth()
             .height(180.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(kikoCorner(18.dp)))
             .background(hueColor)
             .background(Brush.horizontalGradient(listOf(Color.White, Color.White.copy(alpha = 0f))))
             .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0f), Color.Black)))
-            .border(1.dp, c.muted.copy(alpha = .18f), RoundedCornerShape(18.dp))
+            .border(1.dp, c.muted.copy(alpha = .18f), RoundedCornerShape(kikoCorner(18.dp)))
             .onSizeChanged { boxSize = it }
             .pointerInput(Unit) { detectTapGestures { update(it) } }
             .pointerInput(Unit) { detectDragGestures { change, _ -> change.consume(); update(change.position) } }
@@ -101,11 +100,11 @@ private fun SaturationValueSquare(hue: Float, sat: Float, value: Float, onChange
                     IntOffset((sat.coerceIn(0f, 1f) * boxSize.width - r).roundToInt(), ((1f - value.coerceIn(0f, 1f)) * boxSize.height - r).roundToInt())
                 }
                 .size(24.dp)
-                .clip(CircleShape)
+                .clip(kikoCircleShape())
                 .background(Color.White)
-                .border(2.dp, Color.Black.copy(alpha = .25f), CircleShape)
+                .border(2.dp, Color.Black.copy(alpha = .25f), kikoCircleShape())
                 .padding(3.dp)
-                .clip(CircleShape)
+                .clip(kikoCircleShape())
                 .background(Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, value)))),
         )
     }
@@ -128,9 +127,9 @@ private fun HueRail(hue: Float, onChange: (Float) -> Unit) {
         Modifier
             .fillMaxWidth()
             .height(28.dp)
-            .clip(RoundedCornerShape(50))
+            .clip(kikoPillShape())
             .background(Brush.horizontalGradient(rainbow))
-            .border(1.dp, c.muted.copy(alpha = .18f), RoundedCornerShape(50))
+            .border(1.dp, c.muted.copy(alpha = .18f), kikoPillShape())
             .onSizeChanged { trackWidth = it.width }
             .pointerInput(Unit) { detectTapGestures { update(it) } }
             .pointerInput(Unit) { detectDragGestures { change, _ -> change.consume(); update(change.position) } },
@@ -142,11 +141,11 @@ private fun HueRail(hue: Float, onChange: (Float) -> Unit) {
                     IntOffset(((hue / 360f) * trackWidth - r).roundToInt(), 0)
                 }
                 .size(28.dp)
-                .clip(CircleShape)
+                .clip(kikoCircleShape())
                 .background(Color.White)
-                .border(2.5.dp, Color.Black.copy(alpha = .2f), CircleShape)
+                .border(2.5.dp, Color.Black.copy(alpha = .2f), kikoCircleShape())
                 .padding(3.dp)
-                .clip(CircleShape)
+                .clip(kikoCircleShape())
                 .background(Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))),
         )
     }

@@ -27,7 +27,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -112,7 +111,7 @@ import kotlinx.coroutines.launch
                 vm.forumCategories.forEach { category ->
                     item { Text(category.title.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp)) }
                     item {
-                        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
+                        Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column {
                                 category.boards.forEachIndexed { index, board ->
                                     ForumBoardRow(board) { saveScroll(); vm.openForumBoard(context, board) }
@@ -136,7 +135,7 @@ import kotlinx.coroutines.launch
 @Composable fun ForumBoardRow(board: ForumBoard, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.primaryContainer), contentAlignment = Alignment.Center) {
             Icon(Icons.Default.Forum, null, tint = c.primary, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
@@ -144,7 +143,7 @@ import kotlinx.coroutines.launch
             if (board.description.isNotBlank()) Text(board.description, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         }
         if (board.subboards.isNotEmpty()) {
-            Box(Modifier.padding(end = 8.dp).clip(RoundedCornerShape(50)).background(c.surfaceLow).padding(horizontal = 9.dp, vertical = 4.dp)) {
+            Box(Modifier.padding(end = 8.dp).clip(kikoPillShape()).background(c.surfaceLow).padding(horizontal = 9.dp, vertical = 4.dp)) {
                 Text("${board.subboards.size} boards", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 10.sp)
             }
         }
@@ -187,7 +186,7 @@ import kotlinx.coroutines.launch
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = vm::exitForumTopics, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back to Forums", tint = c.ink) }
+                    IconButton(onClick = vm::exitForumTopics, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back to Forums", tint = c.ink) }
                     Text(headerTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
                 }
                 if (vm.forumSubboards.isNotEmpty()) {
@@ -232,9 +231,9 @@ import kotlinx.coroutines.launch
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
         if (topic.author.avatar.isNotBlank()) {
-            AsyncImage(model = topic.author.avatar, contentDescription = topic.author.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(36.dp).clip(CircleShape).background(c.warm))
+            AsyncImage(model = topic.author.avatar, contentDescription = topic.author.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(36.dp).clip(kikoCircleShape()).background(c.warm))
         } else {
-            Box(Modifier.size(36.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(36.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
                 Text(topic.author.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
             }
         }
@@ -259,7 +258,7 @@ import kotlinx.coroutines.launch
 @Composable fun NewsTopicRow(topic: ForumTopic, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.Top) {
-        Box(Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(16.dp)).background(c.surfaceLow).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceLow).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(16.dp))), contentAlignment = Alignment.Center) {
             if (topic.imageUrl != null) {
                 AsyncImage(model = topic.imageUrl, contentDescription = topic.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
@@ -333,10 +332,10 @@ import kotlinx.coroutines.launch
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = goBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    IconButton(onClick = goBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
                     // Open topic in browser
-                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/forum/?topicid=$topicId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) {
+                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/forum/?topicid=$topicId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) {
                         Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
                     }
                 }
@@ -379,20 +378,20 @@ import kotlinx.coroutines.launch
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 20.dp).padding(bottom = if (showGoToTop) 90.dp else 24.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                 Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
                 if (entry.url.isNotBlank()) {
                     // Open review in browser
-                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(entry.url)) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) {
+                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(entry.url)) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) {
                         Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
                     }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (entry.userImage.isNotBlank()) {
-                    AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(40.dp).clip(CircleShape).background(c.warm))
+                    AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(40.dp).clip(kikoCircleShape()).background(c.warm))
                 } else {
-                    Box(Modifier.size(40.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(40.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
                         Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
                     }
                 }
@@ -492,8 +491,8 @@ sealed class BbToken {
                     errorDetail = null
                 }
             },
-            modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 340.dp).clip(RoundedCornerShape(8.dp))
-                .border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(8.dp))
+            modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 340.dp).clip(RoundedCornerShape(kikoCorner(8.dp)))
+                .border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(kikoCorner(8.dp)))
                 .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {
                     if (isError) {
                         // Try the browser custom tab first — this is what every other
@@ -596,7 +595,7 @@ sealed class BbToken {
             }
             IconButton(
                 onClick = onDismiss,
-                modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = .15f)),
+                modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.White.copy(alpha = .15f)),
             ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
         }
     }
@@ -664,8 +663,8 @@ sealed class BbToken {
             }
         }
         is ForumBlock.Quote -> Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.surfaceLow).border(1.dp, c.cardBorder, RoundedCornerShape(10.dp))
-                .border(androidx.compose.foundation.BorderStroke(3.dp, c.muted.copy(alpha = .35f)), RoundedCornerShape(10.dp)).padding(12.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.surfaceLow).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(10.dp)))
+                .border(androidx.compose.foundation.BorderStroke(3.dp, c.muted.copy(alpha = .35f)), RoundedCornerShape(kikoCorner(10.dp))).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             block.blocks.forEach { nested -> ForumBlockView(nested, c, uriHandler, muted = true, onImageTap = onImageTap) }
@@ -678,9 +677,9 @@ sealed class BbToken {
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
         if (post.author.avatar.isNotBlank()) {
-            AsyncImage(model = post.author.avatar, contentDescription = post.author.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(38.dp).clip(CircleShape).background(c.warm))
+            AsyncImage(model = post.author.avatar, contentDescription = post.author.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(38.dp).clip(kikoCircleShape()).background(c.warm))
         } else {
-            Box(Modifier.size(38.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(38.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
                 Text(post.author.name.take(1).ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
             }
         }
@@ -688,7 +687,7 @@ sealed class BbToken {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(post.author.name.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink)
                 if (isOriginalPost) {
-                    Box(Modifier.padding(start = 8.dp).clip(RoundedCornerShape(50)).background(c.primary).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                    Box(Modifier.padding(start = 8.dp).clip(kikoPillShape()).background(c.primary).padding(horizontal = 7.dp, vertical = 2.dp)) {
                         Text("OP", color = c.onPrimary, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                     }
                 } else {
@@ -705,7 +704,7 @@ sealed class BbToken {
 @Composable fun ForumPollCard(poll: ForumPoll, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     val totalVotes = poll.options.sumOf { it.votes }.coerceAtLeast(1)
-    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = modifier.fillMaxWidth()) {
+    Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(poll.question, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
             Spacer(Modifier.height(10.dp))
@@ -716,8 +715,8 @@ sealed class BbToken {
                         Text(opt.text, color = c.ink, fontSize = 13.sp, modifier = Modifier.weight(1f, fill = false))
                         Text("${opt.votes}", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
                     }
-                    Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(6.dp).clip(RoundedCornerShape(50)).background(c.surfaceLow)) {
-                        Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().clip(RoundedCornerShape(50)).background(c.primary))
+                    Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(6.dp).clip(kikoPillShape()).background(c.surfaceLow)) {
+                        Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().clip(kikoPillShape()).background(c.primary))
                     }
                 }
             }

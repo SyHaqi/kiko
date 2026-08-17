@@ -285,6 +285,9 @@ class LibraryViewModel : ViewModel() {
     // NSFW off by default
     var nsfwEnabled by mutableStateOf(false); private set
     var amoledDark by mutableStateOf(false); private set
+    // "Classic UI" — reskins the app to mirror MyAnimeList's actual current site (see
+    // ClassicKiko in Theme.kt) instead of the normal Material palette/shapes.
+    var classicUi by mutableStateOf(false); private set
     // User profile stats
     var malProfile by mutableStateOf<MalProfile?>(null); private set
     var profileLoading by mutableStateOf(false); private set
@@ -488,6 +491,8 @@ class LibraryViewModel : ViewModel() {
     fun setNsfw(context: Context, enabled: Boolean) { nsfwEnabled = enabled; settingsPrefs(context).edit().putBoolean("nsfw_enabled", enabled).apply() }
     fun loadAmoledDark(context: Context) { amoledDark = settingsPrefs(context).getBoolean("amoled_dark", false) }
     fun setAmoledDark(context: Context, enabled: Boolean) { amoledDark = enabled; settingsPrefs(context).edit().putBoolean("amoled_dark", enabled).apply() }
+    fun loadClassicUi(context: Context) { classicUi = settingsPrefs(context).getBoolean("classic_ui", false) }
+    fun setClassicUi(context: Context, enabled: Boolean) { classicUi = enabled; settingsPrefs(context).edit().putBoolean("classic_ui", enabled).apply() }
 
     // Load profile and stats
     fun loadProfile(context: Context) {

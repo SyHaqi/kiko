@@ -88,18 +88,28 @@ import kotlinx.coroutines.launch
     ) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
+                // Classic mode used to open under a solid nav-bar-blue band, mirroring MAL's
+                // own homepage — but that flat color block reads as a stray banner sitting on
+                // top of everything else, so the title now blends into the page like every
+                // other header in the app, and the avatar just floats on the same background.
                 AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
                 Column(Modifier.padding(horizontal = 20.dp)) {
                     // Use device current date
-                    Text(
-                        java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault()),
-                        color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
-                    )
+                    if (!c.classic) {
+                        Text(
+                            java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault()),
+                            color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
+                        )
+                    }
+                    // Classic: the day/date used to sit under the header band on its own line.
+                    // That line's gone now, so it rides along in the "Airing next" title instead —
+                    // the two swap back and forth in place rather than both needing their own row.
+                    val todayLabel = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault())
                     if (airingNext.isNotEmpty()) {
-                        SectionTitle("Airing next", "See all") { onSchedule(today) }
+                        SectionTitle("Airing next", "See all", click = { onSchedule(today) }, alternateTitle = todayLabel)
                         AiringNextRow(airingNext, vm, trackedOpenDetail)
                     } else if (vm.discoverBrowseLoading) {
-                        SectionTitle("Airing next", "See all") { onSchedule(today) }
+                        SectionTitle("Airing next", "See all", click = { onSchedule(today) }, alternateTitle = todayLabel)
                         AiringNextRowSkeleton()
                     }
                     // Most recently updated in-progress title
@@ -143,7 +153,23 @@ import kotlinx.coroutines.launch
 // Airing next row order
 
 @Composable fun AiringNextRow(items: List<MediaItem>, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) { items(items, key = { it.id }) { AiringNextCard(it, vm, onOpenDetail) } }
+    val c = LocalKikoColors.current
+    if (c.classic) {
+        // MAL's own "Top Airing Anime" panel is a boxed list with hairline row dividers
+        // and zero gap between rows — no card shadows, no spacing. Mirrored here as a
+        // horizontal filmstrip: one shared outer border, a 1dp divider between frames
+        // instead of a gap, so consecutive cards actually touch.
+        LazyRow(Modifier.fillMaxWidth().border(1.dp, c.cardBorder), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+            itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
+                Row(Modifier.height(IntrinsicSize.Min)) {
+                    if (index > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(c.cardBorder))
+                    AiringNextCard(item, vm, onOpenDetail)
+                }
+            }
+        }
+    } else {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) { items(items, key = { it.id }) { AiringNextCard(it, vm, onOpenDetail) } }
+    }
 }
 // Airing next card layout
 
@@ -166,7 +192,9 @@ import kotlinx.coroutines.launch
     Card(
         onClick = { onOpenDetail(item) },
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), elevation = CardDefaults.cardElevation(4.dp),
+        shape = RoundedCornerShape(kikoCorner(22.dp)), colors = CardDefaults.cardColors(containerColor = c.surface),
+        border = if (c.classic) null else BorderStroke(1.dp, c.cardBorder),
+        elevation = CardDefaults.cardElevation(if (c.classic) 0.dp else 4.dp),
         modifier = Modifier.width(264.dp).pressScale(interactionSource),
     ) {
         Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -175,10 +203,10 @@ import kotlinx.coroutines.launch
                 Text(item.displayTitle(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.Top) {
-                    Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(13.dp).padding(top = 1.dp))
+                    Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(13.dp).padding(top = 1.dp))
                     Text(
                         listOfNotNull(item.nextEpisodeLabel(confirmedEpisode), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
-                        color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
+                        color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
                     )
                 }
             }
@@ -190,16 +218,62 @@ import kotlinx.coroutines.launch
 @Composable fun HomeActionButton(modifier: Modifier = Modifier, label: String, icon: ImageVector, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Row(
-        modifier.clip(RoundedCornerShape(18.dp)).background(c.primaryContainer).kikoClickable(onClick = onClick).padding(vertical = 15.dp, horizontal = 14.dp),
+        modifier.clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.primaryContainer).kikoClickable(onClick = onClick).padding(vertical = 15.dp, horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, null, tint = c.primary, modifier = Modifier.size(19.dp))
-        Text(label, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.primary, modifier = Modifier.padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Icon(icon, null, tint = c.accent, modifier = Modifier.size(19.dp))
+        Text(label, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.accent, modifier = Modifier.padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
-@Composable fun SectionTitle(title: String, action: String, click: () -> Unit) { val c = LocalKikoColors.current; Row(Modifier.fillMaxWidth().padding(top = 29.dp, bottom = 13.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(title, style = MaterialTheme.typography.headlineSmall, color = c.ink); TextButton(onClick = click) { Text(action, fontWeight = FontWeight.Bold, color = c.primary) } } }
+// alternateTitle: classic-only. When set, the title periodically crossfades between `title`
+// and `alternateTitle` instead of sitting static — used to fold the day/date into the "Airing
+// next" header now that it no longer has its own line under the blue band.
+@Composable fun SectionTitle(title: String, action: String, click: () -> Unit, alternateTitle: String? = null) {
+    val c = LocalKikoColors.current
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            // Classic: pull the title down closer to its own rule (was 8dp) — the rule below
+            // is now what separates title from content, so title-to-rule should read tighter
+            // than rule-to-content does.
+            Modifier.fillMaxWidth().padding(top = if (c.classic) 22.dp else 29.dp, bottom = if (c.classic) 4.dp else 13.dp),
+            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (c.classic) {
+                if (alternateTitle != null) {
+                    // Swap every few seconds rather than on any particular event — a plain
+                    // timed loop, so the title is never left mid-fade if this leaves composition.
+                    var showAlternate by remember { mutableStateOf(false) }
+                    LaunchedEffect(alternateTitle) {
+                        while (true) {
+                            kotlinx.coroutines.delay(4000)
+                            showAlternate = !showAlternate
+                        }
+                    }
+                    AnimatedContent(
+                        targetState = showAlternate,
+                        transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(400)) },
+                        label = "sectionTitleSwap",
+                    ) { alt ->
+                        Text(if (alt) alternateTitle else title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+                    }
+                } else {
+                    Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+                }
+                TextButton(onClick = click, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text(action, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.accent) }
+            } else {
+                Text(title, style = MaterialTheme.typography.headlineSmall, color = c.ink)
+                TextButton(onClick = click) { Text(action, fontWeight = FontWeight.Bold, color = c.accent) }
+            }
+        }
+        // Classic mode: title sits above the rule, like MAL's own section headers, rather
+        // than the rule announcing the section from above. Bottom padding on the rule itself
+        // (rather than relying on the next composable's own spacing) keeps it from butting
+        // straight up against whatever card/row follows.
+        if (c.classic) HorizontalDivider(thickness = 1.dp, color = c.cardBorder, modifier = Modifier.padding(bottom = 10.dp))
+    }
+}
 
 // Inline "Continue" card, docked under Airing Next — the same row style and size used for
 // entries in My List (ListRow below), just wrapped in a card so it stands out as its own
@@ -210,9 +284,9 @@ import kotlinx.coroutines.launch
 @Composable fun ContinueCard(item: MediaItem, vm: LibraryViewModel, onClick: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(kikoCorner(20.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(2.dp),
+        elevation = CardDefaults.cardElevation(if (c.classic) 0.dp else 2.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
         ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = Modifier.padding(horizontal = 14.dp), vm = vm)
@@ -235,11 +309,13 @@ import kotlinx.coroutines.launch
 // Snapshot card title overlay
 
 @Composable fun SnapshotCard(snapshot: NewsSnapshot, tall: Boolean, onOpenTopic: (Int, String) -> Unit) {
+    val c = LocalKikoColors.current
     Box(
         Modifier
             .fillMaxWidth()
             .height(if (tall) 210.dp else 160.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(kikoCorner(18.dp)))
+            .then(if (c.classic) Modifier.border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(18.dp))) else Modifier)
             .kikoClickable { onOpenTopic(snapshot.topicId, snapshot.title) },
     ) {
         AsyncImage(model = snapshot.imageUrl, contentDescription = snapshot.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
@@ -301,16 +377,16 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
-            Modifier.clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(12.dp)).kikoClickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+            Modifier.clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(12.dp))).kikoClickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Sort, "Sort", tint = c.primary, modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
             Text(current.label, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surface) {
             ListSort.entries.forEach { s ->
                 DropdownMenuItem(
-                    text = { Text(s.label, color = if (s == current) c.primary else c.ink, fontWeight = if (s == current) FontWeight.Bold else FontWeight.Normal) },
+                    text = { Text(s.label, color = if (s == current) c.accent else c.ink, fontWeight = if (s == current) FontWeight.Bold else FontWeight.Normal) },
                     onClick = { onSelect(s); open = false },
                 )
             }
@@ -324,16 +400,16 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box(modifier) {
         Row(
-            Modifier.clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(12.dp)).kikoClickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+            Modifier.clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(12.dp))).kikoClickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Sort, "Sort", tint = c.primary, modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
             Text(current.label, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surface) {
             DiscoverSort.entries.forEach { s ->
                 DropdownMenuItem(
-                    text = { Text(s.label, color = if (s == current) c.primary else c.ink, fontWeight = if (s == current) FontWeight.Bold else FontWeight.Normal) },
+                    text = { Text(s.label, color = if (s == current) c.accent else c.ink, fontWeight = if (s == current) FontWeight.Bold else FontWeight.Normal) },
                     onClick = { onSelect(s); open = false },
                 )
             }
@@ -376,11 +452,11 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         }
     }
     val header: @Composable () -> Unit = {
-        AppHeader("My list", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
-        if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+        // Type switcher lives in the header itself now (tap the title to open Anime/Manga menu)
+        // instead of a separate full-width toggle row underneath — saves vertical space.
+        TypeSwitcherHeader(typeTab, { vm.selectListTypeTab(it) }, 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
+        if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
         SearchField(query, { query = it }, "Search your list", onSearch = { submittedQuery = query }, onClear = { query = ""; submittedQuery = "" })
-        // Reset scroll on change
-        TypeToggle(typeTab) { vm.selectListTypeTab(it) }
         FilterRow(effectiveFilter, { vm.setListFilter(context, it) }, typeTab)
         Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
@@ -449,7 +525,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     val c = LocalKikoColors.current
     Box(
         Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(kikoCorner(12.dp)))
             .background(c.surface)
             .kikoClickable { onSelect(if (current == ListViewMode.List) ListViewMode.Grid else ListViewMode.List) }
             .padding(horizontal = 9.dp, vertical = 7.dp),
@@ -458,7 +534,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         Icon(
             if (current == ListViewMode.List) Icons.Default.GridView else Icons.Default.ViewList,
             contentDescription = if (current == ListViewMode.List) "Switch to grid view" else "Switch to list view",
-            tint = c.primary, modifier = Modifier.size(16.dp),
+            tint = c.accent, modifier = Modifier.size(16.dp),
         )
     }
 }
@@ -472,7 +548,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(kikoCorner(18.dp)))
             .background(bg)
             .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
@@ -495,7 +571,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         // distracting, so the "2 of ? chapters" text below carries that case on its own.
         Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp)) {
             if (onIncrement != null && item.total > 0) {
-                LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(4.dp)), color = statusColor(item.status), trackColor = c.surfaceLow)
+                LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))), color = statusColor(item.status), trackColor = c.surfaceLow)
             }
         }
         // Small always-on inset (independent of the selection `pad`) so the rounded 18dp
@@ -536,7 +612,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     Row(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(kikoCorner(16.dp)))
             .background(bg)
             .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
@@ -557,13 +633,13 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 }
             }
             if (item.total > 0) {
-                LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth(0.75f).padding(top = 9.dp).height(4.dp).clip(RoundedCornerShape(4.dp)), color = statusColor(item.status), trackColor = c.surfaceLow)
+                LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth(0.75f).padding(top = 9.dp).height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))), color = statusColor(item.status), trackColor = c.surfaceLow)
             }
             Text(progressLabel(item), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
             item.nextEpisodeLabel(confirmedEpisode)?.let { label ->
                 Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
-                    Text(label, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                    Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(12.dp))
+                    Text(label, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
                 }
             }
         }
@@ -573,8 +649,8 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             FilledTonalButton(
                 onClick = { val next = (item.progress + 1).let { p -> if (item.total > 0) minOf(p, item.total) else p }; onIncrement(item.copy(progress = next)) },
                 enabled = !atMax,
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(containerColor = c.primaryContainer, contentColor = c.primary),
+                shape = RoundedCornerShape(kikoCorner(12.dp)),
+                colors = ButtonDefaults.filledTonalButtonColors(containerColor = c.primaryContainer, contentColor = c.accent),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
             ) { Text("+1", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
         } else if (showChevron) {

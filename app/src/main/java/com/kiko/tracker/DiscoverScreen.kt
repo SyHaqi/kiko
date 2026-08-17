@@ -28,7 +28,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -280,9 +279,9 @@ import kotlinx.coroutines.launch
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(kikoCorner(16.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(2.dp),
+        elevation = CardDefaults.cardElevation(if (c.classic) 0.dp else 2.dp),
         modifier = modifier.pressScale(interactionSource)
     ) {
         Row(
@@ -337,7 +336,7 @@ import kotlinx.coroutines.launch
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onExitResults, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink) }
+                    IconButton(onClick = onExitResults, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink) }
                     Text("Search results", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
                 }
                 Row(
@@ -415,7 +414,7 @@ import kotlinx.coroutines.launch
 @Composable fun FilterIconButton(active: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     Box(
-        modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(if (active) c.primary else c.surface).kikoClickable(onClick = onClick),
+        modifier.size(52.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (active) c.primary else c.surface).kikoClickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(Icons.Default.Tune, "Advanced filters", tint = if (active) c.onPrimary else c.ink) }
 }
@@ -426,13 +425,13 @@ import kotlinx.coroutines.launch
     var expanded by remember(title) { mutableStateOf(selected.isNotEmpty()) }
     Column(Modifier.fillMaxWidth().padding(top = 18.dp).animateContentSize()) {
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { expanded = !expanded }.padding(vertical = 8.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(12.dp))).clickable { expanded = !expanded }.padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 if (selected.isNotEmpty()) {
-                    Box(Modifier.padding(start = 8.dp).clip(CircleShape).background(c.primary).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                    Box(Modifier.padding(start = 8.dp).clip(kikoCircleShape()).background(c.primary).padding(horizontal = 7.dp, vertical = 2.dp)) {
                         Text(selected.size.toString(), color = c.onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
@@ -500,7 +499,7 @@ import kotlinx.coroutines.launch
             Text(creatorLabel, color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
             OutlinedTextField(
                 value = creator, onValueChange = { creator = it }, placeholder = { Text(creatorHint, color = c.muted) }, singleLine = true,
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(kikoCorner(14.dp)),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.cardBorder, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -518,7 +517,7 @@ import kotlinx.coroutines.launch
                     OutlinedTextField(
                         value = year, onValueChange = { year = it.filter(Char::isDigit).take(4) }, placeholder = { Text("e.g. 2023", color = c.muted) }, singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(kikoCorner(14.dp)),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.cardBorder, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -560,7 +559,7 @@ import kotlinx.coroutines.launch
     Column(
         Modifier
             .width(118.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(kikoCorner(14.dp)))
             .background(bg)
             .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
@@ -584,7 +583,7 @@ import kotlinx.coroutines.launch
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(kikoCorner(16.dp)))
             .background(bg)
             .kikoCombinedClickable(
                 enabled = !loading,
@@ -598,7 +597,7 @@ import kotlinx.coroutines.launch
             Cover(item, Modifier.fillMaxSize(), showStatus = true, selected = isSelected)
             if (item.score > 0) {
                 Row(
-                    Modifier.align(Alignment.BottomStart).padding(6.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 6.dp, vertical = 3.dp),
+                    Modifier.align(Alignment.BottomStart).padding(6.dp).clip(RoundedCornerShape(kikoCorner(8.dp))).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 6.dp, vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
@@ -606,7 +605,7 @@ import kotlinx.coroutines.launch
                 }
             }
             if (loading) {
-                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
                 }
             }
@@ -665,7 +664,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Text("You might like", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
                 }
             }
@@ -701,7 +700,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(kikoCorner(14.dp)))
             .background(bg)
             .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },

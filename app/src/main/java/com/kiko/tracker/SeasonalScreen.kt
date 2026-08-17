@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -76,7 +75,7 @@ import kotlinx.coroutines.launch
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column {
                     Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = handleBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                        IconButton(onClick = handleBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                         Column(Modifier.padding(start = 12.dp)) {
                             Text("Seasonal Chart", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             Text("${vm.seasonalSeason.label} ${vm.seasonalYear}", style = MaterialTheme.typography.titleLarge, color = c.ink)
@@ -131,7 +130,7 @@ import kotlinx.coroutines.launch
     val dayItems = byDay.filter { it.second == selectedDay }.sortedBy { it.third }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Release Schedule", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         val dayListState = rememberLazyListState(initialFirstVisibleItemIndex = java.time.DayOfWeek.values().indexOf(initialDay))
@@ -167,9 +166,9 @@ import kotlinx.coroutines.launch
     Card(
         onClick = { onOpenDetail(item) },
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(kikoCorner(22.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(2.dp),
+        elevation = CardDefaults.cardElevation(if (c.classic) 0.dp else 2.dp),
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).pressScale(interactionSource),
     ) {
         Row(Modifier.padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -178,7 +177,7 @@ import kotlinx.coroutines.launch
                 Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${formatLabel(item)} · ${item.genre}", color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
                 Row(
-                    Modifier.padding(top = 9.dp).clip(RoundedCornerShape(10.dp)).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 5.dp),
+                    Modifier.padding(top = 9.dp).clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
@@ -207,7 +206,7 @@ import kotlinx.coroutines.launch
             // Compact season stepper control
             Text("${pendingSeason.label} $pendingYear", style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.padding(bottom = 10.dp))
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(20.dp)).padding(horizontal = 4.dp, vertical = 6.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(20.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(20.dp))).padding(horizontal = 4.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 val (py, ps) = stepSeason(pendingYear, pendingSeason, forward = false)
@@ -243,7 +242,7 @@ import kotlinx.coroutines.launch
 
             // Continuing titles filter toggle
             Row(
-                Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp))
+                Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(16.dp)))
                     .kikoClickable { pendingContinuing = !pendingContinuing }
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -292,7 +291,7 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
 
 @Composable fun SeasonIconButton(selected: Boolean, season: SeasonName, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Box(Modifier.size(46.dp).clip(CircleShape).background(if (selected) c.primary else Color.Transparent).kikoClickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(46.dp).clip(kikoCircleShape()).background(if (selected) c.primary else Color.Transparent).kikoClickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(season.icon, season.label, tint = if (selected) c.onPrimary else c.muted, modifier = Modifier.size(21.dp))
     }
 }

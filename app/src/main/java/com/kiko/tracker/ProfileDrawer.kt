@@ -13,7 +13,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
@@ -105,18 +104,18 @@ import kotlinx.coroutines.delay
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = menuTopPad, end = menuEndPad).widthIn(max = 280.dp),
             ) {
                 Column(
-                    Modifier.shadow(16.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(c.background).padding(8.dp),
+                    Modifier.shadow(16.dp, RoundedCornerShape(kikoCorner(24.dp))).clip(RoundedCornerShape(kikoCorner(24.dp))).background(c.background).padding(8.dp),
                 ) {
                     // Row 1 — avatar + name, opens the full profile stats page
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp))
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(18.dp)))
                             .kikoClickable { visible = false; onOpenProfile() }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (profile?.picture?.isNotBlank() == true) {
-                            AsyncImage(model = profile.picture, contentDescription = profile.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(CircleShape).background(c.warm))
+                            AsyncImage(model = profile.picture, contentDescription = profile.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(kikoCircleShape()).background(c.warm))
                         } else {
-                            Box(Modifier.size(43.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(43.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
                                 Text(profile?.name?.take(1)?.uppercase()?.ifBlank { "M" } ?: "M", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = c.ink)
                             }
                         }
@@ -131,11 +130,11 @@ import kotlinx.coroutines.delay
 
                     // Row 2 — Settings, opens the full settings page
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp))
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(18.dp)))
                             .kikoClickable { visible = false; onOpenSettings() }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(Modifier.size(43.dp).clip(RoundedCornerShape(14.dp)).background(c.primaryContainer), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.primaryContainer), contentAlignment = Alignment.Center) {
                             Icon(Icons.Default.Settings, null, tint = c.primary, modifier = Modifier.size(20.dp))
                         }
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {

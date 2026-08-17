@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.sp
                 if (downloading) {
                     val progress = downloadProgress ?: 0f
                     Text("Downloading update…", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
-                    LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(50)), color = c.primary, trackColor = c.surfaceLow)
+                    LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().clip(kikoPillShape()), color = c.primary, trackColor = c.surfaceLow)
                     Text("${(progress * 100).toInt()}%", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
                 } else {
                     Text(info.notes.ifBlank { "No release notes provided." }, color = c.muted, fontSize = 13.sp)
@@ -107,7 +107,7 @@ import androidx.compose.ui.unit.sp
                     Modifier
                         .heightIn(max = 240.dp)
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(kikoCorner(14.dp)))
                         .background(c.surfaceLow)
                         .verticalScroll(rememberScrollState())
                         .padding(12.dp),
@@ -132,7 +132,7 @@ import androidx.compose.ui.unit.sp
             Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Choose a theme", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             ThemeMode.entries.forEach { mode ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(if (mode == current) c.primaryContainer else c.surface).kikoClickable { onSelect(mode) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (mode == current) c.primaryContainer else c.surface).kikoClickable { onSelect(mode) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
                         Text(mode.label, fontWeight = FontWeight.Bold, color = c.ink)
                         Text(when (mode) { ThemeMode.System -> "Matches your device setting"; ThemeMode.Light -> "Always light"; ThemeMode.Dark -> "Always dark" }, color = c.muted, fontSize = 12.sp)
@@ -151,7 +151,7 @@ import androidx.compose.ui.unit.sp
             Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Choose a color", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             ColorSource.entries.forEach { source ->
-                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(if (source == current) c.primaryContainer else c.surface).animateContentSize()) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (source == current) c.primaryContainer else c.surface).animateContentSize()) {
                     Row(
                         Modifier.fillMaxWidth().kikoClickable { onSelect(source); if (source != ColorSource.Custom) onDismiss() }.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
@@ -180,7 +180,7 @@ import androidx.compose.ui.unit.sp
                             )
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).background(if (valid) liveColor else c.surfaceLow).border(1.dp, c.muted.copy(alpha = .4f), RoundedCornerShape(6.dp)))
+                                Box(Modifier.size(22.dp).clip(RoundedCornerShape(kikoCorner(6.dp))).background(if (valid) liveColor else c.surfaceLow).border(1.dp, c.muted.copy(alpha = .4f), RoundedCornerShape(kikoCorner(6.dp))))
                                 OutlinedTextField(
                                     value = customHex, onValueChange = { onCustomHexChange(it.take(7)) },
                                     modifier = Modifier.weight(1f).padding(start = 12.dp),
@@ -205,7 +205,7 @@ import androidx.compose.ui.unit.sp
             Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Choose a color palette", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             PaletteStyle.entries.forEach { style ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(if (style == current) c.primaryContainer else c.surface).kikoClickable { onSelect(style) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (style == current) c.primaryContainer else c.surface).kikoClickable { onSelect(style) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
                         Text(style.label, fontWeight = FontWeight.Bold, color = c.ink)
                         Text(
@@ -231,7 +231,7 @@ import androidx.compose.ui.unit.sp
             Text("Preferences", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Title language", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             TitleLanguage.entries.forEach { lang ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(if (lang == current) c.primaryContainer else c.surface).kikoClickable { onSelect(lang) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (lang == current) c.primaryContainer else c.surface).kikoClickable { onSelect(lang) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
                         Text(lang.label, fontWeight = FontWeight.Bold, color = c.ink)
                         Text(when (lang) { TitleLanguage.Romaji -> "e.g. Sousou no Frieren"; TitleLanguage.English -> "e.g. Frieren: Beyond Journey's End" }, color = c.muted, fontSize = 12.sp)

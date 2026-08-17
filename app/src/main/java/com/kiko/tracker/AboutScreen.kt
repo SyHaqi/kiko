@@ -15,7 +15,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -55,14 +54,14 @@ import kotlin.math.roundToInt
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(13.dp))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("About", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         Column(Modifier.fillMaxWidth().padding(top = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (appIcon != null) {
-                Image(bitmap = appIcon, contentDescription = "Kiko", modifier = Modifier.size(88.dp).clip(RoundedCornerShape(24.dp)))
+                Image(bitmap = appIcon, contentDescription = "Kiko", modifier = Modifier.size(88.dp).clip(RoundedCornerShape(kikoCorner(24.dp))))
             } else {
-                Box(Modifier.size(88.dp).clip(RoundedCornerShape(24.dp)).background(c.primaryContainer))
+                Box(Modifier.size(88.dp).clip(RoundedCornerShape(kikoCorner(24.dp))).background(c.primaryContainer))
             }
             Text("Kiko", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 14.dp))
             Text("Version ${BuildConfig.VERSION_NAME}", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
@@ -85,21 +84,21 @@ import kotlin.math.roundToInt
             leadingContent = {
                 Box {
                     Icon(Icons.Default.SystemUpdate, null, tint = c.primary)
-                    if (updateInfo != null) Box(Modifier.size(8.dp).align(Alignment.TopEnd).clip(CircleShape).background(c.danger))
+                    if (updateInfo != null) Box(Modifier.size(8.dp).align(Alignment.TopEnd).clip(kikoCircleShape()).background(c.danger))
                 }
             },
             trailingContent = { if (updateChecking) CircularProgressIndicator(Modifier.size(18.dp), color = c.primary, strokeWidth = 2.dp) else Icon(Icons.Default.ChevronRight, null, tint = c.muted) },
             colors = ListItemDefaults.colors(containerColor = c.surface),
-            modifier = Modifier.clip(RoundedCornerShape(16.dp)).kikoClickable(enabled = !updateChecking, onClick = onCheckForUpdate),
+            modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !updateChecking, onClick = onCheckForUpdate),
         )
         Spacer(Modifier.height(28.dp))
         // Community links row
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://github.com/SyHaqi/kiko")) }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp))) {
+            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://github.com/SyHaqi/kiko")) }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(16.dp)))) {
                 Icon(painterResource(R.drawable.ic_github), "GitHub", tint = c.ink)
             }
             Spacer(Modifier.width(24.dp))
-            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://discord.gg/KZYQHpDWKH")) }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp))) {
+            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://discord.gg/KZYQHpDWKH")) }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(16.dp)))) {
                 Icon(painterResource(R.drawable.ic_discord), "Discord", tint = c.ink)
             }
         }
@@ -109,7 +108,7 @@ import kotlin.math.roundToInt
 // One headline stat number
 
 @Composable fun HeroStat(modifier: Modifier = Modifier, icon: ImageVector, label: String, value: String, container: Color, content: Color) {
-    Column(modifier.clip(RoundedCornerShape(18.dp)).background(container).padding(horizontal = 12.dp, vertical = 14.dp)) {
+    Column(modifier.clip(RoundedCornerShape(kikoCorner(18.dp))).background(container).padding(horizontal = 12.dp, vertical = 14.dp)) {
         Icon(icon, null, tint = content, modifier = Modifier.size(18.dp))
         Spacer(Modifier.height(10.dp))
         Text(value, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = content)
@@ -126,8 +125,8 @@ import kotlin.math.roundToInt
             Text(value.toString(), color = barColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
         Spacer(Modifier.height(7.dp))
-        Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)).background(c.surfaceLow)) {
-            Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().clip(RoundedCornerShape(50)).background(barColor))
+        Box(Modifier.fillMaxWidth().height(8.dp).clip(kikoPillShape()).background(c.surfaceLow)) {
+            Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().clip(kikoPillShape()).background(barColor))
         }
     }
 }
@@ -142,7 +141,7 @@ import kotlin.math.roundToInt
 
 @Composable fun SegmentedStatBar(segments: List<Pair<Int, Color>>, c: KikoColors) {
     val total = segments.sumOf { it.first }
-    Box(Modifier.fillMaxWidth().height(9.dp).clip(RoundedCornerShape(50)).background(c.surfaceLow)) {
+    Box(Modifier.fillMaxWidth().height(9.dp).clip(kikoPillShape()).background(c.surfaceLow)) {
         if (total > 0) {
             Row(Modifier.fillMaxSize()) {
                 segments.forEach { (value, color) -> if (value > 0) Box(Modifier.weight(value.toFloat()).fillMaxHeight().background(color)) }
@@ -153,7 +152,7 @@ import kotlin.math.roundToInt
 
 @Composable fun StatusLegendRow(label: String, value: Int, color: Color, c: KikoColors) {
     Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+        Box(Modifier.size(10.dp).clip(kikoCircleShape()).background(color))
         Spacer(Modifier.width(9.dp))
         Text(label, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
         Text(value.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -245,13 +244,13 @@ fun chartColor(c: KikoColors, index: Int): Color = ChartPalette[index % ChartPal
 @Composable fun FormatLegendRow(label: String, count: Int, total: Int, color: Color, c: KikoColors) {
     val pct = if (total > 0) (count * 100f / total).roundToInt() else 0
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+        Box(Modifier.size(10.dp).clip(kikoCircleShape()).background(color))
         Spacer(Modifier.width(9.dp))
         Text(label, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(8.dp))
         Text(count.toString(), color = c.muted, fontSize = 12.sp)
         Spacer(Modifier.width(6.dp))
-        Box(Modifier.clip(RoundedCornerShape(50)).background(c.surfaceLow).padding(horizontal = 8.dp, vertical = 2.dp)) {
+        Box(Modifier.clip(kikoPillShape()).background(c.surfaceLow).padding(horizontal = 8.dp, vertical = 2.dp)) {
             Text("$pct%", color = color, fontWeight = FontWeight.Bold, fontSize = 11.sp)
         }
     }
@@ -289,7 +288,7 @@ fun scoreBarColor(c: KikoColors, score: Int): Color {
                 Box(Modifier.fillMaxWidth().height(barSlotHeight), contentAlignment = Alignment.BottomCenter) {
                     Box(
                         Modifier.fillMaxWidth().height((count.toFloat() / maxCount * barSlotHeight.value).dp.coerceAtLeast(if (count > 0) 4.dp else 1.dp))
-                            .clip(RoundedCornerShape(4.dp)).background(if (count > 0) scoreBarColor(c, score) else c.surfaceLow)
+                            .clip(RoundedCornerShape(kikoCorner(4.dp))).background(if (count > 0) scoreBarColor(c, score) else c.surfaceLow)
                     )
                 }
                 Spacer(Modifier.height(4.dp))
@@ -332,7 +331,7 @@ val YearBarColor = Color(0xFF6C56D9) // fixed violet, unrelated to the user's ch
                 Box(Modifier.fillMaxWidth().height(barSlotHeight), contentAlignment = Alignment.BottomCenter) {
                     Box(
                         Modifier.fillMaxWidth().height((count.toFloat() / maxCount * barSlotHeight.value).dp.coerceAtLeast(if (count > 0) 4.dp else 1.dp))
-                            .clip(RoundedCornerShape(4.dp)).background(if (count > 0) YearBarColor else c.surfaceLow)
+                            .clip(RoundedCornerShape(kikoCorner(4.dp))).background(if (count > 0) YearBarColor else c.surfaceLow)
                     )
                 }
                 Spacer(Modifier.height(4.dp))

@@ -125,7 +125,7 @@ fun StaggeredItem(index: Int, seen: MutableSet<Int>? = null, modifier: Modifier 
 @Composable
 fun ListRowSkeleton(modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-        SkeletonBlock(Modifier.size(width = 84.dp, height = 118.dp), shape = RoundedCornerShape(16.dp))
+        SkeletonBlock(Modifier.size(width = 84.dp, height = 118.dp), shape = RoundedCornerShape(kikoCorner(16.dp)))
         Column(Modifier.padding(start = 16.dp).weight(1f)) {
             SkeletonBlock(Modifier.fillMaxWidth(0.75f).height(16.dp))
             SkeletonBlock(Modifier.padding(top = 10.dp).fillMaxWidth(0.45f).height(12.dp))
@@ -139,7 +139,7 @@ fun ListRowSkeleton(modifier: Modifier = Modifier) {
 @Composable
 fun ListGridCardSkeleton(modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth()) {
-        SkeletonBlock(Modifier.fillMaxWidth().height(160.dp), shape = RoundedCornerShape(18.dp))
+        SkeletonBlock(Modifier.fillMaxWidth().height(160.dp), shape = RoundedCornerShape(kikoCorner(18.dp)))
         SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.85f).height(13.dp))
         SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.4f).height(10.dp))
     }
@@ -157,7 +157,7 @@ fun ListRowSkeletonGroup(count: Int = 6) {
 @Composable
 fun TopicRowSkeleton(modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
-        SkeletonBlock(Modifier.size(36.dp), shape = androidx.compose.foundation.shape.CircleShape)
+        SkeletonBlock(Modifier.size(36.dp), shape = kikoCircleShape())
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
             SkeletonBlock(Modifier.fillMaxWidth(0.8f).height(14.dp))
             SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.5f).height(11.dp))
@@ -180,12 +180,12 @@ fun ContinueCardSkeleton(modifier: Modifier = Modifier) {
     Row(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(kikoCorner(20.dp)))
             .background(c.surface)
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SkeletonBlock(Modifier.size(width = 84.dp, height = 118.dp), shape = RoundedCornerShape(16.dp))
+        SkeletonBlock(Modifier.size(width = 84.dp, height = 118.dp), shape = RoundedCornerShape(kikoCorner(16.dp)))
         Column(Modifier.padding(start = 16.dp).weight(1f)) {
             SkeletonBlock(Modifier.fillMaxWidth(0.7f).height(16.dp))
             SkeletonBlock(Modifier.padding(top = 10.dp).fillMaxWidth(0.4f).height(12.dp))
@@ -201,12 +201,12 @@ fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
     Row(
         modifier
             .width(264.dp)
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(kikoCorner(22.dp)))
             .background(c.surface)
             .padding(13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SkeletonBlock(Modifier.size(width = 78.dp, height = 110.dp), shape = RoundedCornerShape(16.dp))
+        SkeletonBlock(Modifier.size(width = 78.dp, height = 110.dp), shape = RoundedCornerShape(kikoCorner(16.dp)))
         Column(Modifier.padding(start = 13.dp).weight(1f)) {
             SkeletonBlock(Modifier.fillMaxWidth(0.85f).height(14.dp))
             SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.5f).height(14.dp))
@@ -230,12 +230,12 @@ fun AiringNextRowSkeleton() {
 fun SnapshotsGridSkeleton() {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            SkeletonBlock(Modifier.fillMaxWidth().height(210.dp), shape = RoundedCornerShape(18.dp))
-            SkeletonBlock(Modifier.fillMaxWidth().height(160.dp), shape = RoundedCornerShape(18.dp))
+            SkeletonBlock(Modifier.fillMaxWidth().height(210.dp), shape = RoundedCornerShape(kikoCorner(18.dp)))
+            SkeletonBlock(Modifier.fillMaxWidth().height(160.dp), shape = RoundedCornerShape(kikoCorner(18.dp)))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            SkeletonBlock(Modifier.fillMaxWidth().height(160.dp), shape = RoundedCornerShape(18.dp))
-            SkeletonBlock(Modifier.fillMaxWidth().height(210.dp), shape = RoundedCornerShape(18.dp))
+            SkeletonBlock(Modifier.fillMaxWidth().height(160.dp), shape = RoundedCornerShape(kikoCorner(18.dp)))
+            SkeletonBlock(Modifier.fillMaxWidth().height(210.dp), shape = RoundedCornerShape(kikoCorner(18.dp)))
         }
     }
 }

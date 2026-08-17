@@ -7,11 +7,14 @@ import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
 import androidx.core.graphics.ColorUtils
 import kotlin.math.roundToInt
 
@@ -24,7 +27,12 @@ data class KikoColors(
     val lavender: Color, val warm: Color, val danger: Color,
     // Outline for buttons/cards in AMOLED mode — transparent otherwise, so it's a no-op
     // everywhere else and doesn't need to be threaded through every existing constructor
-    val cardBorder: Color = Color.Transparent
+    val cardBorder: Color = Color.Transparent,
+    // "Classic UI" flag — read by shared components (see kikoCorner/kikoCircleShape/
+    // kikoPillShape below) so they can flatten their own rounding without every call site
+    // needing to branch on it individually. classicAccent2 is a secondary accent only
+    // ClassicKiko sets, for places that want a tint distinct from `primary`.
+    val classic: Boolean = false, val classicAccent2: Color = Color.Transparent,
 )
 // MAL brand palette colors
 
@@ -40,7 +48,46 @@ val DarkKiko = KikoColors(
     lavender = Color(0xFF1F2A44), warm = Color(0xFF463A28), danger = Color(0xFFFFB4AB)
 )
 
+// "Classic UI" — mirrors MyAnimeList's actual current site: dark charcoal page (#121212),
+// slightly-lighter panel surfaces (#181818), the same MAL nav-bar blue (#2E51A2) used
+// elsewhere as AppDefaultSeed, a lighter tint of that blue (#ABC4ED, sampled from MAL's
+// in-panel title links) for text/accents on dark surfaces, and a #414141 hairline for the
+// row dividers MAL uses instead of card gaps. Values sampled directly from myanimelist.net.
+// Applied regardless of light/dark or colorSource/paletteStyle — see the theme-selection
+// `remember` in Navigation.kt. Ignores amoledDark too: true black would crush MAL's actual
+// panel/background contrast.
+val ClassicKiko = KikoColors(
+    ink = Color(0xFFEDEDED), onPrimary = Color.White, primary = Color(0xFF2E51A2), primaryContainer = Color(0xFF24365E),
+    background = Color(0xFF121212), surface = Color(0xFF181818), surfaceLow = Color(0xFF242424), muted = Color(0xFFA3A3A3),
+    lavender = Color(0xFF1F2A44), warm = Color(0xFF463A28), danger = Color(0xFFFFB4AB),
+    cardBorder = Color(0xFF414141), classic = true, classicAccent2 = Color(0xFFABC4ED),
+)
+
 val LocalKikoColors = staticCompositionLocalOf { LightKiko }
+
+// Readable stand-in for `primary` wherever it's used as a *foreground* — text or an icon
+// sitting directly on a surface/background, rather than as a button's own fill. In Classic
+// UI, `primary` is MAL's brand navy (#2E51A2), picked to sit on light button fills; as text
+// on Classic's dark panels it reads as barely-there. `classicAccent2` is the lighter tint
+// made for exactly this case, so route through it whenever the theme is Classic. Everywhere
+// else `primary` already has correct contrast on its own, so this is a no-op there.
+val KikoColors.accent: Color get() = if (classic) classicAccent2 else primary
+
+// Scales a default corner radius down to a small flat-ish corner in Classic mode (3dp
+// floor so it never goes fully sharp), and passes it through unchanged otherwise.
+@Composable fun kikoCorner(default: androidx.compose.ui.unit.Dp): androidx.compose.ui.unit.Dp =
+    if (LocalKikoColors.current.classic) (default.value * 0.3f).coerceAtLeast(3f).dp else default
+
+// Classic mode stand-ins for CircleShape / RoundedCornerShape(50) (full "pill" rounding).
+// Circular avatars, status dots, pagination dots, and pill badges/progress bars all read
+// as squared-off little tiles in MAL's actual site rather than perfect circles/capsules,
+// so both collapse to the same flat corner (kikoCorner's 3dp floor) instead of a
+// stadium/circle shape. No-ops (return the normal shape) outside classic mode.
+@Composable fun kikoCircleShape(): androidx.compose.ui.graphics.Shape =
+    if (LocalKikoColors.current.classic) RoundedCornerShape(kikoCorner(0.dp)) else CircleShape
+
+@Composable fun kikoPillShape(): androidx.compose.ui.graphics.Shape =
+    if (LocalKikoColors.current.classic) RoundedCornerShape(kikoCorner(0.dp)) else RoundedCornerShape(50)
 
 // True-black variant for AMOLED screens — flattens background/surface tones to pure
 // black so OLED pixels can switch off, while keeping accent/text colors untouched.

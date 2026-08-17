@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -96,15 +95,15 @@ data class DetailScreenActions(
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Box(Modifier.fillMaxWidth()) {
-                Box(Modifier.fillMaxWidth().height(248.dp).clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))) {
+                Box(Modifier.fillMaxWidth().height(248.dp).clip(RoundedCornerShape(bottomStart = kikoCorner(32.dp), bottomEnd = kikoCorner(32.dp)))) {
                     SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(0.dp))
                     IconButton(
                         onClick = onBack,
-                        modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .32f)),
+                        modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .32f)),
                     ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
                 }
-                Box(Modifier.padding(start = 20.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f).shadow(10.dp, RoundedCornerShape(16.dp))) {
-                    SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(16.dp))
+                Box(Modifier.padding(start = 20.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f).shadow(10.dp, RoundedCornerShape(kikoCorner(16.dp)))) {
+                    SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(kikoCorner(16.dp)))
                 }
             }
             Column(Modifier.padding(horizontal = 20.dp)) {
@@ -113,7 +112,7 @@ data class DetailScreenActions(
                 SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.4f).height(14.dp))
                 SkeletonBlock(Modifier.padding(top = 18.dp).fillMaxWidth(0.55f).height(14.dp))
                 Row(Modifier.padding(top = 20.dp)) {
-                    repeat(3) { i -> SkeletonBlock(Modifier.padding(end = 8.dp).width(if (i == 1) 78.dp else 64.dp).height(28.dp), shape = RoundedCornerShape(10.dp)) }
+                    repeat(3) { i -> SkeletonBlock(Modifier.padding(end = 8.dp).width(if (i == 1) 78.dp else 64.dp).height(28.dp), shape = RoundedCornerShape(kikoCorner(10.dp))) }
                 }
                 SkeletonBlock(Modifier.padding(top = 26.dp).width(90.dp).height(18.dp))
                 Column(Modifier.padding(top = 12.dp)) {
@@ -225,7 +224,7 @@ data class DetailScreenActions(
                 val backdropUrl = covers.getOrNull(1)
                 // Unclipped wrapper for poster
                 Box(Modifier.fillMaxWidth()) {
-                    Box(Modifier.fillMaxWidth().height(248.dp).clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))) {
+                    Box(Modifier.fillMaxWidth().height(248.dp).clip(RoundedCornerShape(bottomStart = kikoCorner(32.dp), bottomEnd = kikoCorner(32.dp)))) {
                         if (backdropUrl != null) {
                             AsyncImage(
                                 model = ImageRequest.Builder(context).data(backdropUrl).allowHardware(true).build(), contentDescription = null,
@@ -241,13 +240,13 @@ data class DetailScreenActions(
                         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .32f), Color.Black.copy(alpha = .7f)))))
                         IconButton(
                             onClick = actions.onBack,
-                            modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .32f)),
+                            modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .32f)),
                         ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
                         var moreOpen by remember(item.id) { mutableStateOf(false) }
                         Box(Modifier.align(Alignment.TopEnd).padding(16.dp)) {
                             IconButton(
                                 onClick = { moreOpen = true },
-                                modifier = Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = .32f)),
+                                modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .32f)),
                             ) { Icon(Icons.Default.MoreVert, "More options", tint = Color.White) }
                             DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
                                 DropdownMenuItem(
@@ -274,7 +273,7 @@ data class DetailScreenActions(
                     val posterInteraction = remember { MutableInteractionSource() }
                     Box(
                         Modifier.padding(start = 20.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f)
-                            .shadow(10.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Color(item.color))
+                            .shadow(10.dp, RoundedCornerShape(kikoCorner(16.dp))).clip(RoundedCornerShape(kikoCorner(16.dp))).background(Color(item.color))
                             .pressScale(posterInteraction, scale = 0.94f)
                             .clickable(indication = null, interactionSource = posterInteraction) { showFullCover = true },
                     ) {
@@ -300,7 +299,7 @@ data class DetailScreenActions(
                                     // Fit, not cropped, cover
                                     AsyncImage(
                                         model = ImageRequest.Builder(context).data(gallery[page]).allowHardware(true).build(), contentDescription = item.displayTitle(),
-                                        modifier = Modifier.fillMaxWidth(0.86f).aspectRatio(2f / 3f).clip(RoundedCornerShape(16.dp)),
+                                        modifier = Modifier.fillMaxWidth(0.86f).aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(16.dp))),
                                         contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                                     )
                                 }
@@ -312,7 +311,7 @@ data class DetailScreenActions(
                                 ) {
                                     gallery.indices.forEach { i ->
                                         Box(
-                                            Modifier.size(if (i == pagerState.currentPage) 8.dp else 6.dp).clip(CircleShape)
+                                            Modifier.size(if (i == pagerState.currentPage) 8.dp else 6.dp).clip(kikoCircleShape())
                                                 .background(Color.White.copy(alpha = if (i == pagerState.currentPage) .95f else .4f)),
                                         )
                                     }
@@ -320,7 +319,7 @@ data class DetailScreenActions(
                             }
                             IconButton(
                                 onClick = { showFullCover = false },
-                                modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = .15f)),
+                                modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.White.copy(alpha = .15f)),
                             ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
                         }
                     }
@@ -397,7 +396,7 @@ data class DetailScreenActions(
                     // Community rank/popularity stats
                     if (item.rank > 0 || item.popularity > 0 || item.listUsers > 0) {
                         Text("Statistics", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 28.dp, bottom = 10.dp))
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
+                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Row(Modifier.fillMaxWidth().padding(vertical = 20.dp)) {
                                 if (item.rank > 0) StatBlock(Modifier.weight(1f), "#${item.rank}", "Rank")
                                 if (item.popularity > 0) StatBlock(Modifier.weight(1f), "#${item.popularity}", "Popularity")
@@ -421,7 +420,7 @@ data class DetailScreenActions(
                     }
                     if (details.isNotEmpty()) {
                         Text("Details", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
+                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                 details.forEachIndexed { i, (label, value) ->
                                     val isCreatorRow = (label == "Studio" || label == "Author") && item.creator.isNotBlank()
@@ -434,7 +433,7 @@ data class DetailScreenActions(
 
                     if (item.synonyms.isNotEmpty()) {
                         Text("Alternative titles", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
+                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             SelectionContainer {
                                 Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                     item.synonyms.forEachIndexed { i, name ->
@@ -462,7 +461,7 @@ data class DetailScreenActions(
                     val themes = openingThemes.map { "OP" to it } + endingThemes.map { "ED" to it }
                     if (themes.isNotEmpty()) {
                         Text("Theme songs", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
+                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                 themes.forEachIndexed { i, (kind, text) ->
                                     Row(
@@ -521,7 +520,7 @@ data class DetailScreenActions(
                     // Reuse status bar styling
                     statusDistribution?.takeIf { it.total > 0 }?.let { dist ->
                         Text("Status distribution", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
+                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
                                 StatBar("Watching", dist.watching, dist.total, c, statusColor("Watching"))
                                 StatBar("Completed", dist.completed, dist.total, c, statusColor("Completed"))
@@ -623,10 +622,10 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 ) {
     val c = LocalKikoColors.current
     Column(
-        Modifier.width(140.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp))
+        Modifier.width(140.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(18.dp)))
             .let { m -> onClick?.let { m.kikoClickable(enabled = !loading, onClick = it) } ?: m },
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)).background(c.surfaceLow)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(topStart = kikoCorner(18.dp), topEnd = kikoCorner(18.dp))).background(c.surfaceLow)) {
             if (imageUrl.isNotBlank()) {
                 AsyncImage(model = imageUrl, contentDescription = title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
@@ -671,10 +670,10 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 @Composable fun PersonCard(imageUrl: String, fallbackLetter: String, name: String, role: String, onClick: (() -> Unit)?) {
     val c = LocalKikoColors.current
     Column(
-        Modifier.width(88.dp).clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(14.dp))
+        Modifier.width(88.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(14.dp)))
             .let { m -> onClick?.let { m.kikoClickable(onClick = it) } ?: m },
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(3f / 4f).clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)).background(c.surfaceLow)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(3f / 4f).clip(RoundedCornerShape(topStart = kikoCorner(14.dp), topEnd = kikoCorner(14.dp))).background(c.surfaceLow)) {
             if (imageUrl.isNotBlank()) {
                 AsyncImage(model = imageUrl, contentDescription = name, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
@@ -702,13 +701,13 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 @Composable fun ReviewCard(entry: ReviewEntry, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Column(
-        Modifier.width(260.dp).clip(RoundedCornerShape(18.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(18.dp)).kikoClickable(onClick = onClick).padding(14.dp),
+        Modifier.width(260.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(18.dp))).kikoClickable(onClick = onClick).padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (entry.userImage.isNotBlank()) {
-                AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(30.dp).clip(CircleShape).background(c.warm))
+                AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(30.dp).clip(kikoCircleShape()).background(c.warm))
             } else {
-                Box(Modifier.size(30.dp).clip(CircleShape).background(c.warm), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(30.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
                     Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink)
                 }
             }
@@ -825,7 +824,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 
             Text(if (item.type == MediaType.Anime) "Episodes watched" else "Chapters read", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
             Row(
-                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp)).padding(horizontal = 6.dp),
+                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(16.dp))).padding(horizontal = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -861,7 +860,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 
             Text(rewatchWord, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
             Row(
-                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 4.dp),
+                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(16.dp))).padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -869,7 +868,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
                 Switch(checked = rewatching, onCheckedChange = { rewatching = it }, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary))
             }
             Row(
-                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(16.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp)).padding(horizontal = 6.dp),
+                Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(16.dp))).padding(horizontal = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -883,7 +882,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
                 value = notes, onValueChange = { notes = it },
                 placeholder = { Text("Comma separated, e.g. comfort watch, rewatch", color = c.muted) },
                 minLines = 3, maxLines = 6,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(kikoCorner(16.dp)),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.cardBorder, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
                 modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
             )
@@ -893,7 +892,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
                 value = comments, onValueChange = { comments = it },
                 placeholder = { Text("Write a note about this entry", color = c.muted) },
                 minLines = 3, maxLines = 6,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(kikoCorner(16.dp)),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.cardBorder, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
                 modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
             )
@@ -908,7 +907,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     Column(modifier) {
         Text(label, color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(14.dp)).kikoClickable { showPicker = true }.padding(horizontal = 14.dp, vertical = 13.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(14.dp))).kikoClickable { showPicker = true }.padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {

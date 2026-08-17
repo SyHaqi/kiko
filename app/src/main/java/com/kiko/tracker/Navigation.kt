@@ -19,6 +19,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.view.WindowCompat
@@ -284,13 +286,17 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     }
     val darkTheme = when (vm.themeMode) { ThemeMode.System -> isSystemInDarkTheme(); ThemeMode.Light -> false; ThemeMode.Dark -> true }
     // Default palette uses constants
-    val c = remember(darkTheme, vm.colorSource, vm.paletteStyle, vm.customColorHex, vm.amoledDark) {
-        val base = if (vm.colorSource == ColorSource.AppDefault && vm.paletteStyle == PaletteStyle.TonalSpot) {
-            if (darkTheme) DarkKiko else LightKiko
+    val c = remember(darkTheme, vm.colorSource, vm.paletteStyle, vm.customColorHex, vm.amoledDark, vm.classicUi) {
+        if (vm.classicUi) {
+            ClassicKiko
         } else {
-            themedPalette(resolveSeedColor(context, vm.colorSource, vm.customColorHex, darkTheme), vm.paletteStyle, darkTheme)
+            val base = if (vm.colorSource == ColorSource.AppDefault && vm.paletteStyle == PaletteStyle.TonalSpot) {
+                if (darkTheme) DarkKiko else LightKiko
+            } else {
+                themedPalette(resolveSeedColor(context, vm.colorSource, vm.customColorHex, darkTheme), vm.paletteStyle, darkTheme)
+            }
+            if (darkTheme && vm.amoledDark) amoledify(base) else base
         }
-        if (darkTheme && vm.amoledDark) amoledify(base) else base
     }
     SyncSystemBars(darkTheme, c.background)
     CompositionLocalProvider(LocalKikoColors provides c, LocalTitleLanguage provides vm.titleLanguage) {
@@ -305,7 +311,19 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                 titleLarge = TextStyle(fontFamily = AppFont, fontWeight = FontWeight.Bold, fontSize = 21.sp),
                 titleMedium = TextStyle(fontFamily = AppFont, fontWeight = FontWeight.Bold, fontSize = 16.sp),
                 bodyMedium = TextStyle(fontFamily = AppFont, fontSize = 14.sp)
-            )
+            ),
+            // Without this, any Button/Card/Dialog/TextField/BottomSheet/Menu that doesn't
+            // pass its own `shape =` still falls back to Material3's stock rounded corners
+            // (4/8/12/16/28dp), which would silently defeat Classic mode's squared-off look
+            // for every screen that hasn't been hand-audited. Flattens all five tiers to
+            // kikoCorner's 3dp floor in classic; leaves Material defaults alone otherwise.
+            shapes = if (c.classic) Shapes(
+                extraSmall = RoundedCornerShape(kikoCorner(0.dp)),
+                small = RoundedCornerShape(kikoCorner(0.dp)),
+                medium = RoundedCornerShape(kikoCorner(0.dp)),
+                large = RoundedCornerShape(kikoCorner(0.dp)),
+                extraLarge = RoundedCornerShape(kikoCorner(0.dp)),
+            ) else Shapes()
         ) {
             Scaffold(
                 containerColor = c.background,
@@ -419,6 +437,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 connected = vm.signedIn, themeMode = vm.themeMode, colorSource = vm.colorSource, paletteStyle = vm.paletteStyle, titleLanguage = vm.titleLanguage,
                                 nsfwEnabled = vm.nsfwEnabled, onNsfwChange = { vm.setNsfw(context, it) },
                                 amoledDark = vm.amoledDark, onAmoledDarkChange = { vm.setAmoledDark(context, it) },
+                                classicUi = vm.classicUi, onClassicUiChange = { vm.setClassicUi(context, it) },
                                 onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true },
                                 updateInfo = vm.updateInfo, onAboutClick = { aboutOpen = true },
                                 onBack = { settingsPageOpen = false },
