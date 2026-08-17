@@ -156,33 +156,24 @@ import kotlinx.coroutines.launch
     // guess on screen until/unless it resolves.
     LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
     val confirmedEpisode = vm.getCachedAiring(item.id)?.episode
-    // Uses the clickable Card(onClick=) overload rather than a plain Card + our own
-    // .kikoClickable — Card's internal shape-clip is applied *after* whatever modifier
-    // is passed in, so a ripple/press-scale attached to the passed-in modifier draws
-    // outside that clip and shows as a square hint over the rounded card. The onClick
-    // overload's own interaction layer is clipped to `shape` correctly; we still get
-    // our press-scale by driving it off the same interactionSource.
-    val interactionSource = remember { MutableInteractionSource() }
-    Card(
-        onClick = { onOpenDetail(item) },
-        interactionSource = interactionSource,
-        shape = RoundedCornerShape(kikoCorner(22.dp)), colors = CardDefaults.cardColors(containerColor = c.surface),
-        border = BorderStroke(1.dp, c.cardBorder),
-        elevation = CardDefaults.cardElevation(4.dp),
-        modifier = Modifier.width(264.dp).pressScale(interactionSource),
+    Row(
+        Modifier
+            .width(264.dp)
+            .clip(RoundedCornerShape(kikoCorner(16.dp)))
+            .kikoClickable { onOpenDetail(item) }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-            Cover(item, Modifier.size(width = 78.dp, height = 110.dp), showStatus = true)
-            Column(Modifier.weight(1f).padding(start = 13.dp)) {
-                Text(item.displayTitle(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.Top) {
-                    Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(13.dp).padding(top = 1.dp))
-                    Text(
-                        listOfNotNull(item.nextEpisodeLabel(confirmedEpisode), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
-                        color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
-                    )
-                }
+        Cover(item, Modifier.size(width = 78.dp, height = 110.dp), showStatus = true)
+        Column(Modifier.weight(1f).padding(start = 13.dp)) {
+            Text(item.displayTitle(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(13.dp).padding(top = 1.dp))
+                Text(
+                    listOfNotNull(item.nextEpisodeLabel(confirmedEpisode), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
+                    color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
+                )
             }
         }
     }

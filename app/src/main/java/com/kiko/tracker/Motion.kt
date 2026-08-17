@@ -197,13 +197,10 @@ fun ContinueCardSkeleton(modifier: Modifier = Modifier) {
 /** Stand-in for a single [AiringNextCard]: cover-sized block + title/time bars. */
 @Composable
 fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
-    val c = LocalKikoColors.current
     Row(
         modifier
             .width(264.dp)
-            .clip(RoundedCornerShape(kikoCorner(22.dp)))
-            .background(c.surface)
-            .padding(13.dp),
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SkeletonBlock(Modifier.size(width = 78.dp, height = 110.dp), shape = RoundedCornerShape(kikoCorner(16.dp)))
