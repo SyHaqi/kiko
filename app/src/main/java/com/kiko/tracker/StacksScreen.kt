@@ -127,7 +127,16 @@ import kotlinx.coroutines.launch
             }
             if (vm.stacksHomeRecent.isNotEmpty()) {
                 item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
-                itemsIndexed(vm.stacksHomeRecent, key = { _, it -> "rc-${it.id}" }) { index, s -> StaggeredItem(index, staggerSeen) { StackListRow(s, vm) { openStack(s) } } }
+                itemsIndexed(vm.stacksHomeRecent, key = { _, it -> "rc-${it.id}" }) { index, s ->
+                    StaggeredItem(index, staggerSeen) {
+                        Column {
+                            StackListRow(s, vm) { openStack(s) }
+                            // Same subtle row separator My List / Discover search results use
+                            // (see SearchResultRow's divider) — this list was missing it.
+                            if (index < vm.stacksHomeRecent.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                        }
+                    }
+                }
             }
         }
         GoToTopButton(

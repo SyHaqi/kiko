@@ -607,6 +607,16 @@ class LibraryViewModel : ViewModel() {
         discoverLoadMoreJob?.cancel()
         discoverHasMore = false; discoverPaginationSource = DiscoverPaginationSource.None
         if (query.isBlank() && !filters.isActive()) { discoverResults = emptyList(); discoverSearching = false; discoverError = null; return }
+        // MAL's own search endpoint rejects queries under 3 characters with a 400
+        // (see MalApi.searchKind), which otherwise surfaced as a raw "MAL request
+        // failed (400): ..." message. Only the free-text query goes through that
+        // endpoint — creator/genre-filter searches don't — so a too-short query is
+        // only a problem when there's no filter-driven search to fall back on.
+        if (query.isNotBlank() && query.trim().length < 3 && !filters.isActive()) {
+            discoverResults = emptyList(); discoverSearching = false
+            discoverError = "Type at least 3 characters to search"
+            return
+        }
         if (!MalApi(context).signedIn) { discoverError = "Sign in from Profile to search MyAnimeList"; return }
         discoverSearchJob = viewModelScope.launch {
             discoverSearching = true
