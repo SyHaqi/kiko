@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 // Clubs tab — browse/search MAL clubs by scraping myanimelist.net directly
 // (same approach as StacksApi: Jikan never covered clubs' Couch feed, and is
 // being shut down, so there's no API layer to sit on here).
-@Composable fun ClubsScreen(vm: LibraryViewModel, onOpenClub: (MalClub) -> Unit) {
+@Composable fun ClubsScreen(vm: LibraryViewModel, onOpenClub: (MalClub) -> Unit, header: @Composable () -> Unit) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     val api = remember { ClubsApi() }
@@ -96,7 +96,7 @@ import kotlinx.coroutines.launch
     PullToRefreshBox(isRefreshing = loading, onRefresh = { runSearch(vm.clubsQuery) }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
-                AppHeader("Clubs", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
+                header()
                 if (vm.signedIn) {
                     SearchField(query, { query = it }, "Find clubs…", onSearch = { runSearch(query) }, onClear = { query = ""; runSearch("") })
                     Text(

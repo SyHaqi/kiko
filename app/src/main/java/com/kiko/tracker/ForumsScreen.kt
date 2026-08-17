@@ -8,6 +8,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -68,21 +69,44 @@ import coil.request.ImageRequest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
-@Composable fun ForumsScreen(vm: LibraryViewModel, onOpenTopic: (Int, String) -> Unit) {
+// Combined Community tab — Forums and Clubs share one bottom-nav slot, switched via the
+// same tappable-title dropdown pattern ListScreen uses for Anime/Manga (see SwitcherHeader).
+// Drilling into a specific board's topics still takes over the full screen either way,
+// since that's a detail view rather than another top-level section to switch between.
+@Composable fun CommunityScreen(vm: LibraryViewModel, onOpenTopic: (Int, String) -> Unit, onOpenClub: (MalClub) -> Unit) {
     val context = LocalContext.current
-    LaunchedEffect(vm.signedIn) { vm.loadForumBoards(context) }
+    // Only forums need eagerly preloading here — Clubs fetches its own list lazily on
+    // first composition (see ClubsScreen), and News-board jumps fetch on demand too.
+    LaunchedEffect(vm.signedIn, vm.communityTab) { if (vm.communityTab == CommunityTab.Forums) vm.loadForumBoards(context) }
     AnimatedContent(
         vm.forumMode,
         transitionSpec = { if (targetState == ForumMode.Topics) PushEnter togetherWith PushExit else PopEnter togetherWith PopExit },
         label = "forum-mode",
     ) { mode ->
-        if (mode == ForumMode.Topics) ForumTopicsScreen(vm, context, onOpenTopic)
-        else ForumBoardsScreen(vm, context)
+        if (mode == ForumMode.Topics) {
+            ForumTopicsScreen(vm, context, onOpenTopic)
+        } else {
+            val sharedHeader: @Composable () -> Unit = {
+                SwitcherHeader(vm.communityTab, CommunityTab.entries.toList(), { it.label }, { vm.selectCommunityTab(context, it) }, 0.dp, "Switch between Forums and Clubs") {
+                    Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
+                }
+            }
+            AnimatedContent(
+                vm.communityTab,
+                transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+                label = "community-tab",
+            ) { tab ->
+                when (tab) {
+                    CommunityTab.Forums -> ForumBoardsScreen(vm, context, sharedHeader)
+                    CommunityTab.Clubs -> ClubsScreen(vm, onOpenClub, sharedHeader)
+                }
+            }
+        }
     }
 }
 // Forums landing page
 
-@Composable fun ForumBoardsScreen(vm: LibraryViewModel, context: Context) {
+@Composable fun ForumBoardsScreen(vm: LibraryViewModel, context: Context, header: @Composable () -> Unit) {
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf("") }
     // Restore board list scroll
@@ -93,7 +117,7 @@ import kotlinx.coroutines.launch
     PullToRefreshBox(isRefreshing = vm.forumBoardsLoading, onRefresh = { vm.loadForumBoards(context, force = true) }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
-                AppHeader("Forums", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
+                header()
                 // Search hands off topics
                 SearchField(query, { query = it }, "Search topics", onSearch = { if (query.isNotBlank()) { saveScroll(); vm.runForumSearch(context, query) } })
             }

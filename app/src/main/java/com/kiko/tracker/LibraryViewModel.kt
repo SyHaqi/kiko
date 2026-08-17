@@ -252,6 +252,10 @@ class LibraryViewModel : ViewModel() {
     // Reset scroll on sort
     fun selectListTypeTab(context: Context, t: MediaType) { listTypeTab = t; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_type_tab", t.name).apply() }
     fun loadListTypeTab(context: Context) { listTypeTab = runCatching { MediaType.valueOf(settingsPrefs(context).getString("list_type_tab", MediaType.Anime.name)!!) }.getOrDefault(MediaType.Anime) }
+    // Which sub-section (Forums/Clubs) the combined Community tab is showing
+    var communityTab by mutableStateOf(CommunityTab.Forums); private set
+    fun selectCommunityTab(context: Context, t: CommunityTab) { communityTab = t; settingsPrefs(context).edit().putString("community_tab", t.name).apply() }
+    fun loadCommunityTab(context: Context) { communityTab = runCatching { CommunityTab.valueOf(settingsPrefs(context).getString("community_tab", CommunityTab.Forums.name)!!) }.getOrDefault(CommunityTab.Forums) }
     fun setListSort(context: Context, sort: ListSort) { listSort = sort; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_sort", sort.name).apply() }
     fun loadListSort(context: Context) { listSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("list_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
     fun setListViewMode(context: Context, mode: ListViewMode) { listViewMode = mode; settingsPrefs(context).edit().putString("list_view_mode", mode.name).apply() }

@@ -206,8 +206,10 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 
 // Header for screens that switch between Anime/Manga (e.g. My list) — replaces the separate
 // title + full-width TypeToggle pill with a single tappable title that opens a small dropdown,
-// saving vertical space while still making it obvious the type is switchable.
-@Composable fun TypeSwitcherHeader(current: MediaType, onSelect: (MediaType) -> Unit, horizontalPadding: Dp = 20.dp, action: @Composable () -> Unit = {}) {
+// saving vertical space while still making it obvious the section is switchable. Generic over
+// any small option set (MediaType for the list screen, CommunityTab for Forums/Clubs, ...) so
+// every "tap the big title to switch section" header in the app shares one implementation.
+@Composable fun <T> SwitcherHeader(current: T, options: List<T>, labelFor: (T) -> String, onSelect: (T) -> Unit, horizontalPadding: Dp = 20.dp, switchDescription: String = "Switch section", action: @Composable () -> Unit = {}) {
     val c = LocalKikoColors.current
     val density = LocalDensity.current
     var expanded by remember { mutableStateOf(false) }
@@ -224,8 +226,8 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                     .padding(start = 0.dp, top = 0.dp, end = 6.dp, bottom = 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(if (current == MediaType.Anime) "Anime" else "Manga", fontFamily = AppFont, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp, letterSpacing = (-1).sp, color = c.ink)
-                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Switch between Anime and Manga", tint = c.muted, modifier = Modifier.padding(start = 2.dp).size(28.dp))
+                Text(labelFor(current), fontFamily = AppFont, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp, letterSpacing = (-1).sp, color = c.ink)
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = switchDescription, tint = c.muted, modifier = Modifier.padding(start = 2.dp).size(28.dp))
             }
             DropdownMenu(
                 expanded = expanded,
@@ -233,15 +235,15 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 containerColor = c.surface,
                 modifier = Modifier.width(with(density) { anchorWidthPx.toDp() }),
             ) {
-                MediaType.entries.forEach { t ->
-                    val selected = t == current
+                options.forEach { opt ->
+                    val selected = opt == current
                     DropdownMenuItem(
-                        text = { Text(if (t == MediaType.Anime) "Anime" else "Manga", fontWeight = FontWeight.Bold, color = if (selected) c.accent else c.ink) },
+                        text = { Text(labelFor(opt), fontWeight = FontWeight.Bold, color = if (selected) c.accent else c.ink) },
                         leadingIcon = if (selected) { { Icon(Icons.Default.Check, null, tint = c.accent) } } else null,
                         // Selected row gets a filled background (not just tinted text) so
                         // the "this one is active" state reads clearly at a glance.
                         modifier = if (selected) Modifier.background(c.primaryContainer) else Modifier,
-                        onClick = { expanded = false; onSelect(t) },
+                        onClick = { expanded = false; onSelect(opt) },
                     )
                 }
             }
@@ -249,6 +251,9 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
         action()
     }
 }
+
+@Composable fun TypeSwitcherHeader(current: MediaType, onSelect: (MediaType) -> Unit, horizontalPadding: Dp = 20.dp, action: @Composable () -> Unit = {}) =
+    SwitcherHeader(current, MediaType.entries.toList(), { if (it == MediaType.Anime) "Anime" else "Manga" }, onSelect, horizontalPadding, "Switch between Anime and Manga", action)
 
 @Composable fun SearchField(value: String, change: (String) -> Unit, hint: String, onSearch: (() -> Unit)? = null, onClear: (() -> Unit)? = null) {
     val c = LocalKikoColors.current
