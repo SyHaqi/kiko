@@ -129,7 +129,6 @@ class LibraryViewModel : ViewModel() {
         var recommended: List<RecommendedEntry>? = null,
         var statusDistribution: StatusDistribution? = null,
         var characters: List<CharacterEntry>? = null,
-        var staffList: List<StaffEntry>? = null,
         var reviews: List<ReviewEntry>? = null,
         var relatedScroll: Pair<Int, Int> = 0 to 0,
         var recommendedScroll: Pair<Int, Int> = 0 to 0,
@@ -151,11 +150,10 @@ class LibraryViewModel : ViewModel() {
         val recommended: List<RecommendedEntry>?,
         val statusDistribution: StatusDistribution?,
         val characters: List<CharacterEntry>?,
-        val staffList: List<StaffEntry>?,
         val reviews: List<ReviewEntry>?,
     )
     fun peekDetailCache(id: String, type: MediaType): DetailCacheSnapshot? = detailCaches[id to type]?.let {
-        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.staffList, it.reviews)
+        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.reviews)
     }
     // Drops every cached detail sub-section, and every remembered scroll position —
     // call this once the user has fully left the related/recommended chain (not on
@@ -1229,26 +1227,21 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
-    // Load characters + staff rows
-    fun loadCharactersStaff(item: MediaItem, onFound: (List<CharacterEntry>, List<StaffEntry>) -> Unit, onDone: () -> Unit = {}) {
+    // Load characters row (feeds both the Characters row and the Japanese Voice
+    // Actors row on the detail page — staff is no longer shown there, so this no
+    // longer fans out a second fetchStaff() network call alongside it).
+    fun loadCharacters(item: MediaItem, onFound: (List<CharacterEntry>) -> Unit, onDone: () -> Unit = {}) {
         val cache = detailCache(item.id, item.type)
-        val cachedChars = cache.characters; val cachedStaff = cache.staffList
-        if (cachedChars != null || cachedStaff != null) { onFound(cachedChars ?: emptyList(), cachedStaff ?: emptyList()); onDone(); return }
+        cache.characters?.let { onFound(it); onDone(); return }
         val intId = item.id.toIntOrNull()
         if (intId == null) { onDone(); return }
         val kind = if (item.type == MediaType.Anime) "anime" else "manga"
         viewModelScope.launch {
-            runCatching {
-                val tenrai = TenraiApi()
-                coroutineScope {
-                    val chars = async { tenrai.fetchCharacters(kind, intId) }
-                    val staffList = async { tenrai.fetchStaff(kind, intId) }
-                    chars.await() to staffList.await()
+            runCatching { TenraiApi().fetchCharacters(kind, intId) }
+                .onSuccess { chars ->
+                    cache.characters = chars
+                    if (chars.isNotEmpty()) onFound(chars)
                 }
-            }.onSuccess { (chars, staffList) ->
-                cache.characters = chars; cache.staffList = staffList
-                if (chars.isNotEmpty() || staffList.isNotEmpty()) onFound(chars, staffList)
-            }
             onDone()
         }
     }

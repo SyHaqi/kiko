@@ -104,9 +104,12 @@ fun List<MediaItem>.nsfwFiltered(allowAdult: Boolean) = if (allowAdult) this els
 data class RelatedEntry(val relation: String, val title: String, val malId: Int = 0, val malType: String = "anime", val cover: String = "")
 // Characters/staff row entries
 
-data class CharacterEntry(val malId: Int, val name: String, val image: String, val role: String, val url: String = "")
+// Japanese VA only — the Voice Actors row only ever shows the Japanese cast, so no
+// need to carry every dub's entries just to filter them back out at display time.
+data class VoiceActorEntry(val malId: Int, val name: String, val image: String, val url: String = "")
 
-data class StaffEntry(val malId: Int, val name: String, val image: String, val role: String, val url: String = "")
+data class CharacterEntry(val malId: Int, val name: String, val image: String, val role: String, val url: String = "", val japaneseVoiceActor: VoiceActorEntry? = null)
+
 // Reviews row entry
 
 data class ReviewEntry(val malId: Int, val username: String, val userImage: String, val review: String, val score: Int, val tags: List<String> = emptyList(), val reactionScore: Int = 0, val isSpoiler: Boolean = false, val url: String = "")

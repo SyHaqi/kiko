@@ -71,7 +71,7 @@ data class DetailScreenActions(
     val onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenRecommended: (RecommendedEntry) -> Unit = {},
     val onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
-    val onLoadCharactersStaff: (MediaItem, (List<CharacterEntry>, List<StaffEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenReview: (ReviewEntry) -> Unit = {},
     val onOpenReviewList: (String, String) -> Unit = { _, _ -> },
@@ -157,11 +157,10 @@ data class DetailScreenActions(
         } else themesDone = true
     }
     val (openingThemes, endingThemes) = backfilledThemes ?: (item.openingThemes to item.endingThemes)
-    // Characters + staff rows — seeded from cache so they don't blank out and
-    // reload on every remount either.
+    // Characters row (also feeds the Japanese Voice Actors row below) — seeded
+    // from cache so it doesn't blank out and reload on every remount either.
     var characters by remember(item.id) { mutableStateOf(cachedSnapshot?.characters ?: emptyList()) }
-    var staffList by remember(item.id) { mutableStateOf(cachedSnapshot?.staffList ?: emptyList()) }
-    LaunchedEffect(item.id) { actions.onLoadCharactersStaff(item, { chars, stf -> characters = chars; staffList = stf }, {}) }
+    LaunchedEffect(item.id) { actions.onLoadCharacters(item, { chars -> characters = chars }, {}) }
     var reviews by remember(item.id) { mutableStateOf(cachedSnapshot?.reviews ?: emptyList()) }
     LaunchedEffect(item.id) { actions.onLoadReviews(item, { reviews = it }, {}) }
     // Recheck cover gallery non-blocking — seeded from cache too.
@@ -446,15 +445,21 @@ data class DetailScreenActions(
                     }
 
                     if (characters.isNotEmpty()) {
-                        Text("Characters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                        Row(Modifier.fillMaxWidth().padding(top = 26.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Characters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.weight(1f))
+                            Text("See cast", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.clickable { actions.onOpenReviewList(malCharactersUrl(item), itemDisplayTitle) })
+                        }
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch -> StaggeredItem(i) { CharacterCard(ch, uriHandler) } }
                         }
                     }
-                    if (staffList.isNotEmpty()) {
-                        Text("Staff", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
+                    // Japanese cast only, one row — characters without a listed Japanese VA
+                    // (e.g. a role recast mid-series with no dub credited yet) are skipped.
+                    val japaneseVoiceActors = characters.mapNotNull { ch -> ch.japaneseVoiceActor?.let { it to ch.name } }
+                    if (japaneseVoiceActors.isNotEmpty()) {
+                        Text("Voice Actors", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(staffList, key = { _, it -> it.malId }) { i, st -> StaggeredItem(i) { StaffCard(st, uriHandler) } }
+                            itemsIndexed(japaneseVoiceActors, key = { _, (va, _) -> va.malId }) { i, (va, charName) -> StaggeredItem(i) { VoiceActorCard(va, charName, uriHandler) } }
                         }
                     }
 
@@ -598,6 +603,13 @@ fun malReviewsUrl(item: MediaItem): String {
     return if (intId != null && intId > 0) "https://myanimelist.net/${item.type.name.lowercase()}/$intId/_/reviews"
     else malUrl(item)
 }
+// Full characters page for an item
+
+fun malCharactersUrl(item: MediaItem): String {
+    val intId = item.id.toIntOrNull()
+    return if (intId != null && intId > 0) "https://myanimelist.net/${item.type.name.lowercase()}/$intId/_/characters"
+    else malUrl(item)
+}
 // Recognize MAL title URL
 
 fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
@@ -665,7 +677,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     }
     DetailRowCard(imageUrl = entry.cover, fallbackLetter = entry.title.take(1), title = entry.title, subtitle = subtitle, loading = loading, myStatus = myStatus, onClick = onClick)
 }
-// Compact card for characters/staff rows
+// Compact card for characters/voice-actor rows
 
 @Composable fun PersonCard(imageUrl: String, fallbackLetter: String, name: String, role: String, onClick: (() -> Unit)?) {
     val c = LocalKikoColors.current
@@ -691,10 +703,10 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 @Composable fun CharacterCard(entry: CharacterEntry, uriHandler: androidx.compose.ui.platform.UriHandler) {
     PersonCard(entry.image, entry.name.take(1), entry.name, entry.role) { entry.url.takeIf { it.isNotBlank() }?.let { runCatching { uriHandler.openUri(it) } } }
 }
-// Staff card opens MAL page
+// Voice actor card opens the VA's own MAL page; the character they voice is shown as the subtitle
 
-@Composable fun StaffCard(entry: StaffEntry, uriHandler: androidx.compose.ui.platform.UriHandler) {
-    PersonCard(entry.image, entry.name.take(1), entry.name, entry.role.ifBlank { "Staff" }) { entry.url.takeIf { it.isNotBlank() }?.let { runCatching { uriHandler.openUri(it) } } }
+@Composable fun VoiceActorCard(entry: VoiceActorEntry, characterName: String, uriHandler: androidx.compose.ui.platform.UriHandler) {
+    PersonCard(entry.image, entry.name.take(1), entry.name, characterName) { entry.url.takeIf { it.isNotBlank() }?.let { runCatching { uriHandler.openUri(it) } } }
 }
 // Review card opens full text
 

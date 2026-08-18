@@ -186,31 +186,29 @@ class TenraiApi {
             (0 until arr.length()).mapNotNull { i ->
                 val o = arr.getJSONObject(i)
                 val ch = o.optJSONObject("character") ?: return@mapNotNull null
+                // Only the Japanese VA is kept — the row above this shows every dub, but
+                // the Voice Actors row is Japanese-only, so the other languages are dropped
+                // here rather than carried around just to be filtered later.
+                val japaneseVa = o.optJSONArray("voice_actors")?.let { vas ->
+                    (0 until vas.length()).firstNotNullOfOrNull { j ->
+                        val va = vas.getJSONObject(j)
+                        if (!va.optString("language").equals("Japanese", ignoreCase = true)) return@firstNotNullOfOrNull null
+                        val person = va.optJSONObject("person") ?: return@firstNotNullOfOrNull null
+                        VoiceActorEntry(
+                            malId = person.optInt("mal_id"),
+                            name = reorderMalPersonName(person.optString("name")),
+                            image = person.optJSONObject("images")?.optJSONObject("jpg")?.optString("image_url").orEmpty(),
+                            url = person.optString("url"),
+                        )
+                    }
+                }
                 CharacterEntry(
                     malId = ch.optInt("mal_id"),
                     name = reorderMalPersonName(ch.optString("name")),
                     image = ch.optJSONObject("images")?.optJSONObject("jpg")?.optString("image_url").orEmpty(),
                     role = o.optString("role").ifBlank { "Supporting" },
                     url = ch.optString("url"),
-                )
-            }
-        }.getOrElse { emptyList() }
-    }
-
-    // Fetch staff row for detail page
-    suspend fun fetchStaff(kind: String, malId: Int): List<StaffEntry> = withContext(Dispatchers.IO) {
-        runCatching {
-            val arr = JSONObject(getRaw("$TENRAI/$kind/$malId/staff")).optJSONArray("data") ?: return@runCatching emptyList()
-            (0 until arr.length()).mapNotNull { i ->
-                val o = arr.getJSONObject(i)
-                val person = o.optJSONObject("person") ?: return@mapNotNull null
-                val positions = o.optJSONArray("positions")
-                StaffEntry(
-                    malId = person.optInt("mal_id"),
-                    name = reorderMalPersonName(person.optString("name")),
-                    image = person.optJSONObject("images")?.optJSONObject("jpg")?.optString("image_url").orEmpty(),
-                    role = positions?.let { p -> (0 until p.length()).joinToString(", ") { p.getString(it) } }.orEmpty(),
-                    url = person.optString("url"),
+                    japaneseVoiceActor = japaneseVa,
                 )
             }
         }.getOrElse { emptyList() }
