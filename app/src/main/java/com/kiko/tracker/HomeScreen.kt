@@ -57,11 +57,17 @@ import kotlinx.coroutines.launch
     val c = LocalKikoColors.current
     val context = LocalContext.current
     LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context); vm.loadHomeLatestStack(context) }
-    val items = vm.visibleItems
-    // Most recently updated wins
-    val active = items.filter { it.status == WatchStatus.Watching || it.status == WatchStatus.Reading }.maxByOrNull { it.updatedAt }
-        ?: items.firstOrNull { it.status == WatchStatus.Watching || it.status == WatchStatus.Reading }
-        ?: items.firstOrNull()
+    // Was recomputing (filter + maxByOrNull) over the whole library on every recomposition —
+    // including ones triggered by unrelated state like vm.loading toggling during a
+    // background sync — instead of only when the inputs that actually affect the result
+    // change. Same remember(...) pattern ListScreen already uses for its filtered/sorted list.
+    val items = remember(vm.items, vm.nsfwEnabled) { vm.visibleItems }
+    val active = remember(items) {
+        // Most recently updated wins
+        items.filter { it.status == WatchStatus.Watching || it.status == WatchStatus.Reading }.maxByOrNull { it.updatedAt }
+            ?: items.firstOrNull { it.status == WatchStatus.Watching || it.status == WatchStatus.Reading }
+            ?: items.firstOrNull()
+    }
     val today = java.time.LocalDate.now().dayOfWeek
     // Airing-next row pool
     val airingNext = vm.visibleDiscoverNewSeason.mapNotNull { item -> item.nextAirDateTime()?.let { item to it } }.sortedBy { it.second }.take(5).map { it.first }
