@@ -37,6 +37,22 @@ android { namespace = "com.kiko.tracker"; compileSdk = 35
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    // There was no release buildType at all before this, which meant a "release" build
+    // silently fell back to every default: unminified, unshrunk, and debuggable-adjacent.
+    // That matters a lot more than it looks for "does the app feel smooth" — a debug
+    // Compose build skips R8's method inlining/devirtualization and keeps full debug
+    // metadata on every composable, so the exact same code measurably recomposes and
+    // redraws slower than the same APK built for release. If testing has mostly been
+    // "Run" from Android Studio, a chunk of the sluggishness may be that alone — worth
+    // installing a release APK (via GitHub Actions or `./gradlew assembleRelease`) and
+    // comparing side by side before chasing further code-level fixes.
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
 }
 
 kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }

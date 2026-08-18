@@ -70,11 +70,23 @@ import kotlin.math.roundToInt
 
 // Unused params kept intentionally
 
-// Base "breathing" fill, plus a diagonal highlight band that sweeps across every
-// skeleton on screen in lockstep (one shared infinite transition per block keeps
-// them visually synced rather than pulsing out of phase with each other).
-@Composable fun SkeletonBlock(modifier: Modifier, shape: Shape = RoundedCornerShape(kikoCorner(12.dp))) {
-    val c = LocalKikoColors.current
+// Shared shimmer clock for skeleton placeholders. Each SkeletonBlock used to call
+// rememberInfiniteTransition() + two animateFloat()s ITSELF — harmless with one or two
+// on screen, but a loading grid/list routinely shows 9 skeleton cards × 2-3 blocks each
+// (cover + title + subtitle), i.e. 20-40+ fully independent Choreographer-driven
+// animations all repainting every ~16ms at once, competing with the actual network/parse
+// work that's happening at the exact same moment — which is exactly when a "hiccup" is
+// most noticeable. Hoisting ONE transition per screen (via SkeletonPhaseProvider, wrapped
+// once around KikoApp) and having every SkeletonBlock just read its current value cuts
+// that down to a single animation regardless of how many placeholders are on screen, with
+// no visible difference since they were always meant to pulse in lockstep anyway.
+@Immutable
+data class SkeletonPhase(val alpha: Float, val sweep: Float)
+
+val LocalSkeletonPhase = staticCompositionLocalOf<SkeletonPhase?> { null }
+
+@Composable
+fun SkeletonPhaseProvider(content: @Composable () -> Unit) {
     val transition = rememberInfiniteTransition(label = "skeleton")
     val alpha by transition.animateFloat(
         initialValue = 0.35f, targetValue = 0.6f,
@@ -86,6 +98,18 @@ import kotlin.math.roundToInt
         animationSpec = infiniteRepeatable(animation = tween(1100, easing = LinearEasing), repeatMode = RepeatMode.Restart),
         label = "skeletonSweep",
     )
+    CompositionLocalProvider(LocalSkeletonPhase provides SkeletonPhase(alpha, sweep), content = content)
+}
+
+// Base "breathing" fill, plus a diagonal highlight band that sweeps across every
+// skeleton on screen in lockstep. Reads the shared clock from SkeletonPhaseProvider;
+// falls back to a static (non-animated) mid-value if used outside one, rather than
+// spinning up its own duplicate animation.
+@Composable fun SkeletonBlock(modifier: Modifier, shape: Shape = RoundedCornerShape(kikoCorner(12.dp))) {
+    val c = LocalKikoColors.current
+    val phase = LocalSkeletonPhase.current
+    val alpha = phase?.alpha ?: 0.45f
+    val sweep = phase?.sweep ?: 0.5f
     Box(
         modifier
             .clip(shape)

@@ -5,7 +5,6 @@ package com.kiko.tracker
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.scaleIn
@@ -585,10 +584,19 @@ import kotlinx.coroutines.launch
                 onClick = onClick,
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit() } },
             )
-            .animateContentSize()
+            // animateDpAsState on `pad` above already smoothly interpolates the padding
+            // value frame-by-frame, so the container's size change is already gradual —
+            // animateContentSize() here was a second, redundant size-diff/measure pass
+            // wrapping every card in the grid. Same fix as BrowseCard in DiscoverScreen.
             .padding(pad)
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(0.72f).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceLow).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(16.dp)))) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.72f)
+                .clip(RoundedCornerShape(kikoCorner(16.dp)))
+                .background(c.surfaceLow),
+        ) {
             if (entry.cover.isNotBlank()) {
                 AsyncImage(model = entry.cover, contentDescription = entry.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {

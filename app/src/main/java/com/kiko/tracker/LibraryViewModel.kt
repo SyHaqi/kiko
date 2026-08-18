@@ -23,7 +23,22 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Deferred
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.runtime.Stable
 
+// @Stable, not @Immutable: this class is mutable (every field below is a `var` backed by
+// mutableStateOf), but it's always the SAME instance for the lifetime of a screen (handed
+// out once by viewModel() in MainActivity) and every mutation goes through Compose's
+// snapshot system, so reads inside any composable are correctly and precisely invalidated
+// regardless. What @Stable buys is different: `vm` is passed as a parameter into dozens of
+// composables several layers deep (ListRow, ListGridCard, SortMenu, ...), and without this
+// annotation the Compose compiler has no way to know a class built entirely out of `var`s
+// behaves this way — it infers the class Unstable, which means every composable that takes
+// `vm: LibraryViewModel` as a parameter loses the ability to skip recomposition on that
+// parameter, even when nothing it actually reads from `vm` changed. On a screen with a
+// scrolling grid of cards each holding a `vm` reference, that turns one unrelated state
+// change (e.g. a snackbar dismissing) into a full re-walk of every visible card instead of
+// just the composables that actually read the changed field.
+@Stable
 class LibraryViewModel : ViewModel() {
     // No longer used by the genre/theme/demographic-filtered Discover search — that path
     // (MalGenreApi) scrapes MAL's own advanced-search results directly, which has a fixed
@@ -495,10 +510,24 @@ class LibraryViewModel : ViewModel() {
     fun loadPaletteStyle(context: Context) { paletteStyle = runCatching { PaletteStyle.valueOf(settingsPrefs(context).getString("palette_style", PaletteStyle.TonalSpot.name)!!) }.getOrDefault(PaletteStyle.TonalSpot) }
     fun setPaletteStyle(context: Context, style: PaletteStyle) { paletteStyle = style; settingsPrefs(context).edit().putString("palette_style", style.name).apply() }
     fun loadCustomColor(context: Context) { customColorHex = settingsPrefs(context).getString("custom_color_hex", "2E51A2") ?: "2E51A2" }
-    // Persist only valid hex
+    // Persist only valid hex. Debounced: HsvColorPicker calls this continuously while the
+    // user is dragging the saturation/hue picker -- dozens of times per second, one call per
+    // pixel of pointer movement -- so writing to SharedPreferences synchronously on every
+    // call meant every drag gesture was also hammering the settings file with a fresh
+    // Editor/HashMap allocation each frame. customColorHex (the in-memory state driving the
+    // live preview swatch/theme) still updates immediately on every call -- only the actual
+    // disk write is pushed 250ms out and cancelled/restarted by the next call, so it
+    // collapses a whole drag gesture's worth of writes into one, right after the finger
+    // lifts (or after a brief pause) instead of one per pixel.
+    private var customColorPersistJob: kotlinx.coroutines.Job? = null
     fun setCustomColor(context: Context, hex: String) {
         customColorHex = hex
-        if (parseHexColor(hex) != null) settingsPrefs(context).edit().putString("custom_color_hex", hex).apply()
+        if (parseHexColor(hex) == null) return
+        customColorPersistJob?.cancel()
+        customColorPersistJob = viewModelScope.launch {
+            delay(250)
+            settingsPrefs(context).edit().putString("custom_color_hex", hex).apply()
+        }
     }
     fun loadTitleLanguage(context: Context) { titleLanguage = runCatching { TitleLanguage.valueOf(settingsPrefs(context).getString("title_language", TitleLanguage.Romaji.name)!!) }.getOrDefault(TitleLanguage.Romaji) }
     fun setTitleLanguage(context: Context, lang: TitleLanguage) { titleLanguage = lang; settingsPrefs(context).edit().putString("title_language", lang.name).apply() }

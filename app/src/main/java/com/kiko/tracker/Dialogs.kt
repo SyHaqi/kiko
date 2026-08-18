@@ -169,12 +169,30 @@ import androidx.compose.ui.unit.sp
                     AnimatedVisibility(visible = source == ColorSource.Custom && current == ColorSource.Custom, enter = fadeIn(tween(180)), exit = fadeOut(tween(140))) {
                         Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
                             val valid = parseHexColor(customHex) != null
-                            val liveColor = parseHexColor(customHex) ?: c.primary
+                            // Local, sheet-only preview state. LocalKikoColors is a
+                            // staticCompositionLocalOf, and virtually every screen in the app
+                            // reads it -- so previously, feeding the picker's continuous
+                            // onColorChange straight into onCustomHexChange (-> vm.customColorHex
+                            // -> the remember(..., vm.customColorHex, ...) that builds the app's
+                            // whole color palette in Navigation.kt) meant every single pointer-move
+                            // frame while dragging the picker rebuilt the palette AND
+                            // force-recomposed the entire app tree underneath this sheet, not just
+                            // the sheet itself. livePreviewHex absorbs that continuous stream
+                            // locally instead -- only the picker's own thumb/swatch here re-renders
+                            // per frame -- and onCustomHexChange (the expensive path) only fires
+                            // once, when the drag actually settles.
+                            var livePreviewHex by remember(customHex) { mutableStateOf(customHex) }
+                            val liveColor = parseHexColor(livePreviewHex) ?: c.primary
 
                             HsvColorPicker(
                                 color = liveColor,
                                 onColorChange = { picked ->
-                                    onCustomHexChange(String.format("%06X", 0xFFFFFF and picked.toArgb()))
+                                    livePreviewHex = String.format("%06X", 0xFFFFFF and picked.toArgb())
+                                },
+                                onColorChangeFinished = { picked ->
+                                    val hex = String.format("%06X", 0xFFFFFF and picked.toArgb())
+                                    livePreviewHex = hex
+                                    onCustomHexChange(hex)
                                 },
                                 modifier = Modifier.padding(bottom = 14.dp),
                             )

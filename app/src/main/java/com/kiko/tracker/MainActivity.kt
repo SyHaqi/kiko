@@ -65,6 +65,10 @@ class MainActivity : ComponentActivity() {
             }
             previousHandler?.uncaughtException(thread, throwable)
         }
+        // Must run before the very first NetworkClient.shared access below (and before any
+        // API class gets constructed later in setContent{}) so the shared OkHttpClient picks
+        // up a disk cache dir instead of building itself uncached.
+        NetworkClient.init(this)
         // Register animated GIF decoders + Referer/UA for hotlink-protected images.
         // Built off the shared client (newBuilder()) so Coil's image loading reuses the
         // same connection pool/dispatcher as the rest of the app's networking instead of
@@ -94,6 +98,13 @@ class MainActivity : ComponentActivity() {
                 .components {
                     if (Build.VERSION.SDK_INT >= 28) add(coil.decode.ImageDecoderDecoder.Factory()) else add(coil.decode.GifDecoder.Factory())
                 }
+                // Short fade-in on every AsyncImage in the app instead of a hard pop the
+                // instant decode finishes — cheap (Coil does it as a drawable transition,
+                // no extra measure/layout pass) and reads as noticeably smoother scrolling
+                // through cover grids. Coil only applies this on an actual load (disk/
+                // network); an image already sitting in memory cache still renders
+                // instantly, so re-scrolling past something already-seen isn't slowed down.
+                .crossfade(200)
                 // Hardware bitmaps (the Coil/platform default) stay on globally now — cover
                 // art, avatars, banners, and every other single-image spot in the app decode
                 // and draw faster with them, and there's only ever one such image in flight
@@ -137,13 +148,17 @@ class MainActivity : ComponentActivity() {
                     callback = null
                 }
             }
-            KikoApp(
-                vm,
-                onSignIn = { if (BuildConfig.MAL_CLIENT_ID.isBlank()) vm.error = "Add your MAL Client ID to local.properties first" else CustomTabsIntent.Builder().build().launchUrl(this@MainActivity, Uri.parse(MalApi(this@MainActivity).authUrl())) },
-                onSignOut = { vm.signOut(this@MainActivity) },
-                malLink = malLink,
-                onMalLinkHandled = { malLink = null },
-            )
+            // Single shared shimmer clock for every skeleton placeholder in the app —
+            // see SkeletonPhaseProvider in CommonComponents.kt.
+            SkeletonPhaseProvider {
+                KikoApp(
+                    vm,
+                    onSignIn = { if (BuildConfig.MAL_CLIENT_ID.isBlank()) vm.error = "Add your MAL Client ID to local.properties first" else CustomTabsIntent.Builder().build().launchUrl(this@MainActivity, Uri.parse(MalApi(this@MainActivity).authUrl())) },
+                    onSignOut = { vm.signOut(this@MainActivity) },
+                    malLink = malLink,
+                    onMalLinkHandled = { malLink = null },
+                )
+            }
             // Shows once, right after a crash-and-relaunch, so the actual stack
             // trace is one tap away to copy/paste instead of needing adb.
             crashText?.let { text ->

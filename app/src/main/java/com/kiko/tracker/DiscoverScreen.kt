@@ -722,10 +722,15 @@ fun formatExact(n: Int): String = "%,d".format(n)
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )
-            .animateContentSize()
+            // animateDpAsState on `pad` above already smoothly interpolates the padding
+            // value frame-by-frame, so the container's size change is already gradual —
+            // animateContentSize() here was a second, redundant size-diff/measure pass
+            // wrapping every card in the grid. Same fix as BrowseCard above.
             .padding(pad)
     ) {
-        Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f), showStatus = true, overrideStatus = myStatus, selected = isSelected)
+        // Height matches ListGridCardSkeleton's cover block so the loading state and the
+        // real card don't jump in size once results arrive.
+        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, overrideStatus = myStatus, selected = isSelected)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         if (item.score > 0) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {

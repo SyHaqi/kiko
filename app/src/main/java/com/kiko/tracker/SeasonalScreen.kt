@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -285,10 +284,17 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )
-            .animateContentSize()
+            // animateDpAsState on `pad` above already smoothly interpolates the padding
+            // value frame-by-frame, so the container's size change is already gradual —
+            // animateContentSize() here was a second, redundant size-diff/measure pass
+            // wrapping every single card in the grid (this screen's grid routinely holds
+            // 20-50+ items for a season), all the time, not just during a selection
+            // transition. Same fix as BrowseCard in DiscoverScreen.
             .padding(pad)
     ) {
-        Cover(item, Modifier.fillMaxWidth().aspectRatio(0.72f), showStatus = true, selected = isSelected)
+        // Height matches ListGridCardSkeleton's cover block so the loading state and the
+        // real card don't jump in size once results arrive.
+        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, selected = isSelected)
         Text(
             item.displayTitle(),
             fontWeight = FontWeight.Bold,

@@ -5,7 +5,6 @@ package com.kiko.tracker
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -494,10 +493,16 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )
-            .animateContentSize()
+            // animateDpAsState on `pad` above already smoothly interpolates the padding
+            // value frame-by-frame, so the container's size change is already gradual —
+            // animateContentSize() here was a second, redundant size-diff/measure pass
+            // wrapping every card in the grid, all the time, not just during a selection
+            // transition. Same fix as BrowseCard in DiscoverScreen.
             .padding(pad)
     ) {
-        Cover(item, Modifier.fillMaxWidth().aspectRatio(2f / 3f), showRating = true, selected = isSelected)
+        // Height matches ListGridCardSkeleton's cover block so the loading state and the
+        // real card don't jump in size once results arrive.
+        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, selected = isSelected)
         // Fixed to 2 lines so every tile's progress bar lines up regardless of title length
         Text(
             item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, color = c.ink,

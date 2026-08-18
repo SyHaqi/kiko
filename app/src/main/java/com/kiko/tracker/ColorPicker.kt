@@ -30,10 +30,16 @@ import kotlin.math.roundToInt
 
 /**
  * @param color current selected color (drives the picker's initial hue/sat/value)
- * @param onColorChange called continuously while dragging with the resulting color
+ * @param onColorChange called continuously while dragging with the resulting color -- cheap
+ *   local UI updates only (e.g. moving the picker's own thumb/swatch). Fires once per pointer
+ *   move, which on a fast finger drag can be dozens of times a second.
+ * @param onColorChangeFinished called once when a drag lifts (or once per tap) with the final
+ *   resulting color -- the right place for anything comparatively expensive, like persisting
+ *   to disk or feeding a value that other composables key a `remember`/theme rebuild on,
+ *   since those shouldn't re-run on every intermediate pointer-move frame of the same drag.
  */
 @Composable
-fun HsvColorPicker(color: Color, onColorChange: (Color) -> Unit, modifier: Modifier = Modifier) {
+fun HsvColorPicker(color: Color, onColorChange: (Color) -> Unit, onColorChangeFinished: (Color) -> Unit = {}, modifier: Modifier = Modifier) {
     // Hue/sat/value are kept as local state rather than re-derived from `color`
     // on every recomposition — grey/white/black inputs have an undefined hue,
     // which would otherwise make the hue rail's thumb jump around while dragging
@@ -57,27 +63,36 @@ fun HsvColorPicker(color: Color, onColorChange: (Color) -> Unit, modifier: Modif
     fun emit(h: Float = hue, s: Float = sat, v: Float = value) {
         onColorChange(Color(android.graphics.Color.HSVToColor(floatArrayOf(h, s, v))))
     }
+    fun emitFinished(h: Float = hue, s: Float = sat, v: Float = value) {
+        onColorChangeFinished(Color(android.graphics.Color.HSVToColor(floatArrayOf(h, s, v))))
+    }
 
     Column(modifier) {
-        SaturationValueSquare(hue = hue, sat = sat, value = value) { s, v ->
-            sat = s; value = v; emit(s = s, v = v)
-        }
+        SaturationValueSquare(
+            hue = hue, sat = sat, value = value,
+            onChange = { s, v -> sat = s; value = v; emit(s = s, v = v) },
+            onChangeFinished = { s, v -> sat = s; value = v; emitFinished(s = s, v = v) },
+        )
         Spacer(Modifier.height(14.dp))
-        HueRail(hue = hue) { h -> hue = h; emit(h = h) }
+        HueRail(
+            hue = hue,
+            onChange = { h -> hue = h; emit(h = h) },
+            onChangeFinished = { h -> hue = h; emitFinished(h = h) },
+        )
     }
 }
 
 @Composable
-private fun SaturationValueSquare(hue: Float, sat: Float, value: Float, onChange: (Float, Float) -> Unit) {
+private fun SaturationValueSquare(hue: Float, sat: Float, value: Float, onChange: (Float, Float) -> Unit, onChangeFinished: (Float, Float) -> Unit) {
     val c = LocalKikoColors.current
     val hueColor = remember(hue) { Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, 1f))) }
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
 
-    fun update(pos: Offset) {
-        if (boxSize.width == 0 || boxSize.height == 0) return
+    fun resolve(pos: Offset): Pair<Float, Float>? {
+        if (boxSize.width == 0 || boxSize.height == 0) return null
         val s = (pos.x / boxSize.width).coerceIn(0f, 1f)
         val v = 1f - (pos.y / boxSize.height).coerceIn(0f, 1f)
-        onChange(s, v)
+        return s to v
     }
 
     Box(
@@ -90,8 +105,23 @@ private fun SaturationValueSquare(hue: Float, sat: Float, value: Float, onChange
             .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0f), Color.Black)))
             .border(1.dp, c.muted.copy(alpha = .18f), RoundedCornerShape(kikoCorner(18.dp)))
             .onSizeChanged { boxSize = it }
-            .pointerInput(Unit) { detectTapGestures { update(it) } }
-            .pointerInput(Unit) { detectDragGestures { change, _ -> change.consume(); update(change.position) } }
+            // A tap is a single instantaneous placement -- there's no separate "in-progress"
+            // phase to spare from the expensive path, so it goes straight to onChangeFinished.
+            .pointerInput(Unit) { detectTapGestures { pos -> resolve(pos)?.let { (s, v) -> onChangeFinished(s, v) } } }
+            // While actually dragging, every intermediate move goes through the cheap
+            // onChange (local thumb position only); onChangeFinished fires once, when the
+            // finger lifts, which is the only point that should trigger anything expensive
+            // downstream (persisting the color, rebuilding the app theme, ...).
+            .pointerInput(Unit) {
+                var lastResolved: Pair<Float, Float>? = null
+                detectDragGestures(
+                    onDrag = { change, _ ->
+                        change.consume()
+                        resolve(change.position)?.let { lastResolved = it; onChange(it.first, it.second) }
+                    },
+                    onDragEnd = { lastResolved?.let { (s, v) -> onChangeFinished(s, v) } },
+                )
+            }
     ) {
         Box(
             Modifier
@@ -111,16 +141,16 @@ private fun SaturationValueSquare(hue: Float, sat: Float, value: Float, onChange
 }
 
 @Composable
-private fun HueRail(hue: Float, onChange: (Float) -> Unit) {
+private fun HueRail(hue: Float, onChange: (Float) -> Unit, onChangeFinished: (Float) -> Unit) {
     val c = LocalKikoColors.current
     var trackWidth by remember { mutableStateOf(0) }
     val rainbow = remember {
         (0..6).map { step -> Color(android.graphics.Color.HSVToColor(floatArrayOf((step * 60).coerceAtMost(360).toFloat(), 1f, 1f))) }
     }
 
-    fun update(pos: Offset) {
-        if (trackWidth == 0) return
-        onChange((pos.x / trackWidth).coerceIn(0f, 1f) * 360f)
+    fun resolve(pos: Offset): Float? {
+        if (trackWidth == 0) return null
+        return (pos.x / trackWidth).coerceIn(0f, 1f) * 360f
     }
 
     Box(
@@ -131,8 +161,14 @@ private fun HueRail(hue: Float, onChange: (Float) -> Unit) {
             .background(Brush.horizontalGradient(rainbow))
             .border(1.dp, c.muted.copy(alpha = .18f), kikoPillShape())
             .onSizeChanged { trackWidth = it.width }
-            .pointerInput(Unit) { detectTapGestures { update(it) } }
-            .pointerInput(Unit) { detectDragGestures { change, _ -> change.consume(); update(change.position) } },
+            .pointerInput(Unit) { detectTapGestures { pos -> resolve(pos)?.let(onChangeFinished) } }
+            .pointerInput(Unit) {
+                var lastResolved: Float? = null
+                detectDragGestures(
+                    onDrag = { change, _ -> change.consume(); resolve(change.position)?.let { lastResolved = it; onChange(it) } },
+                    onDragEnd = { lastResolved?.let(onChangeFinished) },
+                )
+            },
     ) {
         Box(
             Modifier
@@ -150,4 +186,3 @@ private fun HueRail(hue: Float, onChange: (Float) -> Unit) {
         )
     }
 }
-
