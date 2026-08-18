@@ -302,7 +302,7 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
             Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
             Text(
-                if (item.score > 0) "%.2f".format(item.score) else "N/A",
+                if (item.score > 0) item.score.twoDecimals() else "N/A",
                 color = c.muted,
                 fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,

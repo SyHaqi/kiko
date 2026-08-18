@@ -99,6 +99,23 @@ data class MediaItem(
 
 fun MediaItem.isAdultContent() = genres.any { it.equals("Hentai", ignoreCase = true) }
 
+// "%.1f"/"%.2f".format(score) was called directly in every list-item composable (browse
+// cards, ranking rows, search results, seasonal cards, profile stats) — each call builds a
+// java.util.Formatter and resolves the default Locale from scratch. Fine occasionally, but
+// these run once per card as items scroll into view across lists that can run into the
+// hundreds (Ranking, Seasonal), so it adds up to a lot of repeated formatter construction
+// for a value that's just "round to N decimals". Scores are always non-negative here, so a
+// plain round-and-divide + manual decimal split avoids Formatter/Locale entirely.
+private fun Double.decimalString(places: Int): String {
+    val factor = if (places == 1) 10.0 else 100.0
+    val rounded = Math.round(this * factor)
+    val whole = rounded / factor.toLong()
+    val frac = rounded % factor.toLong()
+    return if (places == 1) "$whole.$frac" else "$whole.${frac.toString().padStart(2, '0')}"
+}
+fun Double.oneDecimal(): String = decimalString(1)
+fun Double.twoDecimals(): String = decimalString(2)
+
 fun List<MediaItem>.nsfwFiltered(allowAdult: Boolean) = if (allowAdult) this else filterNot { it.isAdultContent() }
 
 data class RelatedEntry(val relation: String, val title: String, val malId: Int = 0, val malType: String = "anime", val cover: String = "")

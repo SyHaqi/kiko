@@ -73,8 +73,9 @@ import kotlinx.coroutines.launch
     // re-filtering, re-parsing dates on, and re-sorting the full (up to 100-item) new-season
     // list on every recomposition, including ones with nothing to do with it (e.g. vm.loading
     // toggling elsewhere on the page).
-    val airingNext = remember(vm.visibleDiscoverNewSeason) {
-        vm.visibleDiscoverNewSeason.mapNotNull { item -> item.nextAirDateTime()?.let { item to it } }.sortedBy { it.second }.take(5).map { it.first }
+    val newSeason = vm.visibleDiscoverNewSeason
+    val airingNext = remember(newSeason) {
+        newSeason.mapNotNull { item -> item.nextAirDateTime()?.let { item to it } }.sortedBy { it.second }.take(5).map { it.first }
     }
     // Restore scroll position on return from a card/entry instead of resetting to top
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.homeScrollIndex, initialFirstVisibleItemScrollOffset = vm.homeScrollOffset)

@@ -177,8 +177,8 @@ import coil.compose.AsyncImage
                     Column(Modifier.padding(22.dp)) {
                         Text("TIME WATCHED VS READ", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            HeroStat(Modifier.weight(1f), Icons.Default.PlayCircle, "Days watched", "%.1f".format(animeDaysWatched), c.lavender, c.primary)
-                            HeroStat(Modifier.weight(1f), Icons.Default.MenuBook, "Days read (est.)", "%.1f".format(mangaDaysReadEst), c.primaryContainer, c.primary)
+                            HeroStat(Modifier.weight(1f), Icons.Default.PlayCircle, "Days watched", animeDaysWatched.oneDecimal(), c.lavender, c.primary)
+                            HeroStat(Modifier.weight(1f), Icons.Default.MenuBook, "Days read (est.)", mangaDaysReadEst.oneDecimal(), c.primaryContainer, c.primary)
                         }
                     }
                 }
@@ -198,8 +198,8 @@ import coil.compose.AsyncImage
                         Column {
                             if (tab == MediaType.Anime) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    LabeledStat("Days:", "%.1f".format(animeDaysWatched), c)
-                                    LabeledStat("Mean Score:", (profile?.animeMeanScore ?: 0.0).let { if (it > 0) "%.2f".format(it) else "—" }, c)
+                                    LabeledStat("Days:", animeDaysWatched.oneDecimal(), c)
+                                    LabeledStat("Mean Score:", (profile?.animeMeanScore ?: 0.0).let { if (it > 0) it.twoDecimals() else "—" }, c)
                                 }
                                 Spacer(Modifier.height(12.dp))
                                 SegmentedStatBar(listOf(
@@ -240,8 +240,8 @@ import coil.compose.AsyncImage
                                 }
                             } else {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    LabeledStat("Days:", "%.1f".format(mangaDaysReadEst) + " (est.)", c)
-                                    LabeledStat("Mean Score:", if (mangaMeanScore > 0) "%.2f".format(mangaMeanScore) else "—", c)
+                                    LabeledStat("Days:", mangaDaysReadEst.oneDecimal() + " (est.)", c)
+                                    LabeledStat("Mean Score:", if (mangaMeanScore > 0) mangaMeanScore.twoDecimals() else "—", c)
                                 }
                                 Spacer(Modifier.height(12.dp))
                                 SegmentedStatBar(listOf(

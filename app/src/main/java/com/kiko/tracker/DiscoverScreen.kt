@@ -67,7 +67,12 @@ import kotlinx.coroutines.launch
     selectedItem: MediaItem? = null
 ) {
     val context = LocalContext.current
-    LaunchedEffect(vm.signedIn) { vm.loadDiscoverBrowse(context) }
+    // loadHomeExtras() populates both trendingManga (this row) and recommendations
+    // ("You might like") — it was previously only triggered from RecommendationsScreen's
+    // own LaunchedEffect, so neither row ever had data on the Discover landing page until
+    // you'd already opened "You might like" once that session. Load it alongside
+    // loadDiscoverBrowse() so both rows are populated from the moment Discover opens.
+    LaunchedEffect(vm.signedIn) { vm.loadDiscoverBrowse(context); vm.loadHomeExtras(context) }
     AnimatedContent(
         vm.discoverMode,
         transitionSpec = { if (targetState == DiscoverMode.Results) PushEnter togetherWith PushExit else PopEnter togetherWith PopExit },
@@ -167,12 +172,18 @@ import kotlinx.coroutines.launch
                 }
             } else {
                 // New this season row
-                if (vm.visibleDiscoverNewSeason.isNotEmpty()) {
+                // Read each vm.visible* list once into a local val instead of once per usage
+                // (the isNotEmpty() check and the itemsIndexed call below it) — vm.visible*
+                // is a cached (derivedStateOf-backed) getter so a second read is cheap, but
+                // .take(n) on it still allocates a fresh list each time it's called, so one
+                // read+take per row beats two.
+                val newSeason = vm.visibleDiscoverNewSeason.take(7)
+                if (newSeason.isNotEmpty()) {
                     item {
                         SectionTitle("New this season", "See all", onSeasonal)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             // Cap row at 7
-                            itemsIndexed(vm.visibleDiscoverNewSeason.take(7), key = { _, it -> it.id }) { index, item ->
+                            itemsIndexed(newSeason, key = { _, it -> it.id }) { index, item ->
                                 StaggeredItem(index) { BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
                             }
                         }
@@ -180,24 +191,12 @@ import kotlinx.coroutines.launch
                 }
 
                 // Top 10 upcoming row
-                if (vm.visibleDiscoverUpcoming.isNotEmpty()) {
+                val upcoming = vm.visibleDiscoverUpcoming
+                if (upcoming.isNotEmpty()) {
                     item {
                         SectionTitle("Top 10 upcoming", "", {})
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                            itemsIndexed(vm.visibleDiscoverUpcoming, key = { _, it -> it.id }) { index, item ->
-                                StaggeredItem(index) { BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
-                            }
-                        }
-                    }
-                }
-
-                // Recommendations row
-                if (vm.visibleRecommendations.isNotEmpty()) {
-                    item {
-                        SectionTitle("You might like", "See more", onRecommendations)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                            // Cap row at 7; full list is in the "See more" grid
-                            itemsIndexed(vm.visibleRecommendations.take(7), key = { _, it -> it.id }) { index, item ->
+                            itemsIndexed(upcoming, key = { _, it -> it.id }) { index, item ->
                                 StaggeredItem(index) { BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
                             }
                         }
@@ -205,12 +204,28 @@ import kotlinx.coroutines.launch
                 }
 
                 // Trending manga row
-                if (vm.visibleTrendingManga.isNotEmpty()) {
+                val trendingManga = vm.visibleTrendingManga.take(6)
+                if (trendingManga.isNotEmpty()) {
                     item {
                         SectionTitle("Trending manga", "", {})
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                            items(vm.visibleTrendingManga, key = { it.id }) { item ->
-                                BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
+                            // Cap row at 6
+                            itemsIndexed(trendingManga, key = { _, it -> it.id }) { index, item ->
+                                StaggeredItem(index) { BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
+                            }
+                        }
+                    }
+                }
+
+                // Recommendations row
+                val recommendations = vm.visibleRecommendations.take(7)
+                if (recommendations.isNotEmpty()) {
+                    item {
+                        SectionTitle("You might like", "See more", onRecommendations)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                            // Cap row at 7; full list is in the "See more" grid
+                            itemsIndexed(recommendations, key = { _, it -> it.id }) { index, item ->
+                                StaggeredItem(index) { BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
                             }
                         }
                     }
@@ -562,12 +577,16 @@ import kotlinx.coroutines.launch
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
             )
-            .animateContentSize()
+            // animateDpAsState on `pad` above already smoothly interpolates the padding
+            // value frame-by-frame, so the container's size change is already gradual —
+            // animateContentSize() here was doing a second, redundant size-diff/measure
+            // pass on top of that for every card, every frame the selection state was
+            // transitioning, purely to re-derive an animation the padding was already driving.
             .padding(pad)
     ) {
         Cover(item, Modifier.fillMaxWidth().height(150.dp), showStatus = true, overrideStatus = myStatus, selected = isSelected)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
-        Text(subtitle ?: (if (item.score > 0) "★ ${"%.1f".format(item.score)}" else item.genre), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(subtitle ?: (if (item.score > 0) "★ ${item.score.oneDecimal()}" else item.genre), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 // Discover search result row
@@ -598,7 +617,7 @@ import kotlinx.coroutines.launch
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
-                    Text("%.2f".format(item.score), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
+                    Text(item.score.twoDecimals(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
                 }
             }
             if (loading) {
@@ -711,7 +730,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
         if (item.score > 0) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
                 Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
-                Text("%.2f".format(item.score), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
+                Text(item.score.twoDecimals(), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
             }
         } else if (item.genre.isNotBlank()) {
             Text(item.genre, color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))

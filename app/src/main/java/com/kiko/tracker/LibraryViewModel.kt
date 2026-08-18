@@ -348,7 +348,17 @@ class LibraryViewModel : ViewModel() {
     }
 
     // NSFW-filtered list surfaces
-    val visibleItems get() = items.nsfwFiltered(nsfwEnabled)
+    // All of these used to be plain `get()` properties that ran nsfwFiltered() (an
+    // allocating filterNot pass) fresh on every single read. Each row in Discover/Home
+    // reads its `visible*` property at least twice per recomposition (an `.isNotEmpty()`
+    // check plus the itemsIndexed/items call that follows it), so that was two full list
+    // scans for nothing every time nsfwEnabled or the underlying list was read, even when
+    // neither had actually changed since the last read. derivedStateOf caches the result
+    // and only recomputes when one of the state values it reads (the source list,
+    // nsfwEnabled, etc.) actually changes — same fix already applied to
+    // visibleDiscoverResultsState below, just extended to the rest of these.
+    private val visibleItemsState by derivedStateOf { items.nsfwFiltered(nsfwEnabled) }
+    val visibleItems: List<MediaItem> get() = visibleItemsState
     // Cached via derivedStateOf: filtering the whole (growing, paginated) results list is
     // read multiple times per recomposition (empty check, itemsIndexed, lastIndex), so this
     // avoids redoing that work on every read. Deliberately does NOT re-sort discoverResults —
@@ -361,17 +371,23 @@ class LibraryViewModel : ViewModel() {
             .filter { it.matches(discoverFilters) }
     }
     val visibleDiscoverResults: List<MediaItem> get() = visibleDiscoverResultsState
-    val visibleDiscoverNewSeason get() = discoverNewSeason.nsfwFiltered(nsfwEnabled)
-    val visibleDiscoverUpcoming get() = discoverUpcoming.nsfwFiltered(nsfwEnabled)
-    val visibleRecommendations get() = recommendations.nsfwFiltered(nsfwEnabled)
-    val visibleTrendingManga get() = trendingManga.nsfwFiltered(nsfwEnabled)
-    val visibleRankingResults get() = rankingResults.nsfwFiltered(nsfwEnabled)
+    private val visibleDiscoverNewSeasonState by derivedStateOf { discoverNewSeason.nsfwFiltered(nsfwEnabled) }
+    val visibleDiscoverNewSeason: List<MediaItem> get() = visibleDiscoverNewSeasonState
+    private val visibleDiscoverUpcomingState by derivedStateOf { discoverUpcoming.nsfwFiltered(nsfwEnabled) }
+    val visibleDiscoverUpcoming: List<MediaItem> get() = visibleDiscoverUpcomingState
+    private val visibleRecommendationsState by derivedStateOf { recommendations.nsfwFiltered(nsfwEnabled) }
+    val visibleRecommendations: List<MediaItem> get() = visibleRecommendationsState
+    private val visibleTrendingMangaState by derivedStateOf { trendingManga.nsfwFiltered(nsfwEnabled) }
+    val visibleTrendingManga: List<MediaItem> get() = visibleTrendingMangaState
+    private val visibleRankingResultsState by derivedStateOf { rankingResults.nsfwFiltered(nsfwEnabled) }
+    val visibleRankingResults: List<MediaItem> get() = visibleRankingResultsState
     // Filter to premieres only
-    val visibleSeasonalResults: List<MediaItem> get() {
+    private val visibleSeasonalResultsState by derivedStateOf {
         val filtered = if (seasonalContinuingOnly) seasonalResults
         else seasonalResults.filter { it.startDate == seasonalYear.toString() && it.season.equals(seasonalSeason.label, ignoreCase = true) }
-        return filtered.nsfwFiltered(nsfwEnabled)
+        filtered.nsfwFiltered(nsfwEnabled)
     }
+    val visibleSeasonalResults: List<MediaItem> get() = visibleSeasonalResultsState
 
     // Discover state survives navigation
     var discoverMode by mutableStateOf(DiscoverMode.Browse); private set
@@ -520,11 +536,14 @@ class LibraryViewModel : ViewModel() {
 
     // Load home browse rows
     fun loadDiscoverBrowse(context: Context) {
-        if (discoverBrowseLoaded || !MalApi(context).signedIn) return
+        // Reuse one MalApi instance for the signedIn check and the actual calls below
+        // instead of constructing a fresh one for each — construction is cheap (Android
+        // caches SharedPreferences instances by name internally) but still unnecessary churn.
+        val api = MalApi(context)
+        if (discoverBrowseLoaded || !api.signedIn) return
         discoverBrowseLoaded = true
         discoverBrowseLoading = true
         viewModelScope.launch {
-            val api = MalApi(context)
             // These two endpoints don't depend on each other, but `a() to b()` was awaiting
             // them one after another — the second request didn't even start until the first
             // fully returned. Home's "Airing next" row (the first content Home shows) waits
@@ -545,19 +564,20 @@ class LibraryViewModel : ViewModel() {
     }
     // Load recommendations + trending manga rows
     fun loadHomeExtras(context: Context) {
-        if (homeExtrasLoaded || !MalApi(context).signedIn) return
-        homeExtrasLoaded = true
         val api = MalApi(context)
+        if (homeExtrasLoaded || !api.signedIn) return
+        homeExtrasLoaded = true
         viewModelScope.launch { runCatching { api.animeSuggestions(100) }.onSuccess { recommendations = it } }
         viewModelScope.launch { runCatching { api.ranking(MediaType.Manga, "bypopularity", limit = 10) }.onSuccess { trendingManga = it } }
     }
     // (Re)run ranking chart
     fun loadRanking(context: Context, type: MediaType, sort: RankingSort) {
         rankingType = type; rankingSort = if (type == MediaType.Manga && sort == RankingSort.Upcoming) RankingSort.Score else sort
-        if (!MalApi(context).signedIn) { rankingError = "Sign in from Profile to view rankings"; return }
+        val api = MalApi(context)
+        if (!api.signedIn) { rankingError = "Sign in from Profile to view rankings"; return }
         viewModelScope.launch {
             rankingLoading = true
-            runCatching { MalApi(context).ranking(rankingType, rankingSort.apiValue()) }
+            runCatching { api.ranking(rankingType, rankingSort.apiValue()) }
                 .onSuccess { rankingResults = it; rankingError = null }
                 .onFailure { rankingError = it.message ?: "Could not load ranking" }
             rankingLoading = false
@@ -566,10 +586,11 @@ class LibraryViewModel : ViewModel() {
     // (Re)run seasonal chart
     fun loadSeasonal(context: Context, year: Int = seasonalYear, season: SeasonName = seasonalSeason, sort: SeasonalSort = seasonalSort, continuingOnly: Boolean = seasonalContinuingOnly) {
         seasonalYear = year; seasonalSeason = season; seasonalSort = sort; seasonalContinuingOnly = continuingOnly
-        if (!MalApi(context).signedIn) { seasonalError = "Sign in from Profile to browse seasons"; return }
+        val api = MalApi(context)
+        if (!api.signedIn) { seasonalError = "Sign in from Profile to browse seasons"; return }
         viewModelScope.launch {
             seasonalLoading = true
-            runCatching { MalApi(context).seasonalAnime(year, season.api, sort = sort.api) }
+            runCatching { api.seasonalAnime(year, season.api, sort = sort.api) }
                 // Reconcile against user's library
                 .onSuccess { seasonalResults = it.items.map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }; seasonalHasMore = it.hasMore; seasonalError = null }
                 .onFailure { seasonalError = it.message ?: "Could not load season"; seasonalHasMore = false }
@@ -597,11 +618,12 @@ class LibraryViewModel : ViewModel() {
     fun fetchDiscoverSuggestions(context: Context, query: String, type: String) {
         discoverSuggestJob?.cancel()
         if (query.isBlank()) { discoverSuggestions = emptyList(); return }
-        if (!MalApi(context).signedIn) { discoverSuggestions = emptyList(); return }
+        val api = MalApi(context)
+        if (!api.signedIn) { discoverSuggestions = emptyList(); return }
         discoverSuggestJob = viewModelScope.launch {
             delay(100) // debounce so we're not firing a request per keystroke
             val t = when (type) { "Anime" -> MediaType.Anime; "Manga" -> MediaType.Manga; else -> null }
-            runCatching { MalApi(context).suggestTitles(query, t) }
+            runCatching { api.suggestTitles(query, t) }
                 .onSuccess { discoverSuggestions = it }
                 .onFailure { discoverSuggestions = emptyList() }
         }
@@ -628,12 +650,12 @@ class LibraryViewModel : ViewModel() {
             discoverError = "Type at least 3 characters to search"
             return
         }
-        if (!MalApi(context).signedIn) { discoverError = "Sign in from Profile to search MyAnimeList"; return }
+        val api = MalApi(context)
+        if (!api.signedIn) { discoverError = "Sign in from Profile to search MyAnimeList"; return }
         discoverSearchJob = viewModelScope.launch {
             discoverSearching = true
             discoverHasMore = false; discoverPaginationSource = DiscoverPaginationSource.None
             val t = when (type) { "Anime" -> MediaType.Anime; "Manga" -> MediaType.Manga; else -> null }
-            val api = MalApi(context)
             runCatching {
                 val results =
                 // Studio (anime) / author (manga) search: resolve the typed name to a MAL
@@ -886,11 +908,12 @@ class LibraryViewModel : ViewModel() {
 
     // Load forum board hierarchy
     fun loadForumBoards(context: Context, force: Boolean = false) {
-        if ((forumBoardsLoaded && !force) || !MalApi(context).signedIn) return
+        val api = MalApi(context)
+        if ((forumBoardsLoaded && !force) || !api.signedIn) return
         forumBoardsLoaded = true
         forumBoardsLoading = true
         viewModelScope.launch {
-            runCatching { MalApi(context).forumBoards() }
+            runCatching { api.forumBoards() }
                 .onSuccess { forumCategories = it; forumBoardsError = null }
                 .onFailure { forumBoardsError = it.message ?: "Could not load forums" }
             forumBoardsLoading = false
@@ -920,11 +943,12 @@ class LibraryViewModel : ViewModel() {
     val forumIsNewsBoard: Boolean get() = forumBoardTitle.equals("News Discussion", ignoreCase = true)
     private fun runForumTopics(context: Context) {
         forumTopicsJob?.cancel()
-        if (!MalApi(context).signedIn) { forumTopicsError = "Sign in from Profile to browse the forums"; return }
+        val api = MalApi(context)
+        if (!api.signedIn) { forumTopicsError = "Sign in from Profile to browse the forums"; return }
         val newsBoard = forumIsNewsBoard
         forumTopicsJob = viewModelScope.launch {
             forumTopicsLoading = true
-            runCatching { MalApi(context).forumTopics(boardId = forumBoardId, subboardId = forumSubboardId, query = forumQuery, withThumbnails = newsBoard) }
+            runCatching { api.forumTopics(boardId = forumBoardId, subboardId = forumSubboardId, query = forumQuery, withThumbnails = newsBoard) }
                 .onSuccess { forumTopics = it.items; forumHasMore = it.hasMore; forumTopicsError = null }
                 .onFailure { forumTopicsError = it.message ?: "Could not load topics" }
             forumTopicsLoading = false
@@ -967,11 +991,12 @@ class LibraryViewModel : ViewModel() {
     var newsSnapshotsLoading by mutableStateOf(false); private set
     private var newsSnapshotsLoaded = false
     fun loadNewsSnapshots(context: Context, force: Boolean = false) {
-        if ((newsSnapshotsLoaded && !force) || !MalApi(context).signedIn) return
+        val api = MalApi(context)
+        if ((newsSnapshotsLoaded && !force) || !api.signedIn) return
         newsSnapshotsLoaded = true
         newsSnapshotsLoading = true
         viewModelScope.launch {
-            runCatching { MalApi(context).newsSnapshots() }
+            runCatching { api.newsSnapshots() }
                 .onSuccess { newsSnapshots = it }
                 // Fail silently, no banner
                 .onFailure { newsSnapshotsLoaded = false }

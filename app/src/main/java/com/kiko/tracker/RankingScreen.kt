@@ -96,7 +96,7 @@ import kotlinx.coroutines.launch
             if (item.score > 0) {
                 Row(Modifier.padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
-                    Text("%.2f".format(item.score), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+                    Text(item.score.twoDecimals(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
                 }
             } else if (item.listUsers > 0) {
                 Text(formatCount(item.listUsers), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 7.dp))
