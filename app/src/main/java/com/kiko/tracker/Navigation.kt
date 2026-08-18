@@ -385,7 +385,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 initialRecommendedScroll = vm.getRecommendedRowScroll(screen.item.id, screen.item.type),
                                 cachedSnapshot = vm.peekDetailCache(screen.item.id, screen.item.type),
                                 myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
-                                airingEpisode = vm.getCachedAiring(screen.item.id)?.episode,
+                                airingInfo = vm.getCachedAiring(screen.item.id),
                             )
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)

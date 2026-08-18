@@ -161,12 +161,12 @@ import kotlinx.coroutines.launch
 @Composable fun AiringNextCard(item: MediaItem, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
-    val time = item.localBroadcast()?.second
-    // Best-effort AniList lookup for the real next-episode number (see LibraryViewModel.
-    // loadAiringEpisode) — fires once per id per session and just leaves the date-math
-    // guess on screen until/unless it resolves.
+    // Best-effort AniList lookup for the real next-episode number + air time (see
+    // LibraryViewModel.loadAiringEpisode) — fires once per id per session and just leaves the
+    // date-math guess on screen until/unless it resolves.
     LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
-    val confirmedEpisode = vm.getCachedAiring(item.id)?.episode
+    val confirmed = vm.getCachedAiring(item.id)
+    val time = item.nextAirDateTime(confirmed)?.toLocalTime()
     Row(
         Modifier
             .width(264.dp)
@@ -182,7 +182,7 @@ import kotlinx.coroutines.launch
             Row(verticalAlignment = Alignment.Top) {
                 Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(13.dp).padding(top = 1.dp))
                 Text(
-                    listOfNotNull(item.nextEpisodeLabel(confirmedEpisode), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
+                    listOfNotNull(item.nextEpisodeLabel(confirmed), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
                     color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
                 )
             }
@@ -545,7 +545,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
     if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
-    val confirmedEpisode = vm?.getCachedAiring(item.id)?.episode
+    val confirmed = vm?.getCachedAiring(item.id)
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "rowSelectBg")
     val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "rowSelectPad")
     Row(
@@ -575,7 +575,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth(0.75f).padding(top = 9.dp).height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))), color = statusColor(item.status), trackColor = c.surfaceLow)
             }
             Text(progressLabel(item), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-            item.nextEpisodeLabel(confirmedEpisode)?.let { label ->
+            item.nextEpisodeLabel(confirmed)?.let { label ->
                 Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(12.dp))
                     Text(label, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))

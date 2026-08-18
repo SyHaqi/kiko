@@ -417,18 +417,22 @@ private fun MediaItem.nextEpisodeNumber(): Int? {
 }
 // Next episode air label
 
-// confirmedEpisode, when supplied, is AniList's nextAiringEpisode.episode (see AniListApi) —
-// staff-curated and correct across delays/hiatuses, unlike nextEpisodeNumber()'s date-math
-// guess below. Callers pass it in once LibraryViewModel.loadAiringEpisode resolves it;
-// until then (or if AniList has nothing for this id), this falls back to the guess.
-fun MediaItem.nextEpisodeLabel(confirmedEpisode: Int? = null): String? {
+// confirmed, when supplied, is AniList's staff-curated nextAiringEpisode (see AniListApi) —
+// correct across delays/hiatuses, unlike nextEpisodeNumber()'s date-math guess below.
+// Callers pass it in once LibraryViewModel.loadAiringEpisode resolves it; until then (or if
+// AniList has nothing for this id), this falls back to the guess for both the episode number
+// AND the air time. Previously only the episode number was overridden here while the "today/
+// tomorrow/in Xd" wording still came from the date-math guess — so a delayed or hiatus-ing
+// show could show AniList's correct episode number next to a guessed air time that no longer
+// matched it (e.g. "Ep. 8 airs today" for a episode that's actually still a week away). Using
+// confirmed.airingAt for the timing too keeps the number and the "when" it's paired with
+// consistent with each other.
+fun MediaItem.nextEpisodeLabel(confirmed: AiringInfo? = null): String? {
     if (!airStatus.equals("Currently Airing", ignoreCase = true)) return null
-    val (day, time) = localBroadcast() ?: return null
+    val next = confirmedAirDateTime(confirmed) ?: guessedAirDateTime() ?: return null
     val now = java.time.LocalDateTime.now()
-    var next = now.toLocalDate().with(java.time.temporal.TemporalAdjusters.nextOrSame(day)).atTime(time)
-    if (next.isBefore(now)) next = next.plusDays(7)
-    val hoursAway = java.time.Duration.between(now, next).toHours()
-    val epNum = confirmedEpisode ?: nextEpisodeNumber()
+    val hoursAway = java.time.Duration.between(now, next).toHours().coerceAtLeast(0)
+    val epNum = confirmed?.episode ?: nextEpisodeNumber()
     return when {
         hoursAway < 24 -> if (epNum != null) "Ep. $epNum airs today" else "Airs today"
         hoursAway < 48 -> if (epNum != null) "Ep. $epNum airs tomorrow" else "Airs tomorrow"
@@ -442,13 +446,26 @@ fun localizedTimeLabel(time: java.time.LocalTime, is24Hour: Boolean): String =
 // Read device time format
 
 @Composable fun systemIs24Hour(): Boolean = android.text.format.DateFormat.is24HourFormat(LocalContext.current)
-// Next airing full timestamp
-
-fun MediaItem.nextAirDateTime(): java.time.LocalDateTime? {
-    if (!airStatus.equals("Currently Airing", ignoreCase = true)) return null
+// AniList's confirmed airingAt (UTC epoch seconds) converted to the viewer's local zone —
+// the authoritative counterpart to guessedAirDateTime() below. Preferred whenever present.
+private fun MediaItem.confirmedAirDateTime(confirmed: AiringInfo?): java.time.LocalDateTime? {
+    val airingAt = confirmed?.airingAt ?: return null
+    return java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochSecond(airingAt), java.time.ZoneId.systemDefault())
+}
+// Date-math fallback used when AniList has no confirmed nextAiringEpisode for this id yet
+// (or the lookup hasn't resolved) — see nextEpisodeNumber()'s caveat above; this can drift by
+// a week around a delay/hiatus, which is exactly what confirmedAirDateTime() above corrects.
+private fun MediaItem.guessedAirDateTime(): java.time.LocalDateTime? {
     val (day, time) = localBroadcast() ?: return null
     val now = java.time.LocalDateTime.now()
     var next = now.toLocalDate().with(java.time.temporal.TemporalAdjusters.nextOrSame(day)).atTime(time)
     if (next.isBefore(now)) next = next.plusDays(7)
     return next
+}
+// Next airing full timestamp — prefers AniList's confirmed airingAt when available, same
+// reasoning as nextEpisodeLabel() above, so the "Airing next" row's sort order and any
+// displayed time-of-day both line up with whatever episode number is actually shown.
+fun MediaItem.nextAirDateTime(confirmed: AiringInfo? = null): java.time.LocalDateTime? {
+    if (!airStatus.equals("Currently Airing", ignoreCase = true)) return null
+    return confirmedAirDateTime(confirmed) ?: guessedAirDateTime()
 }
