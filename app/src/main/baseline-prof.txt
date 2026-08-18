@@ -1,0 +1,67 @@
+# Baseline profile — hand-seeded, not device-generated.
+#
+# What this file is: a list of classes/methods ART should compile ahead-of-time and
+# keep warm, instead of interpreting/JIT-compiling them from scratch on first use.
+# AGP compiles this into a binary .prof at build time and packages it into the APK;
+# androidx.profileinstaller (added in build.gradle.kts) installs it on the device.
+#
+# Why it's here: on a fresh release install, Compose's lazy-list, animation, and
+# recomposition machinery — plus Coil's image pipeline — are cold. The first several
+# times DetailScreen scrolls, those code paths are still being interpreted rather than
+# running compiled, which reads as jank indistinguishable from a real perf bug, and
+# fades after repeated use as ART's own runtime profiling catches up on its own.
+# This file just gives ART a head start on exactly that code, from install.
+#
+# Caveat: this is a best-effort seed, not a measured profile. It's hand-picked based on
+# what DetailScreen/StaggeredItem/scrolling actually exercise (see DetailScreen.kt,
+# Motion.kt) — not captured from a real run on a device, which is what the
+# androidx.baselineprofile Gradle plugin + Macrobenchmark would produce if you set up
+# that module later (needs a connected device/emulator to run). That's the more
+# precise long-term option; this covers the same intent without one.
+#
+# Format: each line is either a bare class (kept resident) or an HSPL-prefixed method
+# wildcard (H = hot, S = startup, P = post-startup — compiled ahead-of-time for all
+# three). Lines AGP can't resolve at build time are silently skipped, not a build
+# failure, so this is safe to ship even if a given method wildcard doesn't match
+# anything on your current dependency versions.
+
+# --- Your app's own code: everything under com.kiko.tracker, so the compiler doesn't
+# --- have to warm up your composables/view-models themselves on first navigation. ---
+HSPLcom/kiko/tracker/**;
+Lcom/kiko/tracker/**;
+
+# --- Compose runtime: recomposition, snapshot state, slot table walking — every
+# --- frame during a scroll touches this. ---
+HSPLandroidx/compose/runtime/**->**(**)**;
+Landroidx/compose/runtime/**;
+
+# --- Compose UI: layout, measure/place, graphics layer, input — the actual per-frame
+# --- scroll/draw path. ---
+HSPLandroidx/compose/ui/**->**(**)**;
+Landroidx/compose/ui/**;
+
+# --- Foundation: LazyColumn/LazyRow item composition, disposal, and reuse — the
+# --- exact machinery behind the StaggeredItem re-entry bug you just fixed, plus
+# --- verticalScroll/nested scroll handling used throughout DetailScreen. ---
+HSPLandroidx/compose/foundation/lazy/**->**(**)**;
+Landroidx/compose/foundation/lazy/**;
+HSPLandroidx/compose/foundation/gestures/**->**(**)**;
+Landroidx/compose/foundation/gestures/**;
+
+# --- Compose animation: AnimatedVisibility, fadeIn/slideInVertically, animateContentSize
+# --- — what StaggeredItem and the synopsis expand/collapse actually run every frame
+# --- while animating. ---
+HSPLandroidx/compose/animation/**->**(**)**;
+Landroidx/compose/animation/**;
+HSPLandroidx/compose/animation/core/**->**(**)**;
+Landroidx/compose/animation/core/**;
+
+# --- Material3: Card/Text/Icon/Slider etc. used throughout the detail sections. ---
+HSPLandroidx/compose/material3/**->**(**)**;
+Landroidx/compose/material3/**;
+
+# --- Coil: cover/backdrop/character image loading (AsyncImage, ImageRequest,
+# --- rememberAsyncImagePainter) — decode work that competes with the scroll thread
+# --- if cold. ---
+HSPLcoil/**->**(**)**;
+Lcoil/**;

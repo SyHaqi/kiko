@@ -182,6 +182,15 @@ data class DetailScreenActions(
     LaunchedEffect(item.id) { actions.onLoadStatusDistribution(item, { statusDistribution = it }, {}) }
     // Fresh scroll state per-title
     val listState = remember(item.id) { LazyListState(initialScroll.first, initialScroll.second) }
+    // One stagger-memory set per horizontal row so each row's entrance animation plays
+    // only the first time an item appears — without this, StaggeredItem replays its
+    // fadeIn/slideIn every time a row's cards are disposed+recomposed as they scroll
+    // in/out of the LazyRow's retained window, which is what caused the scroll jank.
+    val charactersSeen = rememberStaggerMemory()
+    val voiceActorsSeen = rememberStaggerMemory()
+    val reviewsSeen = rememberStaggerMemory()
+    val relatedSeen = rememberStaggerMemory()
+    val recommendedSeen = rememberStaggerMemory()
     // Related/recommended rows get their own remembered scroll state too — without
     // this, tapping an entry mid-scroll and coming back snaps the row back to its
     // first item, since a plain rememberLazyListState() resets whenever this
@@ -455,7 +464,7 @@ data class DetailScreenActions(
                         }
                         HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch -> StaggeredItem(i) { CharacterCard(ch, uriHandler) } }
+                            itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch -> StaggeredItem(i, charactersSeen) { CharacterCard(ch, uriHandler) } }
                         }
                     }
                     // Japanese cast only, one row — characters without a listed Japanese VA
@@ -465,7 +474,7 @@ data class DetailScreenActions(
                         Text("Voice Actors", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
                         HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(japaneseVoiceActors, key = { _, (va, _) -> va.malId }) { i, (va, charName) -> StaggeredItem(i) { VoiceActorCard(va, charName, uriHandler) } }
+                            itemsIndexed(japaneseVoiceActors, key = { _, (va, _) -> va.malId }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, uriHandler) } }
                         }
                     }
 
@@ -497,7 +506,7 @@ data class DetailScreenActions(
                         }
                         HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(reviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
+                            itemsIndexed(reviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i, reviewsSeen) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
                         }
                     }
 
@@ -506,7 +515,7 @@ data class DetailScreenActions(
                         HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
                         LazyRow(state = relatedListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(related, key = { _, it -> "${it.relation}-${it.malId}-${it.title}" }) { i, rel ->
-                                StaggeredItem(i) {
+                                StaggeredItem(i, relatedSeen) {
                                     RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId, myStatus = myListStatus[rel.malId to (if (rel.malType == "manga") MediaType.Manga else MediaType.Anime)]) {
                                         // Fallback to web search
                                         if (rel.malId > 0) actions.onOpenRelated(rel) else uriHandler.openUri(malUrl(rel))
@@ -522,7 +531,7 @@ data class DetailScreenActions(
                         HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
                         LazyRow(state = recommendedListState, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             itemsIndexed(recommended, key = { _, it -> it.malId }) { i, rec ->
-                                StaggeredItem(i) { RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) } }
+                                StaggeredItem(i, recommendedSeen) { RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) } }
                             }
                         }
                     }

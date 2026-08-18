@@ -79,4 +79,9 @@ dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("org.jsoup:jsoup:1.17.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    // Installs src/main/baseline-prof.txt (below) onto the device on first run of a
+    // release build, on API levels where the OS doesn't already read baseline profiles
+    // straight from the APK. Without this dependency, a hand-authored or generated
+    // baseline profile just sits unused in the APK — this is what actually applies it.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 }
