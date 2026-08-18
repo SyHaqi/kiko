@@ -111,7 +111,13 @@ class MainActivity : ComponentActivity() {
         var crashText by mutableStateOf<String?>(if (crashFile.exists()) runCatching { crashFile.readText() }.getOrNull() else null)
         setContent {
             val vm: LibraryViewModel = viewModel()
-            LaunchedEffect(Unit) { vm.loadTheme(this@MainActivity); vm.loadColorSource(this@MainActivity); vm.loadPaletteStyle(this@MainActivity); vm.loadCustomColor(this@MainActivity); vm.loadTitleLanguage(this@MainActivity); vm.loadListFilter(this@MainActivity); vm.loadListTypeTab(this@MainActivity); vm.loadCommunityTab(this@MainActivity); vm.loadListSort(this@MainActivity); vm.loadListViewMode(this@MainActivity); vm.loadScoreFilterViewMode(this@MainActivity); vm.loadScoreFilterSort(this@MainActivity); vm.loadYearFilterViewMode(this@MainActivity); vm.loadYearFilterSort(this@MainActivity); vm.loadNsfwPref(this@MainActivity); vm.loadAmoledDark(this@MainActivity); vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity); vm.loadHomeExtras(this@MainActivity) }
+            // Note: vm.loadHomeExtras() (Discover's "You might like" recommendations +
+            // trending manga rows) is deliberately NOT kicked off here — Home never reads
+            // either of those lists, so firing it at cold start just adds two more requests
+            // competing for bandwidth with vm.load()/loadDiscoverBrowse() (which Home's
+            // Continue card and Airing Next row actually wait on). DiscoverScreen already
+            // calls it lazily itself, the first time that screen is actually opened.
+            LaunchedEffect(Unit) { vm.loadTheme(this@MainActivity); vm.loadColorSource(this@MainActivity); vm.loadPaletteStyle(this@MainActivity); vm.loadCustomColor(this@MainActivity); vm.loadTitleLanguage(this@MainActivity); vm.loadListFilter(this@MainActivity); vm.loadListTypeTab(this@MainActivity); vm.loadCommunityTab(this@MainActivity); vm.loadListSort(this@MainActivity); vm.loadListViewMode(this@MainActivity); vm.loadScoreFilterViewMode(this@MainActivity); vm.loadScoreFilterSort(this@MainActivity); vm.loadYearFilterViewMode(this@MainActivity); vm.loadYearFilterSort(this@MainActivity); vm.loadNsfwPref(this@MainActivity); vm.loadAmoledDark(this@MainActivity); vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity) }
             // Throttled background update check
             LaunchedEffect(Unit) {
                 vm.loadCachedUpdate(this@MainActivity)
@@ -125,7 +131,7 @@ class MainActivity : ComponentActivity() {
                     vm.loading = true
                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                         // Reload full homepage
-                        MalApi(this@MainActivity).finishAuth(uri).onSuccess { vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity); vm.loadHomeExtras(this@MainActivity) }.onFailure { vm.error = it.message }
+                        MalApi(this@MainActivity).finishAuth(uri).onSuccess { vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity) }.onFailure { vm.error = it.message }
                         vm.loading = false
                     }
                     callback = null
