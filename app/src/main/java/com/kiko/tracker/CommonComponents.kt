@@ -83,7 +83,14 @@ import kotlin.math.roundToInt
 @Immutable
 data class SkeletonPhase(val alpha: Float, val sweep: Float)
 
-val LocalSkeletonPhase = staticCompositionLocalOf<SkeletonPhase?> { null }
+// compositionLocalOf (not staticCompositionLocalOf): alpha/sweep change every frame
+// forever via the infinite transition below, and this is provided once around the
+// whole KikoApp tree in MainActivity. staticCompositionLocalOf can't do targeted
+// invalidation -- on every value change it force-recomposes the ENTIRE content lambda
+// under the CompositionLocalProvider, i.e. the whole app, every single frame, on every
+// screen, whether or not a skeleton is even visible. compositionLocalOf uses the
+// snapshot system so only the actual .current readers (SkeletonBlock) recompose.
+val LocalSkeletonPhase = compositionLocalOf<SkeletonPhase?> { null }
 
 @Composable
 fun SkeletonPhaseProvider(content: @Composable () -> Unit) {

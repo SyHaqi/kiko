@@ -14,10 +14,10 @@
 #
 # Caveat: this is a best-effort seed, not a measured profile. It's hand-picked based on
 # what DetailScreen/StaggeredItem/scrolling actually exercise (see DetailScreen.kt,
-# Motion.kt) — not captured from a real run on a device, which is what the
-# androidx.baselineprofile Gradle plugin + Macrobenchmark would produce if you set up
-# that module later (needs a connected device/emulator to run). That's the more
-# precise long-term option; this covers the same intent without one.
+# Motion.kt) — not captured from a real run on a device. There is deliberately no
+# on-device automation (Macrobenchmark/UiAutomator module or script) generating or
+# refreshing this file; it's a static, hand-maintained file you edit directly when
+# the app's startup/scroll-heavy code changes.
 #
 # Format: each line is either a bare class (kept resident) or an HSPL-prefixed method
 # wildcard (H = hot, S = startup, P = post-startup — compiled ahead-of-time for all
@@ -27,7 +27,8 @@
 
 # --- Your app's own code: everything under com.kiko.tracker, so the compiler doesn't
 # --- have to warm up your composables/view-models themselves on first navigation. ---
-HSPLcom/kiko/tracker/**;
+# (Note: HSPL flags are only valid on method rules, not class wildcards like this one —
+# the unflagged class rule below is the correct form and covers the same intent.)
 Lcom/kiko/tracker/**;
 
 # --- Compose runtime: recomposition, snapshot state, slot table walking — every
