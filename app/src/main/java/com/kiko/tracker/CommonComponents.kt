@@ -334,7 +334,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 Icon(Icons.Default.Search, null, tint = c.muted, modifier = Modifier.size(16.dp))
                 Text(title, color = c.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 14.dp).weight(1f))
             }
-            if (index < suggestions.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.muted.copy(alpha = .12f), modifier = Modifier.padding(start = 46.dp))
+            if (index < suggestions.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.cardBorder, modifier = Modifier.padding(start = 46.dp))
         }
     }
 }

@@ -120,7 +120,7 @@ import kotlinx.coroutines.launch
                     StaggeredItem(index) {
                         Column {
                             ClubRow(club) { openClub(club) }
-                            if (index < visibleClubs.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                            if (index < visibleClubs.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
                         }
                     }
                 }
@@ -302,7 +302,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                                 ForumBody(post.body, modifier = Modifier.padding(top = 3.dp))
                             }
                         }
-                        if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.cardBorder)
                     }
                 }
             }
@@ -329,7 +329,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                         }
                         Icon(Icons.Default.ChevronRight, null, tint = c.muted)
                     }
-                    if (index < club.staff.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                    if (index < club.staff.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.cardBorder)
                 }
             }
         }
@@ -373,7 +373,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                                 Text(member.username.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
                                 Icon(Icons.Default.ChevronRight, null, tint = c.muted)
                             }
-                            if (index < members.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                            if (index < members.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.cardBorder)
                         }
                     }
                 }

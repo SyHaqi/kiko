@@ -382,7 +382,7 @@ import coil.compose.AsyncImage
                 StaggeredItem(index, staggerSeen) {
                     Column {
                         ListRow(it, onOpenDetail, showType = false)
-                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
                     }
                 }
             }
@@ -475,7 +475,7 @@ import coil.compose.AsyncImage
                 StaggeredItem(index, staggerSeen) {
                     Column {
                         ListRow(it, onOpenDetail, showType = false)
-                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
                     }
                 }
             }

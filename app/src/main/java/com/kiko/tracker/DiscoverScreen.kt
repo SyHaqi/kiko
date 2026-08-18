@@ -391,7 +391,7 @@ import kotlinx.coroutines.launch
                     StaggeredItem(index, staggerSeen) {
                         Column {
                             SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type, myStatus = result.id.toIntOrNull()?.let { myListStatus[it to result.type] })
-                            if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                            if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
                         }
                     }
                 }

@@ -65,13 +65,16 @@ val KikoColors.accent: Color get() = primary
 
 // True-black variant for AMOLED screens — flattens background/surface tones to pure
 // black so OLED pixels can switch off, while keeping accent/text colors untouched.
-// Also gives buttons/cards a hairline border in the same tone as the list separators,
-// so they stay visible against the pure-black background instead of blending into it.
+// Also gives buttons/cards/dividers a hairline border in the same tone as the list
+// separators, so they stay visible against the pure-black background instead of
+// blending into it. Pure black has no ambient tone to blend a faint gray into (unlike
+// the ~0x12 dark background), so this needs a noticeably higher alpha than the
+// light/dark themes' 0.16f to actually read as a line rather than disappear.
 fun amoledify(colors: KikoColors): KikoColors = colors.copy(
     background = Color.Black,
     surface = Color(0xFF000000),
     surfaceLow = Color(0xFF0A0A0A),
-    cardBorder = colors.muted.copy(alpha = .15f),
+    cardBorder = colors.muted.copy(alpha = .32f),
 )
 
 val AppFont = FontFamily.SansSerif

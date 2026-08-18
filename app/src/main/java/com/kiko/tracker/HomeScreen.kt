@@ -217,7 +217,7 @@ import kotlinx.coroutines.launch
         // horizontal padding, so unlike the My List row divider (which starts after the cover)
         // this one is flush with the surrounding content's edges rather than the screen's.
         if (topDivider) {
-            HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+            HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp), thickness = 1.dp, color = c.cardBorder)
         }
     }
 }
@@ -442,7 +442,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                             StaggeredItem(index, staggerSeen) {
                                 Column {
                                     ListRow(it, openItem, onIncrement, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, vm = vm)
-                                    if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                                    if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
                                 }
                             }
                         }

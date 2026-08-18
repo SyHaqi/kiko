@@ -390,7 +390,7 @@ data class DetailScreenActions(
                     if (meta.isNotEmpty()) Text(meta.joinToString("   ·   "), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
 
                     Text("Synopsis", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 28.dp, bottom = 10.dp))
-                    HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                    HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                     Text(
                         item.synopsis.ifBlank { "No synopsis available yet." },
                         color = if (item.synopsis.isBlank()) c.muted else c.ink,
@@ -405,7 +405,7 @@ data class DetailScreenActions(
                     // Community rank/popularity stats
                     if (item.rank > 0 || item.popularity > 0 || item.listUsers > 0) {
                         Text("Statistics", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 28.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Row(Modifier.fillMaxWidth().padding(vertical = 20.dp)) {
                                 if (item.rank > 0) StatBlock(Modifier.weight(1f), "#${item.rank}", "Rank")
@@ -430,13 +430,13 @@ data class DetailScreenActions(
                     }
                     if (details.isNotEmpty()) {
                         Text("Details", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                 details.forEachIndexed { i, (label, value) ->
                                     val isCreatorRow = (label == "Studio" || label == "Author") && item.creator.isNotBlank()
                                     InfoRow(label, value, onClick = if (isCreatorRow) { { actions.onCreatorClick(item.creator) } } else null)
-                                    if (i != details.lastIndex) HorizontalDivider(color = c.surfaceLow)
+                                    if (i != details.lastIndex) HorizontalDivider(color = c.cardBorder)
                                 }
                             }
                         }
@@ -444,13 +444,13 @@ data class DetailScreenActions(
 
                     if (item.synonyms.isNotEmpty()) {
                         Text("Alternative titles", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             SelectionContainer {
                                 Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                     item.synonyms.forEachIndexed { i, name ->
                                         Text(name, color = c.ink, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 11.dp))
-                                        if (i != item.synonyms.lastIndex) HorizontalDivider(color = c.surfaceLow)
+                                        if (i != item.synonyms.lastIndex) HorizontalDivider(color = c.cardBorder)
                                     }
                                 }
                             }
@@ -462,7 +462,7 @@ data class DetailScreenActions(
                             Text("Characters", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
                             Text("See cast", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.clickable { actions.onOpenReviewList(malCharactersUrl(item), itemDisplayTitle) })
                         }
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch -> StaggeredItem(i, charactersSeen) { CharacterCard(ch, uriHandler) } }
                         }
@@ -472,7 +472,7 @@ data class DetailScreenActions(
                     val japaneseVoiceActors = characters.mapNotNull { ch -> ch.japaneseVoiceActor?.let { it to ch.name } }
                     if (japaneseVoiceActors.isNotEmpty()) {
                         Text("Voice Actors", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(japaneseVoiceActors, key = { _, (va, _) -> va.malId }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, uriHandler) } }
                         }
@@ -481,7 +481,7 @@ data class DetailScreenActions(
                     val themes = openingThemes.map { "OP" to it } + endingThemes.map { "ED" to it }
                     if (themes.isNotEmpty()) {
                         Text("Theme songs", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                 themes.forEachIndexed { i, (kind, text) ->
@@ -493,7 +493,7 @@ data class DetailScreenActions(
                                         Text(text, color = c.ink, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
                                         Icon(Icons.Default.PlayArrow, "Search on YouTube", tint = c.muted, modifier = Modifier.size(18.dp))
                                     }
-                                    if (i != themes.lastIndex) HorizontalDivider(color = c.surfaceLow)
+                                    if (i != themes.lastIndex) HorizontalDivider(color = c.cardBorder)
                                 }
                             }
                         }
@@ -504,7 +504,7 @@ data class DetailScreenActions(
                             Text("Reviews", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
                             Text("See more", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.clickable { actions.onOpenReviewList(malReviewsUrl(item), itemDisplayTitle) })
                         }
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(reviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i, reviewsSeen) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
                         }
@@ -512,7 +512,7 @@ data class DetailScreenActions(
 
                     if (related.isNotEmpty()) {
                         Text("Related", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                         LazyRow(state = relatedListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(related, key = { _, it -> "${it.relation}-${it.malId}-${it.title}" }) { i, rel ->
                                 StaggeredItem(i, relatedSeen) {
@@ -528,7 +528,7 @@ data class DetailScreenActions(
                     // Recommendations from MAL endpoint
                     if (recommended.isNotEmpty()) {
                         Text("Recommended", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                         LazyRow(state = recommendedListState, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             itemsIndexed(recommended, key = { _, it -> it.malId }) { i, rec ->
                                 StaggeredItem(i, recommendedSeen) { RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) } }
@@ -538,14 +538,14 @@ data class DetailScreenActions(
 
                     if (item.background.isNotBlank()) {
                         Text("Background", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                         Text(item.background, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp)
                     }
 
                     // Reuse status bar styling
                     statusDistribution?.takeIf { it.total > 0 }?.let { dist ->
                         Text("Status distribution", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
                                 StatBar("Watching", dist.watching, dist.total, c, statusColor("Watching"))

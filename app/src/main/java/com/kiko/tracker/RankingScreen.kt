@@ -60,7 +60,7 @@ import kotlinx.coroutines.launch
                     StaggeredItem(index, staggerSeen) {
                         Column {
                             RankingRow(index + 1, it, onOpenDetail)
-                            if (index < vm.visibleRankingResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                            if (index < vm.visibleRankingResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
                         }
                     }
                 }

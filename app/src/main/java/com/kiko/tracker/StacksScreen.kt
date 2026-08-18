@@ -132,7 +132,7 @@ import kotlinx.coroutines.launch
                             StackListRow(s, vm) { openStack(s) }
                             // Same subtle row separator My List / Discover search results use
                             // (see SearchResultRow's divider) — this list was missing it.
-                            if (index < vm.stacksHomeRecent.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                            if (index < vm.stacksHomeRecent.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
                         }
                     }
                 }
@@ -210,7 +210,7 @@ import kotlinx.coroutines.launch
                         StaggeredItem(index, staggerSeen) {
                             Column {
                                 StackListRow(s, vm) { openStack(s) }
-                                if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                                if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
                             }
                         }
                     }

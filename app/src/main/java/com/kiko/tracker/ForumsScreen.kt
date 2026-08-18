@@ -139,7 +139,7 @@ import kotlinx.coroutines.launch
                             Column {
                                 category.boards.forEachIndexed { index, board ->
                                     ForumBoardRow(board) { saveScroll(); vm.openForumBoard(context, board) }
-                                    if (index < category.boards.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                                    if (index < category.boards.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.cardBorder)
                                 }
                             }
                         }
@@ -233,7 +233,7 @@ import kotlinx.coroutines.launch
                     StaggeredItem(index) {
                         Column {
                             if (vm.forumIsNewsBoard) NewsTopicRow(topic) { openTopic(topic) } else ForumTopicRow(topic) { openTopic(topic) }
-                            if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                            if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.cardBorder)
                         }
                     }
                 }
@@ -371,7 +371,7 @@ import kotlinx.coroutines.launch
                 StaggeredItem(index) {
                     Column {
                         ForumPostCard(post, isOriginalPost = post.number == 1)
-                        if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.muted.copy(alpha = .12f))
+                        if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.cardBorder)
                     }
                 }
             }

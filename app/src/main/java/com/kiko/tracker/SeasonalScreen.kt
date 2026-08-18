@@ -154,7 +154,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
                 StaggeredItem(index) {
                     Column {
                         ScheduleRow(item, time, onOpenDetail)
-                        if (index < dayItems.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.muted.copy(alpha = .15f))
+                        if (index < dayItems.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
                     }
                 }
             }
