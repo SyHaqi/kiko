@@ -54,11 +54,24 @@ private fun prettifySource(raw: String) = when (raw.lowercase()) {
 private class AuthExpired : IOException()
 
 // Extract first forum image
-private val firstImgTagRegex = Regex("""\[img(?:[^\]]*)\]\s*(https?://[^\s\[\]]+?)\s*\[/img\]""", RegexOption.IGNORE_CASE)
-private val firstBareImageUrlRegex = Regex("""https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?|https?://cdn\.myanimelist\.net/s/common/bbcode/\S+|https?://image\.myanimelist\.net/ui/\S+""", RegexOption.IGNORE_CASE)
+// Previously this duplicated its own pair of http(s)-only regexes instead of reusing the
+// same BBCode parser ForumBody uses to render a post's full content — which is exactly why
+// fixes here kept drifting out of sync with the detail view (most recently: a schemeless
+// MAL-hosted image URL that ForumBody now resolves fine via httpsUpgrade, but this file's
+// own regexes required an explicit http(s):// prefix to match at all, so they found nothing
+// and the topic silently fell back to a placeholder thumbnail / dropped out of the News
+// snapshot row entirely). Running the same normalizeMalMarkup + parseBlocks pipeline here
+// guarantees the thumbnail and the detail view always agree on what "the first image" is.
+private fun firstImageBlockUrl(blocks: List<ForumBlock>): String? {
+    for (b in blocks) when (b) {
+        is ForumBlock.ImageBlock -> if (!b.resolveTenor) return b.url
+        is ForumBlock.Quote -> firstImageBlockUrl(b.blocks)?.let { return it }
+        else -> {}
+    }
+    return null
+}
 private fun firstImageUrl(body: String): String? =
-    firstImgTagRegex.find(body)?.groupValues?.get(1)
-        ?: firstBareImageUrlRegex.find(body)?.value
+    firstImageBlockUrl(parseBlocks(normalizeMalMarkup(body), androidx.compose.ui.graphics.Color.Unspecified))
 
 // User-submitted title recommendation. isAuto marks a MAL "AutoRec" entry — an
 // algorithmically-generated pick the website shows in place of (or alongside) real

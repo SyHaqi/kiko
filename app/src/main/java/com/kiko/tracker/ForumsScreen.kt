@@ -321,10 +321,24 @@ import kotlinx.coroutines.launch
     var loadingMore by remember(topicId) { mutableStateOf(false) }
     var hasMore by remember(topicId) { mutableStateOf(false) }
     var error by remember(topicId) { mutableStateOf<String?>(null) }
+    // Brand-new topics (posted within the last few hours) can come back with an empty
+    // "posts" array for a while even though the topic itself already exists — MAL's forum
+    // read-API appears to lag its own website by a bit for the very newest content. That
+    // previously showed as a totally blank screen with no explanation. Retrying once after
+    // a short delay covers the common case where the lag has already cleared by the time
+    // this recomposes; if it's still empty after that, the empty state below at least tells
+    // the person what happened instead of leaving the page looking broken.
     LaunchedEffect(topicId) {
         loading = true
-        runCatching { MalApi(context).forumTopic(topicId) }
-            .onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore; error = null }
+        error = null
+        var result = runCatching { MalApi(context).forumTopic(topicId) }
+        // Empty (but successful) response on the first try — give the API one more chance
+        // after a short pause before treating it as genuinely empty.
+        if (result.isSuccess && result.getOrNull()?.posts?.isEmpty() == true) {
+            kotlinx.coroutines.delay(1500)
+            result = runCatching { MalApi(context).forumTopic(topicId) }
+        }
+        result.onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore; error = null }
             .onFailure { error = it.message ?: "Could not load topic" }
         loading = false
     }
@@ -365,6 +379,25 @@ import kotlinx.coroutines.launch
                 }
                 if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
                 error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                // Distinguishes "still loading" from "MAL's API hasn't returned this brand-new
+                // topic's posts yet" — previously both looked identical (an empty screen), which
+                // is especially confusing right after tapping into a just-posted news topic.
+                if (!loading && error == null && posts.isEmpty()) {
+                    Column(Modifier.fillMaxWidth().padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.HourglassEmpty, null, tint = c.muted, modifier = Modifier.size(28.dp))
+                        Text("This topic hasn't finished loading on MAL's end yet", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp))
+                        Text("This can happen for very recently posted topics — try again in a bit.", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                        TextButton(onClick = {
+                            scope.launch {
+                                loading = true
+                                runCatching { MalApi(context).forumTopic(topicId) }
+                                    .onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore; error = null }
+                                    .onFailure { error = it.message ?: "Could not load topic" }
+                                loading = false
+                            }
+                        }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
+                    }
+                }
                 poll?.let { ForumPollCard(it, Modifier.padding(top = 6.dp, bottom = 6.dp)) }
             }
             itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->

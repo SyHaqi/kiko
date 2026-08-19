@@ -155,7 +155,21 @@ fun parseBBCode(rawIn: String, linkColor: Color): List<ForumBlock> {
 // Old pasted links are often plain http:// — Android blocks cleartext network
 // requests by default (API 28+) so those images silently fail to load even
 // though the same host serves the same image fine over https.
-fun httpsUpgrade(url: String): String = if (url.startsWith("http://", ignoreCase = true)) "https://" + url.substring(7) else url
+// Some older MAL-hosted uploads (the .../uploaded_files/<timestamp>-<hash>.jpeg style
+// links seen from the news-submission tool) are stored with no scheme at all — the
+// website's own template silently prepends a plain "http://" only when rendering the
+// page, so the underlying data is just "cdn.myanimelist.net/...". Coil has no implicit
+// fallback for that and rejects it outright ("Unable to create a fetcher that supports:
+// cdn.myanimelist.net/..."), and the tap-to-open handler fails identically since neither
+// CustomTabs nor the URI handler can resolve a relative link either — both symptoms
+// trace back to this same missing scheme, not two separate bugs.
+fun httpsUpgrade(url: String): String = when {
+    url.startsWith("https://", ignoreCase = true) -> url
+    url.startsWith("http://", ignoreCase = true) -> "https://" + url.substring(7)
+    url.startsWith("//") -> "https:$url"
+    url.isNotBlank() && !url.contains("://") -> "https://$url"
+    else -> url
+}
 // Recurse into center/quote blocks
 
 // Strip any nested BBCode tags from an [img]...[/img] tag's inner content, keeping
