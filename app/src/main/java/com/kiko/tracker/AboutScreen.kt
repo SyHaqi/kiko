@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.browser.customtabs.CustomTabsIntent
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 @Composable fun AboutScreen(
     onBack: () -> Unit,
@@ -117,9 +118,9 @@ import kotlin.math.roundToInt
 }
 // Proportional status breakdown bar
 
-@Composable fun StatBar(label: String, value: Int, total: Int, c: KikoColors, barColor: Color = c.primary) {
+@Composable fun StatBar(label: String, value: Int, total: Int, c: KikoColors, barColor: Color = c.primary, onClick: (() -> Unit)? = null) {
     val fraction = if (total > 0) (value.toFloat() / total).coerceIn(0f, 1f) else 0f
-    Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
+    Column(Modifier.fillMaxWidth().let { m -> if (onClick != null) m.clickable(onClick = onClick) else m }.padding(vertical = 7.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Text(value.toString(), color = barColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -168,12 +169,12 @@ import kotlin.math.roundToInt
 // Top genres proportional bars — each genre gets its own swatch from the fixed
 // ChartPalette below instead of one flat color repeated down the list.
 
-@Composable fun GenreBreakdownChart(items: List<MediaItem>, c: KikoColors) {
+@Composable fun GenreBreakdownChart(items: List<MediaItem>, c: KikoColors, onGenreClick: ((String) -> Unit)? = null) {
     val total = items.size
     // Skip junk genre tags
     val counts = items.flatMap { it.genres }.filter { it.isNotBlank() && it.trim().split(" ").size <= 3 && it.length <= 24 }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(6)
     if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
-    Column(Modifier.fillMaxWidth()) { counts.forEachIndexed { index, (genre, count) -> StatBar(genre, count, total, c, chartColor(c, index)) } }
+    Column(Modifier.fillMaxWidth()) { counts.forEachIndexed { index, (genre, count) -> StatBar(genre, count, total, c, chartColor(c, index), onClick = onGenreClick?.let { { it(genre) } }) } }
 }
 // Categorical colors for stat charts (genre bars, format ring/legend) — a fixed,
 // hardcoded set of solid swatches, same spirit as the Status colors below (flat,
@@ -198,7 +199,7 @@ fun chartColor(c: KikoColors, index: Int): Color = ChartPalette[index % ChartPal
 // paired with a ranked legend, each format's own hue from chartColor so every wedge
 // reads as distinct at a glance instead of one accent bleeding into its own shades.
 
-@Composable fun FormatBreakdownChart(items: List<MediaItem>, c: KikoColors) {
+@Composable fun FormatBreakdownChart(items: List<MediaItem>, c: KikoColors, onFormatClick: ((String) -> Unit)? = null) {
     val counts = items.map { it.format }.filter { it.isNotBlank() }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(5)
     if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
     val total = counts.sumOf { it.value }
@@ -206,7 +207,7 @@ fun chartColor(c: KikoColors, index: Int): Color = ChartPalette[index % ChartPal
         FormatRing(counts, total, c, modifier = Modifier.size(92.dp))
         Spacer(Modifier.width(20.dp))
         Column(Modifier.weight(1f)) {
-            counts.forEachIndexed { index, entry -> FormatLegendRow(entry.key, entry.value, total, chartColor(c, index), c) }
+            counts.forEachIndexed { index, entry -> FormatLegendRow(entry.key, entry.value, total, chartColor(c, index), c, onClick = onFormatClick?.let { { it(entry.key) } }) }
         }
     }
 }
@@ -241,9 +242,12 @@ fun chartColor(c: KikoColors, index: Int): Color = ChartPalette[index % ChartPal
 // One ranked row in the format legend: dot, name, raw count, percentage pill — the
 // pill's text picks up the segment's own color so it visually ties back to its wedge
 
-@Composable fun FormatLegendRow(label: String, count: Int, total: Int, color: Color, c: KikoColors) {
+@Composable fun FormatLegendRow(label: String, count: Int, total: Int, color: Color, c: KikoColors, onClick: (() -> Unit)? = null) {
     val pct = if (total > 0) (count * 100f / total).roundToInt() else 0
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().let { m -> if (onClick != null) m.clickable(onClick = onClick) else m }.padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Box(Modifier.size(10.dp).clip(kikoCircleShape()).background(color))
         Spacer(Modifier.width(9.dp))
         Text(label, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -272,11 +276,22 @@ fun scoreBarColor(c: KikoColors, score: Int): Color {
     return hslColor(hue, ScoreGradientSaturation, ScoreGradientLightness)
 }
 
-@Composable fun ScoreDistributionChart(items: List<MediaItem>, c: KikoColors, onScoreClick: ((Int) -> Unit)? = null) {
-    val counts = (1..10).associateWith { s -> items.count { it.myRating == s } }
-    if (counts.values.all { it == 0 }) { Text("No scored titles yet.", color = c.muted, fontSize = 12.sp); return }
+// Shared bar renderer behind both ScoreDistributionChart (a user's own 1-10 ratings,
+// on the profile page) and CommunityScoreDistributionChart (a title's 1-10 community
+// votes, on the Score Stats page) — so both read the same way at a glance.
+//
+// Bar height was a straight linear ratio against the tallest bar (count/maxCount), which
+// on a real list is almost always dominated by the 7s and 8s — everything else (the 1s,
+// 2s, 3s, and often 4-6 too) rounds down to the same near-invisible sliver, so the chart
+// reads as "one tall spike" instead of a distribution. Two changes fix that: the slot is
+// taller (96dp vs the old 56dp, more room for differences to actually show up in), and
+// the fraction is sqrt-compressed rather than linear, so a bar with a fraction of the
+// max count still reads as visibly taller than one with a much smaller fraction, instead
+// of both bottoming out at the same coerced minimum.
+private val ScoreBarSlotHeight = 96.dp
+
+@Composable private fun ScoreBarsCore(counts: Map<Int, Int>, c: KikoColors, barColorFor: (Int) -> Color, onScoreClick: ((Int) -> Unit)? = null) {
     val maxCount = counts.values.max()
-    val barSlotHeight = 56.dp
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
         (1..10).forEach { score ->
             val count = counts.getValue(score)
@@ -285,10 +300,11 @@ fun scoreBarColor(c: KikoColors, score: Int): Color {
                 modifier = Modifier.weight(1f).padding(horizontal = 2.dp).let { m -> if (onScoreClick != null) m.clickable { onScoreClick(score) } else m },
             ) {
                 Text(if (count > 0) count.toString() else "", color = c.muted, fontSize = 9.sp)
-                Box(Modifier.fillMaxWidth().height(barSlotHeight), contentAlignment = Alignment.BottomCenter) {
+                Box(Modifier.fillMaxWidth().height(ScoreBarSlotHeight), contentAlignment = Alignment.BottomCenter) {
+                    val fraction = if (maxCount > 0 && count > 0) sqrt(count.toFloat() / maxCount) else 0f
                     Box(
-                        Modifier.fillMaxWidth().height((count.toFloat() / maxCount * barSlotHeight.value).dp.coerceAtLeast(if (count > 0) 4.dp else 1.dp))
-                            .clip(RoundedCornerShape(kikoCorner(4.dp))).background(if (count > 0) scoreBarColor(c, score) else c.surfaceLow)
+                        Modifier.fillMaxWidth().height((fraction * ScoreBarSlotHeight.value).dp.coerceAtLeast(if (count > 0) 4.dp else 1.dp))
+                            .clip(RoundedCornerShape(kikoCorner(4.dp))).background(if (count > 0) barColorFor(score) else c.surfaceLow)
                     )
                 }
                 Spacer(Modifier.height(4.dp))
@@ -296,6 +312,21 @@ fun scoreBarColor(c: KikoColors, score: Int): Color {
             }
         }
     }
+}
+
+@Composable fun ScoreDistributionChart(items: List<MediaItem>, c: KikoColors, onScoreClick: ((Int) -> Unit)? = null) {
+    val counts = (1..10).associateWith { s -> items.count { it.myRating == s } }
+    if (counts.values.all { it == 0 }) { Text("No scored titles yet.", color = c.muted, fontSize = 12.sp); return }
+    ScoreBarsCore(counts, c, barColorFor = { scoreBarColor(c, it) }, onScoreClick = onScoreClick)
+}
+
+// A title's community score breakdown — same bars as ScoreDistributionChart above, just
+// fed vote counts scraped off MAL's /stats page (see ScoreStats) instead of the user's
+// own ratings. Not click-to-filter since there's no personal list entry per score here.
+@Composable fun CommunityScoreDistributionChart(stats: ScoreStats, c: KikoColors) {
+    val counts = (1..10).associateWith { s -> stats.counts[s] ?: 0 }
+    if (counts.values.all { it == 0 }) { Text("No score data yet.", color = c.muted, fontSize = 12.sp); return }
+    ScoreBarsCore(counts, c, barColorFor = { scoreBarColor(c, it) })
 }
 // Year distribution — how many of the user's titles were originally released in each
 // year, laid out the same way as ScoreDistributionChart above (count label, bar, axis

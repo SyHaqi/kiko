@@ -36,6 +36,46 @@ class MalDetailScrapeApi {
         PageExtras(parseRelated(doc), parseRecommended(doc))
     }
 
+    // Community score breakdown (1-10) — lives on the title's separate /stats page, not
+    // the main detail page above, so this is its own request, made on demand only when
+    // the user actually opens the score stats screen (see LibraryViewModel.loadScoreStats).
+    //
+    // MAL's own routing is "/{kind}/{id}/{slug}/{subpage}", with the slug segment
+    // positional but not actually validated against the id — any placeholder text works.
+    // Requesting "/{kind}/{id}/stats" (no slug) doesn't hit the stats subpage at all: MAL
+    // parses "stats" itself as filling the slug slot, so it silently 200s with the regular
+    // detail page instead (which has no score-stats table), and this came back looking
+    // like "no score data" for every title. Slugging the title in ourselves fixes it; the
+    // no-slug form is kept as a fallback in case a title's slugified title ever collides
+    // with something MAL treats specially.
+    suspend fun fetchScoreStats(id: Int, type: MediaType, title: String): ScoreStats = withContext(Dispatchers.IO) {
+        val kind = if (type == MediaType.Anime) "anime" else "manga"
+        val slugged = runCatching { parseScoreStats(client.fetchMalDocument("$MAL/$kind/$id/${malSlug(title)}/stats")) }.getOrNull()
+        if (slugged != null && slugged.total > 0) return@withContext slugged
+        runCatching { parseScoreStats(client.fetchMalDocument("$MAL/$kind/$id/stats")) }.getOrDefault(slugged ?: ScoreStats())
+    }
+
+    // MAL's own slug convention: title with every run of non-alphanumeric characters
+    // collapsed to a single underscore (e.g. "Maid-san wa Taberu dake" -> the real MAL
+    // slug "Maid-san_wa_Taberu_dake"). Doesn't need to be byte-for-byte identical to MAL's
+    // actual slug for this title — MAL doesn't check it against the id — just non-empty.
+    private fun malSlug(title: String): String {
+        val slug = title.trim().replace(Regex("[^A-Za-z0-9-]+"), "_").trim('_')
+        return slug.ifBlank { "_" }
+    }
+
+    // "table.score-stats" rows go from score 10 down to 1, each with a "(N votes)" small
+    // tag next to the percentage — same table shape as the Sayonara Lara stats page this
+    // was verified against.
+    private fun parseScoreStats(doc: Document): ScoreStats {
+        val counts = doc.select("table.score-stats tr").mapNotNull { row ->
+            val score = row.selectFirst("td.score-label")?.text()?.trim()?.toIntOrNull() ?: return@mapNotNull null
+            val votes = Regex("\\d[\\d,]*").find(row.select("small").text())?.value?.replace(",", "")?.toIntOrNull() ?: 0
+            score to votes
+        }.toMap()
+        return ScoreStats(counts)
+    }
+
     // malId + malType read straight off the link's own href rather than off which page
     // we're on, so a manga's related anime (and an anime's related manga/light novel)
     // both come through correctly.

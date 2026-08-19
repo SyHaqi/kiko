@@ -145,6 +145,7 @@ class LibraryViewModel : ViewModel() {
         var statusDistribution: StatusDistribution? = null,
         var characters: List<CharacterEntry>? = null,
         var reviews: List<ReviewEntry>? = null,
+        var scoreStats: ScoreStats? = null,
         var relatedScroll: Pair<Int, Int> = 0 to 0,
         var recommendedScroll: Pair<Int, Int> = 0 to 0,
     )
@@ -292,6 +293,20 @@ class LibraryViewModel : ViewModel() {
     var yearFilterSort by mutableStateOf(ListSort.Title); private set
     fun setYearFilterSort(context: Context, sort: ListSort) { yearFilterSort = sort; settingsPrefs(context).edit().putString("year_filter_sort", sort.name).apply() }
     fun loadYearFilterSort(context: Context) { yearFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("year_filter_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
+    var formatFilterViewMode by mutableStateOf(ListViewMode.List); private set
+    fun setFormatFilterViewMode(context: Context, mode: ListViewMode) { formatFilterViewMode = mode; settingsPrefs(context).edit().putString("format_filter_view_mode", mode.name).apply() }
+    fun loadFormatFilterViewMode(context: Context) { formatFilterViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("format_filter_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
+    var formatFilterSort by mutableStateOf(ListSort.Title); private set
+    fun setFormatFilterSort(context: Context, sort: ListSort) { formatFilterSort = sort; settingsPrefs(context).edit().putString("format_filter_sort", sort.name).apply() }
+    fun loadFormatFilterSort(context: Context) { formatFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("format_filter_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
+    // Genre breakdown drill-down view mode + sort — same pattern as the format filter
+    // screen's own prefs above, kept separate so the two drill-down screens don't share state
+    var genreFilterViewMode by mutableStateOf(ListViewMode.List); private set
+    fun setGenreFilterViewMode(context: Context, mode: ListViewMode) { genreFilterViewMode = mode; settingsPrefs(context).edit().putString("genre_filter_view_mode", mode.name).apply() }
+    fun loadGenreFilterViewMode(context: Context) { genreFilterViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("genre_filter_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
+    var genreFilterSort by mutableStateOf(ListSort.Title); private set
+    fun setGenreFilterSort(context: Context, sort: ListSort) { genreFilterSort = sort; settingsPrefs(context).edit().putString("genre_filter_sort", sort.name).apply() }
+    fun loadGenreFilterSort(context: Context) { genreFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("genre_filter_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
     // Profile stats page scroll — a single pixel offset since it's a plain
     // verticalScroll Column, not a LazyColumn with item indices
     var profileScrollOffset by mutableStateOf(0); private set
@@ -1310,6 +1325,22 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching { TenraiApi().fetchReviews(kind, intId) }
                 .onSuccess { cache.reviews = it; if (it.isNotEmpty()) onFound(it) }
+            onDone()
+        }
+    }
+
+    // Community score breakdown for the Score Stats screen, opened via "See more" on
+    // Status distribution. Its own on-demand load (not folded into ensureDetailFetched
+    // above) since it's a separate MAL page (/stats) that most people opening a title
+    // will never actually tap into.
+    fun loadScoreStats(item: MediaItem, onFound: (ScoreStats) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(item.id, item.type)
+        cache.scoreStats?.let { onFound(it); onDone(); return }
+        val intId = item.id.toIntOrNull()
+        if (intId == null) { onDone(); return }
+        viewModelScope.launch {
+            runCatching { MalDetailScrapeApi().fetchScoreStats(intId, item.type, item.title) }
+                .onSuccess { cache.scoreStats = it; if (it.total > 0) onFound(it) }
             onDone()
         }
     }

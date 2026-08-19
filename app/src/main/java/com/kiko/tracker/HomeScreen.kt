@@ -223,7 +223,7 @@ import kotlinx.coroutines.launch
     }
 }
 
-@Composable fun SectionTitle(title: String, action: String, click: () -> Unit) {
+@Composable fun SectionTitle(title: String, action: String, click: () -> Unit, icon: ImageVector = Icons.Default.ArrowForward) {
     val c = LocalKikoColors.current
     Row(
         Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 10.dp),
@@ -248,7 +248,7 @@ import kotlinx.coroutines.launch
                     .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(10.dp)))
                     .kikoClickable(onClick = click),
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Default.ArrowForward, action, tint = c.ink, modifier = Modifier.size(17.dp)) }
+            ) { Icon(icon, action, tint = c.ink, modifier = Modifier.size(17.dp)) }
         }
     }
 }

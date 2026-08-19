@@ -98,23 +98,17 @@ fun Modifier.kikoCombinedClickable(
 @Composable
 fun rememberStaggerMemory(): MutableSet<Int> = remember { mutableSetOf() }
 
+// Previously wrapped content in an AnimatedVisibility fade+slide-in with a per-index
+// staggered delay, played every time a row first scrolled into view. That's extra
+// composition + alpha/translation animation work happening during scroll fling — on
+// List/Discover/Seasonal/Hub, which are all real (many-row) lazy lists, this competed
+// with the scroll gesture for frame time and made those tabs feel less smooth than
+// Home (which has no itemized entrance animation at all). Kept the same signature as
+// a plain passthrough so every call site (List, Discover, Seasonal, Hub) keeps working
+// unchanged, just without the animation.
 @Composable
 fun StaggeredItem(index: Int, seen: MutableSet<Int>? = null, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val alreadySeen = seen?.contains(index) == true
-    // Starting MutableTransitionState's initialState at true (when alreadySeen) means
-    // initialState == targetState, so AnimatedVisibility skips the enter animation
-    // entirely and just shows the content — no special-cased "instant" enter needed.
-    val visibleState = remember(index) { MutableTransitionState(alreadySeen).apply { targetState = true } }
-    if (seen != null) LaunchedEffect(index) { seen += index }
-    val delay = (index * 30).coerceAtMost(240)
-    AnimatedVisibility(
-        visibleState = visibleState,
-        modifier = modifier,
-        enter = fadeIn(tween(260, delayMillis = delay)) +
-                slideInVertically(tween(260, delayMillis = delay), initialOffsetY = { it / 8 }),
-    ) {
-        content()
-    }
+    Box(modifier) { content() }
 }
 
 // ---------------------------------------------------------------------------

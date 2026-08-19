@@ -148,6 +148,14 @@ data class StatusDistribution(
 ) {
     val total: Int get() = watching + completed + onHold + dropped + planToWatch
 }
+// Community score breakdown (how everyone who scored a title split across 1-10) —
+// scraped from MAL's own /stats page since the official API doesn't expose this,
+// only the aggregate mean. Loaded on demand from DetailScreen's "Status distribution"
+// section ("See more"), not prefetched with every title like StatusDistribution above.
+
+data class ScoreStats(val counts: Map<Int, Int> = emptyMap()) {
+    val total: Int get() = counts.values.sum()
+}
 
 enum class MediaType { Anime, Manga }
 

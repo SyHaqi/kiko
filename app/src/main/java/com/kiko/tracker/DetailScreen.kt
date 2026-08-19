@@ -71,6 +71,7 @@ data class DetailScreenActions(
     val onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenRecommended: (RecommendedEntry) -> Unit = {},
     val onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onOpenScoreStats: (MediaItem) -> Unit = {},
     val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenReview: (ReviewEntry) -> Unit = {},
@@ -527,7 +528,7 @@ data class DetailScreenActions(
 
                     // Reuse status bar styling
                     statusDistribution?.takeIf { it.total > 0 }?.let { dist ->
-                        SectionTitle("Status distribution", "", {})
+                        SectionTitle("Status distribution", "See more", { actions.onOpenScoreStats(item) }, icon = Icons.Default.BarChart)
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
                                 StatBar("Watching", dist.watching, dist.total, c, statusColor("Watching"))

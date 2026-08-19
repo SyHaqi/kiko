@@ -49,7 +49,8 @@ import coil.compose.AsyncImage
 @Composable fun ProfileStatsScreen(
     connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, onBack: () -> Unit,
     scrollOffset: Int = 0, onSaveScroll: (Int) -> Unit = {}, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {},
-    onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> },
+    onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> }, onFormatClick: (MediaType, String) -> Unit = { _, _ -> },
+    onGenreClick: (MediaType, String) -> Unit = { _, _ -> },
     onSignOut: () -> Unit = {}, refreshing: Boolean = false, onRefresh: () -> Unit = {},
 ) {
     val c = LocalKikoColors.current
@@ -86,7 +87,7 @@ import coil.compose.AsyncImage
                 }
             }
             Box(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
-                ProfileStatsSection(connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange, onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) }, onYearClick = { type, year -> onSaveScroll(scrollState.value); onYearClick(type, year) })
+                ProfileStatsSection(connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange, onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) }, onYearClick = { type, year -> onSaveScroll(scrollState.value); onYearClick(type, year) }, onFormatClick = onFormatClick, onGenreClick = { type, genre -> onSaveScroll(scrollState.value); onGenreClick(type, genre) })
             }
         }
     }
@@ -121,7 +122,7 @@ import coil.compose.AsyncImage
 
 // Profile header card + full anime/manga stats (used inside the profile drawer's
 // expandable "avatar + name" row). Ends with the score distribution chart.
-@Composable fun ProfileStatsSection(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> }) {    val c = LocalKikoColors.current
+@Composable fun ProfileStatsSection(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> }, onFormatClick: (MediaType, String) -> Unit = { _, _ -> }, onGenreClick: (MediaType, String) -> Unit = { _, _ -> }) {    val c = LocalKikoColors.current
     val context = LocalContext.current
     Column {
         // Profile header with stats
@@ -227,13 +228,13 @@ import coil.compose.AsyncImage
                                 if (animeItems.isNotEmpty()) {
                                     Spacer(Modifier.height(24.dp))
                                     Text("GENRE BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                                    GenreBreakdownChart(animeItems, c)
+                                    GenreBreakdownChart(animeItems, c, onGenreClick = { onGenreClick(MediaType.Anime, it) })
                                     Spacer(Modifier.height(24.dp))
                                     Text("SCORE DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
                                     ScoreDistributionChart(animeItems, c, onScoreClick = { onScoreClick(MediaType.Anime, it) })
                                     Spacer(Modifier.height(24.dp))
                                     Text("FORMAT BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                                    FormatBreakdownChart(animeItems, c)
+                                    FormatBreakdownChart(animeItems, c, onFormatClick = { onFormatClick(MediaType.Anime, it) })
                                     Spacer(Modifier.height(24.dp))
                                     Text("YEAR DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
                                     YearDistributionChart(animeItems, c, onYearClick = { onYearClick(MediaType.Anime, it) })
@@ -269,13 +270,13 @@ import coil.compose.AsyncImage
                                 if (mangaItems.isNotEmpty()) {
                                     Spacer(Modifier.height(24.dp))
                                     Text("GENRE BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                                    GenreBreakdownChart(mangaItems, c)
+                                    GenreBreakdownChart(mangaItems, c, onGenreClick = { onGenreClick(MediaType.Manga, it) })
                                     Spacer(Modifier.height(24.dp))
                                     Text("SCORE DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
                                     ScoreDistributionChart(mangaItems, c, onScoreClick = { onScoreClick(MediaType.Manga, it) })
                                     Spacer(Modifier.height(24.dp))
                                     Text("FORMAT BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                                    FormatBreakdownChart(mangaItems, c)
+                                    FormatBreakdownChart(mangaItems, c, onFormatClick = { onFormatClick(MediaType.Manga, it) })
                                     Spacer(Modifier.height(24.dp))
                                     Text("YEAR DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
                                     YearDistributionChart(mangaItems, c, onYearClick = { onYearClick(MediaType.Manga, it) })
@@ -495,6 +496,151 @@ import coil.compose.AsyncImage
     LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
         item { FilterChip(selected = current == 0, onClick = { set(0); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
         itemsIndexed(years) { index, y -> FilterChip(selected = current == y, onClick = { set(y); scope.centerChip(listState, index + 1) }, label = { Text(y.toString()) }, colors = colors) }
+    }
+}
+// Opened by tapping a row in the profile's format breakdown chart (donut + legend).
+// Starts on the tapped format; the chip row lets the user switch to any other format
+// present in the list, or "All" titles with a known format. Mirrors ScoreFilterScreen/
+// YearFilterScreen above — same header/list/grid/sort shape, just filtered by format
+// string instead of score or release year.
+@Composable fun FormatFilterScreen(vm: LibraryViewModel, type: MediaType, initialFormat: String, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    BackHandler(onBack = onBack)
+    var format by remember { mutableStateOf(initialFormat) }
+    val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
+    val formats = remember(typeItems) { typeItems.map { it.format }.filter { it.isNotBlank() }.distinct().sorted() }
+    val filtered = remember(typeItems, format, vm.formatFilterSort, vm.titleLanguage) {
+        typeItems.filter { it.format.isNotBlank() && (format.isBlank() || it.format == format) }.sortedWithListSort(vm.formatFilterSort, vm.titleLanguage)
+    }
+    val staggerSeen = rememberStaggerMemory()
+    val isGrid = vm.formatFilterViewMode == ListViewMode.Grid
+    val header: @Composable () -> Unit = {
+        Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            Text("Format Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+        }
+        FormatFilterRow(formats, format) { format = it }
+        Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ListViewModeToggle(vm.formatFilterViewMode) { vm.setFormatFilterViewMode(context, it) }
+                SortMenu(vm.formatFilterSort) { vm.setFormatFilterSort(context, it) }
+            }
+        }
+    }
+    if (isGrid) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
+            if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles of this format yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+        }
+    } else {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            item { header() }
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
+                StaggeredItem(index, staggerSeen) {
+                    Column {
+                        ListRow(it, onOpenDetail, showType = false)
+                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                    }
+                }
+            }
+            if (filtered.isEmpty()) item { Text("No titles of this format yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+        }
+    }
+}
+// Format chip row: "All" plus every format present in the list (TV/OVA/Movie, or
+// Manga/Manhua/Light Novel), alphabetical — same shape as YearFilterRow above.
+
+@Composable fun FormatFilterRow(formats: List<String>, current: String, set: (String) -> Unit) {
+    val c = LocalKikoColors.current
+    val colors = kikoFilterChipColors()
+    val initialIndex = remember { if (current.isBlank()) 0 else formats.indexOf(current) + 1 }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { centerChip(listState, initialIndex) }
+    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
+        item { FilterChip(selected = current.isBlank(), onClick = { set(""); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
+        itemsIndexed(formats) { index, f -> FilterChip(selected = current == f, onClick = { set(f); scope.centerChip(listState, index + 1) }, label = { Text(f) }, colors = colors) }
+    }
+}
+// Opened by tapping a row in the profile's genre breakdown chart.
+// Starts on the tapped genre; the chip row lets the user switch to any other genre
+// present in the list, or "All" titles with a known genre. Mirrors FormatFilterScreen
+// above — same header/list/grid/sort shape, just filtered by genre instead of format.
+@Composable fun GenreFilterScreen(vm: LibraryViewModel, type: MediaType, initialGenre: String, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    BackHandler(onBack = onBack)
+    var genre by remember { mutableStateOf(initialGenre) }
+    val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
+    val genres = remember(typeItems) { typeItems.flatMap { it.genres }.filter { it.isNotBlank() }.distinct().sorted() }
+    val filtered = remember(typeItems, genre, vm.genreFilterSort, vm.titleLanguage) {
+        typeItems.filter { genre.isBlank() || it.genres.any { g -> g == genre } }.sortedWithListSort(vm.genreFilterSort, vm.titleLanguage)
+    }
+    val staggerSeen = rememberStaggerMemory()
+    val isGrid = vm.genreFilterViewMode == ListViewMode.Grid
+    val header: @Composable () -> Unit = {
+        Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            Text("Genre Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+        }
+        GenreFilterRow(genres, genre) { genre = it }
+        Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ListViewModeToggle(vm.genreFilterViewMode) { vm.setGenreFilterViewMode(context, it) }
+                SortMenu(vm.genreFilterSort) { vm.setGenreFilterSort(context, it) }
+            }
+        }
+    }
+    if (isGrid) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
+            if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+        }
+    } else {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            item { header() }
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
+                StaggeredItem(index, staggerSeen) {
+                    Column {
+                        ListRow(it, onOpenDetail, showType = false)
+                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                    }
+                }
+            }
+            if (filtered.isEmpty()) item { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+        }
+    }
+}
+// Genre chip row: "All" plus every genre present in the list, alphabetical — same
+// shape as FormatFilterRow above.
+
+@Composable fun GenreFilterRow(genres: List<String>, current: String, set: (String) -> Unit) {
+    val c = LocalKikoColors.current
+    val colors = kikoFilterChipColors()
+    val initialIndex = remember { if (current.isBlank()) 0 else genres.indexOf(current) + 1 }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { centerChip(listState, initialIndex) }
+    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
+        item { FilterChip(selected = current.isBlank(), onClick = { set(""); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
+        itemsIndexed(genres) { index, g -> FilterChip(selected = current == g, onClick = { set(g); scope.centerChip(listState, index + 1) }, label = { Text(g) }, colors = colors) }
     }
 }
 // App info page
