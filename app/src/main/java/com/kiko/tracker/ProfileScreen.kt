@@ -163,11 +163,14 @@ import coil.compose.AsyncImage
         }
 
         // Tabbed anime/manga stats card
-        val animeItems = items.filter { it.type == MediaType.Anime }
-        val mangaItems = items.filter { it.type == MediaType.Manga }
+        // remember(items): same reasoning as the ScoreFilter/YearFilter/FormatFilter/GenreFilter
+        // screens below (typeItems at line ~347+) — without it this re-filters and re-sums the
+        // whole library on every recomposition of the stats section, not just when it changes.
+        val animeItems = remember(items) { items.filter { it.type == MediaType.Anime } }
+        val mangaItems = remember(items) { items.filter { it.type == MediaType.Manga } }
         val mangaTotal = mangaItems.size
-        val mangaChaptersRead = mangaItems.sumOf { it.progress }
-        val ratedManga = mangaItems.filter { it.myRating > 0 }
+        val mangaChaptersRead = remember(mangaItems) { mangaItems.sumOf { it.progress } }
+        val ratedManga = remember(mangaItems) { mangaItems.filter { it.myRating > 0 } }
         val mangaMeanScore = if (ratedManga.isNotEmpty()) ratedManga.map { it.myRating }.average() else 0.0
         val animeDaysWatched = profile?.animeDaysWatched ?: 0.0
         // MAL: 8 min/chapter

@@ -124,7 +124,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
     val byDay = remember(vm.visibleDiscoverNewSeason) {
         vm.visibleDiscoverNewSeason.mapNotNull { item -> item.localBroadcast()?.let { (day, time) -> Triple(item, day, time) } }
     }
-    val dayItems = byDay.filter { it.second == selectedDay }.sortedBy { it.third }
+    // Same remember(...) reasoning used elsewhere for filtered/sorted lists: without it this
+    // re-filters and re-sorts on every recomposition, not just when the selected day changes.
+    val dayItems = remember(byDay, selectedDay) { byDay.filter { it.second == selectedDay }.sortedBy { it.third } }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }

@@ -47,6 +47,14 @@ class LibraryViewModel : ViewModel() {
     private val TENRAI_SEARCH_PAGE_LIMIT = 10
     // Start with empty list
     var items by mutableStateOf(emptyList<MediaItem>()); private set
+    // O(1) library lookup by (id, type), used when reconciling a page of seasonal/discover
+    // results against the user's library. Previously each reconciliation ran items.find{...} —
+    // a full linear scan of the whole library — once per candidate in the incoming page, so a
+    // 20-50 item page against a several-hundred-entry library was an O(page * library) scan.
+    // derivedStateOf caches this and only recomputes when `items` itself changes.
+    private val itemsByKey: Map<Pair<String, MediaType>, MediaItem> by derivedStateOf {
+        items.associateBy { it.id to it.type }
+    }
     var destination by mutableStateOf(Destination.Home)
     // Avatar popup menu (profile/settings), opened from any tab's avatar. anchor is
     // that avatar's on-screen bounds at the moment it was tapped, captured by Avatar
@@ -653,7 +661,7 @@ class LibraryViewModel : ViewModel() {
             seasonalLoading = true
             runCatching { api.seasonalAnime(year, season.api, sort = sort.api) }
                 // Reconcile against user's library
-                .onSuccess { seasonalResults = it.items.map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }; seasonalHasMore = it.hasMore; seasonalError = null }
+                .onSuccess { seasonalResults = it.items.map { candidate -> itemsByKey[candidate.id to candidate.type] ?: candidate }; seasonalHasMore = it.hasMore; seasonalError = null }
                 .onFailure { seasonalError = it.message ?: "Could not load season"; seasonalHasMore = false }
             seasonalLoading = false
         }
@@ -668,7 +676,7 @@ class LibraryViewModel : ViewModel() {
             seasonalLoadingMore = true
             runCatching { api.seasonalAnime(seasonalYear, seasonalSeason.api, offset = seasonalResults.size, sort = seasonalSort.api) }
                 // Reconcile against user's library
-                .onSuccess { seasonalResults = seasonalResults + it.items.map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }; seasonalHasMore = it.hasMore }
+                .onSuccess { seasonalResults = seasonalResults + it.items.map { candidate -> itemsByKey[candidate.id to candidate.type] ?: candidate }; seasonalHasMore = it.hasMore }
                 .onFailure { seasonalHasMore = false }
             seasonalLoadingMore = false
         }
@@ -839,7 +847,7 @@ class LibraryViewModel : ViewModel() {
                     }.distinctBy { it.id }
                 // Reconcile against user's library, then establish the display order once,
                 // here, at fetch time — not reactively on every read (see visibleDiscoverResults).
-                results.map { candidate -> items.find { it.id == candidate.id && it.type == candidate.type } ?: candidate }
+                results.map { candidate -> itemsByKey[candidate.id to candidate.type] ?: candidate }
                     .sortedForDiscover(discoverSort, titleLanguage, query)
             }
                 .onSuccess { discoverResults = it; discoverError = null }
@@ -882,7 +890,7 @@ class LibraryViewModel : ViewModel() {
                 .onSuccess { page ->
                     val existingKeys = discoverResults.mapTo(HashSet()) { it.id to it.type }
                     val newItems = page.items
-                        .map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }
+                        .map { candidate -> itemsByKey[candidate.id to candidate.type] ?: candidate }
                         .filter { (it.id to it.type) !in existingKeys }
                         .distinctBy { it.id to it.type }
                         .sortedForDiscover(discoverSort, titleLanguage, discoverQuery)
@@ -910,7 +918,7 @@ class LibraryViewModel : ViewModel() {
                 .onSuccess { page ->
                     val existingKeys = discoverResults.mapTo(HashSet()) { it.id to it.type }
                     val newItems = page.items
-                        .map { candidate -> items.find { i -> i.id == candidate.id && i.type == candidate.type } ?: candidate }
+                        .map { candidate -> itemsByKey[candidate.id to candidate.type] ?: candidate }
                         .filter { (it.id to it.type) !in existingKeys }
                         .distinctBy { it.id to it.type }
                         .sortedForDiscover(discoverSort, titleLanguage, discoverQuery)
