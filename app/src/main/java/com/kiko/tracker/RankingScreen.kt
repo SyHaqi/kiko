@@ -59,7 +59,7 @@ import kotlinx.coroutines.launch
                 itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it ->
                     StaggeredItem(index, staggerSeen) {
                         Column {
-                            RankingRow(index + 1, it, onOpenDetail)
+                            RankingRow(index + 1, it, onOpenDetail, myStatus = vm.trackedStatus(it))
                             if (index < vm.visibleRankingResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
                         }
                     }
@@ -78,7 +78,7 @@ import kotlinx.coroutines.launch
 }
 // Ranking chart row
 
-@Composable fun RankingRow(position: Int, item: MediaItem, onOpenDetail: (MediaItem) -> Unit) {
+@Composable fun RankingRow(position: Int, item: MediaItem, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null) {
     val c = LocalKikoColors.current
     Row(
         Modifier
@@ -89,7 +89,10 @@ import kotlinx.coroutines.launch
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(28.dp), contentAlignment = Alignment.Center) { Text("#$position", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.primary) }
-        Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true)
+        // overrideStatus: ranking chart results are the raw MAL ranking API response, never
+        // merged with the library, so a live O(1) lookup is what makes the badge reflect a
+        // status edit/delete made elsewhere without needing to reopen this screen.
+        Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true, overrideStatus = myStatus)
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
             Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text("${item.type} · ${item.genre}", color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))

@@ -55,6 +55,11 @@ class LibraryViewModel : ViewModel() {
     private val itemsByKey: Map<Pair<String, MediaType>, MediaItem> by derivedStateOf {
         items.associateBy { it.id to it.type }
     }
+    // Live "is this tracked, and as what?" lookup for items that didn't come from the user's
+    // own list (search/discover/seasonal/ranking results) — O(1) via itemsByKey, and re-evaluated
+    // on every call, so a status edit or a delete shows up on these screens immediately instead
+    // of only after the screen happens to re-fetch. Used as Cover's overrideStatus.
+    fun trackedStatus(item: MediaItem): WatchStatus? = itemsByKey[item.id to item.type]?.status
     var destination by mutableStateOf(Destination.Home)
     // Avatar popup menu (profile/settings), opened from any tab's avatar. anchor is
     // that avatar's on-screen bounds at the moment it was tapped, captured by Avatar
@@ -660,8 +665,10 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             seasonalLoading = true
             runCatching { api.seasonalAnime(year, season.api, sort = sort.api) }
-                // Reconcile against user's library
-                .onSuccess { seasonalResults = it.items.map { candidate -> itemsByKey[candidate.id to candidate.type] ?: candidate }; seasonalHasMore = it.hasMore; seasonalError = null }
+                // Not reconciled against the library here — the status badge is a live
+                // vm.trackedStatus() lookup at render time instead (see SeasonalGridCard/
+                // ScheduleRow), so it stays accurate after later edits/deletes without a re-fetch.
+                .onSuccess { seasonalResults = it.items; seasonalHasMore = it.hasMore; seasonalError = null }
                 .onFailure { seasonalError = it.message ?: "Could not load season"; seasonalHasMore = false }
             seasonalLoading = false
         }
@@ -675,8 +682,8 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             seasonalLoadingMore = true
             runCatching { api.seasonalAnime(seasonalYear, seasonalSeason.api, offset = seasonalResults.size, sort = seasonalSort.api) }
-                // Reconcile against user's library
-                .onSuccess { seasonalResults = seasonalResults + it.items.map { candidate -> itemsByKey[candidate.id to candidate.type] ?: candidate }; seasonalHasMore = it.hasMore }
+                // Not reconciled against the library — see loadSeasonal's comment above.
+                .onSuccess { seasonalResults = seasonalResults + it.items; seasonalHasMore = it.hasMore }
                 .onFailure { seasonalHasMore = false }
             seasonalLoadingMore = false
         }
@@ -845,10 +852,14 @@ class LibraryViewModel : ViewModel() {
                             rankTypes.map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
                         }.awaitAll().flatten()
                     }.distinctBy { it.id }
-                // Reconcile against user's library, then establish the display order once,
-                // here, at fetch time — not reactively on every read (see visibleDiscoverResults).
-                results.map { candidate -> itemsByKey[candidate.id to candidate.type] ?: candidate }
-                    .sortedForDiscover(discoverSort, titleLanguage, query)
+                // Sort once, here, at fetch time — not reactively on every read (see
+                // visibleDiscoverResults). Deliberately NOT reconciled against the library here
+                // anymore: that used to bake each matching item's status permanently into
+                // discoverResults, which then stayed stale after later editing or deleting that
+                // title elsewhere (or, worse, kept showing a status after a delete because the
+                // baked copy still had inUserList = true). The status badge now always comes
+                // from a live vm.trackedStatus() lookup at render time instead (see DiscoverScreen).
+                results.sortedForDiscover(discoverSort, titleLanguage, query)
             }
                 .onSuccess { discoverResults = it; discoverError = null }
                 .onFailure {
@@ -889,8 +900,8 @@ class LibraryViewModel : ViewModel() {
                 // already on screen jump position every time a new page landed.
                 .onSuccess { page ->
                     val existingKeys = discoverResults.mapTo(HashSet()) { it.id to it.type }
+                    // Not reconciled against the library — see runDiscoverSearch's comment above.
                     val newItems = page.items
-                        .map { candidate -> itemsByKey[candidate.id to candidate.type] ?: candidate }
                         .filter { (it.id to it.type) !in existingKeys }
                         .distinctBy { it.id to it.type }
                         .sortedForDiscover(discoverSort, titleLanguage, discoverQuery)
@@ -917,8 +928,8 @@ class LibraryViewModel : ViewModel() {
                 // the already-displayed items instead of re-sorting the whole merged list.
                 .onSuccess { page ->
                     val existingKeys = discoverResults.mapTo(HashSet()) { it.id to it.type }
+                    // Not reconciled against the library — see runDiscoverSearch's comment above.
                     val newItems = page.items
-                        .map { candidate -> itemsByKey[candidate.id to candidate.type] ?: candidate }
                         .filter { (it.id to it.type) !in existingKeys }
                         .distinctBy { it.id to it.type }
                         .sortedForDiscover(discoverSort, titleLanguage, discoverQuery)

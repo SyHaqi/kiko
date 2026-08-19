@@ -192,7 +192,12 @@ import kotlinx.coroutines.launch
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true)
+            // overrideStatus: airingNext is discoverNewSeason data (raw seasonal API results,
+            // never merged with the library — see LibraryViewModel.itemsByKey), so a live O(1)
+            // lookup here is what makes the status badge appear immediately after tracking it
+            // and disappear immediately after untracking/deleting it, instead of only updating
+            // whenever this row happens to refetch.
+            Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true, overrideStatus = vm.trackedStatus(item))
             Column(Modifier.weight(1f).padding(start = 16.dp)) {
                 Text(item.displayTitle(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(8.dp))

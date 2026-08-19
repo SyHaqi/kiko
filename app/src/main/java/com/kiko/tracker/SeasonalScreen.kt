@@ -86,7 +86,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
             if (vm.seasonalLoading && vm.visibleSeasonalResults.isEmpty()) {
                 items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
             } else {
-                itemsIndexed(vm.visibleSeasonalResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index, staggerSeen) { SeasonalGridCard(it, openTitle, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type) } }
+                itemsIndexed(vm.visibleSeasonalResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index, staggerSeen) { SeasonalGridCard(it, openTitle, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, myStatus = vm.trackedStatus(it)) } }
             }
             if (!vm.seasonalLoading && vm.visibleSeasonalResults.isEmpty() && vm.seasonalError == null) {
                 item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles for this season.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
@@ -155,7 +155,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
             itemsIndexed(dayItems, key = { _, it -> it.first.id }) { index, (item, _, time) ->
                 StaggeredItem(index) {
                     Column {
-                        ScheduleRow(item, time, onOpenDetail)
+                        ScheduleRow(item, time, onOpenDetail, myStatus = vm.trackedStatus(item))
                         if (index < dayItems.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
                     }
                 }
@@ -165,7 +165,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 }
 // Schedule screen row
 
-@Composable fun ScheduleRow(item: MediaItem, time: java.time.LocalTime, onOpenDetail: (MediaItem) -> Unit) {
+@Composable fun ScheduleRow(item: MediaItem, time: java.time.LocalTime, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null) {
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
     Row(
@@ -176,7 +176,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
             .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true)
+        // overrideStatus: same live O(1) lookup as SeasonalGridCard above — this row's item
+        // also comes from the raw (never library-merged) seasonal/discover data.
+        Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true, overrideStatus = myStatus)
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
             Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text("${formatLabel(item)} · ${item.genre}", color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
@@ -272,7 +274,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons.Default.Group; SeasonalSort.Score -> Icons.Default.Star }
 // Seasonal chart grid tile
 
-@Composable fun SeasonalGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
+@Composable fun SeasonalGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null) {
     val c = LocalKikoColors.current
     val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "seasonalGridSelectBg")
@@ -296,7 +298,11 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
     ) {
         // Height matches ListGridCardSkeleton's cover block so the loading state and the
         // real card don't jump in size once results arrive.
-        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, selected = isSelected)
+        // overrideStatus: seasonal results are the raw MAL seasonal API response (see
+        // LibraryViewModel.itemsByKey), never merged with the library, so this live O(1)
+        // lookup is what makes the badge reflect a status edit/delete made elsewhere
+        // immediately, instead of only after this screen re-fetches.
+        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, overrideStatus = myStatus, selected = isSelected)
         Text(
             item.displayTitle(),
             fontWeight = FontWeight.Bold,
