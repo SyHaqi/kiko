@@ -389,8 +389,7 @@ data class DetailScreenActions(
                     val meta = listOfNotNull(item.creator.takeIf { it.isNotBlank() }, aired.takeIf { it.isNotBlank() })
                     if (meta.isNotEmpty()) Text(meta.joinToString("   ·   "), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
 
-                    Text("Synopsis", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 28.dp, bottom = 10.dp))
-                    HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                    SectionTitle("Synopsis", "", {})
                     Text(
                         item.synopsis.ifBlank { "No synopsis available yet." },
                         color = if (item.synopsis.isBlank()) c.muted else c.ink,
@@ -404,8 +403,7 @@ data class DetailScreenActions(
 
                     // Community rank/popularity stats
                     if (item.rank > 0 || item.popularity > 0 || item.listUsers > 0) {
-                        Text("Statistics", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 28.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                        SectionTitle("Statistics", "", {})
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Row(Modifier.fillMaxWidth().padding(vertical = 20.dp)) {
                                 if (item.rank > 0) StatBlock(Modifier.weight(1f), "#${item.rank}", "Rank")
@@ -429,8 +427,7 @@ data class DetailScreenActions(
                         if (item.creator.isNotBlank()) add(if (item.type == MediaType.Anime) "Studio" to item.creator else "Author" to item.creator)
                     }
                     if (details.isNotEmpty()) {
-                        Text("Details", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                        SectionTitle("Details", "", {})
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                 details.forEachIndexed { i, (label, value) ->
@@ -443,8 +440,7 @@ data class DetailScreenActions(
                     }
 
                     if (item.synonyms.isNotEmpty()) {
-                        Text("Alternative titles", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                        SectionTitle("Alternative titles", "", {})
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             SelectionContainer {
                                 Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
@@ -458,11 +454,7 @@ data class DetailScreenActions(
                     }
 
                     if (characters.isNotEmpty()) {
-                        Row(Modifier.fillMaxWidth().padding(top = 26.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Characters", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
-                            Text("See cast", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.clickable { actions.onOpenReviewList(malCharactersUrl(item), itemDisplayTitle) })
-                        }
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                        SectionTitle("Characters", "See cast", { actions.onOpenReviewList(malCharactersUrl(item), itemDisplayTitle) })
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch -> StaggeredItem(i, charactersSeen) { CharacterCard(ch, uriHandler) } }
                         }
@@ -471,8 +463,7 @@ data class DetailScreenActions(
                     // (e.g. a role recast mid-series with no dub credited yet) are skipped.
                     val japaneseVoiceActors = characters.mapNotNull { ch -> ch.japaneseVoiceActor?.let { it to ch.name } }
                     if (japaneseVoiceActors.isNotEmpty()) {
-                        Text("Voice Actors", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                        SectionTitle("Voice Actors", "", {})
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(japaneseVoiceActors, key = { _, (va, _) -> va.malId }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, uriHandler) } }
                         }
@@ -480,8 +471,7 @@ data class DetailScreenActions(
 
                     val themes = openingThemes.map { "OP" to it } + endingThemes.map { "ED" to it }
                     if (themes.isNotEmpty()) {
-                        Text("Theme songs", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                        SectionTitle("Theme songs", "", {})
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
                                 themes.forEachIndexed { i, (kind, text) ->
@@ -500,19 +490,14 @@ data class DetailScreenActions(
                     }
 
                     if (reviews.isNotEmpty()) {
-                        Row(Modifier.fillMaxWidth().padding(top = 26.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Reviews", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
-                            Text("See more", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.clickable { actions.onOpenReviewList(malReviewsUrl(item), itemDisplayTitle) })
-                        }
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                        SectionTitle("Reviews", "See more", { actions.onOpenReviewList(malReviewsUrl(item), itemDisplayTitle) })
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(reviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i, reviewsSeen) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
                         }
                     }
 
                     if (related.isNotEmpty()) {
-                        Text("Related", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                        SectionTitle("Related", "", {})
                         LazyRow(state = relatedListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(related, key = { _, it -> "${it.relation}-${it.malId}-${it.title}" }) { i, rel ->
                                 StaggeredItem(i, relatedSeen) {
@@ -527,8 +512,7 @@ data class DetailScreenActions(
 
                     // Recommendations from MAL endpoint
                     if (recommended.isNotEmpty()) {
-                        Text("Recommended", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                        SectionTitle("Recommended", "", {})
                         LazyRow(state = recommendedListState, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             itemsIndexed(recommended, key = { _, it -> it.malId }) { i, rec ->
                                 StaggeredItem(i, recommendedSeen) { RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) } }
@@ -537,15 +521,13 @@ data class DetailScreenActions(
                     }
 
                     if (item.background.isNotBlank()) {
-                        Text("Background", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                        SectionTitle("Background", "", {})
                         Text(item.background, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp)
                     }
 
                     // Reuse status bar styling
                     statusDistribution?.takeIf { it.total > 0 }?.let { dist ->
-                        Text("Status distribution", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(top = 26.dp, bottom = 10.dp))
-                        HorizontalDivider(modifier = Modifier.padding(top = 4.dp, bottom = 20.dp), thickness = 1.dp, color = c.cardBorder)
+                        SectionTitle("Status distribution", "", {})
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
                                 StatBar("Watching", dist.watching, dist.total, c, statusColor("Watching"))

@@ -16,6 +16,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.InteractionSource
@@ -173,11 +174,21 @@ fun TopicRowSkeletonGroup(count: Int = 6) {
     }
 }
 
-/** Stand-in for the Home "Continue" row while the first sync hasn't landed yet — same
- *  plain [ListRowSkeleton] shape used for My List/search rows, no card box around it. */
+/** Stand-in for the Home "Continue" row while the first sync hasn't landed yet — boxed
+ *  the same way as the real [ContinueCard] (surface fill + cardBorder outline) so the
+ *  page doesn't reflow once real data lands. */
 @Composable
 fun ContinueCardSkeleton(modifier: Modifier = Modifier) {
-    ListRowSkeleton(modifier)
+    val c = LocalKikoColors.current
+    Box(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(22.dp)))
+            .background(c.surface)
+            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(22.dp))),
+    ) {
+        ListRowSkeleton(Modifier.padding(horizontal = 14.dp))
+    }
 }
 
 /** Stand-in for a single [AiringNextCard]: cover-sized block + title/time bars. */
@@ -198,11 +209,22 @@ fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
     }
 }
 
-/** A row of [AiringNextCardSkeleton]s, staggered in — Home's "Airing next" first-load state. */
+/** A row of [AiringNextCardSkeleton]s, staggered in, inside the same card container
+ *  used by the real [AiringNextRow] — so the first-load state doesn't pop/reflow once
+ *  the real data lands. */
 @Composable
 fun AiringNextRowSkeleton() {
-    Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-        repeat(3) { i -> StaggeredItem(i) { AiringNextCardSkeleton() } }
+    val c = LocalKikoColors.current
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(22.dp)))
+            .background(c.surface)
+            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(22.dp))),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(11.dp), modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
+            repeat(3) { i -> StaggeredItem(i) { AiringNextCardSkeleton() } }
+        }
     }
 }
 

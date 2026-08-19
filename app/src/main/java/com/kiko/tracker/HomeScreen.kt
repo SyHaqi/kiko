@@ -107,31 +107,37 @@ import kotlinx.coroutines.launch
                         color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
                     )
                     if (airingNext.isNotEmpty()) {
-                        SectionTitle("Airing next", "See all", click = { onSchedule(today) }, topDivider = true)
+                        SectionTitle("Airing next", "See all", click = { onSchedule(today) })
                         AiringNextRow(airingNext, vm, trackedOpenDetail)
                     } else if (vm.discoverBrowseLoading) {
-                        SectionTitle("Airing next", "See all", click = { onSchedule(today) }, topDivider = true)
+                        SectionTitle("Airing next", "See all", click = { onSchedule(today) })
                         AiringNextRowSkeleton()
                     }
                     // Most recently updated in-progress title
                     if (active != null) {
-                        SectionTitle("Continue", "See list", onList, topDivider = true)
+                        SectionTitle("Continue", "See list", onList)
                         ContinueCard(active, vm, onClick = { onLocateInList(active) }, onLongPress = onEdit, isSelected = selectedItem?.id == active.id && selectedItem?.type == active.type)
                     } else if (vm.loading) {
-                        SectionTitle("Continue", "See list", onList, topDivider = true)
+                        SectionTitle("Continue", "See list", onList)
                         ContinueCardSkeleton()
                     }
                     // Home recent news row
                     if (vm.newsSnapshots.isNotEmpty()) {
-                        SectionTitle("Snapshots", "See news", onSeeNews, topDivider = true)
+                        SectionTitle("Snapshots", "See news", onSeeNews)
+                        // Extra breathing room here specifically — the Pinterest-style grid
+                        // reads as more "content-dense" than the single-row shelves above it,
+                        // so it wants a bit more separation from the title than SectionTitle's
+                        // default bottom padding gives the other sections.
+                        Spacer(Modifier.height(8.dp))
                         SnapshotsGrid(vm.newsSnapshots, trackedOpenTopic)
                     } else if (vm.newsSnapshotsLoading) {
-                        SectionTitle("Snapshots", "See news", onSeeNews, topDivider = true)
+                        SectionTitle("Snapshots", "See news", onSeeNews)
+                        Spacer(Modifier.height(8.dp))
                         SnapshotsGridSkeleton()
                     }
                     // Freshest Interest Stack teaser
                     vm.homeLatestStack?.let { stack ->
-                        SectionTitle("Interest Stacks", "See all", onOpenStacks, topDivider = true)
+                        SectionTitle("Interest Stacks", "See all", onOpenStacks)
                         StackFeaturedCard(stack, vm) { onOpenStack(stack.id, stack.title) }
                     }
                     if (vm.authChecked && !vm.signedIn && !vm.loading) {
@@ -154,11 +160,19 @@ import kotlinx.coroutines.launch
 // Airing next row order
 
 @Composable fun AiringNextRow(items: List<MediaItem>, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) { items(items, key = { it.id }) { AiringNextCard(it, vm, onOpenDetail) } }
+    // Each card takes almost the full row width — same footprint as ContinueCard below it —
+    // with just a thin sliver of the next card peeking in from the edge as the only hint
+    // that the row scrolls. fillParentMaxWidth (not a fixed dp width) is what keeps that
+    // sliver proportional to the screen instead of a fixed peek that's too fat on wide
+    // screens or invisible on narrow ones.
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) { items(items, key = { it.id }) { AiringNextCard(it, vm, onOpenDetail, modifier = Modifier.fillParentMaxWidth(0.94f)) } }
 }
-// Airing next card layout
+// Airing next card layout — sized to match ContinueCard (same cover size, corner
+// radius, and padding) so the two shelves read as the same kind of card.
 
-@Composable fun AiringNextCard(item: MediaItem, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit) {
+@Composable fun AiringNextCard(item: MediaItem, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
     // Best-effort AniList lookup for the real next-episode number + air time (see
@@ -167,24 +181,30 @@ import kotlinx.coroutines.launch
     LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
     val confirmed = vm.getCachedAiring(item.id)
     val time = item.nextAirDateTime(confirmed)?.toLocalTime()
-    Row(
-        Modifier
-            .width(264.dp)
-            .clip(RoundedCornerShape(kikoCorner(16.dp)))
-            .kikoClickable { onOpenDetail(item) }
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Box(
+        modifier
+            .clip(RoundedCornerShape(kikoCorner(22.dp)))
+            .background(c.surface)
+            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(22.dp)))
+            .kikoClickable { onOpenDetail(item) },
     ) {
-        Cover(item, Modifier.size(width = 78.dp, height = 110.dp), showStatus = true)
-        Column(Modifier.weight(1f).padding(start = 13.dp)) {
-            Text(item.displayTitle(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.Top) {
-                Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(13.dp).padding(top = 1.dp))
-                Text(
-                    listOfNotNull(item.nextEpisodeLabel(confirmed), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
-                    color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
-                )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true)
+            Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                Text(item.displayTitle(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(8.dp))
+                // Full card width now, so the episode + air-time label has room to sit on
+                // one line instead of wrapping the way it did in the old narrow card.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(13.dp))
+                    Text(
+                        listOfNotNull(item.nextEpisodeLabel(confirmed), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
+                        color = c.accent, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
+                    )
+                }
             }
         }
     }
@@ -203,34 +223,54 @@ import kotlinx.coroutines.launch
     }
 }
 
-@Composable fun SectionTitle(title: String, action: String, click: () -> Unit, topDivider: Boolean = false) {
+@Composable fun SectionTitle(title: String, action: String, click: () -> Unit) {
     val c = LocalKikoColors.current
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink)
-            TextButton(onClick = click) { Text(action, fontWeight = FontWeight.Bold, color = c.accent) }
-        }
-        // Inset section separator, directly under the title row — sits within the page's own
-        // horizontal padding, so unlike the My List row divider (which starts after the cover)
-        // this one is flush with the surrounding content's edges rather than the screen's.
-        if (topDivider) {
-            HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp), thickness = 1.dp, color = c.cardBorder)
+    Row(
+        Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink)
+        // Rounded-square affordance instead of a text link — same pattern the Play Store
+        // uses on its section headers ("Dating apps" -> arrow button), but shaped like a
+        // squircle rather than a full circle, since nothing else in the app is fully
+        // round (chips, cards, and buttons all use kikoCorner's rounded-rectangle
+        // language). Sections with nothing to link to (action left blank) render no button.
+        if (action.isNotBlank()) {
+            // Plain clickable box instead of IconButton — IconButton carries its own
+            // default 40dp touch-target sizing internally, which is extra machinery this
+            // small a button doesn't need. Sizing this by hand means what's written here
+            // is exactly what renders, full stop.
+            Box(
+                Modifier
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(kikoCorner(10.dp)))
+                    .background(c.surface)
+                    .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(10.dp)))
+                    .kikoClickable(onClick = click),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Default.ArrowForward, action, tint = c.ink, modifier = Modifier.size(17.dp)) }
         }
     }
 }
 
-// Inline "Continue" entry, docked under Airing Next — plain [ListRow], same as My List and
-// search results, with no card wrapper around it. There's no list "around" a single entry
-// here, so boxing it like a card implied a container that doesn't exist. Lives in the normal
-// scroll flow, so there's no dismiss/pin gesture to manage. Tapping it jumps to the entry's
-// spot in My List rather than opening its detail page — "Continue" is meant as a shortcut
-// back into the list, not a detail-page shortcut.
+// Home's "Continue" entry, now boxed the same way as the other card-style shelves in
+// the app (see StackFeaturedCard) — surface fill + cardBorder outline + rounded corners
+// — instead of sitting as a bare, unboxed row. Still just wraps [ListRow]'s content;
+// only the surrounding container changed. Tapping it jumps to the entry's spot in My
+// List rather than opening its detail page — "Continue" is meant as a shortcut back
+// into the list, not a detail-page shortcut.
 
 @Composable fun ContinueCard(item: MediaItem, vm: LibraryViewModel, onClick: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, modifier: Modifier = Modifier) {
-    ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = modifier, vm = vm)
+    val c = LocalKikoColors.current
+    Box(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(22.dp)))
+            .background(c.surface)
+            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(22.dp))),
+    ) {
+        ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = Modifier.padding(horizontal = 14.dp), vm = vm)
+    }
 }
 // Pinterest-style snapshots layout
 
