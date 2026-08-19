@@ -356,7 +356,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
-            Modifier.clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(12.dp))).kikoClickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+            Modifier.height(30.dp).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(12.dp))).kikoClickable { open = true }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
@@ -379,7 +379,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box(modifier) {
         Row(
-            Modifier.clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(12.dp))).kikoClickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp),
+            Modifier.height(30.dp).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(12.dp))).kikoClickable { open = true }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
@@ -504,10 +504,12 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     val c = LocalKikoColors.current
     Box(
         Modifier
+            .height(30.dp)
             .clip(RoundedCornerShape(kikoCorner(12.dp)))
             .background(c.surface)
+            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(12.dp)))
             .kikoClickable { onSelect(if (current == ListViewMode.List) ListViewMode.Grid else ListViewMode.List) }
-            .padding(horizontal = 9.dp, vertical = 7.dp),
+            .padding(horizontal = 9.dp),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

@@ -23,6 +23,8 @@ import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -185,40 +187,43 @@ fun ContinueCardSkeleton(modifier: Modifier = Modifier) {
     }
 }
 
-/** Stand-in for a single [AiringNextCard]: cover-sized block + title/time bars. */
+/** Stand-in for a single [AiringNextCard] — boxed the exact same way as the real card
+ *  (surface fill + cardBorder outline + 22dp rounded corners, cover-then-text layout at
+ *  matching sizes) so the loading state and the real content share the same card shape.
+ *  Previously this only rendered the inner content with no card of its own, and
+ *  [AiringNextRowSkeleton] wrapped all three in one shared container instead — the real
+ *  row is a horizontally-scrolling carousel of individually-bordered cards, so that read
+ *  as a visibly different shape once real data swapped in. */
 @Composable
 fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
-    Row(
-        modifier
-            .width(264.dp)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SkeletonBlock(Modifier.size(width = 78.dp, height = 110.dp), shape = RoundedCornerShape(kikoCorner(16.dp)))
-        Column(Modifier.padding(start = 13.dp).weight(1f)) {
-            SkeletonBlock(Modifier.fillMaxWidth(0.85f).height(14.dp))
-            SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.5f).height(14.dp))
-            SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.6f).height(11.dp))
-        }
-    }
-}
-
-/** A row of [AiringNextCardSkeleton]s, staggered in, inside the same card container
- *  used by the real [AiringNextRow] — so the first-load state doesn't pop/reflow once
- *  the real data lands. */
-@Composable
-fun AiringNextRowSkeleton() {
     val c = LocalKikoColors.current
     Box(
-        Modifier
-            .fillMaxWidth()
+        modifier
             .clip(RoundedCornerShape(kikoCorner(22.dp)))
             .background(c.surface)
             .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(22.dp))),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(11.dp), modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
-            repeat(3) { i -> StaggeredItem(i) { AiringNextCardSkeleton() } }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SkeletonBlock(Modifier.size(width = 84.dp, height = 118.dp), shape = RoundedCornerShape(kikoCorner(16.dp)))
+            Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                SkeletonBlock(Modifier.fillMaxWidth(0.85f).height(14.dp))
+                SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.5f).height(14.dp))
+                SkeletonBlock(Modifier.padding(top = 14.dp).fillMaxWidth(0.6f).height(11.dp))
+            }
         }
+    }
+}
+
+/** A horizontally-scrolling row of [AiringNextCardSkeleton]s — same carousel shape as the
+ *  real [AiringNextRow] (each card individually boxed, sized to fillParentMaxWidth so the
+ *  next card peeks in from the edge), not the old single-shared-container skeleton. */
+@Composable
+fun AiringNextRowSkeleton() {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(3) { i -> StaggeredItem(i) { AiringNextCardSkeleton(modifier = Modifier.fillParentMaxWidth(0.94f)) } }
     }
 }
 
