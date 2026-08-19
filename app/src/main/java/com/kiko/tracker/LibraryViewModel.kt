@@ -426,7 +426,24 @@ class LibraryViewModel : ViewModel() {
     var discoverResults by mutableStateOf<List<MediaItem>>(emptyList()); private set
     var discoverFilters by mutableStateOf(DiscoverFilters()); private set
     var discoverSort by mutableStateOf(DiscoverSort.Relevance); private set
-    fun selectDiscoverSort(sort: DiscoverSort) { discoverSort = sort; discoverResults = discoverResults.sortedForDiscover(sort, titleLanguage, discoverQuery) }
+    // MalGenreFiltered results are paginated 50 at a time straight off MAL's own genre-filtered
+    // search — whatever's already in discoverResults is only however many pages happen to have
+    // been scrolled to so far, not the whole genre. Re-sorting just that loaded slice client-side
+    // (the old behavior) can't reproduce MAL's true "sorted by Members/Score/Newest" order, since
+    // the highest-ranked items for that sort might sit on a page that hasn't been fetched yet.
+    // So for that source, changing the sort re-runs the search from page 1 with the new sort
+    // wired through to MalGenreApi (see sortParam there), which asks MAL to hand back
+    // already-globally-sorted pages instead. Other sources (title search relevance, the
+    // ranking-pool fallback) already have their whole pool loaded in one shot, so a plain
+    // client-side re-sort of what's already there is correct for them and doesn't need a re-fetch.
+    fun selectDiscoverSort(context: Context, sort: DiscoverSort) {
+        discoverSort = sort
+        if (discoverPaginationSource == DiscoverPaginationSource.MalGenreFiltered) {
+            runDiscoverSearch(context, discoverQuery, discoverTypeFilter)
+        } else {
+            discoverResults = discoverResults.sortedForDiscover(sort, titleLanguage, discoverQuery)
+        }
+    }
     var discoverSearching by mutableStateOf(false); private set
     var discoverError by mutableStateOf<String?>(null); private set
     var discoverHasMore by mutableStateOf(false); private set
@@ -780,7 +797,7 @@ class LibraryViewModel : ViewModel() {
                                 async {
                                     val ids = runCatching { tenrai.resolveGenreIds(kind, names) }.getOrElse { emptyList() }
                                     if (ids.isEmpty()) null else runCatching {
-                                        malGenre.search(kind, ids, malTypeCode(kind, filters.format), malStatusCode(filters.airingStatus, kind), page = 1, includeAdult = nsfwEnabled)
+                                        malGenre.search(kind, ids, malTypeCode(kind, filters.format), malStatusCode(filters.airingStatus, kind), page = 1, includeAdult = nsfwEnabled, sort = discoverSort)
                                     }.getOrNull()?.let { kind to it }
                                 }
                             }.awaitAll().filterNotNull()
@@ -886,7 +903,7 @@ class LibraryViewModel : ViewModel() {
         discoverLoadMoreJob = viewModelScope.launch {
             discoverLoadingMore = true
             runCatching {
-                MalGenreApi().search(kind, ids, malTypeCode(kind, discoverFilters.format), malStatusCode(discoverFilters.airingStatus, kind), page = nextPage, includeAdult = nsfwEnabled)
+                MalGenreApi().search(kind, ids, malTypeCode(kind, discoverFilters.format), malStatusCode(discoverFilters.airingStatus, kind), page = nextPage, includeAdult = nsfwEnabled, sort = discoverSort)
             }
                 // Same reasoning as loadMoreTitleSearch: sort only the new page, append after
                 // the already-displayed items instead of re-sorting the whole merged list.

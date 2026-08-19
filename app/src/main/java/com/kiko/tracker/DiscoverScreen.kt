@@ -369,7 +369,7 @@ import kotlinx.coroutines.launch
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
                         items(listOf("Anime", "Manga")) { label -> FilterChip(selected = vm.discoverTypeFilter == label, onClick = { vm.runDiscoverSearch(context, query, label) }, label = { Text(label) }, colors = kikoFilterChipColors()) }
                     }
-                    DiscoverSortMenu(current = vm.discoverSort, onSelect = vm::selectDiscoverSort, modifier = Modifier.padding(start = 8.dp))
+                    DiscoverSortMenu(current = vm.discoverSort, onSelect = { vm.selectDiscoverSort(context, it) }, modifier = Modifier.padding(start = 8.dp))
                 }
                 if (vm.discoverSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
                 vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
