@@ -360,13 +360,20 @@ fun yearBarColor(t: Float): Color {
         .filter { it in 1900..2100 }
         .groupingBy { it }.eachCount()
     if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
-    val years = (counts.keys.min()..counts.keys.max()).toList()
+    // Most recent year first — descending left to right, matching YearFilterRow's chip
+    // order (sortedDescending()) so the chart and the filter chips read the same way.
+    val years = (counts.keys.max() downTo counts.keys.min()).toList()
+    val minYear = years.min()
+    val maxYear = years.max()
     val maxCount = counts.values.max()
     val barSlotHeight = ScoreBarSlotHeight
     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
         items(years, key = { it }) { year ->
             val count = counts[year] ?: 0
-            val t = if (years.size > 1) (year - years.first()).toFloat() / (years.size - 1) else 0f
+            // Gradient position is tied to the year itself (earliest = indigo, latest =
+            // magenta), independent of the list's display order, so reversing the chart
+            // above doesn't flip which end of the gradient each year gets.
+            val t = if (maxYear > minYear) (year - minYear).toFloat() / (maxYear - minYear) else 0f
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.width(30.dp).let { m -> if (onYearClick != null && count > 0) m.clickable { onYearClick(year) } else m },

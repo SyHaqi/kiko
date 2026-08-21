@@ -1335,7 +1335,11 @@ class LibraryViewModel : ViewModel() {
     // Load characters row (feeds both the Characters row and the Japanese Voice
     // Actors row on the detail page — staff is no longer shown there, so this no
     // longer fans out a second fetchStaff() network call alongside it).
-    fun loadCharacters(item: MediaItem, onFound: (List<CharacterEntry>) -> Unit, onDone: () -> Unit = {}) {
+    // onError fires when the fetch itself fails (network/DNS/etc — see
+    // TenraiApi.fetchCharacters) as opposed to a title that just has no characters
+    // listed, so the detail page can show a retryable failure state instead of
+    // silently treating a blocked request the same as "no cast data".
+    fun loadCharacters(item: MediaItem, onFound: (List<CharacterEntry>) -> Unit, onDone: () -> Unit = {}, onError: () -> Unit = {}) {
         val cache = detailCache(item.id, item.type)
         cache.characters?.let { onFound(it); onDone(); return }
         val intId = item.id.toIntOrNull()
@@ -1347,6 +1351,7 @@ class LibraryViewModel : ViewModel() {
                     cache.characters = chars
                     if (chars.isNotEmpty()) onFound(chars)
                 }
+                .onFailure { onError() }
             onDone()
         }
     }

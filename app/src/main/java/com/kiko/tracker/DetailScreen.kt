@@ -72,7 +72,7 @@ data class DetailScreenActions(
     val onOpenRecommended: (RecommendedEntry) -> Unit = {},
     val onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenScoreStats: (MediaItem) -> Unit = {},
-    val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit, () -> Unit) -> Unit = { _, _, onDone, _ -> onDone() },
     val onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenReview: (ReviewEntry) -> Unit = {},
     val onOpenReviewList: (String, String) -> Unit = { _, _ -> },
@@ -161,7 +161,15 @@ data class DetailScreenActions(
     // Characters row (also feeds the Japanese Voice Actors row below) — seeded
     // from cache so it doesn't blank out and reload on every remount either.
     var characters by remember(item.id) { mutableStateOf(cachedSnapshot?.characters ?: emptyList()) }
-    LaunchedEffect(item.id) { actions.onLoadCharacters(item, { chars -> characters = chars }, {}) }
+    // Tracks a failed fetch (network/DNS/etc.) separately from "no characters listed",
+    // so a blocked/broken request shows a retryable message instead of just vanishing.
+    // charactersRetryKey bumping re-keys the LaunchedEffect below to fire the fetch again.
+    var charactersFailed by remember(item.id) { mutableStateOf(false) }
+    var charactersRetryKey by remember(item.id) { mutableStateOf(0) }
+    LaunchedEffect(item.id, charactersRetryKey) {
+        charactersFailed = false
+        actions.onLoadCharacters(item, { chars -> characters = chars }, {}, { charactersFailed = true })
+    }
     var reviews by remember(item.id) { mutableStateOf(cachedSnapshot?.reviews ?: emptyList()) }
     LaunchedEffect(item.id) { actions.onLoadReviews(item, { reviews = it }, {}) }
     // Recheck cover gallery non-blocking — seeded from cache too.
@@ -458,6 +466,24 @@ data class DetailScreenActions(
                         SectionTitle("Characters", "See cast", { actions.onOpenReviewList(malCharactersUrl(item), itemDisplayTitle) })
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch -> StaggeredItem(i, charactersSeen) { CharacterCard(ch, uriHandler) } }
+                        }
+                    } else if (charactersFailed) {
+                        // Fetch itself failed (as opposed to the title just having no cast
+                        // listed) — surface it instead of silently hiding the section, since
+                        // that's the difference between "no data" and "something's blocking
+                        // this" (e.g. a network-level filter on the user's WiFi).
+                        SectionTitle("Characters", "", {})
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(kikoCorner(16.dp)))
+                                .background(c.surfaceContainer)
+                                .kikoClickable { charactersRetryKey++ }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.Refresh, null, tint = c.muted, modifier = Modifier.size(16.dp))
+                            Text("Couldn't load cast — tap to retry", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
                         }
                     }
                     // Japanese cast only, one row — characters without a listed Japanese VA
