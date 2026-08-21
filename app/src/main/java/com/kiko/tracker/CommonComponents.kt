@@ -64,9 +64,31 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-@Composable fun BottomBar(selected: Destination, select: (Destination) -> Unit) { val c = LocalKikoColors.current; NavigationBar(containerColor = c.surface, tonalElevation = 4.dp) { Destination.entries.forEach { d -> NavigationBarItem(selected = d == selected, onClick = { select(d) }, icon = { Icon(d.icon, null) }, label = { Text(d.label) }, colors = NavigationBarItemDefaults.colors(selectedIconColor = c.accent, selectedTextColor = c.accent, unselectedIconColor = c.muted, unselectedTextColor = c.muted, indicatorColor = c.primaryContainer)) } } }
+// Expressive nav bar: surfaceContainer (not flat surface) so it reads as its own
+// elevated layer per the container-ladder system, and a secondaryContainer pill
+// indicator (the M3 default role for nav selection — kept distinct from primary,
+// which this app reserves for the one main call-to-action per screen) behind the
+// selected icon/label rather than just recoloring the icon.
+@Composable fun BottomBar(selected: Destination, select: (Destination) -> Unit) {
+    val c = LocalKikoColors.current
+    NavigationBar(containerColor = c.surfaceContainer, tonalElevation = 0.dp) {
+        Destination.entries.forEach { d ->
+            NavigationBarItem(
+                selected = d == selected,
+                onClick = { select(d) },
+                icon = { Icon(d.icon, null) },
+                label = { Text(d.label) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = c.onSecondaryContainer, selectedTextColor = c.onSecondaryContainer,
+                    unselectedIconColor = c.muted, unselectedTextColor = c.muted,
+                    indicatorColor = c.secondaryContainer,
+                ),
+            )
+        }
+    }
+}
 
-@Composable fun AppHeader(title: String, horizontalPadding: Dp = 20.dp, titleColor: Color = LocalKikoColors.current.ink, action: @Composable () -> Unit = {}) { Row(Modifier.fillMaxWidth().padding(horizontal = horizontalPadding, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) { Text(title, fontFamily = AppFont, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp, letterSpacing = (-1).sp, color = titleColor); action() } }
+@Composable fun AppHeader(title: String, horizontalPadding: Dp = 20.dp, titleColor: Color = LocalKikoColors.current.ink, action: @Composable () -> Unit = {}) { Row(Modifier.fillMaxWidth().padding(horizontal = horizontalPadding, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) { Text(title, style = MaterialTheme.typography.headlineLarge, letterSpacing = (-1).sp, color = titleColor); action() } }
 
 // Unused params kept intentionally
 
@@ -222,16 +244,16 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     }
 }
 
-@Composable fun TypeToggle(current: MediaType, trackColor: Color = LocalKikoColors.current.surface, set: (MediaType) -> Unit) {
+@Composable fun TypeToggle(current: MediaType, trackColor: Color = LocalKikoColors.current.surfaceContainerHigh, set: (MediaType) -> Unit) {
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(trackColor).padding(4.dp)) {
         MediaType.entries.forEach { t ->
             val selected = current == t
             Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(if (selected) c.primary else Color.Transparent).kikoClickable { set(t) }.padding(vertical = 10.dp),
+                Modifier.weight(1f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(if (selected) c.secondaryContainer else Color.Transparent).kikoClickable { set(t) }.padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(if (t == MediaType.Anime) "Anime" else "Manga", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (selected) c.onPrimary else c.muted)
+                Text(if (t == MediaType.Anime) "Anime" else "Manga", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (selected) c.onSecondaryContainer else c.muted)
             }
         }
     }
@@ -260,13 +282,13 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                     .padding(start = 0.dp, top = 0.dp, end = 6.dp, bottom = 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(labelFor(current), fontFamily = AppFont, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp, letterSpacing = (-1).sp, color = c.ink)
+                Text(labelFor(current), style = MaterialTheme.typography.headlineLarge, letterSpacing = (-1).sp, color = c.ink)
                 Icon(Icons.Default.KeyboardArrowDown, contentDescription = switchDescription, tint = c.muted, modifier = Modifier.padding(start = 2.dp).size(28.dp).rotate(arrowRotation))
             }
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                containerColor = c.surface,
+                containerColor = c.surfaceContainerHigh,
                 shape = RoundedCornerShape(kikoCorner(18.dp)),
                 modifier = Modifier.width(with(density) { anchorWidthPx.toDp() }),
             ) {
@@ -309,8 +331,8 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 ) { Icon(Icons.Default.Close, "Clear search", tint = c.muted, modifier = Modifier.size(16.dp)) }
             }
         },
-        singleLine = true, shape = RoundedCornerShape(kikoCorner(18.dp)),
-        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.cardBorder, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+        singleLine = true, shape = kikoPillShape(),
+        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, unfocusedContainerColor = c.surfaceContainerHigh, focusedContainerColor = c.surfaceContainerHigh, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
         keyboardOptions = KeyboardOptions(imeAction = if (onSearch != null) ImeAction.Search else ImeAction.Default),
         keyboardActions = KeyboardActions(onSearch = { onSearch?.invoke(); keyboard?.hide() }),
         modifier = Modifier.fillMaxWidth(),
@@ -324,7 +346,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     val c = LocalKikoColors.current
     if (suggestions.isEmpty()) return
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(18.dp))),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh),
     ) {
         suggestions.forEachIndexed { index, title ->
             Row(
@@ -334,7 +356,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 Icon(Icons.Default.Search, null, tint = c.muted, modifier = Modifier.size(16.dp))
                 Text(title, color = c.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 14.dp).weight(1f))
             }
-            if (index < suggestions.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.cardBorder, modifier = Modifier.padding(start = 46.dp))
+            if (index < suggestions.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant, modifier = Modifier.padding(start = 46.dp))
         }
     }
 }
@@ -399,7 +421,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 // scheme lives in one place instead of being copy-pasted at every call site.
 @Composable fun kikoFilterChipColors(): SelectableChipColors {
     val c = LocalKikoColors.current
-    return FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.primary, selectedLabelColor = c.onPrimary)
+    return FilterChipDefaults.filterChipColors(containerColor = c.surfaceContainerLow, labelColor = c.ink, selectedContainerColor = c.secondaryContainer, selectedLabelColor = c.onSecondaryContainer)
 }
 
 // Re-centers a scrollable chip row on the tapped chip so neighboring categories peek into
@@ -475,7 +497,7 @@ fun statusColor(label: String): Color = when {
     Box(
         Modifier
             .clip(RoundedCornerShape(kikoCorner(10.dp)))
-            .border(1.dp, c.muted.copy(alpha = .35f), RoundedCornerShape(kikoCorner(10.dp)))
+            .border(1.dp, c.outlineVariant, RoundedCornerShape(kikoCorner(10.dp)))
             .let { if (onClick != null) it.kikoClickable(onClick = onClick) else it }
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {

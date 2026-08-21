@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -35,7 +36,7 @@ import androidx.compose.ui.unit.sp
     val downloading = downloadProgress != null
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = c.surface,
+        containerColor = c.surfaceContainerHigh,
         title = { Text("Kiko ${info.version} is available", color = c.ink) },
         text = {
             Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
@@ -78,7 +79,7 @@ import androidx.compose.ui.unit.sp
     val c = LocalKikoColors.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = c.surface,
+        containerColor = c.surfaceContainerHigh,
         icon = { Icon(Icons.Default.ErrorOutline, null, tint = c.danger) },
         title = { Text("Something went wrong", color = c.ink) },
         text = { Text(message, color = c.muted, fontSize = 13.sp) },
@@ -94,7 +95,7 @@ import androidx.compose.ui.unit.sp
     val c = LocalKikoColors.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = c.surface,
+        containerColor = c.surfaceContainerHigh,
         icon = { Icon(Icons.Default.WarningAmber, null, tint = c.danger) },
         title = { Text("Kiko crashed last time", color = c.ink) },
         text = {
@@ -108,7 +109,7 @@ import androidx.compose.ui.unit.sp
                         .heightIn(max = 240.dp)
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(kikoCorner(14.dp)))
-                        .background(c.surfaceLow)
+                        .background(c.surfaceContainerHighest)
                         .verticalScroll(rememberScrollState())
                         .padding(12.dp),
                 ) {
@@ -127,12 +128,12 @@ import androidx.compose.ui.unit.sp
 
 @Composable fun ThemeSheet(current: ThemeMode, onDismiss: () -> Unit, onSelect: (ThemeMode) -> Unit) {
     val c = LocalKikoColors.current
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.background) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
             Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Choose a theme", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             ThemeMode.entries.forEach { mode ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (mode == current) c.primaryContainer else c.surface).kikoClickable { onSelect(mode) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (mode == current) c.primaryContainer else Color.Transparent).kikoClickable { onSelect(mode) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
                         Text(mode.label, fontWeight = FontWeight.Bold, color = c.ink)
                         Text(when (mode) { ThemeMode.System -> "Matches your device setting"; ThemeMode.Light -> "Always light"; ThemeMode.Dark -> "Always dark" }, color = c.muted, fontSize = 12.sp)
@@ -146,12 +147,12 @@ import androidx.compose.ui.unit.sp
 
 @Composable fun ColorSourceSheet(current: ColorSource, customHex: String, onDismiss: () -> Unit, onSelect: (ColorSource) -> Unit, onCustomHexChange: (String) -> Unit) {
     val c = LocalKikoColors.current
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.background) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
             Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Choose a color", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             ColorSource.entries.forEach { source ->
-                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (source == current) c.primaryContainer else c.surface).animateContentSize()) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (source == current) c.primaryContainer else Color.Transparent).animateContentSize()) {
                     Row(
                         Modifier.fillMaxWidth().kikoClickable { onSelect(source); if (source != ColorSource.Custom) onDismiss() }.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
@@ -218,12 +219,12 @@ import androidx.compose.ui.unit.sp
 
 @Composable fun PaletteStyleSheet(current: PaletteStyle, onDismiss: () -> Unit, onSelect: (PaletteStyle) -> Unit) {
     val c = LocalKikoColors.current
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.background) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
             Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Choose a color palette", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             PaletteStyle.entries.forEach { style ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (style == current) c.primaryContainer else c.surface).kikoClickable { onSelect(style) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (style == current) c.primaryContainer else Color.Transparent).kikoClickable { onSelect(style) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
                         Text(style.label, fontWeight = FontWeight.Bold, color = c.ink)
                         Text(
@@ -244,12 +245,12 @@ import androidx.compose.ui.unit.sp
 
 @Composable fun TitleLanguageSheet(current: TitleLanguage, onDismiss: () -> Unit, onSelect: (TitleLanguage) -> Unit) {
     val c = LocalKikoColors.current
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.background) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
             Text("Preferences", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Title language", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             TitleLanguage.entries.forEach { lang ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (lang == current) c.primaryContainer else c.surface).kikoClickable { onSelect(lang) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (lang == current) c.primaryContainer else Color.Transparent).kikoClickable { onSelect(lang) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
                         Text(lang.label, fontWeight = FontWeight.Bold, color = c.ink)
                         Text(when (lang) { TitleLanguage.Romaji -> "e.g. Sousou no Frieren"; TitleLanguage.English -> "e.g. Frieren: Beyond Journey's End" }, color = c.muted, fontSize = 12.sp)

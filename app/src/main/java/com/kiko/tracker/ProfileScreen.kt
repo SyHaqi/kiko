@@ -66,7 +66,7 @@ import coil.compose.AsyncImage
     if (confirmSignOut) {
         AlertDialog(
             onDismissRequest = { confirmSignOut = false },
-            containerColor = c.surface,
+            containerColor = c.surfaceContainerHigh,
             title = { Text("Sign out?", color = c.ink) },
             text = { Text("Are you sure you want to sign out of your MyAnimeList account?", color = c.muted) },
             confirmButton = { TextButton(onClick = { confirmSignOut = false; onSignOut() }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Sign out") } },
@@ -78,10 +78,10 @@ import coil.compose.AsyncImage
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 20.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = exitProfile, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                IconButton(onClick = exitProfile, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                 Text(profile?.name?.ifBlank { "Profile" } ?: "Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp).weight(1f))
                 if (connected) {
-                    IconButton(onClick = { confirmSignOut = true }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) {
+                    IconButton(onClick = { confirmSignOut = true }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
                         Icon(Icons.AutoMirrored.Filled.Logout, "Sign out", tint = c.danger, modifier = Modifier.size(18.dp))
                     }
                 }
@@ -105,7 +105,7 @@ import coil.compose.AsyncImage
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Settings", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         Box(Modifier.padding(top = 12.dp, bottom = 24.dp)) {
@@ -127,7 +127,7 @@ import coil.compose.AsyncImage
     Column {
         // Profile header with stats
         if (connected && profile != null) {
-            Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+            Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
                 Column(Modifier.padding(22.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (profile.picture.isNotBlank()) {
@@ -144,7 +144,7 @@ import coil.compose.AsyncImage
                         }
                         // Open MAL profile page
                         if (profile.name.isNotBlank()) {
-                            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/profile/${profile.name}")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceLow).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) {
+                            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/profile/${profile.name}")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
                                 Icon(Icons.Default.OpenInNew, "Open profile in browser", tint = c.primary, modifier = Modifier.size(18.dp))
                             }
                         }
@@ -177,17 +177,17 @@ import coil.compose.AsyncImage
         val mangaDaysReadEst = mangaChaptersRead * 8.0 / 60.0 / 24.0
         if (connected && ((profile?.animeTotalEntries ?: 0) > 0 || mangaItems.isNotEmpty())) {
             if (animeDaysWatched > 0 || mangaDaysReadEst > 0) {
-                Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+                Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
                     Column(Modifier.padding(22.dp)) {
                         Text("TIME WATCHED VS READ", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             HeroStat(Modifier.weight(1f), Icons.Default.PlayCircle, "Days watched", animeDaysWatched.oneDecimal(), c.lavender, c.primary)
-                            HeroStat(Modifier.weight(1f), Icons.Default.MenuBook, "Days read (est.)", mangaDaysReadEst.oneDecimal(), c.primaryContainer, c.primary)
+                            HeroStat(Modifier.weight(1f), Icons.Default.MenuBook, "Days read (est.)", mangaDaysReadEst.oneDecimal(), c.primaryContainer, c.onPrimaryContainer)
                         }
                     }
                 }
             }
-            Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+            Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                 Column(Modifier.padding(22.dp)) {
                     Text("STATS", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
                     TypeToggle(statsTab, trackColor = c.surfaceLow) { onStatsTabChange(it) }
@@ -355,7 +355,7 @@ import coil.compose.AsyncImage
     val isGrid = vm.scoreFilterViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Score Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         ScoreFilterRow(score) { score = it }
@@ -386,7 +386,7 @@ import coil.compose.AsyncImage
                 StaggeredItem(index, staggerSeen) {
                     Column {
                         ListRow(it, onOpenDetail, showType = false)
-                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                     }
                 }
             }
@@ -448,7 +448,7 @@ import coil.compose.AsyncImage
     val isGrid = vm.yearFilterViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Year Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         YearFilterRow(years, year) { year = it }
@@ -479,7 +479,7 @@ import coil.compose.AsyncImage
                 StaggeredItem(index, staggerSeen) {
                     Column {
                         ListRow(it, onOpenDetail, showType = false)
-                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                     }
                 }
             }
@@ -520,7 +520,7 @@ import coil.compose.AsyncImage
     val isGrid = vm.formatFilterViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Format Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         FormatFilterRow(formats, format) { format = it }
@@ -551,7 +551,7 @@ import coil.compose.AsyncImage
                 StaggeredItem(index, staggerSeen) {
                     Column {
                         ListRow(it, onOpenDetail, showType = false)
-                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                     }
                 }
             }
@@ -592,7 +592,7 @@ import coil.compose.AsyncImage
     val isGrid = vm.genreFilterViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Genre Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         GenreFilterRow(genres, genre) { genre = it }
@@ -623,7 +623,7 @@ import coil.compose.AsyncImage
                 StaggeredItem(index, staggerSeen) {
                     Column {
                         ListRow(it, onOpenDetail, showType = false)
-                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                     }
                 }
             }

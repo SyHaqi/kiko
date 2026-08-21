@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.sp
     var stats by remember(item.id, item.type) { mutableStateOf<ScoreStats?>(null) }
     var loading by remember(item.id, item.type) { mutableStateOf(true) }
     LaunchedEffect(item.id, item.type) { loading = true; onLoad({ stats = it }, { loading = false }) }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.background) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
             Text("Score Stats", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text(item.title, style = MaterialTheme.typography.headlineSmall, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp, bottom = 20.dp))

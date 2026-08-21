@@ -104,11 +104,11 @@ import kotlinx.coroutines.delay
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = menuTopPad, end = menuEndPad).widthIn(max = 280.dp),
             ) {
                 Column(
-                    Modifier.shadow(16.dp, RoundedCornerShape(kikoCorner(24.dp))).clip(RoundedCornerShape(kikoCorner(24.dp))).background(c.background).padding(8.dp),
+                    Modifier.shadow(16.dp, RoundedCornerShape(kikoCorner(24.dp))).clip(RoundedCornerShape(kikoCorner(24.dp))).background(c.surfaceContainerHigh).padding(8.dp),
                 ) {
                     // Row 1 — avatar + name, opens the full profile stats page
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(18.dp)))
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHighest)
                             .kikoClickable { visible = false; onOpenProfile() }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -130,12 +130,12 @@ import kotlinx.coroutines.delay
 
                     // Row 2 — Settings, opens the full settings page
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(18.dp)))
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHighest)
                             .kikoClickable { visible = false; onOpenSettings() }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.primaryContainer), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Settings, null, tint = c.primary, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Settings, null, tint = c.onPrimaryContainer, modifier = Modifier.size(20.dp))
                         }
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {
                             Text("Settings", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)

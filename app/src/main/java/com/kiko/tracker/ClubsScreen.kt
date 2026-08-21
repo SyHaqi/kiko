@@ -120,7 +120,7 @@ import kotlinx.coroutines.launch
                     StaggeredItem(index) {
                         Column {
                             ClubRow(club) { openClub(club) }
-                            if (index < visibleClubs.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                            if (index < visibleClubs.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                         }
                     }
                 }
@@ -226,13 +226,13 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                         if (full.access.isNotBlank()) Pill(full.access, c.surfaceLow, c.muted)
                     }
                     // Segmented tab switcher, matching the app's TypeToggle style
-                    Row(Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceLow).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(16.dp))).padding(4.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh).padding(4.dp)) {
                         ClubTab.entries.forEach { t ->
                             val selected = tab == t
                             Box(
-                                Modifier.weight(1f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(if (selected) c.primary else Color.Transparent).kikoClickable { tab = t }.padding(vertical = 10.dp),
+                                Modifier.weight(1f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(if (selected) c.secondaryContainer else Color.Transparent).kikoClickable { tab = t }.padding(vertical = 10.dp),
                                 contentAlignment = Alignment.Center,
-                            ) { Text(t.label, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (selected) c.onPrimary else c.muted) }
+                            ) { Text(t.label, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (selected) c.onSecondaryContainer else c.muted) }
                         }
                     }
                 }
@@ -266,7 +266,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
     }
     Column {
         if (club.description.isNotBlank()) {
-            Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
+            Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
                 ForumBody(club.description, modifier = Modifier.padding(18.dp))
             }
             Spacer(Modifier.height(18.dp))
@@ -283,7 +283,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                     Text("Open club room")
                 }
             }
-            else -> Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
+            else -> Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
                 Column {
                     posts.forEachIndexed { index, post ->
                         Row(Modifier.fillMaxWidth().padding(14.dp)) {
@@ -302,7 +302,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                                 ForumBody(post.body, modifier = Modifier.padding(top = 3.dp))
                             }
                         }
-                        if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.cardBorder)
+                        if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.outlineVariant)
                     }
                 }
             }
@@ -316,7 +316,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
     when {
         loading && club.staff.isEmpty() -> TopicRowSkeletonGroup(5)
         club.staff.isEmpty() -> Text("No staff listed for this club.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
-        else -> Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
+        else -> Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
             Column {
                 club.staff.forEachIndexed { index, staff ->
                     Row(Modifier.fillMaxWidth().kikoClickable(enabled = staff.url.isNotBlank()) { onOpenBrowser(staff.url) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -329,7 +329,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                         }
                         Icon(Icons.Default.ChevronRight, null, tint = c.muted)
                     }
-                    if (index < club.staff.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.cardBorder)
+                    if (index < club.staff.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.outlineVariant)
                 }
             }
         }
@@ -359,7 +359,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
             error != null -> Text(error!!, color = c.danger, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
             members.isEmpty() -> Text("No members listed for this club.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
             else -> {
-                Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder), modifier = Modifier.fillMaxWidth()) {
+                Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
                     Column {
                         members.forEachIndexed { index, member ->
                             Row(Modifier.fillMaxWidth().kikoClickable(enabled = member.url.isNotBlank()) { onOpenBrowser(member.url) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -373,7 +373,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                                 Text(member.username.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
                                 Icon(Icons.Default.ChevronRight, null, tint = c.muted)
                             }
-                            if (index < members.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.cardBorder)
+                            if (index < members.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.outlineVariant)
                         }
                     }
                 }

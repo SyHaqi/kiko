@@ -184,8 +184,7 @@ import kotlinx.coroutines.launch
     Box(
         modifier
             .clip(RoundedCornerShape(kikoCorner(22.dp)))
-            .background(c.surface)
-            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(22.dp)))
+            .background(c.surfaceContainer)
             .kikoClickable { onOpenDetail(item) },
     ) {
         Row(
@@ -223,8 +222,8 @@ import kotlinx.coroutines.launch
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, null, tint = c.accent, modifier = Modifier.size(19.dp))
-        Text(label, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.accent, modifier = Modifier.padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Icon(icon, null, tint = c.onPrimaryContainer, modifier = Modifier.size(19.dp))
+        Text(label, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.onPrimaryContainer, modifier = Modifier.padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -249,8 +248,7 @@ import kotlinx.coroutines.launch
                 Modifier
                     .size(30.dp)
                     .clip(RoundedCornerShape(kikoCorner(10.dp)))
-                    .background(c.surface)
-                    .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(10.dp)))
+                    .background(c.surfaceContainerHigh)
                     .kikoClickable(onClick = click),
                 contentAlignment = Alignment.Center,
             ) { Icon(icon, action, tint = c.ink, modifier = Modifier.size(17.dp)) }
@@ -259,8 +257,8 @@ import kotlinx.coroutines.launch
 }
 
 // Home's "Continue" entry, now boxed the same way as the other card-style shelves in
-// the app (see StackFeaturedCard) — surface fill + cardBorder outline + rounded corners
-// — instead of sitting as a bare, unboxed row. Still just wraps [ListRow]'s content;
+// the app (see StackFeaturedCard) — tonal surfaceContainer fill + rounded corners —
+// instead of sitting as a bare, unboxed row. Still just wraps [ListRow]'s content;
 // only the surrounding container changed. Tapping it jumps to the entry's spot in My
 // List rather than opening its detail page — "Continue" is meant as a shortcut back
 // into the list, not a detail-page shortcut.
@@ -271,8 +269,7 @@ import kotlinx.coroutines.launch
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(kikoCorner(22.dp)))
-            .background(c.surface)
-            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(22.dp))),
+            .background(c.surfaceContainer),
     ) {
         ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = Modifier.padding(horizontal = 14.dp), vm = vm)
     }
@@ -361,13 +358,13 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
-            Modifier.height(30.dp).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(12.dp))).kikoClickable { open = true }.padding(horizontal = 12.dp),
+            Modifier.height(30.dp).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
             Text(current.label, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surface, shape = RoundedCornerShape(kikoCorner(18.dp))) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surfaceContainerHigh, shape = RoundedCornerShape(kikoCorner(18.dp))) {
             ListSort.entries.forEach { s ->
                 DropdownMenuItem(
                     text = { Text(s.label, color = if (s == current) c.accent else c.ink, fontWeight = if (s == current) FontWeight.Bold else FontWeight.Normal) },
@@ -384,13 +381,13 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box(modifier) {
         Row(
-            Modifier.height(30.dp).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(12.dp))).kikoClickable { open = true }.padding(horizontal = 12.dp),
+            Modifier.height(30.dp).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
             Text(current.label, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surface, shape = RoundedCornerShape(kikoCorner(18.dp))) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surfaceContainerHigh, shape = RoundedCornerShape(kikoCorner(18.dp))) {
             DiscoverSort.entries.forEach { s ->
                 DropdownMenuItem(
                     text = { Text(s.label, color = if (s == current) c.accent else c.ink, fontWeight = if (s == current) FontWeight.Bold else FontWeight.Normal) },
@@ -487,7 +484,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                             StaggeredItem(index, staggerSeen) {
                                 Column {
                                     ListRow(it, openItem, onIncrement, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, vm = vm)
-                                    if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                                    if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                                 }
                             }
                         }
@@ -511,8 +508,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         Modifier
             .height(30.dp)
             .clip(RoundedCornerShape(kikoCorner(12.dp)))
-            .background(c.surface)
-            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(12.dp)))
+            .background(c.surfaceContainerHigh)
             .kikoClickable { onSelect(if (current == ListViewMode.List) ListViewMode.Grid else ListViewMode.List) }
             .padding(horizontal = 9.dp),
         contentAlignment = Alignment.Center,
@@ -642,7 +638,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 onClick = { val next = (item.progress + 1).let { p -> if (item.total > 0) minOf(p, item.total) else p }; onIncrement(item.copy(progress = next)) },
                 enabled = !atMax,
                 shape = RoundedCornerShape(kikoCorner(12.dp)),
-                colors = ButtonDefaults.filledTonalButtonColors(containerColor = c.primaryContainer, contentColor = c.accent),
+                colors = ButtonDefaults.filledTonalButtonColors(containerColor = c.primaryContainer, contentColor = c.onPrimaryContainer),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
             ) { Text("+1", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
         } else if (showChevron) {

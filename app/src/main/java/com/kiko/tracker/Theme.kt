@@ -4,48 +4,63 @@ package com.kiko.tracker
 
 import android.content.Context
 import android.os.Build
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.dp
 import androidx.core.graphics.ColorUtils
 import kotlin.math.roundToInt
 
-// Palette section
+// ---------------------------------------------------------------------------
+// Palette section — Material 3 Expressive color roles.
+//
+// This used to be a handful of hand-picked colors (primary/background/surface
+// plus a few app-specific extras). Real M3 leans on a much bigger role set —
+// tonal containers for primary/secondary/tertiary, a five-step surface
+// container ladder (surfaceContainerLowest to Highest) instead of one flat
+// "surface", and dedicated outline/inverse/error roles — so that elevation
+// and emphasis are communicated with *color* rather than drop shadows. Every
+// role here is generated together from one seed hue so they're guaranteed to
+// be harmonious, whether that seed is the app's brand color, a MAL dynamic
+// color, or a user-picked custom hex.
+// ---------------------------------------------------------------------------
 @Immutable
-
 data class KikoColors(
     val ink: Color, val onPrimary: Color, val primary: Color, val primaryContainer: Color,
+    val onPrimaryContainer: Color = ink,
     val background: Color, val surface: Color, val surfaceLow: Color, val muted: Color,
     val lavender: Color, val warm: Color, val danger: Color,
+    // Secondary / tertiary tonal roles — used for the accents that shouldn't
+    // compete with primary (e.g. secondary chips, tertiary status badges).
+    val secondary: Color = primary,
+    val onSecondary: Color = onPrimary,
+    val secondaryContainer: Color = primaryContainer,
+    val onSecondaryContainer: Color = ink,
+    val tertiary: Color = primary,
+    val onTertiary: Color = onPrimary,
+    val tertiaryContainer: Color = primaryContainer,
+    val onTertiaryContainer: Color = ink,
+    // Five-step surface container ladder — Expressive's replacement for
+    // shadow-based elevation. Higher tier = visually "closer" to the user.
+    val surfaceContainerLowest: Color = background,
+    val surfaceContainerLow: Color = surface,
+    val surfaceContainer: Color = surfaceLow,
+    val surfaceContainerHigh: Color = surfaceLow,
+    val surfaceContainerHighest: Color = surfaceLow,
+    val onSurfaceVariant: Color = muted,
+    val outline: Color = muted,
+    val outlineVariant: Color = muted,
+    val errorContainer: Color = danger,
+    val onError: Color = onPrimary,
+    val onErrorContainer: Color = danger,
+    val inverseSurface: Color = ink,
+    val inverseOnSurface: Color = background,
+    val inversePrimary: Color = primary,
+    val scrim: Color = Color.Black,
     // Outline for buttons/cards in AMOLED mode — transparent otherwise, so it's a no-op
     // everywhere else and doesn't need to be threaded through every existing constructor
     val cardBorder: Color = Color.Transparent,
-)
-// MAL brand palette colors
-
-val LightKiko = KikoColors(
-    ink = Color(0xFF1B1B1F), onPrimary = Color.White, primary = Color(0xFF2E51A2), primaryContainer = Color(0xFFE1E7F5),
-    background = Color(0xFFFFFFFF), surface = Color(0xFFF8F8F8), surfaceLow = Color(0xFFEDEDED), muted = Color(0xFF6D6D6D),
-    lavender = Color(0xFFEAF0FF), warm = Color(0xFFFFE9C7), danger = Color(0xFFB3261E),
-    // Was fully transparent, so cards/search bars/buttons had nothing but a ~2-3%
-    // surface-vs-background tint to read against — nearly invisible, especially in
-    // light mode. A real hairline (same trick amoledify already uses) fixes that.
-    cardBorder = Color(0xFF6D6D6D).copy(alpha = 0.16f),
-)
-
-val DarkKiko = KikoColors(
-    ink = Color(0xFFEDEDED), onPrimary = Color(0xFF14203D), primary = Color(0xFFABC4ED), primaryContainer = Color(0xFF24365E),
-    background = Color(0xFF121212), surface = Color(0xFF181818), surfaceLow = Color(0xFF222222), muted = Color(0xFFA3A3A3),
-    lavender = Color(0xFF1F2A44), warm = Color(0xFF463A28), danger = Color(0xFFFFB4AB),
-    cardBorder = Color(0xFFA3A3A3).copy(alpha = 0.16f),
 )
 
 val LocalKikoColors = staticCompositionLocalOf { LightKiko }
@@ -53,29 +68,6 @@ val LocalKikoColors = staticCompositionLocalOf { LightKiko }
 // Readable stand-in for `primary` wherever it's used as a *foreground* — text or an icon
 // sitting directly on a surface/background, rather than as a button's own fill.
 val KikoColors.accent: Color get() = primary
-
-// Default corner radius passthrough (kept as a helper so call sites don't need to change).
-@Composable fun kikoCorner(default: androidx.compose.ui.unit.Dp): androidx.compose.ui.unit.Dp = default
-
-// Stand-ins for CircleShape / RoundedCornerShape(50) (full "pill" rounding), kept as
-// helpers so call sites don't need to change.
-@Composable fun kikoCircleShape(): androidx.compose.ui.graphics.Shape = CircleShape
-
-@Composable fun kikoPillShape(): androidx.compose.ui.graphics.Shape = RoundedCornerShape(50)
-
-// True-black variant for AMOLED screens — flattens background/surface tones to pure
-// black so OLED pixels can switch off, while keeping accent/text colors untouched.
-// Also gives buttons/cards/dividers a hairline border in the same tone as the list
-// separators, so they stay visible against the pure-black background instead of
-// blending into it. Pure black has no ambient tone to blend a faint gray into (unlike
-// the ~0x12 dark background), so this needs a noticeably higher alpha than the
-// light/dark themes' 0.16f to actually read as a line rather than disappear.
-fun amoledify(colors: KikoColors): KikoColors = colors.copy(
-    background = Color.Black,
-    surface = Color(0xFF000000),
-    surfaceLow = Color(0xFF0A0A0A),
-    cardBorder = colors.muted.copy(alpha = .32f),
-)
 
 val AppFont = FontFamily.SansSerif
 
@@ -99,6 +91,14 @@ fun seedHue(seed: Color): Float {
     return hsl[0]
 }
 
+/**
+ * Generates a full Expressive role set from one seed hue + per-style saturation
+ * bands. Every role (primary/secondary/tertiary families, the surface container
+ * ladder, outline, inverse, error) is derived together so the whole palette stays
+ * harmonious regardless of which hue or style produced it — the same function
+ * backs the app's own default palette, MAL/system dynamic color, and any custom
+ * hex a person picks in settings.
+ */
 fun themedPalette(seed: Color, style: PaletteStyle, dark: Boolean): KikoColors {
     val hue = seedHue(seed)
     // Saturation bands per style
@@ -107,31 +107,62 @@ fun themedPalette(seed: Color, style: PaletteStyle, dark: Boolean): KikoColors {
         PaletteStyle.Neutral -> Triple(0.18f, 0.10f, 0.02f)
         PaletteStyle.Monochrome -> Triple(0f, 0f, 0f)
     }
+    val secondarySat = accentSat * 0.55f
+    val secondaryContainerSat = containerSat * 0.7f
+    val tertiaryHue = hue + 60f
+
     return if (!dark) run {
         val mutedColor = hslColor(hue, neutralSat, 0.45f)
+        val onSurfaceVariant = hslColor(hue, neutralSat, 0.32f)
         KikoColors(
             ink = hslColor(hue, neutralSat, 0.12f),
             onPrimary = Color.White,
             primary = hslColor(hue, accentSat, 0.46f),
             primaryContainer = hslColor(hue, containerSat, 0.88f),
-            background = hslColor(hue, neutralSat, 0.975f),
+            onPrimaryContainer = hslColor(hue, accentSat, 0.16f),
+            background = hslColor(hue, neutralSat, 0.985f),
             surface = hslColor(hue, neutralSat * 0.6f, 0.995f),
             surfaceLow = hslColor(hue, neutralSat, 0.95f),
             muted = mutedColor,
             lavender = hslColor(hue + 40f, containerSat, 0.93f),
             warm = hslColor(hue - 150f, containerSat, 0.87f),
             danger = Color(0xFFB3261E),
-            // See LightKiko/DarkKiko — same hairline-border fix, tinted to this seed's hue
+            secondary = hslColor(hue, secondarySat, 0.40f),
+            onSecondary = Color.White,
+            secondaryContainer = hslColor(hue, secondaryContainerSat, 0.90f),
+            onSecondaryContainer = hslColor(hue, secondarySat, 0.16f),
+            tertiary = hslColor(tertiaryHue, accentSat * 0.8f, 0.42f),
+            onTertiary = Color.White,
+            tertiaryContainer = hslColor(tertiaryHue, containerSat, 0.89f),
+            onTertiaryContainer = hslColor(tertiaryHue, accentSat * 0.8f, 0.16f),
+            surfaceContainerLowest = Color.White,
+            surfaceContainerLow = hslColor(hue, neutralSat, 0.97f),
+            surfaceContainer = hslColor(hue, neutralSat, 0.945f),
+            surfaceContainerHigh = hslColor(hue, neutralSat, 0.915f),
+            surfaceContainerHighest = hslColor(hue, neutralSat, 0.89f),
+            onSurfaceVariant = onSurfaceVariant,
+            outline = hslColor(hue, neutralSat, 0.50f),
+            outlineVariant = hslColor(hue, neutralSat, 0.82f),
+            errorContainer = Color(0xFFF9DEDC),
+            onError = Color.White,
+            onErrorContainer = Color(0xFF410E0B),
+            inverseSurface = hslColor(hue, neutralSat, 0.20f),
+            inverseOnSurface = hslColor(hue, neutralSat, 0.96f),
+            inversePrimary = hslColor(hue, accentSat, 0.78f),
+            scrim = Color.Black,
+            // See below — same hairline-border fix, tinted to this seed's hue
             // instead of a fixed gray so generated/dynamic themes get it too.
             cardBorder = mutedColor.copy(alpha = 0.16f),
         )
     } else run {
         val mutedColor = hslColor(hue, neutralSat, 0.68f)
+        val onSurfaceVariant = hslColor(hue, neutralSat, 0.78f)
         KikoColors(
             ink = hslColor(hue, neutralSat, 0.94f),
             onPrimary = hslColor(hue, neutralSat, 0.10f),
             primary = hslColor(hue, accentSat, 0.74f),
             primaryContainer = hslColor(hue, containerSat, 0.30f),
+            onPrimaryContainer = hslColor(hue, accentSat, 0.90f),
             background = hslColor(hue, neutralSat, 0.08f),
             surface = hslColor(hue, neutralSat, 0.13f),
             surfaceLow = hslColor(hue, neutralSat, 0.17f),
@@ -139,10 +170,40 @@ fun themedPalette(seed: Color, style: PaletteStyle, dark: Boolean): KikoColors {
             lavender = hslColor(hue + 40f, containerSat, 0.18f),
             warm = hslColor(hue - 150f, containerSat, 0.21f),
             danger = Color(0xFFFFB4AB),
+            secondary = hslColor(hue, secondarySat, 0.72f),
+            onSecondary = hslColor(hue, neutralSat, 0.12f),
+            secondaryContainer = hslColor(hue, secondaryContainerSat, 0.28f),
+            onSecondaryContainer = hslColor(hue, secondarySat, 0.90f),
+            tertiary = hslColor(tertiaryHue, accentSat * 0.8f, 0.76f),
+            onTertiary = hslColor(tertiaryHue, neutralSat, 0.14f),
+            tertiaryContainer = hslColor(tertiaryHue, containerSat, 0.27f),
+            onTertiaryContainer = hslColor(tertiaryHue, accentSat * 0.8f, 0.90f),
+            surfaceContainerLowest = hslColor(hue, neutralSat, 0.05f),
+            surfaceContainerLow = hslColor(hue, neutralSat, 0.11f),
+            surfaceContainer = hslColor(hue, neutralSat, 0.15f),
+            surfaceContainerHigh = hslColor(hue, neutralSat, 0.20f),
+            surfaceContainerHighest = hslColor(hue, neutralSat, 0.25f),
+            onSurfaceVariant = onSurfaceVariant,
+            outline = hslColor(hue, neutralSat, 0.42f),
+            outlineVariant = hslColor(hue, neutralSat, 0.22f),
+            errorContainer = Color(0xFF8C1D18),
+            onError = Color(0xFF690005),
+            onErrorContainer = Color(0xFFF9DEDC),
+            inverseSurface = hslColor(hue, neutralSat, 0.92f),
+            inverseOnSurface = hslColor(hue, neutralSat, 0.16f),
+            inversePrimary = hslColor(hue, accentSat, 0.42f),
+            scrim = Color.Black,
             cardBorder = mutedColor.copy(alpha = 0.16f),
         )
     }
 }
+
+// The app's default (non-dynamic, non-custom) brand palette — generated through
+// the exact same Expressive pipeline as any user-picked seed, so it's held to
+// the same standard rather than being a separately hand-tuned pair of constants.
+val LightKiko: KikoColors by lazy { themedPalette(AppDefaultSeed, PaletteStyle.TonalSpot, dark = false) }
+val DarkKiko: KikoColors by lazy { themedPalette(AppDefaultSeed, PaletteStyle.TonalSpot, dark = true) }
+
 // Resolve palette seed color
 
 fun resolveSeedColor(context: Context, source: ColorSource, customHex: String, dark: Boolean): Color = when (source) {
@@ -157,6 +218,48 @@ fun parseHexColor(hex: String): Color? {
     val cleaned = hex.trim().removePrefix("#")
     if (cleaned.length != 6 || cleaned.any { it !in "0123456789abcdefABCDEF" }) return null
     return try { Color(0xFF000000 or cleaned.toLong(16)) } catch (e: Exception) { null }
+}
+
+// True-black variant for AMOLED screens — flattens background/surface tones to pure
+// black so OLED pixels can switch off, while keeping accent/text colors untouched.
+// Also gives buttons/cards/dividers a hairline border in the same tone as the list
+// separators, so they stay visible against the pure-black background instead of
+// blending into it. Pure black has no ambient tone to blend a faint gray into (unlike
+// the ~0x12 dark background), so this needs a noticeably higher alpha than the
+// light/dark themes' 0.16f to actually read as a line rather than disappear.
+fun amoledify(colors: KikoColors): KikoColors = colors.copy(
+    background = Color.Black,
+    surface = Color(0xFF000000),
+    surfaceLow = Color(0xFF0A0A0A),
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color(0xFF080808),
+    surfaceContainer = Color(0xFF0C0C0C),
+    surfaceContainerHigh = Color(0xFF121212),
+    surfaceContainerHighest = Color(0xFF181818),
+    cardBorder = colors.muted.copy(alpha = .32f),
+)
+
+/**
+ * Builds a real androidx.compose.material3.ColorScheme from a [KikoColors]
+ * instance, so components that read `MaterialTheme.colorScheme` directly
+ * (rather than `LocalKikoColors.current`) get the exact same Expressive
+ * palette — same seed, same tones — instead of a separately-approximated one.
+ */
+fun KikoColors.toMaterialColorScheme(dark: Boolean): ColorScheme {
+    val base = if (dark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = primary, onPrimary = onPrimary, primaryContainer = primaryContainer, onPrimaryContainer = onPrimaryContainer,
+        secondary = secondary, onSecondary = onSecondary, secondaryContainer = secondaryContainer, onSecondaryContainer = onSecondaryContainer,
+        tertiary = tertiary, onTertiary = onTertiary, tertiaryContainer = tertiaryContainer, onTertiaryContainer = onTertiaryContainer,
+        background = background, onBackground = ink,
+        surface = surface, onSurface = ink, surfaceVariant = surfaceLow, onSurfaceVariant = onSurfaceVariant,
+        surfaceContainerLowest = surfaceContainerLowest, surfaceContainerLow = surfaceContainerLow,
+        surfaceContainer = surfaceContainer, surfaceContainerHigh = surfaceContainerHigh, surfaceContainerHighest = surfaceContainerHighest,
+        outline = outline, outlineVariant = outlineVariant,
+        error = danger, onError = onError, errorContainer = errorContainer, onErrorContainer = onErrorContainer,
+        inverseSurface = inverseSurface, inverseOnSurface = inverseOnSurface, inversePrimary = inversePrimary,
+        scrim = scrim, surfaceTint = primary,
+    )
 }
 
 // Romaji or English titles

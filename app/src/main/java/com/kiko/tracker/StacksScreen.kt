@@ -82,7 +82,7 @@ import kotlinx.coroutines.launch
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
                     // "Open in browser" and "Search" grouped into one pill (divider between) rather
                     // than two identical boxed buttons sitting flush against each other — same
@@ -91,14 +91,13 @@ import kotlinx.coroutines.launch
                         Modifier
                             .height(38.dp)
                             .clip(RoundedCornerShape(kikoCorner(13.dp)))
-                            .background(c.surface)
-                            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp))),
+                            .background(c.surfaceContainerHigh),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks")) }, modifier = Modifier.size(38.dp)) {
                             Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
                         }
-                        Box(Modifier.width(1.dp).height(18.dp).background(c.cardBorder))
+                        Box(Modifier.width(1.dp).height(18.dp).background(c.outlineVariant))
                         IconButton(onClick = { openBrowse(StackBrowseKind.All) }, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.Search, "Search stacks", tint = c.ink) }
                     }
                 }
@@ -132,7 +131,7 @@ import kotlinx.coroutines.launch
                             StackListRow(s, vm) { openStack(s) }
                             // Same subtle row separator My List / Discover search results use
                             // (see SearchResultRow's divider) — this list was missing it.
-                            if (index < vm.stacksHomeRecent.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                            if (index < vm.stacksHomeRecent.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                         }
                     }
                 }
@@ -155,7 +154,7 @@ import kotlinx.coroutines.launch
         // for why (Play Store-style section header link).
         IconButton(
             onClick = onSeeAll,
-            modifier = Modifier.size(34.dp).clip(kikoCircleShape()).background(c.surface).border(1.dp, c.cardBorder, kikoCircleShape()),
+            modifier = Modifier.size(34.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh),
         ) { Icon(Icons.Default.ArrowForward, "See all", tint = c.ink, modifier = Modifier.size(16.dp)) }
     }
 }
@@ -183,7 +182,7 @@ import kotlinx.coroutines.launch
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         Column(Modifier.padding(horizontal = 20.dp)) {
@@ -213,7 +212,7 @@ import kotlinx.coroutines.launch
                         StaggeredItem(index, staggerSeen) {
                             Column {
                                 StackListRow(s, vm) { openStack(s) }
-                                if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                                if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                             }
                         }
                     }
@@ -271,7 +270,7 @@ import kotlinx.coroutines.launch
     val c = LocalKikoColors.current
     if (tags.isEmpty()) return
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        tags.forEach { tag -> if (tag == "Challenge") Pill(tag, c.warm, c.ink) else Pill(tag, c.primaryContainer, c.accent) }
+        tags.forEach { tag -> if (tag == "Challenge") Pill(tag, c.warm, c.ink) else Pill(tag, c.primaryContainer, c.onPrimaryContainer) }
     }
 }
 // Small "N Entries · Restacks" meta pill row shared by browse row and detail header
@@ -313,7 +312,7 @@ import kotlinx.coroutines.launch
         onClick = onClick,
         interactionSource = interactionSource,
         shape = RoundedCornerShape(kikoCorner(22.dp)),
-        colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
+        colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).pressScale(interactionSource),
     ) {
         Column {
@@ -346,7 +345,7 @@ import kotlinx.coroutines.launch
         onClick = onClick,
         interactionSource = interactionSource,
         shape = RoundedCornerShape(kikoCorner(22.dp)),
-        colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
+        colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
         modifier = modifier.width(250.dp).pressScale(interactionSource),
     ) {
         Column(Modifier.fillMaxHeight()) {
@@ -445,10 +444,10 @@ import kotlinx.coroutines.launch
                     // Back button gets real breathing room below it before the type pill,
                     // matching the spacing every other detail header in the app uses
                     Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                        IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                         Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
                         // Open this stack in browser
-                        IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks/$stackId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) {
+                        IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks/$stackId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
                             Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
                         }
                     }
@@ -459,7 +458,7 @@ import kotlinx.coroutines.launch
                     }
                     detail?.let { d ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (d.type.isNotBlank()) Pill(d.type, c.primaryContainer, c.primary)
+                            if (d.type.isNotBlank()) Pill(d.type, c.primaryContainer, c.onPrimaryContainer)
                             if (d.author.isNotBlank()) Text("by ${d.author}", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 9.dp))
                         }
                         // Description sits above the entries, right under the byline.

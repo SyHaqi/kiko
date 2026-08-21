@@ -129,7 +129,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
     val dayItems = remember(byDay, selectedDay) { byDay.filter { it.second == selectedDay }.sortedBy { it.third } }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Release Schedule", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         val dayListState = rememberLazyListState(initialFirstVisibleItemIndex = java.time.DayOfWeek.values().indexOf(initialDay))
@@ -156,7 +156,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
                 StaggeredItem(index) {
                     Column {
                         ScheduleRow(item, time, onOpenDetail, myStatus = vm.trackedStatus(item))
-                        if (index < dayItems.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                        if (index < dayItems.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                     }
                 }
             }
@@ -203,7 +203,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
     var pendingSeason by remember { mutableStateOf(vm.seasonalSeason) }
     var pendingSort by remember { mutableStateOf(vm.seasonalSort) }
     var pendingContinuing by remember { mutableStateOf(vm.seasonalContinuingOnly) }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.background) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
             Text("Seasonal Chart", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Browse a season", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 18.dp))
@@ -211,7 +211,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
             // Compact season stepper control
             Text("${pendingSeason.label} $pendingYear", style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.padding(bottom = 10.dp))
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(20.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(20.dp))).padding(horizontal = 4.dp, vertical = 6.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(20.dp))).background(c.surfaceContainerHigh).padding(horizontal = 4.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 val (py, ps) = stepSeason(pendingYear, pendingSeason, forward = false)
@@ -247,7 +247,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 
             // Continuing titles filter toggle
             Row(
-                Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(16.dp)))
+                Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)
                     .kikoClickable { pendingContinuing = !pendingContinuing }
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,

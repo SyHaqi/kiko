@@ -284,7 +284,7 @@ import kotlinx.coroutines.launch
         onClick = onClick,
         interactionSource = interactionSource,
         shape = RoundedCornerShape(kikoCorner(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = c.surface), border = BorderStroke(1.dp, c.cardBorder),
+        colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
         modifier = modifier.pressScale(interactionSource)
     ) {
         Row(
@@ -345,7 +345,7 @@ import kotlinx.coroutines.launch
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onExitResults, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink) }
+                    IconButton(onClick = onExitResults, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink) }
                     Text("Search results", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
                 }
                 Row(
@@ -391,7 +391,7 @@ import kotlinx.coroutines.launch
                     StaggeredItem(index, staggerSeen) {
                         Column {
                             SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type, myStatus = result.id.toIntOrNull()?.let { myListStatus[it to result.type] })
-                            if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.cardBorder)
+                            if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                         }
                     }
                 }
@@ -424,8 +424,7 @@ import kotlinx.coroutines.launch
     val c = LocalKikoColors.current
     Box(
         modifier.fillMaxHeight().aspectRatio(1f).clip(RoundedCornerShape(kikoCorner(18.dp)))
-            .background(if (active) c.primary else c.surface)
-            .border(1.dp, if (active) Color.Transparent else c.cardBorder, RoundedCornerShape(kikoCorner(18.dp)))
+            .background(if (active) c.primary else c.surfaceContainerHigh)
             .kikoClickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(Icons.Default.Tune, "Advanced filters", tint = if (active) c.onPrimary else c.ink) }
@@ -482,7 +481,7 @@ import kotlinx.coroutines.launch
     // contentWindowInsets = {} decouples the sheet container from the IME so it doesn't
     // resize/glitch when the keyboard opens/closes (e.g. typing in Creator or Year);
     // imePadding() below pushes the content up above the keyboard instead.
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.background, contentWindowInsets = { WindowInsets(0, 0, 0, 0) }) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow, contentWindowInsets = { WindowInsets(0, 0, 0, 0) }) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding().verticalScroll(rememberScrollState())) {
             Text("Discover", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Advanced filters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 4.dp))
@@ -512,7 +511,7 @@ import kotlinx.coroutines.launch
             OutlinedTextField(
                 value = creator, onValueChange = { creator = it }, placeholder = { Text(creatorHint, color = c.muted) }, singleLine = true,
                 shape = RoundedCornerShape(kikoCorner(14.dp)),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.cardBorder, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
                 modifier = Modifier.fillMaxWidth(),
             )
 
@@ -530,7 +529,7 @@ import kotlinx.coroutines.launch
                         value = year, onValueChange = { year = it.filter(Char::isDigit).take(4) }, placeholder = { Text("e.g. 2023", color = c.muted) }, singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         shape = RoundedCornerShape(kikoCorner(14.dp)),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.cardBorder, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -629,7 +628,7 @@ import kotlinx.coroutines.launch
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
             Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(Modifier.padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (item.format.isNotBlank()) Pill(item.format, c.primaryContainer, c.primary)
+                if (item.format.isNotBlank()) Pill(item.format, c.primaryContainer, c.onPrimaryContainer)
                 episodeAndYear(item).takeIf { it.isNotBlank() }?.let {
                     Text(it, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 9.dp))
                 }
@@ -680,7 +679,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surface).border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(13.dp)))) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Text("You might like", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
                 }
             }

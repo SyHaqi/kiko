@@ -37,6 +37,34 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 
 // ---------------------------------------------------------------------------
+// Material 3 Expressive motion tokens.
+//
+// Expressive motion is spring-based rather than duration+easing based: every
+// animation is described by damping + stiffness instead of a curve and a
+// millisecond count. There are two families — Spatial (position/size/shape,
+// allowed to overshoot and bounce) and Effects (color/opacity, always
+// critically damped, never bounces) — each with Fast/Default/Slow speeds.
+// Values below are Google's published Expressive scheme tokens.
+// https://m3.material.io/styles/motion/overview/specs
+// ---------------------------------------------------------------------------
+
+object KikoMotion {
+    // Spatial — for anything that moves, resizes, or reshapes. Visible bounce
+    // is intentional here; it's what makes Expressive interactions feel alive
+    // rather than mechanical.
+    fun <T> spatialFast() = spring<T>(dampingRatio = 0.6f, stiffness = 800f)
+    fun <T> spatialDefault() = spring<T>(dampingRatio = 0.8f, stiffness = 380f)
+    fun <T> spatialSlow() = spring<T>(dampingRatio = 0.8f, stiffness = 200f)
+
+    // Effects — for color/opacity/elevation changes. Critically damped
+    // (dampingRatio = 1) so these properties never overshoot or oscillate,
+    // only spatial motion is allowed to bounce.
+    fun <T> effectsFast() = spring<T>(dampingRatio = 1f, stiffness = 3800f)
+    fun <T> effectsDefault() = spring<T>(dampingRatio = 1f, stiffness = 1600f)
+    fun <T> effectsSlow() = spring<T>(dampingRatio = 1f, stiffness = 800f)
+}
+
+// ---------------------------------------------------------------------------
 // Tap feedback — a small press-in scale on top of the normal ripple, so cards
 // and buttons read as physically responsive rather than just color-flashing.
 // ---------------------------------------------------------------------------
@@ -47,7 +75,7 @@ fun Modifier.pressScale(interactionSource: InteractionSource, scale: Float = 0.9
     val isPressed by interactionSource.collectIsPressedAsState()
     val animatedScale by animateFloatAsState(
         targetValue = if (isPressed) scale else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = 700f),
+        animationSpec = KikoMotion.spatialFast(),
         label = "pressScale",
     )
     return this.graphicsLayer { scaleX = animatedScale; scaleY = animatedScale }
@@ -171,7 +199,7 @@ fun TopicRowSkeletonGroup(count: Int = 6) {
 }
 
 /** Stand-in for the Home "Continue" row while the first sync hasn't landed yet — boxed
- *  the same way as the real [ContinueCard] (surface fill + cardBorder outline) so the
+ *  the same way as the real [ContinueCard] (tonal surfaceContainer fill) so the
  *  page doesn't reflow once real data lands. */
 @Composable
 fun ContinueCardSkeleton(modifier: Modifier = Modifier) {
@@ -180,19 +208,18 @@ fun ContinueCardSkeleton(modifier: Modifier = Modifier) {
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(kikoCorner(22.dp)))
-            .background(c.surface)
-            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(22.dp))),
+            .background(c.surfaceContainer),
     ) {
         ListRowSkeleton(Modifier.padding(horizontal = 14.dp))
     }
 }
 
 /** Stand-in for a single [AiringNextCard] — boxed the exact same way as the real card
- *  (surface fill + cardBorder outline + 22dp rounded corners, cover-then-text layout at
+ *  (tonal surfaceContainer fill + 22dp rounded corners, cover-then-text layout at
  *  matching sizes) so the loading state and the real content share the same card shape.
  *  Previously this only rendered the inner content with no card of its own, and
  *  [AiringNextRowSkeleton] wrapped all three in one shared container instead — the real
- *  row is a horizontally-scrolling carousel of individually-bordered cards, so that read
+ *  row is a horizontally-scrolling carousel of individually-toned cards, so that read
  *  as a visibly different shape once real data swapped in. */
 @Composable
 fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
@@ -200,8 +227,7 @@ fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
     Box(
         modifier
             .clip(RoundedCornerShape(kikoCorner(22.dp)))
-            .background(c.surface)
-            .border(1.dp, c.cardBorder, RoundedCornerShape(kikoCorner(22.dp))),
+            .background(c.surfaceContainer),
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
