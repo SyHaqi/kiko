@@ -199,6 +199,9 @@ import kotlinx.coroutines.launch
             Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true, overrideStatus = vm.trackedStatus(item))
             Column(Modifier.weight(1f).padding(start = 16.dp)) {
                 Text(item.displayTitle(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (item.genre.isNotBlank()) {
+                    Text(item.genre, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                }
                 Spacer(Modifier.height(8.dp))
                 // Full card width now, so the episode + air-time label has room to sit on
                 // one line instead of wrapping the way it did in the old narrow card.
