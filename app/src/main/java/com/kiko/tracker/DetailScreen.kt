@@ -492,7 +492,7 @@ data class DetailScreenActions(
                     if (japaneseVoiceActors.isNotEmpty()) {
                         SectionTitle("Voice Actors", "", {})
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(japaneseVoiceActors, key = { _, (va, _) -> va.malId }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, uriHandler) } }
+                            itemsIndexed(japaneseVoiceActors, key = { _, (va, charName) -> "${va.malId}-$charName" }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, uriHandler) } }
                         }
                     }
 

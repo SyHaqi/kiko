@@ -170,31 +170,23 @@ import androidx.compose.ui.unit.sp
                     AnimatedVisibility(visible = source == ColorSource.Custom && current == ColorSource.Custom, enter = fadeIn(tween(180)), exit = fadeOut(tween(140))) {
                         Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
                             val valid = parseHexColor(customHex) != null
-                            // Local, sheet-only preview state. LocalKikoColors is a
-                            // staticCompositionLocalOf, and virtually every screen in the app
-                            // reads it -- so previously, feeding the picker's continuous
-                            // onColorChange straight into onCustomHexChange (-> vm.customColorHex
-                            // -> the remember(..., vm.customColorHex, ...) that builds the app's
-                            // whole color palette in Navigation.kt) meant every single pointer-move
-                            // frame while dragging the picker rebuilt the palette AND
-                            // force-recomposed the entire app tree underneath this sheet, not just
-                            // the sheet itself. livePreviewHex absorbs that continuous stream
-                            // locally instead -- only the picker's own thumb/swatch here re-renders
-                            // per frame -- and onCustomHexChange (the expensive path) only fires
-                            // once, when the drag actually settles.
-                            var livePreviewHex by remember(customHex) { mutableStateOf(customHex) }
-                            val liveColor = parseHexColor(livePreviewHex) ?: c.primary
+                            val liveColor = parseHexColor(customHex) ?: c.primary
 
                             HsvColorPicker(
                                 color = liveColor,
-                                onColorChange = { picked ->
-                                    livePreviewHex = String.format("%06X", 0xFFFFFF and picked.toArgb())
-                                },
-                                onColorChangeFinished = { picked ->
-                                    val hex = String.format("%06X", 0xFFFFFF and picked.toArgb())
-                                    livePreviewHex = hex
-                                    onCustomHexChange(hex)
-                                },
+                                // Both the in-progress drag and the final position feed straight
+                                // into onCustomHexChange (-> vm.customColorHex -> the
+                                // remember(..., vm.customColorHex, ...) that builds the app's whole
+                                // color palette in Navigation.kt), so the entire app's theme --
+                                // not just this sheet's own swatch/thumb -- updates live as you
+                                // drag, instead of only once the finger lifts. This is safe to do
+                                // per-frame because Compose's snapshot system coalesces multiple
+                                // state writes within the same frame into a single recomposition,
+                                // and setCustomColor already debounces the actual disk write
+                                // separately, so we're not adding any new I/O pressure -- only the
+                                // in-memory theme rebuild now tracks the drag live.
+                                onColorChange = { picked -> onCustomHexChange(String.format("%06X", 0xFFFFFF and picked.toArgb())) },
+                                onColorChangeFinished = { picked -> onCustomHexChange(String.format("%06X", 0xFFFFFF and picked.toArgb())) },
                                 modifier = Modifier.padding(bottom = 14.dp),
                             )
 
