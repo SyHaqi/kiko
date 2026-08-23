@@ -16,7 +16,6 @@ Join the community on Discord: [Himawari HS](https://discord.gg/KZYQHpDWKH)
 - Browse recent MAL forum/news snapshots.
 - See a featured **Interest Stack** directly from Home.
 - Pull to refresh Home content.
-- Restore your previous Home scroll position when returning to the tab.
 
 ### 📚 My List
 - Sync your anime and manga lists with your **MyAnimeList account**.
@@ -87,14 +86,14 @@ Join the community on Discord: [Himawari HS](https://discord.gg/KZYQHpDWKH)
   - Score
 - Include anime that are still airing from previous seasons.
 
-### 🗓️ Release Schedule
+### 🗓️ Release Schedule (accessed by the see more in "airing next")
 - View upcoming episode releases by day.
 - Times are displayed using the device's local time format.
 
 ### 📖 Title Details
 Title pages can include:
 - Synopsis
-- Characters
+- Characters & Voice Actors
 - Staff
 - Theme songs
 - Reviews
