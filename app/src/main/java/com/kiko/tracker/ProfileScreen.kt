@@ -646,4 +646,5 @@ import coil.compose.AsyncImage
         itemsIndexed(genres) { index, g -> FilterChip(selected = current == g, onClick = { set(g); scope.centerChip(listState, index + 1) }, label = { Text(g) }, colors = colors) }
     }
 }
+
 // App info page

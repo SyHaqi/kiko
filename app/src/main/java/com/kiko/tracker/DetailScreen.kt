@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
@@ -33,6 +34,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -130,6 +132,7 @@ data class DetailScreenActions(
     LaunchedEffect(item.id) { actions.onLoadAiringEpisode(item) }
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
+    var themesExpanded by remember(item.id) { mutableStateOf(false) }
     // Track related backfill completion. Seeded from cachedSnapshot (not just
     // item.related) so a title whose related row only ever got filled in via
     // backfill — not present on the original MediaItem — doesn't flash the loading
@@ -499,9 +502,11 @@ data class DetailScreenActions(
                     val themes = openingThemes.map { "OP" to it } + endingThemes.map { "ED" to it }
                     if (themes.isNotEmpty()) {
                         SectionTitle("Theme songs", "", {})
+                        val visibleThemes = if (themesExpanded) themes else themes.take(4)
+                        val themesArrowRotation by animateFloatAsState(if (themesExpanded) 180f else 0f, label = "themesArrowRotation")
                         Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
-                                themes.forEachIndexed { i, (kind, text) ->
+                            Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).animateContentSize()) {
+                                visibleThemes.forEachIndexed { i, (kind, text) ->
                                     Row(
                                         Modifier.fillMaxWidth().kikoClickable { uriHandler.openUri(youtubeSearchUrl("$text $itemDisplayTitle")) }.padding(vertical = 11.dp),
                                         verticalAlignment = Alignment.CenterVertically,
@@ -510,7 +515,25 @@ data class DetailScreenActions(
                                         Text(text, color = c.ink, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
                                         Icon(Icons.Default.PlayArrow, "Search on YouTube", tint = c.muted, modifier = Modifier.size(18.dp))
                                     }
-                                    if (i != themes.lastIndex) HorizontalDivider(color = c.outlineVariant)
+                                    if (i != visibleThemes.lastIndex || themes.size > 4) HorizontalDivider(color = c.outlineVariant)
+                                }
+                                if (themes.size > 4) {
+                                    Row(
+                                        Modifier.fillMaxWidth().kikoClickable { themesExpanded = !themesExpanded }.padding(vertical = 11.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            if (themesExpanded) "Show less" else "Show ${themes.size - 4} more",
+                                            color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        Icon(
+                                            Icons.Default.KeyboardArrowDown,
+                                            contentDescription = if (themesExpanded) "Show less" else "Show more",
+                                            tint = c.muted,
+                                            modifier = Modifier.size(20.dp).rotate(themesArrowRotation),
+                                        )
+                                    }
                                 }
                             }
                         }

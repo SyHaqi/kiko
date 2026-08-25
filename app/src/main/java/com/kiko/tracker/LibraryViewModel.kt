@@ -475,6 +475,10 @@ class LibraryViewModel : ViewModel() {
     var discoverBrowseLoading by mutableStateOf(false); private set
     var discoverBrowseError by mutableStateOf<String?>(null); private set
     private var discoverBrowseLoaded = false
+    // Guards backfillLibraryThemes below — same one-shot-per-session shape as
+    // discoverBrowseLoaded above, so a fresh load() doesn't refire it after it already
+    // ran once (e.g. on pull-to-refresh).
+    private var libraryThemesBackfilled = false
     private var discoverSearchJob: kotlinx.coroutines.Job? = null
     // Tracks whichever loadMoreTitleSearch/loadMoreGenreFiltered coroutine is currently
     // in flight, so a fresh search (e.g. switching the Anime/Manga type chip mid-scroll)
@@ -593,8 +597,44 @@ class LibraryViewModel : ViewModel() {
     fun load(context: Context) {
         val api = MalApi(context); signedIn = api.signedIn; authChecked = true; if (!signedIn) return
         loading = true
-        viewModelScope.launch { runCatching { api.library() }.onSuccess { items = it }.onFailure { error = it.message ?: "Could not load your MAL list" }; loading = false }
+        viewModelScope.launch { runCatching { api.library() }.onSuccess { items = it; backfillLibraryThemes() }.onFailure { error = it.message ?: "Could not load your MAL list" }; loading = false }
         loadProfile(context)
+    }
+    // MalApi.fetchList (the official MAL API) requests a "themes"/"demographics" field
+    // per item, but those aren't actually part of MAL's official API — MAL silently
+    // ignores field names it doesn't recognize rather than erroring, so every item
+    // that comes back from load() has contentThemes/demographics = emptyList(), which
+    // left theme/demographic filters unable to match anything against the library.
+    // Tenrai (the Jikan-backed API already used for search/discover) does have real
+    // theme data per title, and TenraiApi.fetchItemFacets already exists for exactly
+    // this "we have the id, look this one item up" case (previously only used to
+    // enrich author/studio search rows) — this just runs that same lookup across every
+    // library item once per session and merges the results back in.
+    // In-memory only, not persisted to disk (same as detailCaches below) — a fresh app
+    // launch re-runs it, which is fine: Tenrai's shared request throttle (see
+    // TenraiApi.getRaw) already caps this at a few concurrent requests with 429 backoff,
+    // so fanning out one request per title can't hammer the API even for a large library.
+    private fun backfillLibraryThemes() {
+        if (libraryThemesBackfilled || items.isEmpty()) return
+        libraryThemesBackfilled = true
+        val targets = items.filter { it.contentThemes.isEmpty() && it.demographics.isEmpty() }
+            .mapNotNull { item -> item.id.toIntOrNull()?.let { intId -> item to intId } }
+        if (targets.isEmpty()) return
+        viewModelScope.launch {
+            val tenrai = TenraiApi()
+            val results = coroutineScope {
+                targets.map { (item, intId) ->
+                    async {
+                        val kind = if (item.type == MediaType.Anime) "anime" else "manga"
+                        Triple(item.id, item.type, runCatching { tenrai.fetchItemFacets(kind, intId) }.getOrNull())
+                    }
+                }.awaitAll()
+            }
+            val byKey = results.mapNotNull { (id, type, facets) -> facets?.let { (id to type) to it } }.toMap()
+            if (byKey.isNotEmpty()) {
+                items = items.map { item -> byKey[item.id to item.type]?.let { f -> item.copy(contentThemes = f.contentThemes, demographics = f.demographics) } ?: item }
+            }
+        }
     }
     fun saveLive(context: Context, item: MediaItem) {
         val stamped = item.copy(updatedAt = nowIso(), inUserList = true)
@@ -606,7 +646,7 @@ class LibraryViewModel : ViewModel() {
         delete(item.id, item.type)
         if (signedIn) viewModelScope.launch { runCatching { MalApi(context).deleteEntry(item) }.onFailure { error = "MAL sync failed: ${it.message ?: "unknown error"}" } }
     }
-    fun signOut(context: Context) { MalApi(context).signOut(); signedIn = false; items = emptyList(); malProfile = null }
+    fun signOut(context: Context) { MalApi(context).signOut(); signedIn = false; items = emptyList(); malProfile = null; libraryThemesBackfilled = false }
 
     // Load home browse rows
     fun loadDiscoverBrowse(context: Context) {

@@ -259,6 +259,7 @@ fun chartColor(c: KikoColors, index: Int): Color = ChartPalette[index % ChartPal
         }
     }
 }
+
 // Score distribution — bars sweep through a fixed, hardcoded gradient (coral at the
 // low end to teal at the high end, the same two hues that anchor ChartPalette above)
 // instead of tracking the theme's own accent color. Fixed hue/saturation/lightness
