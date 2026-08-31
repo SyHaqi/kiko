@@ -321,7 +321,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         ) {
             Scaffold(
                 containerColor = c.background,
-                bottomBar = { if (detailItem == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null) BottomBar(vm.destination) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
+                bottomBar = { if (detailItem == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null) BottomBar(vm.destination, onDoubleTapDiscover = vm::requestDiscoverSearchFocus) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val topScreen = when {

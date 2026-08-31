@@ -113,6 +113,19 @@ import kotlinx.coroutines.launch
     // the suggestions list directly under the search bar regardless of scroll position
     var containerBounds by remember { mutableStateOf<Rect?>(null) }
     var searchBarBounds by remember { mutableStateOf<Rect?>(null) }
+    // Double-tapping the Discover bottom-nav tab bumps vm.discoverSearchFocusTick; jump the
+    // search field into focus and pop the keyboard open each time that happens.
+    val searchFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    LaunchedEffect(vm.discoverSearchFocusTick) {
+        if (vm.discoverSearchFocusTick > 0) {
+            // Scroll back to the top first in case the search bar has scrolled out of view —
+            // otherwise the field would grab focus/keyboard while sitting off-screen.
+            listState.animateScrollToItem(0)
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     Box(Modifier.fillMaxSize().onGloballyPositioned { containerBounds = it.boundsInRoot() }) {
         LazyColumn(state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
@@ -133,7 +146,8 @@ import kotlinx.coroutines.launch
                             onSearch = {
                                 vm.clearDiscoverSuggestions()
                                 if (query.isNotBlank() || vm.discoverFilters.isActive()) vm.runDiscoverSearch(context, query, vm.discoverTypeFilter)
-                            }
+                            },
+                            focusRequester = searchFocusRequester,
                         )
                     }
                     FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))

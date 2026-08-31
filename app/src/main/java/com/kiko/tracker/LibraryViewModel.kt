@@ -118,6 +118,12 @@ class LibraryViewModel : ViewModel() {
     var discoverBrowseScrollIndex by mutableStateOf(0); private set
     var discoverBrowseScrollOffset by mutableStateOf(0); private set
     fun saveDiscoverBrowseScroll(index: Int, offset: Int) { discoverBrowseScrollIndex = index; discoverBrowseScrollOffset = offset }
+    // Bumped by BottomBar on a double-tap of the Discover tab; DiscoverBrowseScreen watches
+    // this and focuses + opens the keyboard on its search field each time it changes. A plain
+    // counter (not a boolean) so two double-taps in a row without the screen ever "reading"
+    // the first one in between still both register as distinct focus requests.
+    var discoverSearchFocusTick by mutableStateOf(0); private set
+    fun requestDiscoverSearchFocus() { discoverSearchFocusTick++ }
     // Clubs tab state — survives navigating into a club and back, same as
     // Discover results above: query, loaded pages, and scroll position all
     // live here instead of in ClubsScreen's own remember{} blocks, which get

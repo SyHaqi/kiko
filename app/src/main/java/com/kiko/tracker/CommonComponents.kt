@@ -2,8 +2,10 @@
 
 package com.kiko.tracker
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -34,10 +36,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -69,13 +76,25 @@ import kotlin.math.roundToInt
 // indicator (the M3 default role for nav selection — kept distinct from primary,
 // which this app reserves for the one main call-to-action per screen) behind the
 // selected icon/label rather than just recoloring the icon.
-@Composable fun BottomBar(selected: Destination, select: (Destination) -> Unit) {
+@Composable fun BottomBar(selected: Destination, onDoubleTapDiscover: () -> Unit = {}, select: (Destination) -> Unit) {
     val c = LocalKikoColors.current
+    // NavigationBarItem has no built-in double-tap callback, so this tracks the last tapped
+    // destination + its timestamp and compares on the next tap — a second Discover tap inside
+    // the window counts as a double-tap. The normal single-tap navigation (select(d)) still
+    // always runs either way.
+    var lastTapDestination by remember { mutableStateOf<Destination?>(null) }
+    var lastTapTime by remember { mutableStateOf(0L) }
     NavigationBar(containerColor = c.surfaceContainer, tonalElevation = 0.dp) {
         Destination.entries.forEach { d ->
             NavigationBarItem(
                 selected = d == selected,
-                onClick = { select(d) },
+                onClick = {
+                    val now = System.currentTimeMillis()
+                    if (d == Destination.Discover && lastTapDestination == d && now - lastTapTime < 300) onDoubleTapDiscover()
+                    lastTapDestination = d
+                    lastTapTime = now
+                    select(d)
+                },
                 icon = { Icon(d.icon, null) },
                 label = { Text(d.label) },
                 colors = NavigationBarItemDefaults.colors(
@@ -311,7 +330,147 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 @Composable fun TypeSwitcherHeader(current: MediaType, onSelect: (MediaType) -> Unit, horizontalPadding: Dp = 20.dp, action: @Composable () -> Unit = {}) =
     SwitcherHeader(current, MediaType.entries.toList(), { if (it == MediaType.Anime) "Anime" else "Manga" }, onSelect, horizontalPadding, "Switch between Anime and Manga", action)
 
-@Composable fun SearchField(value: String, change: (String) -> Unit, hint: String, onSearch: (() -> Unit)? = null, onClear: (() -> Unit)? = null) {
+// List screen header: normally the Anime/Manga type switcher with a pill-shaped search icon
+// (matching the avatar's rounded-square style) sitting just to its left. Tapping the icon
+// grows a slim search field out from the icon's own on-screen position — expanding both
+// left and right from that point, not sliding in from an edge — until it spans the full
+// row, fading the title/avatar out underneath. The field is sized to match the collapsed
+// row exactly (see HeaderSearchField) so opening it never shifts the list below.
+@Composable fun ExpandableSearchHeader(
+    typeTab: MediaType,
+    onSelectType: (MediaType) -> Unit,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onClear: () -> Unit,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    horizontalPadding: Dp = 20.dp,
+    avatar: @Composable () -> Unit,
+) {
+    val c = LocalKikoColors.current
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+
+    BackHandler(enabled = expanded) { onExpandedChange(false) }
+
+    // Autofocus + pop the keyboard the moment the field finishes expanding in.
+    LaunchedEffect(expanded) {
+        if (expanded) {
+            focusRequester.requestFocus()
+            keyboard?.show()
+        } else {
+            focusManager.clearFocus()
+        }
+    }
+
+    // Root-coordinate bounds of the row and of the search icon within it, so the field can
+    // work out what fraction across its own width to pivot its grow/shrink from — i.e. the
+    // icon's actual position, not just "the right edge".
+    var containerBounds by remember { mutableStateOf<Rect?>(null) }
+    var iconBounds by remember { mutableStateOf<Rect?>(null) }
+    val pivotFraction = remember(containerBounds, iconBounds) {
+        val cb = containerBounds; val ib = iconBounds
+        if (cb == null || ib == null || cb.width <= 0f) 1f
+        else (((ib.left + ib.right) / 2f - cb.left) / cb.width).coerceIn(0f, 1f)
+    }
+    // Uses the critically-damped "effects" spring rather than the bouncy "spatial" one —
+    // this is a scale/reveal, not something that should overshoot and settle.
+    val progress by animateFloatAsState(if (expanded) 1f else 0f, animationSpec = KikoMotion.effectsDefault(), label = "searchExpandProgress")
+
+    Box(Modifier.fillMaxWidth().onGloballyPositioned { containerBounds = it.boundsInRoot() }) {
+        // Title switcher + pill search icon + avatar — fades out as the search field takes over.
+        // Only composed while not fully expanded so it can't intercept taps hiding underneath.
+        if (progress < 1f) {
+            Box(Modifier.graphicsLayer { alpha = 1f - progress }) {
+                SwitcherHeader(typeTab, MediaType.entries.toList(), { if (it == MediaType.Anime) "Anime" else "Manga" }, onSelectType, horizontalPadding, "Switch between Anime and Manga") {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            Modifier
+                                .size(43.dp)
+                                .onGloballyPositioned { iconBounds = it.boundsInRoot() }
+                                .clip(RoundedCornerShape(kikoCorner(16.dp)))
+                                .background(c.surfaceContainerHigh)
+                                .kikoClickable { onExpandedChange(true) },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Default.Search, "Search your list", tint = c.ink) }
+                        avatar()
+                    }
+                }
+            }
+        }
+
+        // Search field — scales out from the icon's pivot point in both directions at once.
+        // Mounted as soon as `expanded` flips true (not just once `progress` has ticked) so
+        // its focusRequester is attached to the tree before the LaunchedEffect above tries
+        // to call requestFocus() on it — otherwise that call can fire on an unattached node
+        // and crash with "FocusRequester is not initialized".
+        if (expanded || progress > 0f) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        alpha = progress
+                        scaleX = progress.coerceAtLeast(0.0001f)
+                        transformOrigin = TransformOrigin(pivotFraction, 0.5f)
+                    },
+            ) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = horizontalPadding, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    HeaderSearchField(
+                        value = query,
+                        onValueChange = onQueryChange,
+                        hint = "Search your list",
+                        onSearch = onSearch,
+                        onBack = { onExpandedChange(false) },
+                        onClear = onClear,
+                        focusRequester = focusRequester,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Slim pill search field used inline in ExpandableSearchHeader — deliberately kept the same
+// height as the icon/avatar row it replaces (43dp) rather than a full Material OutlinedTextField
+// (~56dp), so expanding the search bar never pushes the list underneath it down.
+@Composable fun HeaderSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    hint: String,
+    onSearch: () -> Unit,
+    onBack: () -> Unit,
+    onClear: () -> Unit,
+    focusRequester: androidx.compose.ui.focus.FocusRequester,
+) {
+    val c = LocalKikoColors.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    Row(
+        Modifier.fillMaxWidth().height(43.dp).clip(kikoPillShape()).background(c.surfaceContainerHigh).padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.ArrowBack, "Close search", tint = c.muted, modifier = Modifier.size(18.dp)) }
+        Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 6.dp), contentAlignment = Alignment.CenterStart) {
+            if (value.isEmpty()) Text(hint, color = c.muted, fontSize = 14.sp)
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = c.ink, fontSize = 14.sp),
+                cursorBrush = SolidColor(c.accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearch(); keyboard?.hide() }),
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+            )
+        }
+        if (value.isNotEmpty()) {
+            IconButton(onClick = onClear, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Close, "Clear search", tint = c.muted, modifier = Modifier.size(16.dp)) }
+        }
+    }
+}
+
+@Composable fun SearchField(value: String, change: (String) -> Unit, hint: String, onSearch: (() -> Unit)? = null, onClear: (() -> Unit)? = null, focusRequester: androidx.compose.ui.focus.FocusRequester? = null) {
     val c = LocalKikoColors.current
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -335,7 +494,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, unfocusedContainerColor = c.surfaceContainerHigh, focusedContainerColor = c.surfaceContainerHigh, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
         keyboardOptions = KeyboardOptions(imeAction = if (onSearch != null) ImeAction.Search else ImeAction.Default),
         keyboardActions = KeyboardActions(onSearch = { onSearch?.invoke(); keyboard?.hide() }),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = if (focusRequester != null) Modifier.fillMaxWidth().focusRequester(focusRequester) else Modifier.fillMaxWidth(),
     )
 }
 

@@ -411,6 +411,9 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var query by remember { mutableStateOf("") }
     // Search only on submit
     var submittedQuery by remember { mutableStateOf("") }
+    // Search bar starts collapsed into an icon beside the avatar; expanding it takes over
+    // the whole header row (see ExpandableSearchHeader).
+    var searchExpanded by remember { mutableStateOf(false) }
     val typeTab = vm.listTypeTab
     val effectiveFilter = normalizeFilterForType(vm.listFilter, typeTab)
     // Was recomputing filter+sort over the whole list on every recomposition — including
@@ -443,10 +446,21 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     }
     val header: @Composable () -> Unit = {
         // Type switcher lives in the header itself now (tap the title to open Anime/Manga menu)
-        // instead of a separate full-width toggle row underneath — saves vertical space.
-        TypeSwitcherHeader(typeTab, { vm.selectListTypeTab(context, it) }, 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
+        // instead of a separate full-width toggle row underneath — saves vertical space. The
+        // search icon sits just left of the avatar and expands edge-to-edge over this whole
+        // row when tapped, hiding the title/avatar rather than squeezing in beside them.
+        ExpandableSearchHeader(
+            typeTab = typeTab,
+            onSelectType = { vm.selectListTypeTab(context, it) },
+            query = query,
+            onQueryChange = { query = it },
+            onSearch = { submittedQuery = query },
+            onClear = { query = ""; submittedQuery = "" },
+            expanded = searchExpanded,
+            onExpandedChange = { expanded -> searchExpanded = expanded; if (!expanded) { query = ""; submittedQuery = "" } },
+            horizontalPadding = 0.dp,
+        ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
-        SearchField(query, { query = it }, "Search your list", onSearch = { submittedQuery = query }, onClear = { query = ""; submittedQuery = "" })
         Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -635,30 +649,24 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         )
     }
 }
-// One row of the expanded status menu — label pill + small round button
+// One row of the expanded status menu — a single pill (icon + label together), matching
+// Google Keep's note-type FAB menu instead of a separate label chip next to a round button.
+// Shaped as a squircle (rounded rectangle) rather than a full pill, same as HomeActionButton
+// and every other chip/card/button in the app — nothing here is fully round.
 
 @Composable fun StatusFilterOption(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.kikoClickable(scale = 0.94f) { onClick() },
+        modifier = Modifier
+            .clip(RoundedCornerShape(kikoCorner(18.dp)))
+            .background(if (selected) c.primary else c.surfaceContainerHigh)
+            .kikoClickable(scale = 0.94f) { onClick() }
+            .padding(start = 18.dp, end = 20.dp, top = 10.dp, bottom = 10.dp),
     ) {
-        Text(
-            label,
-            color = c.ink,
-            fontWeight = FontWeight.Medium,
-            fontSize = 13.sp,
-            modifier = Modifier
-                .clip(RoundedCornerShape(kikoCorner(8.dp)))
-                .background(c.surfaceContainerHighest)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-        )
-        SmallFloatingActionButton(
-            onClick = onClick,
-            containerColor = if (selected) c.primary else c.surfaceContainerHigh,
-            contentColor = if (selected) c.onPrimary else c.ink,
-        ) { Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) }
+        Icon(icon, contentDescription = null, tint = if (selected) c.onPrimary else c.ink, modifier = Modifier.size(20.dp))
+        Text(label, color = if (selected) c.onPrimary else c.ink, fontWeight = FontWeight.Medium, fontSize = 13.sp)
     }
 }
 // Icon per status filter label, for the FAB menu
@@ -694,7 +702,7 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
             .padding(horizontal = hPad, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Cover(item, Modifier.size(width = 84.dp, height = 118.dp), selected = isSelected)
+        Cover(item, Modifier.size(width = 92.dp, height = 128.dp), selected = isSelected)
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
             Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -718,14 +726,22 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
         }
         if (onIncrement != null) {
             val atMax = item.total > 0 && item.progress >= item.total
-            // Filled pill tap target
-            FilledTonalButton(
-                onClick = { val next = (item.progress + 1).let { p -> if (item.total > 0) minOf(p, item.total) else p }; onIncrement(item.copy(progress = next)) },
-                enabled = !atMax,
-                shape = RoundedCornerShape(kikoCorner(12.dp)),
-                colors = ButtonDefaults.filledTonalButtonColors(containerColor = c.primaryContainer, contentColor = c.onPrimaryContainer),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
-            ) { Text("+1", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+            // Compact squircle instead of a padded pill button — a "+1" tap doesn't need
+            // its own wide rectangle, and shrinking it to a fixed-size square frees up
+            // horizontal room for a bigger cover.
+            Box(
+                Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(kikoCorner(12.dp)))
+                    .background(if (atMax) c.surfaceContainerHigh else c.primaryContainer)
+                    .kikoClickable(enabled = !atMax) {
+                        val next = (item.progress + 1).let { p -> if (item.total > 0) minOf(p, item.total) else p }
+                        onIncrement(item.copy(progress = next))
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("+1", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = if (atMax) c.muted else c.onPrimaryContainer)
+            }
         } else if (showChevron) {
             // No increment action here (e.g. the Home "Continue" card) — a chevron fills the
             // trailing slot instead of leaving it blank, signaling the row is tappable.
