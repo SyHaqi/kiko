@@ -77,7 +77,14 @@ import androidx.compose.ui.platform.LocalHapticFeedback
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column {
                     AppHeader("Seasonal", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
-                    Text("${vm.seasonalSeason.label} ${vm.seasonalYear}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                    // "· Current" suffix flags whichever season/year is actually "now" — helpful
+                    // for anyone who doesn't have the Winter/Spring/Summer/Fall cycle memorized,
+                    // since this screen can also be browsed to past/future ones.
+                    val isCurrentSeason = vm.seasonalSeason == currentSeasonName() && vm.seasonalYear == java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                    Text(
+                        "${vm.seasonalSeason.label} ${vm.seasonalYear}" + if (isCurrentSeason) " · Current" else "",
+                        color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp),
+                    )
                     if (vm.seasonalLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), color = c.primary, trackColor = c.surfaceLow)
                     vm.seasonalError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) }
                     Spacer(Modifier.height(14.dp))
@@ -261,12 +268,21 @@ import androidx.compose.ui.platform.LocalHapticFeedback
                 )
             }
 
-            Button(
-                onClick = { vm.loadSeasonal(context, pendingYear, pendingSeason, pendingSort, pendingContinuing); onDismiss() },
-                colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
-                contentPadding = PaddingValues(vertical = 14.dp),
-                modifier = Modifier.fillMaxWidth().padding(top = 22.dp),
-            ) { Text("Apply", fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+            Row(Modifier.fillMaxWidth().padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                TextButton(
+                    // Resets just the season/year back to whatever's actually current — sort
+                    // and the continuing-titles toggle are left alone, since those aren't tied
+                    // to "which season am I looking at" the way year/season are.
+                    onClick = { pendingYear = thisYear; pendingSeason = currentSeasonName() },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Reset", color = c.muted, fontWeight = FontWeight.Bold) }
+                Button(
+                    onClick = { vm.loadSeasonal(context, pendingYear, pendingSeason, pendingSort, pendingContinuing); onDismiss() },
+                    colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
+                    contentPadding = PaddingValues(vertical = 14.dp),
+                    modifier = Modifier.weight(2f),
+                ) { Text("Apply", fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+            }
         }
     }
 }
