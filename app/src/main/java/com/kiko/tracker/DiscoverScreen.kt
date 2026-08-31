@@ -311,14 +311,21 @@ import kotlinx.coroutines.launch
     var searchBarBounds by remember { mutableStateOf<Rect?>(null) }
     // Bumped by the search icon on the Discover landing page (and by double-tapping the
     // Discover bottom-nav tab) via vm.openDiscoverSearch — jump the search field into focus
-    // and pop the keyboard open each time that happens, so arriving here always lands ready
-    // to type rather than showing a blank list with no keyboard up.
+    // and pop the keyboard open each time that happens (leaving whatever text is already
+    // there untouched — a double-tap is "let me keep typing", not "start over"). Compares
+    // against the ViewModel's own "already consumed" tick (see
+    // discoverSearchFocusConsumedTick) instead of just checking `tick > 0`, since this
+    // screen gets torn down and recreated on every tab switch — a fresh `remember` here
+    // would have no memory of a tick it already handled in a previous instance, and would
+    // re-fire (and pop the keyboard back open) just from returning to an in-progress search
+    // that never asked for focus at all.
     val searchFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(vm.discoverSearchFocusTick) {
-        if (vm.discoverSearchFocusTick > 0) {
+        if (vm.discoverSearchFocusTick > vm.discoverSearchFocusConsumedTick) {
             searchFocusRequester.requestFocus()
             keyboardController?.show()
+            vm.consumeDiscoverSearchFocus()
         }
     }
     // Load the next page only once the person has actually scrolled to the true end of what's
@@ -604,7 +611,9 @@ import kotlinx.coroutines.launch
             .padding(horizontal = hPad, vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.width(84.dp).height(118.dp)) {
+        // Matches ListRow's cover size in My List (92x128) — was 84x118, noticeably
+        // smaller than every other row-style list in the app for no real reason.
+        Box(Modifier.width(92.dp).height(128.dp)) {
             Cover(item, Modifier.fillMaxSize(), showStatus = true, overrideStatus = myStatus, selected = isSelected)
             if (item.score > 0) {
                 Row(

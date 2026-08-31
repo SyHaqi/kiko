@@ -123,12 +123,29 @@ class LibraryViewModel : ViewModel() {
     // keyboard on its search field each time it changes. A plain counter (not a boolean) so
     // two triggers in a row without the screen ever "reading" the first one in between still
     // both register as distinct focus requests.
+    //
+    // discoverSearchFocusConsumedTick tracks the last tick value the screen has already
+    // acted on. This lives here rather than as local composable state because the screen
+    // itself gets torn down and recreated every time the person switches tabs away and
+    // back — a plain `remember` inside the screen would forget it ever handled a given
+    // tick and re-fire on every remount, popping the keyboard back open just from
+    // returning to an in-progress search. Keeping "have I handled this tick" at the
+    // ViewModel level means it only ever fires once per real double-tap/icon-tap, no
+    // matter how many times the screen itself gets recreated in between.
     var discoverSearchFocusTick by mutableStateOf(0); private set
+    var discoverSearchFocusConsumedTick by mutableStateOf(0); private set
     fun requestDiscoverSearchFocus() { discoverSearchFocusTick++ }
-    // Jumps straight to the (blank) search-results page with the keyboard up — used by the
-    // search icon on the Discover landing page, and by double-tapping the Discover tab.
+    fun consumeDiscoverSearchFocus() { discoverSearchFocusConsumedTick = discoverSearchFocusTick }
+    // Jumps to the search-results page with the keyboard up — used by the search icon on
+    // the Discover landing page, and by double-tapping the Discover tab. Only actually
+    // starts a new blank search when there isn't one already running (i.e. still on the
+    // Browse landing page, where a real search-results page has to be spun up from
+    // scratch). If a search is already open — the common double-tap case, jumping back to
+    // an in-progress search from another tab — this leaves the existing query and results
+    // alone and just re-requests focus, since a double-tap here reads as "let me keep
+    // typing", not "start over".
     fun openDiscoverSearch(context: Context) {
-        runDiscoverSearch(context, "", discoverTypeFilter)
+        if (discoverMode == DiscoverMode.Browse) runDiscoverSearch(context, "", discoverTypeFilter)
         requestDiscoverSearchFocus()
     }
     // Clubs tab state — survives navigating into a club and back, same as

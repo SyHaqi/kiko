@@ -499,7 +499,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
         singleLine = true, shape = kikoPillShape(),
         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, unfocusedContainerColor = c.surfaceContainerHigh, focusedContainerColor = c.surfaceContainerHigh, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
         keyboardOptions = KeyboardOptions(imeAction = if (onSearch != null) ImeAction.Search else ImeAction.Default),
-        keyboardActions = KeyboardActions(onSearch = { onSearch?.invoke(); keyboard?.hide() }),
+        keyboardActions = KeyboardActions(onSearch = { onSearch?.invoke(); focusManager.clearFocus(); keyboard?.hide() }),
         modifier = if (focusRequester != null) Modifier.fillMaxWidth().focusRequester(focusRequester) else Modifier.fillMaxWidth(),
     )
 }
