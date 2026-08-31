@@ -16,11 +16,13 @@ private const val MAL = "https://myanimelist.net"
 //    comes back empty for related_manga (manga/light novel adaptations), and vice versa on
 //    /manga/{id}, even though the website's own Related Entries box always lists every
 //    direction regardless of which page you're on.
-//  - Recommendations: the official API's `recommendations` field is user-submitted only.
-//    Newer/lower-traffic titles that don't have enough of those yet get padded out on the
-//    website by MAL's own algorithmic "AutoRec" picks, which the official API never exposes
-//    at all — so a brand-new airing title (the common case) shows nothing via the API even
-//    though the website's widget is full.
+//  - Recommendations: the official API's `recommendations` field is user-submitted only,
+//    but comes back thin for newer/lower-traffic titles. The main detail page's own
+//    Recommendations slider fills that gap with MAL's algorithmic "AutoRec" picks — real
+//    user picks live on the title's separate "/userrecs" subpage instead (see
+//    fetchUserRecommendations). The app shows both: real recs from "/userrecs" plus
+//    whatever the slider adds on top (AutoRec included), rather than picking one source
+//    over the other — see LibraryViewModel.ensureDetailFetched for how they're merged.
 //  - Characters & Voice Actors: previously fetched via TenraiApi.fetchCharacters (a Jikan
 //    proxy). Moved to a direct scrape of MAL's own "/characters" subpage so this row no
 //    longer depends on Tenrai/Jikan being up or in sync with MAL at all.
@@ -66,6 +68,65 @@ class MalDetailScrapeApi {
         throw slugged.exceptionOrNull() ?: fallback.exceptionOrNull()
         ?: IOException("MAL characters request failed: $kind/$id")
     }
+
+    // Genuine user-submitted recommendation pairs, scraped from the title's own
+    // "/userrecs" subpage — merged with the main detail page's AutoRec-padded slider
+    // (see parseRecommended below) rather than replacing it, so the Recommended row shows
+    // real picks alongside MAL's own algorithmic ones instead of just whichever source
+    // happened to have more. Verified against the real Monster Musume no Oishasan userrecs
+    // page, which listed ten-plus real user picks the slider didn't surface at all.
+    //
+    // Same slug requirement as fetchCharacters/fetchScoreStats above.
+    suspend fun fetchUserRecommendations(id: Int, type: MediaType, title: String): List<RecommendedEntry> = withContext(Dispatchers.IO) {
+        val kind = if (type == MediaType.Anime) "anime" else "manga"
+        val slugged = runCatching { parseUserRecommendations(client.fetchMalDocument("$MAL/$kind/$id/${malSlug(title)}/userrecs")) }
+        if ((slugged.getOrNull()?.size ?: 0) > 0) return@withContext slugged.getOrThrow()
+        val fallback = runCatching { parseUserRecommendations(client.fetchMalDocument("$MAL/$kind/$id/userrecs")) }
+        fallback.getOrNull() ?: slugged.getOrDefault(emptyList())
+    }
+
+    // Each recommendation pairing on the "/userrecs" subpage is its own table: a small
+    // cover-thumbnail cell, and an info cell holding the paired title, the first
+    // recommender's writeup, and — if others agree on the same pairing — a "Read
+    // recommendations by N more users" toggle. That toggle's count plus the one always-
+    // visible writeup is the real vote total for the pairing (there's no need to parse
+    // the hidden writeups themselves, just the count in the toggle).
+    private fun parseUserRecommendations(doc: Document): List<RecommendedEntry> =
+        doc.select("table:has(div[id^=raArea])").mapNotNull { table ->
+            val cells = table.selectFirst("tr")?.children() ?: return@mapNotNull null
+            val picCell = cells.getOrNull(0) ?: return@mapNotNull null
+            val infoCell = cells.getOrNull(1) ?: return@mapNotNull null
+
+            // The paired title's own link is the one wrapping a <strong>; the "Read
+            // recommendations by N more users" toggle also wraps a <strong> (just the
+            // count) but isn't an /anime/ or /manga/ link, so restricting to that href
+            // pattern picks out the title link specifically.
+            val titleLink = infoCell.selectFirst("a[href*=/anime/]:has(strong)")
+                ?: infoCell.selectFirst("a[href*=/manga/]:has(strong)")
+                ?: return@mapNotNull null
+            val (malId, malType) = malRefFromUrl(titleLink.attr("abs:href")) ?: return@mapNotNull null
+            val recTitle = titleLink.selectFirst("strong")?.text()?.trim().orEmpty()
+            if (recTitle.isBlank()) return@mapNotNull null
+
+            val cover = picCell.selectFirst("img")
+                ?.let { it.attr("data-src").ifBlank { it.attr("src") } }
+                ?.takeIf { it.isNotBlank() }
+                ?.let(::fullResMalImage) ?: ""
+
+            val moreCount = infoCell.selectFirst("a.js-similar-recommendations-button strong")
+                ?.text()?.trim()?.toIntOrNull() ?: 0
+
+            RecommendedEntry(malId = malId, title = recTitle, cover = cover, votes = 1 + moreCount, malType = malType, isAuto = false)
+        }
+            // The "/userrecs" subpage can list the same anime/manga pairing more than once
+            // (each recommender's write-up gets its own <table>, so a title with several
+            // separate recommendations pointing at the same paired entry produces one row
+            // per write-up). Left undeduped, that reaches DetailScreen's Recommended LazyRow
+            // as two entries sharing the same "${malId}-${malType}" key and crashes it (see
+            // the key comment above the itemsIndexed call in DetailScreen.kt). parseRecommended
+            // below already dedupes its own (slider) source the same way for the same reason —
+            // do it here too, keeping the first (highest vote-count) occurrence.
+            .distinctBy { it.malId to it.malType }
 
     // Community score breakdown (1-10) — lives on the title's separate /stats page, not
     // the main detail page above, so this is its own request, made on demand only when
@@ -193,12 +254,21 @@ class MalDetailScrapeApi {
             RelatedEntry(relation = relation.ifBlank { "Related" }, title = title, malId = malId, malType = malType, cover = cover)
         }
 
-    // The recommendations widget's own links carry a stable "?suggestion" query param
-    // regardless of whether the entry is user-submitted or an AutoRec fallback, so that's
-    // used as the anchor selector instead of a class name that might differ between the
-    // anime and manga versions of the widget.
+    // "?suggestion" only marks the AutoRec fallback links — a real, user-submitted entry
+    // in this same slider links straight to "/recommendations/{type}/{a}-{b}" with no
+    // query param at all. Matching on "?suggestion" alone (as this used to) silently
+    // dropped every real entry from the slider and kept only the AutoRec ones, which is
+    // what let a stale/incorrect cover from fetchUserRecommendations' separate "/userrecs"
+    // scrape win the merge uncontested (see the cover-preference comment in
+    // LibraryViewModel.ensureDetailFetched) — matching both link shapes here is what lets
+    // that merge actually have the slider's own (verified-correct) cover to prefer.
+    //
+    // This is the small slider on the *main* detail page — merged alongside
+    // fetchUserRecommendations' dedicated "/userrecs" scrape rather than replaced by it
+    // (see LibraryViewModel.ensureDetailFetched), so AutoRec picks still pad out the row
+    // even for titles that already have real user recs.
     private fun parseRecommended(doc: Document): List<RecommendedEntry> =
-        doc.select("a[href*='?suggestion']").mapNotNull { a ->
+        doc.select("a[href*='?suggestion'], a[href*='/recommendations/anime/'], a[href*='/recommendations/manga/']").mapNotNull { a ->
             val (malId, malType) = malRefFromUrl(a.attr("abs:href")) ?: return@mapNotNull null
             val title = a.selectFirst(".title")?.text()?.takeIf { it.isNotBlank() }
                 ?: a.closest("li")?.attr("title")?.takeIf { it.isNotBlank() }

@@ -1313,7 +1313,15 @@ class LibraryViewModel : ViewModel() {
                 val apiDeferred = async { runCatching { MalApi(context).detail(intId, type) }.getOrNull() }
                 val scrapeDeferred = async { runCatching { MalDetailScrapeApi().fetch(intId, type) }.getOrNull() }
                 val fresh = apiDeferred.await()
+                // Genuine user-submitted recs, from the title's dedicated "/userrecs" page —
+                // needs fresh.title for MAL's slug routing (see fetchUserRecommendations), so
+                // this starts once apiDeferred resolves rather than alongside it; it still runs
+                // concurrently with scrapeDeferred below rather than waiting on that too.
+                val userRecsDeferred = async {
+                    runCatching { MalDetailScrapeApi().fetchUserRecommendations(intId, type, fresh?.title.orEmpty()) }.getOrNull()
+                }
                 val scraped = scrapeDeferred.await()
+                val userRecs = userRecsDeferred.await()
                 // Only cached on a successful detail() call — same as the old individual
                 // backfills, so a failed fetch still retries next time instead of caching
                 // a permanent blank.
@@ -1340,12 +1348,30 @@ class LibraryViewModel : ViewModel() {
                 val apiRelated = fresh?.related ?: emptyList()
                 val scrapedRelated = scraped?.related ?: emptyList()
                 cache.related = (scrapedRelated + apiRelated).distinctBy { if (it.malId > 0) "id:${it.malType}:${it.malId}" else "title:${it.malType}:${it.title}" }
-                // Recommended: the website's Recommendations widget is a superset of what the
-                // official API can give us (includes MAL's own algorithmic "AutoRec" picks the
-                // API never exposes), so it's preferred; the official API call's own
-                // recommendations field is kept only as a fallback in case the scrape came
-                // back empty. Cached even when empty, same reasoning as related above.
-                cache.recommended = scraped?.recommended?.ifEmpty { fresh?.recommended ?: emptyList() } ?: (fresh?.recommended ?: emptyList())
+                // Recommended: real user recs from the title's own "/userrecs" page (real
+                // votes, never AutoRec — see fetchUserRecommendations) plus whatever the main
+                // detail page's Recommendations slider adds on top, AutoRec included — more
+                // picks in the row is the point, not filtering AutoRec out entirely. A title
+                // that shows up in both sources keeps its real vote count (from userRecs)
+                // rather than getting relabeled AutoRec — but its cover comes from the slider
+                // when the slider also lists it. The slider's own markup is one flat <img>
+                // per entry, while the "/userrecs" page nests each pairing inside its own
+                // table alongside every write-up for it; that extra structure is where a
+                // pairing's cover has been seen coming back wrong (e.g. showing this title's
+                // own poster instead of the recommended title's), so the simpler, verified
+                // source wins whenever both have the entry. Falls back to the official API's
+                // own recommendations field only if both sources come up empty. Cached even
+                // when empty, same reasoning as related above.
+                val realRecs = userRecs ?: emptyList()
+                val sliderRecs = scraped?.recommended ?: emptyList()
+                val sliderByKey = sliderRecs.associateBy { it.malId to it.malType }
+                val merged = realRecs.map { real ->
+                    val sliderCover = sliderByKey[real.malId to real.malType]?.cover
+                    if (!sliderCover.isNullOrBlank()) real.copy(cover = sliderCover) else real
+                }
+                val mergedKeys = merged.map { it.malId to it.malType }.toSet()
+                cache.recommended = (merged + sliderRecs.filterNot { (it.malId to it.malType) in mergedKeys })
+                    .ifEmpty { fresh?.recommended ?: emptyList() }
             }
         }
         detailFetchInFlight[key] = deferred

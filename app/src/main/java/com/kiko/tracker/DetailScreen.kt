@@ -564,7 +564,13 @@ data class DetailScreenActions(
                     if (recommended.isNotEmpty()) {
                         SectionTitle("Recommended", "", {})
                         LazyRow(state = recommendedListState, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                            itemsIndexed(recommended, key = { _, it -> it.malId }) { i, rec ->
+                            // Keyed by malId + malType, not malId alone — anime and manga
+                            // ids are numbered independently on MAL and can collide (e.g. an
+                            // anime and an unrelated manga sharing the same numeric id), which
+                            // throws "Key ... was already used" if the row ever has both types
+                            // (widening parseRecommended's selector made this more likely to
+                            // actually happen in practice, not just in theory).
+                            itemsIndexed(recommended, key = { _, it -> "${it.malId}-${it.malType}" }) { i, rec ->
                                 StaggeredItem(i, recommendedSeen) { RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) } }
                             }
                         }
