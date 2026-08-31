@@ -3,12 +3,13 @@ package com.kiko.tracker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Document
+import java.io.IOException
 
 private const val MAL = "https://myanimelist.net"
 
-// Scrapes the two anime/manga detail-page widgets the official MAL API can't reliably
-// supply, straight off MAL's own HTML (same approach as ClubsApi/MalPeopleApi/StacksApi
-// via MalScraping.kt):
+// Scrapes anime/manga detail-page widgets the official MAL API can't reliably supply
+// (or that we've deliberately moved off Tenrai/Jikan for), straight off MAL's own HTML
+// (same approach as ClubsApi/MalPeopleApi/StacksApi via MalScraping.kt):
 //
 //  - Related Entries: the official API's related_anime/related_manga fields are same-type
 //    only in practice — an /anime/{id} request reliably returns related_anime but usually
@@ -20,11 +21,15 @@ private const val MAL = "https://myanimelist.net"
 //    website by MAL's own algorithmic "AutoRec" picks, which the official API never exposes
 //    at all — so a brand-new airing title (the common case) shows nothing via the API even
 //    though the website's widget is full.
+//  - Characters & Voice Actors: previously fetched via TenraiApi.fetchCharacters (a Jikan
+//    proxy). Moved to a direct scrape of MAL's own "/characters" subpage so this row no
+//    longer depends on Tenrai/Jikan being up or in sync with MAL at all.
 //
 // Verified against a real anime detail page response (Related Entries + the AutoRec-tagged
-// Recommendations slider). The manga page markup wasn't available to verify against, so the
-// selectors below are written to be type-agnostic (matched by /anime/ vs /manga/ in the
-// link's own href) rather than assuming manga-page-specific class names.
+// Recommendations slider, and the Mieruko-chan characters subpage). The manga page markup
+// wasn't available to verify against, so the selectors below are written to be type-agnostic
+// (matched by /anime/ vs /manga/ in the link's own href) rather than assuming manga-page-
+// specific class names.
 class MalDetailScrapeApi {
     private val client = NetworkClient.shared
 
@@ -34,6 +39,32 @@ class MalDetailScrapeApi {
         val kind = if (type == MediaType.Anime) "anime" else "manga"
         val doc = client.fetchMalDocument("$MAL/$kind/$id")
         PageExtras(parseRelated(doc), parseRecommended(doc))
+    }
+
+    // Fetch characters row for the detail page (also feeds the Japanese Voice Actors row —
+    // see LibraryViewModel.loadCharacters). Lets a genuine fetch failure (DNS, timeout,
+    // both attempts below coming back non-200) propagate to the caller instead of being
+    // swallowed here, so it can be told apart from a title that genuinely has no characters
+    // listed.
+    //
+    // Same slug requirement as fetchScoreStats below: MAL's "/{kind}/{id}/{slug}/{subpage}"
+    // routing treats the slug segment as positional but unvalidated against the id, so
+    // requesting "/{kind}/{id}/characters" with no slug gets "characters" parsed as the slug
+    // itself — which silently 200s with the *main* detail page (no characters table at all)
+    // rather than the characters subpage. Slugging the title in fixes it; the no-slug form
+    // is kept as a fallback in case a title's slug ever collides with something MAL treats
+    // specially.
+    suspend fun fetchCharacters(id: Int, type: MediaType, title: String): List<CharacterEntry> = withContext(Dispatchers.IO) {
+        val kind = if (type == MediaType.Anime) "anime" else "manga"
+        val slugged = runCatching { parseCharacters(client.fetchMalDocument("$MAL/$kind/$id/${malSlug(title)}/characters")) }
+        if ((slugged.getOrNull()?.size ?: 0) > 0) return@withContext slugged.getOrThrow()
+        val fallback = runCatching { parseCharacters(client.fetchMalDocument("$MAL/$kind/$id/characters")) }
+        fallback.getOrNull()?.let { return@withContext it }
+        // Both requests came back with no usable list — if either was a genuine fetch
+        // failure rather than a real "zero characters" page, surface that instead of
+        // reporting an empty list.
+        throw slugged.exceptionOrNull() ?: fallback.exceptionOrNull()
+        ?: IOException("MAL characters request failed: $kind/$id")
     }
 
     // Community score breakdown (1-10) — lives on the title's separate /stats page, not
@@ -75,6 +106,67 @@ class MalDetailScrapeApi {
         }.toMap()
         return ScoreStats(counts)
     }
+
+    // Each character on the "/characters" subpage is its own 3-column table
+    // (table.js-anime-character-table): a picture cell, an info cell (name + role +
+    // favorites), and a voice-actor cell (one table.js-anime-character-va row per
+    // dub language). Only the Japanese VA is kept — same as the old Jikan-backed
+    // fetchCharacters — since the Voice Actors row on the detail page is Japanese-only.
+    private fun parseCharacters(doc: Document): List<CharacterEntry> =
+        doc.select("table.js-anime-character-table").mapNotNull { table ->
+            val cells = table.selectFirst("tr")?.children() ?: return@mapNotNull null
+            val imageCell = cells.getOrNull(0) ?: return@mapNotNull null
+            val infoCell = cells.getOrNull(1) ?: return@mapNotNull null
+            val vaCell = cells.getOrNull(2)
+
+            // The character link lives twice (image + name); the one wrapping the h3 is
+            // the more reliable of the two since every row has a name but not every row
+            // has managed to load a picture.
+            val nameHeading = infoCell.selectFirst("h3.h3_character_name") ?: return@mapNotNull null
+            val link = nameHeading.parent()?.takeIf { it.tagName() == "a" }
+                ?: imageCell.selectFirst("a[href*=/character/]")
+                ?: return@mapNotNull null
+            val href = link.attr("abs:href")
+            val malId = Regex("/character/(\\d+)").find(href)?.groupValues?.get(1)?.toIntOrNull()
+                ?: return@mapNotNull null
+
+            val name = reorderMalPersonName(nameHeading.text().trim())
+            if (name.isBlank()) return@mapNotNull null
+
+            val image = imageCell.selectFirst("img")
+                ?.let { it.attr("data-src").ifBlank { it.attr("src") } }
+                ?.takeIf { it.isNotBlank() }
+                ?.let(::fullResMalImage) ?: ""
+
+            // Of the info cell's several "spaceit_pad" divs, the role is the one with
+            // no h3 (that's the name) and no inline style (the favorites-count div carries
+            // "color: #787878" — the role div doesn't).
+            val role = infoCell.select("div.spaceit_pad")
+                .firstOrNull { it.selectFirst("h3") == null && !it.hasAttr("style") }
+                ?.let { normalizeWhitespace(it).trim() }
+                ?.ifBlank { null } ?: "Supporting"
+
+            val japaneseVa = vaCell?.select("tr.js-anime-character-va-lang")?.firstNotNullOfOrNull { vaRow ->
+                val lang = vaRow.selectFirst("div.js-anime-character-language")?.text()?.trim().orEmpty()
+                if (!lang.equals("Japanese", ignoreCase = true)) return@firstNotNullOfOrNull null
+                val vaLink = vaRow.selectFirst("a[href*=/people/]") ?: return@firstNotNullOfOrNull null
+                val vaHref = vaLink.attr("abs:href")
+                val vaId = Regex("/people/(\\d+)").find(vaHref)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: return@firstNotNullOfOrNull null
+                val vaImage = vaRow.selectFirst("img")
+                    ?.let { it.attr("data-src").ifBlank { it.attr("src") } }
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let(::fullResMalImage) ?: ""
+                VoiceActorEntry(
+                    malId = vaId,
+                    name = reorderMalPersonName(vaLink.text().trim()),
+                    image = vaImage,
+                    url = vaHref,
+                )
+            }
+
+            CharacterEntry(malId = malId, name = name, image = image, role = role, url = href, japaneseVoiceActor = japaneseVa)
+        }
 
     // malId + malType read straight off the link's own href rather than off which page
     // we're on, so a manga's related anime (and an anime's related manga/light novel)

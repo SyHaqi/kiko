@@ -1406,17 +1406,18 @@ class LibraryViewModel : ViewModel() {
     // Actors row on the detail page — staff is no longer shown there, so this no
     // longer fans out a second fetchStaff() network call alongside it).
     // onError fires when the fetch itself fails (network/DNS/etc — see
-    // TenraiApi.fetchCharacters) as opposed to a title that just has no characters
-    // listed, so the detail page can show a retryable failure state instead of
-    // silently treating a blocked request the same as "no cast data".
+    // MalDetailScrapeApi.fetchCharacters, which scrapes MAL's own "/characters"
+    // subpage directly rather than going through Tenrai/Jikan) as opposed to a title
+    // that just has no characters listed, so the detail page can show a retryable
+    // failure state instead of silently treating a blocked request the same as "no
+    // cast data".
     fun loadCharacters(item: MediaItem, onFound: (List<CharacterEntry>) -> Unit, onDone: () -> Unit = {}, onError: () -> Unit = {}) {
         val cache = detailCache(item.id, item.type)
         cache.characters?.let { onFound(it); onDone(); return }
         val intId = item.id.toIntOrNull()
         if (intId == null) { onDone(); return }
-        val kind = if (item.type == MediaType.Anime) "anime" else "manga"
         viewModelScope.launch {
-            runCatching { TenraiApi().fetchCharacters(kind, intId) }
+            runCatching { MalDetailScrapeApi().fetchCharacters(intId, item.type, item.title) }
                 .onSuccess { chars ->
                     cache.characters = chars
                     if (chars.isNotEmpty()) onFound(chars)

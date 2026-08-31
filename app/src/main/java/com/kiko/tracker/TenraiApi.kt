@@ -179,42 +179,6 @@ class TenraiApi {
         }.getOrNull()
     }
 
-    // Fetch characters row for detail page. Lets exceptions (DNS failure, timeout,
-    // malformed response — e.g. a network filter mangling the reply) propagate to the
-    // caller instead of swallowing them here, so a failed fetch can be told apart from
-    // a title that genuinely has no characters listed (see LibraryViewModel.loadCharacters).
-    suspend fun fetchCharacters(kind: String, malId: Int): List<CharacterEntry> = withContext(Dispatchers.IO) {
-        val arr = JSONObject(getRaw("$TENRAI/$kind/$malId/characters")).optJSONArray("data") ?: return@withContext emptyList()
-        (0 until arr.length()).mapNotNull { i ->
-            val o = arr.getJSONObject(i)
-            val ch = o.optJSONObject("character") ?: return@mapNotNull null
-            // Only the Japanese VA is kept — the row above this shows every dub, but
-            // the Voice Actors row is Japanese-only, so the other languages are dropped
-            // here rather than carried around just to be filtered later.
-            val japaneseVa = o.optJSONArray("voice_actors")?.let { vas ->
-                (0 until vas.length()).firstNotNullOfOrNull { j ->
-                    val va = vas.getJSONObject(j)
-                    if (!va.optString("language").equals("Japanese", ignoreCase = true)) return@firstNotNullOfOrNull null
-                    val person = va.optJSONObject("person") ?: return@firstNotNullOfOrNull null
-                    VoiceActorEntry(
-                        malId = person.optInt("mal_id"),
-                        name = reorderMalPersonName(person.optString("name")),
-                        image = person.optJSONObject("images")?.optJSONObject("jpg")?.optString("image_url").orEmpty(),
-                        url = person.optString("url"),
-                    )
-                }
-            }
-            CharacterEntry(
-                malId = ch.optInt("mal_id"),
-                name = reorderMalPersonName(ch.optString("name")),
-                image = ch.optJSONObject("images")?.optJSONObject("jpg")?.optString("image_url").orEmpty(),
-                role = o.optString("role").ifBlank { "Supporting" },
-                url = ch.optString("url"),
-                japaneseVoiceActor = japaneseVa,
-            )
-        }
-    }
-
     // Fetch reviews row for detail page
     suspend fun fetchReviews(kind: String, malId: Int): List<ReviewEntry> = withContext(Dispatchers.IO) {
         runCatching {
