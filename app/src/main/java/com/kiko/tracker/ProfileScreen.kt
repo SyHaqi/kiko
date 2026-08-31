@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.browser.customtabs.CustomTabsIntent
@@ -446,12 +447,15 @@ import coil.compose.AsyncImage
     }
     val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.yearFilterViewMode == ListViewMode.Grid
+    // Year picker moved off a horizontal chip row (years can run 20-30+ deep, most of
+    // them scrolled out of reach) and into a FAB + bottom sheet — same reasoning as
+    // GenreFilterScreen below. See YearFilterFab/YearFilterSheet.
+    var yearSheetOpen by remember { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Year Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
-        YearFilterRow(years, year) { year = it }
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -460,45 +464,71 @@ import coil.compose.AsyncImage
             }
         }
     }
-    if (isGrid) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
-            if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-        }
-    } else {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-            item { header() }
-            itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                StaggeredItem(index, staggerSeen) {
-                    Column {
-                        ListRow(it, onOpenDetail, showType = false)
-                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+    Box(Modifier.fillMaxSize()) {
+        if (isGrid) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 96.dp),
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
+                itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
+                if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+            }
+        } else {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 96.dp)) {
+                item { header() }
+                itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
+                    StaggeredItem(index, staggerSeen) {
+                        Column {
+                            ListRow(it, onOpenDetail, showType = false)
+                            if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                        }
                     }
                 }
+                if (filtered.isEmpty()) item { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
             }
-            if (filtered.isEmpty()) item { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
         }
+        YearFilterFab(year, onClick = { yearSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp))
     }
+    if (yearSheetOpen) YearFilterSheet(years, year, onDismiss = { yearSheetOpen = false }) { year = it; yearSheetOpen = false }
 }
-// Year chip row: "All" plus every release year present in the list, most recent first
+// Year picker FAB — shows the active year (or "All Years") right on the button, same
+// "spell it out, don't make them guess" reasoning as StatusFilterFab in HomeScreen.kt.
+// Tapping it opens YearFilterSheet rather than expanding in place, since the option
+// count here is unbounded (unlike the fixed 6 statuses that FAB expands into).
 
-@Composable fun YearFilterRow(years: List<Int>, current: Int, set: (Int) -> Unit) {
+@Composable fun YearFilterFab(current: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    ExtendedFloatingActionButton(
+        onClick = onClick,
+        containerColor = c.primary,
+        contentColor = c.onPrimary,
+        icon = { Icon(Icons.Default.DateRange, contentDescription = null) },
+        text = { Text(if (current == 0) "All Years" else current.toString()) },
+        modifier = modifier,
+    )
+}
+// Year picker sheet — "All" plus every release year present in the list, most recent
+// first, wrapped into a scrollable FlowRow instead of a single horizontal chip row so
+// every year is reachable without endless side-scrolling. Same shape as Discover's
+// AdvancedFilterSheet genre/theme sections (see ExpandableFilterSection).
+
+@Composable fun YearFilterSheet(years: List<Int>, current: Int, onDismiss: () -> Unit, onSelect: (Int) -> Unit) {
     val c = LocalKikoColors.current
     val colors = kikoFilterChipColors()
-    val initialIndex = remember { if (current == 0) 0 else years.indexOf(current) + 1 }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { centerChip(listState, initialIndex) }
-    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-        item { FilterChip(selected = current == 0, onClick = { set(0); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
-        itemsIndexed(years) { index, y -> FilterChip(selected = current == y, onClick = { set(y); scope.centerChip(listState, index + 1) }, label = { Text(y.toString()) }, colors = colors) }
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
+            Text("Filter by", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text("Year", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = current == 0, onClick = { onSelect(0) }, label = { Text("All") }, colors = colors)
+                years.forEach { y -> FilterChip(selected = current == y, onClick = { onSelect(y) }, label = { Text(y.toString()) }, colors = colors) }
+            }
+        }
     }
 }
 // Opened by tapping a row in the profile's format breakdown chart (donut + legend).
@@ -584,18 +614,23 @@ import coil.compose.AsyncImage
     BackHandler(onBack = onBack)
     var genre by remember { mutableStateOf(initialGenre) }
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
-    val genres = remember(typeItems) { typeItems.flatMap { it.genres }.filter { it.isNotBlank() }.distinct().sorted() }
+    // Ranked most → least, same grouping the profile's genre chart itself uses (just
+    // without the chart's top-6 cap, since the filter sheet needs every genre reachable).
+    val genreCounts = remember(typeItems) { typeItems.flatMap { it.genres }.filter { it.isNotBlank() }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key to it.value } }
     val filtered = remember(typeItems, genre, vm.genreFilterSort, vm.titleLanguage) {
         typeItems.filter { genre.isBlank() || it.genres.any { g -> g == genre } }.sortedWithListSort(vm.genreFilterSort, vm.titleLanguage)
     }
     val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.genreFilterViewMode == ListViewMode.Grid
+    // Genre picker moved off a horizontal chip row (a library's genre set easily runs
+    // past 30-40 distinct tags, most never scrolled to) and into a FAB + bottom sheet —
+    // see GenreFilterFab/GenreFilterSheet below.
+    var genreSheetOpen by remember { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Genre Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
-        GenreFilterRow(genres, genre) { genre = it }
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -604,46 +639,96 @@ import coil.compose.AsyncImage
             }
         }
     }
-    if (isGrid) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
-            if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-        }
-    } else {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-            item { header() }
-            itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                StaggeredItem(index, staggerSeen) {
-                    Column {
-                        ListRow(it, onOpenDetail, showType = false)
-                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+    Box(Modifier.fillMaxSize()) {
+        if (isGrid) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 96.dp),
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
+                itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
+                if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+            }
+        } else {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 96.dp)) {
+                item { header() }
+                itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
+                    StaggeredItem(index, staggerSeen) {
+                        Column {
+                            ListRow(it, onOpenDetail, showType = false)
+                            if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                        }
                     }
                 }
+                if (filtered.isEmpty()) item { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
             }
-            if (filtered.isEmpty()) item { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+        }
+        GenreFilterFab(genre, onClick = { genreSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp))
+    }
+    if (genreSheetOpen) GenreFilterSheet(genreCounts, typeItems.size, genre, onDismiss = { genreSheetOpen = false }) { genre = it; genreSheetOpen = false }
+}
+// Genre picker FAB — same "spell out the active filter" shape as YearFilterFab/
+// StatusFilterFab. Truncates to one line so a long genre name (e.g. "Slice of Life")
+// doesn't blow up the FAB width.
+
+@Composable fun GenreFilterFab(current: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    ExtendedFloatingActionButton(
+        onClick = onClick,
+        containerColor = c.primary,
+        contentColor = c.onPrimary,
+        icon = { Icon(Icons.Default.Sell, contentDescription = null) },
+        text = { Text(current.ifBlank { "All Genres" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        modifier = modifier,
+    )
+}
+// Genre picker sheet — ranked rows (most → least titles) instead of a chip cloud, each
+// with a proportional bar so the sheet doubles as a finer-grained read of the same
+// distribution the chart summarizes to 6 bars. "All" pins to the top as a full bar.
+
+@Composable fun GenreFilterSheet(genres: List<Pair<String, Int>>, total: Int, current: String, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
+    val c = LocalKikoColors.current
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
+            Text("Filter by", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text("Genre", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 14.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                GenreFilterBarRow("All", total, total, c.primary, selected = current.isBlank()) { onSelect("") }
+                genres.forEachIndexed { index, (g, count) -> GenreFilterBarRow(g, count, total, chartColor(c, index), selected = current == g) { onSelect(g) } }
+            }
         }
     }
 }
-// Genre chip row: "All" plus every genre present in the list, alphabetical — same
-// shape as FormatFilterRow above.
+// One ranked row in GenreFilterSheet — label, count, and a bar sized against the
+// library total, colored the same way GenreBreakdownChart cycles its bars so a genre's
+// color reads the same whether you're looking at the chart or the filter sheet.
 
-@Composable fun GenreFilterRow(genres: List<String>, current: String, set: (String) -> Unit) {
+@Composable fun GenreFilterBarRow(label: String, count: Int, total: Int, barColor: Color, selected: Boolean, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    val colors = kikoFilterChipColors()
-    val initialIndex = remember { if (current.isBlank()) 0 else genres.indexOf(current) + 1 }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { centerChip(listState, initialIndex) }
-    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-        item { FilterChip(selected = current.isBlank(), onClick = { set(""); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
-        itemsIndexed(genres) { index, g -> FilterChip(selected = current == g, onClick = { set(g); scope.centerChip(listState, index + 1) }, label = { Text(g) }, colors = colors) }
+    val fraction = if (total > 0) (count.toFloat() / total).coerceIn(0f, 1f) else 0f
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(14.dp)))
+            .let { m -> if (selected) m.background(c.surfaceContainerHigh) else m }
+            .kikoClickable(scale = 0.98f, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selected) Icon(Icons.Default.Check, contentDescription = null, tint = c.primary, modifier = Modifier.size(16.dp).padding(end = 8.dp))
+                Text(label, color = c.ink, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 14.sp)
+            }
+            Text(count.toString(), color = barColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(9.dp))
+        Box(Modifier.fillMaxWidth().height(7.dp).clip(kikoPillShape()).background(c.surfaceLow)) {
+            Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().clip(kikoPillShape()).background(barColor))
+        }
     }
 }
 
