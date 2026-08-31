@@ -96,8 +96,6 @@ import kotlinx.coroutines.launch
     selectedItem: MediaItem? = null
 ) {
     val c = LocalKikoColors.current
-    var query by remember { mutableStateOf("") }
-    var filterSheetOpen by remember { mutableStateOf(false) }
     // Map (MAL id, type) -> the user's tracked status, so browse rows (which come straight from
     // Tenrai/MAL search results, not the user's own list) can still show the status badge.
     // Keyed by id+type since anime and manga IDs are independent and can collide.
@@ -109,52 +107,31 @@ import kotlinx.coroutines.launch
     }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
-    // Bounds (in root coordinates) of the outer Box and the search row, used to float
-    // the suggestions list directly under the search bar regardless of scroll position
-    var containerBounds by remember { mutableStateOf<Rect?>(null) }
-    var searchBarBounds by remember { mutableStateOf<Rect?>(null) }
-    // Double-tapping the Discover bottom-nav tab bumps vm.discoverSearchFocusTick; jump the
-    // search field into focus and pop the keyboard open each time that happens.
-    val searchFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
-    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    LaunchedEffect(vm.discoverSearchFocusTick) {
-        if (vm.discoverSearchFocusTick > 0) {
-            // Scroll back to the top first in case the search bar has scrolled out of view —
-            // otherwise the field would grab focus/keyboard while sitting off-screen.
-            listState.animateScrollToItem(0)
-            searchFocusRequester.requestFocus()
-            keyboardController?.show()
-        }
-    }
 
-    Box(Modifier.fillMaxSize().onGloballyPositioned { containerBounds = it.boundsInRoot() }) {
+    Box(Modifier.fillMaxSize()) {
         LazyColumn(state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
-                AppHeader("Discover", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
-                Spacer(Modifier.height(17.dp))
-
-                // Search bar and filter
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.height(IntrinsicSize.Min).onGloballyPositioned { searchBarBounds = it.boundsInRoot() },
-                ) {
-                    Box(Modifier.weight(1f)) {
-                        SearchField(
-                            value = query,
-                            change = { query = it; vm.fetchDiscoverSuggestions(context, it, vm.discoverTypeFilter) },
-                            hint = "Search in MAL",
-                            onSearch = {
-                                vm.clearDiscoverSuggestions()
-                                if (query.isNotBlank() || vm.discoverFilters.isActive()) vm.runDiscoverSearch(context, query, vm.discoverTypeFilter)
-                            },
-                            focusRequester = searchFocusRequester,
-                        )
+                // Search now lives on its own full "Search & Discover" page (see
+                // DiscoverResultsScreen) instead of an inline field here — this is just the
+                // icon that jumps there, sitting to the left of the avatar so it reads as
+                // part of the header rather than a shrunken search bar.
+                AppHeader("Discover", 0.dp) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // Same pill search icon as the List tab's ExpandableSearchHeader
+                        // (43dp squircle, surfaceContainerHigh, kikoClickable) rather than a
+                        // plain Material IconButton, so the two tabs' search affordances match.
+                        Box(
+                            Modifier
+                                .size(43.dp)
+                                .clip(RoundedCornerShape(kikoCorner(16.dp)))
+                                .background(c.surfaceContainerHigh)
+                                .kikoClickable { vm.openDiscoverSearch(context) },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Default.Search, "Search", tint = c.ink) }
+                        Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
                     }
-                    FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
                 }
-                if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = "All", onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) })
-
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(17.dp))
 
                 // Seasonal now lives in its own bottom tab, to the right of Discover;
                 // Rankings and Interest Stacks keep their buttons here, side by side,
@@ -267,17 +244,6 @@ import kotlinx.coroutines.launch
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
         )
-        // Floating title suggestions as the user types — tap to fill the search bar and
-        // run that search; tapping anywhere outside dismisses it and drops focus
-        FloatingSearchSuggestions(
-            anchorBounds = searchBarBounds,
-            containerBounds = containerBounds,
-            suggestions = if (query.isNotBlank()) vm.discoverSuggestions else emptyList(),
-            onDismiss = vm::clearDiscoverSuggestions,
-        ) { picked ->
-            query = picked
-            vm.runDiscoverSearch(context, picked, vm.discoverTypeFilter)
-        }
     }
 }
 
@@ -343,6 +309,18 @@ import kotlinx.coroutines.launch
     // the suggestions list directly under the search bar regardless of scroll position
     var containerBounds by remember { mutableStateOf<Rect?>(null) }
     var searchBarBounds by remember { mutableStateOf<Rect?>(null) }
+    // Bumped by the search icon on the Discover landing page (and by double-tapping the
+    // Discover bottom-nav tab) via vm.openDiscoverSearch — jump the search field into focus
+    // and pop the keyboard open each time that happens, so arriving here always lands ready
+    // to type rather than showing a blank list with no keyboard up.
+    val searchFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    LaunchedEffect(vm.discoverSearchFocusTick) {
+        if (vm.discoverSearchFocusTick > 0) {
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
     // Load the next page only once the person has actually scrolled to the true end of what's
     // currently loaded (not a few items early) — that way there's no result-list mutation while
     // a fling is still carrying them past earlier items, and the spinner row is what they land on
@@ -360,7 +338,7 @@ import kotlinx.coroutines.launch
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onExitResults, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink) }
-                    Text("Search results", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+                    Text("Search & Discover", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -371,7 +349,8 @@ import kotlinx.coroutines.launch
                             query,
                             { query = it; vm.fetchDiscoverSuggestions(context, it, vm.discoverTypeFilter) },
                             "Search in MAL",
-                            onSearch = { vm.clearDiscoverSuggestions(); vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) }
+                            onSearch = { vm.clearDiscoverSuggestions(); vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) },
+                            focusRequester = searchFocusRequester,
                         )
                     }
                     FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
