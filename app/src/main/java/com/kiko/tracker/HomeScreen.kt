@@ -3,11 +3,14 @@
 package com.kiko.tracker
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
@@ -419,6 +422,9 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             .filter { it.type == typeTab && (effectiveFilter == "All" || it.status.displayLabel(typeTab) == effectiveFilter) && it.title.contains(submittedQuery, true) }
             .sortedWithListSort(vm.listSort, vm.titleLanguage)
     }
+    // Status filter now lives in the bottom-right FAB (see StatusFilterFab) instead of the
+    // old FilterRow chip row, so its open/closed state is hoisted up here.
+    var filterMenuOpen by remember { mutableStateOf(false) }
     val isGrid = vm.listViewMode == ListViewMode.Grid
     // Shared between grid and list mode (both walk the same `filtered` index order) so an
     // index that's already played its entrance in one view mode doesn't replay it after
@@ -441,7 +447,6 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         TypeSwitcherHeader(typeTab, { vm.selectListTypeTab(context, it) }, 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
         SearchField(query, { query = it }, "Search your list", onSearch = { submittedQuery = query }, onClear = { query = ""; submittedQuery = "" })
-        FilterRow(effectiveFilter, { vm.setListFilter(context, it) }, typeTab)
         Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -452,6 +457,9 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { if (isGrid) gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 else listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    // Go-to-top (left) and the filter FAB (right) now sit in opposite corners instead of
+    // stacking, so a flat inset covers either one.
+    val bottomInset = 90.dp
     PullToRefreshBox(isRefreshing = vm.loading, onRefresh = { vm.load(context) }, modifier = Modifier.fillMaxSize()) {
         // Basic cross-fade when switching between grid and list layouts, matching the tab-switch
         // transition used elsewhere in the app (e.g. Clubs tabs, Profile stats)
@@ -465,7 +473,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     state = gridState,
                     columns = GridCells.Fixed(3),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = bottomInset),
                     horizontalArrangement = Arrangement.spacedBy(11.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
@@ -478,7 +486,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = bottomInset)) {
                     item { header() }
                     if (vm.loading && filtered.isEmpty()) {
                         item { ListRowSkeletonGroup(6) }
@@ -496,9 +504,29 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 }
             }
         }
+        // Dim scrim behind the expanded status menu — tap anywhere outside it to close,
+        // same interaction as Google Keep's expandable note-type FAB.
+        AnimatedVisibility(
+            visible = filterMenuOpen,
+            enter = fadeIn(tween(160)),
+            exit = fadeOut(tween(160)),
+            modifier = Modifier.matchParentSize(),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = .32f))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { filterMenuOpen = false }
+            )
+        }
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { if (isGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, bottom = 20.dp),
+        )
+        StatusFilterFab(
+            effectiveFilter, { vm.setListFilter(context, it) }, typeTab,
+            expanded = filterMenuOpen, onExpandedChange = { filterMenuOpen = it },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
         )
     }
@@ -572,23 +600,77 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
 }
 // Anime/Manga segmented switch
 
-@Composable fun FilterRow(current: String, set: (String) -> Unit, type: MediaType) {
+// Status filter — bottom-right FAB that expands into one option per status, replacing the
+// old horizontal FilterChip row. Same interaction as Google Keep's expandable note-type FAB:
+// tap the FAB (or the scrim) to toggle, tap an option to pick it and collapse.
+
+@Composable fun StatusFilterFab(current: String, set: (String) -> Unit, type: MediaType, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     val progressLabel = if (type == MediaType.Anime) "Watching" else "Reading"
     val planLabel = if (type == MediaType.Anime) "Plan to Watch" else "Plan to Read"
     val labels = listOf("All", progressLabel, planLabel, "Completed", "On Hold", "Dropped")
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-        itemsIndexed(labels) { index, label ->
-            FilterChip(
-                selected = current == label,
-                onClick = { set(label); scope.centerChip(listState, index) },
-                label = { Text(label) },
-                colors = kikoFilterChipColors(),
-            )
+
+    Column(modifier, horizontalAlignment = Alignment.End) {
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn(tween(160)) + expandVertically(tween(200), expandFrom = Alignment.Bottom),
+            exit = fadeOut(tween(120)) + shrinkVertically(tween(160), shrinkTowards = Alignment.Bottom),
+        ) {
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 14.dp)) {
+                // Reversed so the list reads top-to-bottom in the same order it's defined,
+                // since each new option stacks above the previous one off the FAB.
+                labels.reversed().forEach { label ->
+                    StatusFilterOption(label, filterLabelIcon(label), selected = current == label) { set(label); onExpandedChange(false) }
+                }
+            }
         }
+        // Extended (icon + text) rather than icon-only, so the active status is spelled out
+        // on the button itself — no room for it to be mistaken for something it isn't.
+        ExtendedFloatingActionButton(
+            onClick = { onExpandedChange(!expanded) },
+            containerColor = c.primary,
+            contentColor = c.onPrimary,
+            icon = { Icon(if (expanded) Icons.Default.Close else filterLabelIcon(current), contentDescription = null) },
+            text = { Text(if (expanded) "Close" else current) },
+        )
     }
+}
+// One row of the expanded status menu — label pill + small round button
+
+@Composable fun StatusFilterOption(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.kikoClickable(scale = 0.94f) { onClick() },
+    ) {
+        Text(
+            label,
+            color = c.ink,
+            fontWeight = FontWeight.Medium,
+            fontSize = 13.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(kikoCorner(8.dp)))
+                .background(c.surfaceContainerHighest)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+        )
+        SmallFloatingActionButton(
+            onClick = onClick,
+            containerColor = if (selected) c.primary else c.surfaceContainerHigh,
+            contentColor = if (selected) c.onPrimary else c.ink,
+        ) { Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) }
+    }
+}
+// Icon per status filter label, for the FAB menu
+
+fun filterLabelIcon(label: String): ImageVector = when (label) {
+    "All" -> Icons.Default.Apps
+    "Watching", "Reading" -> Icons.Default.PlayArrow
+    "Plan to Watch", "Plan to Read" -> Icons.Default.Bookmark
+    "Completed" -> Icons.Default.Check
+    "On Hold" -> Icons.Default.Pause
+    "Dropped" -> Icons.Default.Close
+    else -> Icons.Default.FilterList
 }
 
 // vm is optional (and, when passed, only used for the AniList episode-number lookup below) —

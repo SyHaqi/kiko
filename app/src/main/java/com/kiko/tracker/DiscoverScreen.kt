@@ -583,7 +583,10 @@ import kotlinx.coroutines.launch
             // transitioning, purely to re-derive an animation the padding was already driving.
             .padding(pad)
     ) {
-        Cover(item, Modifier.fillMaxWidth().height(150.dp), showStatus = true, overrideStatus = myStatus, selected = isSelected)
+        // Same 84:118 cover ratio used everywhere else (list, search results, home) instead of
+        // this row's old fixed 118x150 box — that box's ratio didn't match real poster art, so
+        // Crop was cutting off a noticeably different slice than the rest of the app.
+        Cover(item, Modifier.fillMaxWidth().aspectRatio(84f / 118f), showStatus = true, overrideStatus = myStatus, selected = isSelected)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         Text(subtitle ?: (if (item.score > 0) "★ ${item.score.oneDecimal()}" else item.genre), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
