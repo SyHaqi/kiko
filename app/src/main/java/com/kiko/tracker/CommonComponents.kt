@@ -330,22 +330,28 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 @Composable fun TypeSwitcherHeader(current: MediaType, onSelect: (MediaType) -> Unit, horizontalPadding: Dp = 20.dp, action: @Composable () -> Unit = {}) =
     SwitcherHeader(current, MediaType.entries.toList(), { if (it == MediaType.Anime) "Anime" else "Manga" }, onSelect, horizontalPadding, "Switch between Anime and Manga", action)
 
-// List screen header: normally the Anime/Manga type switcher with a pill-shaped search icon
-// (matching the avatar's rounded-square style) sitting just to its left. Tapping the icon
-// grows a slim search field out from the icon's own on-screen position — expanding both
-// left and right from that point, not sliding in from an edge — until it spans the full
-// row, fading the title/avatar out underneath. The field is sized to match the collapsed
-// row exactly (see HeaderSearchField) so opening it never shifts the list below.
-@Composable fun ExpandableSearchHeader(
-    typeTab: MediaType,
-    onSelectType: (MediaType) -> Unit,
+// Header for any screen that switches between a small option set (Anime/Manga on List,
+// Forums/Clubs on Community, ...) and wants a pill-shaped search icon (matching the avatar's
+// rounded-square style) sitting just left of the avatar. Tapping the icon grows a slim search
+// field out from the icon's own on-screen position — expanding both left and right from that
+// point, not sliding in from an edge — until it spans the full row, fading the title/avatar
+// out underneath. The field is sized to match the collapsed row exactly (see HeaderSearchField)
+// so opening it never shifts the list below. Generic over the switcher's option type for the
+// same reason SwitcherHeader is — every "icon expands into search" header shares this one.
+@Composable fun <T> ExpandableSearchHeader(
+    current: T,
+    options: List<T>,
+    labelFor: (T) -> String,
+    onSelect: (T) -> Unit,
     query: String,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onClear: () -> Unit,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
+    hint: String = "Search",
     horizontalPadding: Dp = 20.dp,
+    switchDescription: String = "Switch section",
     avatar: @Composable () -> Unit,
 ) {
     val c = LocalKikoColors.current
@@ -384,7 +390,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
         // Only composed while not fully expanded so it can't intercept taps hiding underneath.
         if (progress < 1f) {
             Box(Modifier.graphicsLayer { alpha = 1f - progress }) {
-                SwitcherHeader(typeTab, MediaType.entries.toList(), { if (it == MediaType.Anime) "Anime" else "Manga" }, onSelectType, horizontalPadding, "Switch between Anime and Manga") {
+                SwitcherHeader(current, options, labelFor, onSelect, horizontalPadding, switchDescription) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Box(
                             Modifier
@@ -394,7 +400,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                                 .background(c.surfaceContainerHigh)
                                 .kikoClickable { onExpandedChange(true) },
                             contentAlignment = Alignment.Center,
-                        ) { Icon(Icons.Default.Search, "Search your list", tint = c.ink) }
+                        ) { Icon(Icons.Default.Search, hint, tint = c.ink) }
                         avatar()
                     }
                 }
@@ -420,7 +426,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                     HeaderSearchField(
                         value = query,
                         onValueChange = onQueryChange,
-                        hint = "Search your list",
+                        hint = hint,
                         onSearch = onSearch,
                         onBack = { onExpandedChange(false) },
                         onClear = onClear,

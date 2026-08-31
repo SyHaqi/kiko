@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 // Clubs tab — browse/search MAL clubs by scraping myanimelist.net directly
 // (same approach as StacksApi: Jikan never covered clubs' Couch feed, and is
 // being shut down, so there's no API layer to sit on here).
-@Composable fun ClubsScreen(vm: LibraryViewModel, onOpenClub: (MalClub) -> Unit, header: @Composable () -> Unit) {
+@Composable fun ClubsScreen(vm: LibraryViewModel, onOpenClub: (MalClub) -> Unit) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     val api = remember { ClubsApi() }
@@ -47,6 +47,9 @@ import kotlinx.coroutines.launch
     // so they — and the scroll position below — survive opening a club and
     // coming back, instead of being torn down with this composable.
     var query by remember { mutableStateOf(vm.clubsQuery) }
+    // Search bar starts collapsed into an icon beside the avatar, same as the List tab
+    // (see ExpandableSearchHeader), instead of an always-visible field under the header.
+    var searchExpanded by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(vm.clubsList.isEmpty()) }
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -96,9 +99,22 @@ import kotlinx.coroutines.launch
     PullToRefreshBox(isRefreshing = loading, onRefresh = { runSearch(vm.clubsQuery) }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
-                header()
+                ExpandableSearchHeader(
+                    current = vm.communityTab,
+                    options = CommunityTab.entries.toList(),
+                    labelFor = { it.label },
+                    onSelect = { vm.selectCommunityTab(context, it) },
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearch = { if (vm.signedIn) runSearch(query) },
+                    onClear = { query = ""; if (vm.signedIn) runSearch("") },
+                    expanded = searchExpanded,
+                    onExpandedChange = { expanded -> searchExpanded = expanded; if (!expanded) { query = vm.clubsQuery } },
+                    hint = "Find clubs…",
+                    horizontalPadding = 0.dp,
+                    switchDescription = "Switch between Forums and Clubs",
+                ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
                 if (vm.signedIn) {
-                    SearchField(query, { query = it }, "Find clubs…", onSearch = { runSearch(query) }, onClear = { query = ""; runSearch("") })
                     Text(
                         if (vm.clubsQuery.isBlank()) "POPULAR CLUBS" else "RESULTS",
                         color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp,

@@ -450,15 +450,19 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         // search icon sits just left of the avatar and expands edge-to-edge over this whole
         // row when tapped, hiding the title/avatar rather than squeezing in beside them.
         ExpandableSearchHeader(
-            typeTab = typeTab,
-            onSelectType = { vm.selectListTypeTab(context, it) },
+            current = typeTab,
+            options = MediaType.entries.toList(),
+            labelFor = { if (it == MediaType.Anime) "Anime" else "Manga" },
+            onSelect = { vm.selectListTypeTab(context, it) },
             query = query,
             onQueryChange = { query = it },
             onSearch = { submittedQuery = query },
             onClear = { query = ""; submittedQuery = "" },
             expanded = searchExpanded,
             onExpandedChange = { expanded -> searchExpanded = expanded; if (!expanded) { query = ""; submittedQuery = "" } },
+            hint = "Search your list",
             horizontalPadding = 0.dp,
+            switchDescription = "Switch between Anime and Manga",
         ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
         Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {

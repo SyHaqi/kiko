@@ -86,19 +86,14 @@ import kotlinx.coroutines.launch
         if (mode == ForumMode.Topics) {
             ForumTopicsScreen(vm, context, onOpenTopic)
         } else {
-            val sharedHeader: @Composable () -> Unit = {
-                SwitcherHeader(vm.communityTab, CommunityTab.entries.toList(), { it.label }, { vm.selectCommunityTab(context, it) }, 0.dp, "Switch between Forums and Clubs") {
-                    Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
-                }
-            }
             AnimatedContent(
                 vm.communityTab,
                 transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
                 label = "community-tab",
             ) { tab ->
                 when (tab) {
-                    CommunityTab.Forums -> ForumBoardsScreen(vm, context, sharedHeader)
-                    CommunityTab.Clubs -> ClubsScreen(vm, onOpenClub, sharedHeader)
+                    CommunityTab.Forums -> ForumBoardsScreen(vm, context)
+                    CommunityTab.Clubs -> ClubsScreen(vm, onOpenClub)
                 }
             }
         }
@@ -106,9 +101,13 @@ import kotlinx.coroutines.launch
 }
 // Forums landing page
 
-@Composable fun ForumBoardsScreen(vm: LibraryViewModel, context: Context, header: @Composable () -> Unit) {
+@Composable fun ForumBoardsScreen(vm: LibraryViewModel, context: Context) {
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf("") }
+    // Search bar starts collapsed into an icon beside the avatar, same as the List tab
+    // (see ExpandableSearchHeader) — expanding it takes over the whole header row instead
+    // of sitting underneath as its own always-visible field.
+    var searchExpanded by remember { mutableStateOf(false) }
     // Restore board list scroll
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.forumBoardsScrollIndex, initialFirstVisibleItemScrollOffset = vm.forumBoardsScrollOffset)
     val saveScroll = { vm.saveForumBoardsScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
@@ -117,9 +116,21 @@ import kotlinx.coroutines.launch
     PullToRefreshBox(isRefreshing = vm.forumBoardsLoading, onRefresh = { vm.loadForumBoards(context, force = true) }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
-                header()
-                // Search hands off topics
-                SearchField(query, { query = it }, "Search topics", onSearch = { if (query.isNotBlank()) { saveScroll(); vm.runForumSearch(context, query) } })
+                ExpandableSearchHeader(
+                    current = vm.communityTab,
+                    options = CommunityTab.entries.toList(),
+                    labelFor = { it.label },
+                    onSelect = { vm.selectCommunityTab(context, it) },
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearch = { if (query.isNotBlank()) { saveScroll(); vm.runForumSearch(context, query) } },
+                    onClear = { query = "" },
+                    expanded = searchExpanded,
+                    onExpandedChange = { expanded -> searchExpanded = expanded; if (!expanded) query = "" },
+                    hint = "Search topics",
+                    horizontalPadding = 0.dp,
+                    switchDescription = "Switch between Forums and Clubs",
+                ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
             }
             if (vm.authChecked && !vm.signedIn) {
                 item { Text("Sign in from Profile to browse the MAL forums", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }

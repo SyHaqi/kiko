@@ -337,7 +337,9 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
 
 @Composable fun SeasonIconButton(selected: Boolean, season: SeasonName, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Box(Modifier.size(46.dp).clip(kikoCircleShape()).background(if (selected) c.primary else Color.Transparent).kikoClickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    // Squircle rather than a full circle, matching the rounded-rectangle shape language
+    // the rest of the app's buttons use (see the search icon / kikoCorner).
+    Box(Modifier.size(46.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (selected) c.primary else Color.Transparent).kikoClickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(season.icon, season.label, tint = if (selected) c.onPrimary else c.muted, modifier = Modifier.size(21.dp))
     }
 }

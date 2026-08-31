@@ -150,11 +150,12 @@ import kotlinx.coroutines.launch
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.weight(1f))
-        // Same circular arrow affordance as Home/Discover/Detail's SectionTitle — see there
-        // for why (Play Store-style section header link).
+        // Same squircle arrow affordance as Home/Discover/Detail's SectionTitle — see there
+        // for why (Play Store-style section header link, but shaped like the rest of the
+        // app's rounded-rectangle language rather than a full circle).
         IconButton(
             onClick = onSeeAll,
-            modifier = Modifier.size(34.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh),
+            modifier = Modifier.size(34.dp).clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.surfaceContainerHigh),
         ) { Icon(Icons.Default.ArrowForward, "See all", tint = c.ink, modifier = Modifier.size(16.dp)) }
     }
 }
