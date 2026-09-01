@@ -53,6 +53,16 @@ private fun prettifySource(raw: String) = when (raw.lowercase()) {
 /** Thrown for token refresh */
 private class AuthExpired : IOException()
 
+// Per-(kind,id) English-title cache, process-wide — a title's English name never changes, so
+// once MalApi.englishTitles resolves one it's never re-fetched, whether that's a repeat visit
+// to Discover, a re-applied filter, or paging further into the same genre-filtered search.
+// Deliberately a top-level object rather than a field on MalApi: MalApi is constructed fresh
+// per call site (`MalApi(context)`) all over the app, so an instance-level map would never
+// actually accumulate anything across calls.
+private object EnglishTitleCache {
+    val map = java.util.concurrent.ConcurrentHashMap<Pair<String, Int>, String>()
+}
+
 // Extract first forum image
 // Previously this duplicated its own pair of http(s)-only regexes instead of reusing the
 // same BBCode parser ForumBody uses to render a post's full content — which is exactly why
@@ -291,6 +301,46 @@ class MalApi(private val context: Context) {
         val body = authorized { get("$API/anime/suggestions?limit=$limit&nsfw=true&fields=${browseFields("anime")}") }
         val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
         (0 until arr.length()).map { parseEntry("anime", arr.getJSONObject(it)) }
+    }
+
+    // Backfills English titles for rows that only ever carry MAL's default/romaji title —
+    // currently just MalGenreApi's genre/theme/demographic-filtered Discover scrape (see its
+    // own doc comment: that page's HTML genuinely has no English title anywhere for this to
+    // read directly). Requests only `alternative_titles{en}` per id — the smallest field set
+    // the API allows — rather than reusing TenraiApi.fetchItemFacets' full detail payload,
+    // and runs against MAL's own already-authenticated API rather than the Tenrai/Jikan
+    // mirror, so backfilling titles never competes with or waits behind that shared
+    // Semaphore(3) genre-lookup throttle. Concurrency here is this call's own, separate gate.
+    // ids already cached (from an earlier call, any kind) are served from EnglishTitleCache
+    // without a network request; only genuinely-new ids get fetched. Failures resolve to ""
+    // per id (cached as such) rather than failing the batch — a handful of unresolved titles
+    // just keep showing the romaji fallback, same as before this existed.
+    suspend fun englishTitles(kind: String, ids: List<Int>): Map<Int, String> = withContext(Dispatchers.IO) {
+        val toFetch = ids.distinct().filterNot { EnglishTitleCache.map.containsKey(kind to it) }
+        if (toFetch.isNotEmpty()) {
+            // LibraryViewModel.resolveEnglishTitles now awaits this call *before* showing
+            // genre-search results (previously it patched titles in after they were already
+            // on screen), so its wall-clock time is no longer free — a 50-item page at the
+            // old Semaphore(5) took up to 10 sequential round trips against MAL's API. 10 is
+            // still comfortably under what MAL's per-token rate limit tolerates in a short
+            // burst (this hits a different host/limiter than the Tenrai Semaphore(3) genre
+            // lookup above), and halves that to ~5 rounds.
+            val gate = Semaphore(10)
+            coroutineScope {
+                toFetch.map { id ->
+                    async {
+                        gate.withPermit {
+                            val title = runCatching {
+                                val body = authorized { get("$API/$kind/$id?fields=alternative_titles{en}") }
+                                JSONObject(body).optJSONObject("alternative_titles")?.safeTitle("en") ?: ""
+                            }.getOrDefault("")
+                            EnglishTitleCache.map[kind to id] = title
+                        }
+                    }
+                }.awaitAll()
+            }
+        }
+        ids.associateWith { EnglishTitleCache.map[kind to it] ?: "" }
     }
 
     // Fetch single title detail

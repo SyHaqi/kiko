@@ -868,38 +868,43 @@ class LibraryViewModel : ViewModel() {
                     // gets ANDed together and filtered server-side by MAL itself, along with
                     // format/status, rather than the old Tenrai candidate-pool approach that
                     // only handled a single tag that way and fell back to a members-ranked
-                    // pool (capped at each chart's top ~500) for anything broader.
+                    // pool (capped at each chart's top ~500) for anything broader. The name
+                    // -> id lookup itself is scraped off that same MAL page (MalGenreLookup)
+                    // rather than Tenrai — see its doc comment for why that used to be the
+                    // slow part of this branch.
                     else if (filters.genres.isNotEmpty() || filters.themes.isNotEmpty() || filters.demographics.isNotEmpty()) {
                         val malGenre = MalGenreApi()
-                        val tenrai = TenraiApi() // only for the static name->id lookup table, not a search
+                        val genreLookup = MalGenreLookup() // static name->id lookup table, not a search
                         val kinds = t?.let { listOf(if (it == MediaType.Anime) "anime" else "manga") } ?: listOf("anime", "manga")
-                        val names = filters.genres + filters.themes + filters.demographics
                         // "All" media type can't be mapped onto one search (anime and manga
                         // don't share a genre id space), so it still merges two separate
                         // paginated searches — this just isn't the old members-ranked pool.
-                        val pages = coroutineScope {
+                        // Each kind's ids are carried alongside its page here (rather than
+                        // resolved a second time below for the single-kind case) since
+                        // resolveGenreIds already ran once per kind right here.
+                        val perKind = coroutineScope {
                             kinds.map { kind ->
                                 async {
-                                    val ids = runCatching { tenrai.resolveGenreIds(kind, names) }.getOrElse { emptyList() }
+                                    val ids = runCatching { genreLookup.resolveGenreIds(kind, filters.genres, filters.themes, filters.demographics) }.getOrElse { emptyList() }
                                     if (ids.isEmpty()) null else runCatching {
                                         malGenre.search(kind, ids, malTypeCode(kind, filters.format), malStatusCode(filters.airingStatus, kind), page = 1, includeAdult = nsfwEnabled, sort = discoverSort)
-                                    }.getOrNull()?.let { kind to it }
+                                    }.getOrNull()?.let { Triple(kind, ids, it) }
                                 }
                             }.awaitAll().filterNotNull()
                         }
                         val singleKind = kinds.singleOrNull()
-                        if (singleKind != null && pages.isNotEmpty()) {
-                            val (_, page) = pages.first()
+                        if (singleKind != null && perKind.isNotEmpty()) {
+                            val (_, ids, page) = perKind.first()
                             discoverPaginationSource = DiscoverPaginationSource.MalGenreFiltered
                             discoverHasMore = page.hasMore
                             discoverGenreKind = singleKind
-                            discoverGenreIds = runCatching { tenrai.resolveGenreIds(singleKind, names) }.getOrElse { emptyList() }
+                            discoverGenreIds = ids
                             page.items
-                        } else if (pages.isNotEmpty()) {
+                        } else if (perKind.isNotEmpty()) {
                             // "All" media type: no single next-page cursor to stash, so this
                             // shape doesn't support loadMoreDiscoverSearch — same limitation
                             // the old multi-kind fallback had.
-                            pages.flatMap { (_, page) -> page.items }.distinctBy { it.id }
+                            perKind.flatMap { (_, _, page) -> page.items }.distinctBy { it.id }
                         } else {
                             // Genre/theme/demographic name didn't resolve to an id, or every
                             // request failed outright — fall back to a broad ranking pool
@@ -922,6 +927,10 @@ class LibraryViewModel : ViewModel() {
                             rankTypes.map { rankType -> async { api.ranking(mt, rankType, limit = 500) } }
                         }.awaitAll().flatten()
                     }.distinctBy { it.id }
+                // Resolve MalGenreApi's blank English titles (see resolveEnglishTitles) before
+                // the results are ever assigned to discoverResults — every other branch above
+                // already comes back with titleEnglish populated, so this is a no-op for them.
+                val enriched = resolveEnglishTitles(context, results)
                 // Sort once, here, at fetch time — not reactively on every read (see
                 // visibleDiscoverResults). Deliberately NOT reconciled against the library here
                 // anymore: that used to bake each matching item's status permanently into
@@ -929,7 +938,7 @@ class LibraryViewModel : ViewModel() {
                 // title elsewhere (or, worse, kept showing a status after a delete because the
                 // baked copy still had inUserList = true). The status badge now always comes
                 // from a live vm.trackedStatus() lookup at render time instead (see DiscoverScreen).
-                results.sortedForDiscover(discoverSort, titleLanguage, query)
+                enriched.sortedForDiscover(discoverSort, titleLanguage, query)
             }
                 .onSuccess { discoverResults = it; discoverError = null }
                 .onFailure {
@@ -953,9 +962,53 @@ class LibraryViewModel : ViewModel() {
         if (discoverSearching || discoverLoadingMore || !discoverHasMore) return
         when (discoverPaginationSource) {
             DiscoverPaginationSource.TitleSearch -> loadMoreTitleSearch(context)
-            DiscoverPaginationSource.MalGenreFiltered -> loadMoreGenreFiltered()
+            DiscoverPaginationSource.MalGenreFiltered -> loadMoreGenreFiltered(context)
             DiscoverPaginationSource.None -> {}
         }
+    }
+    // Resolves English titles for MalGenreApi-sourced rows (the only source that ever
+    // leaves titleEnglish blank — see MalGenreApi.parseRow's doc comment) and returns the
+    // patched list. Callers now await this *before* assigning to discoverResults, so a
+    // person with Title Language set to English never sees the romaji fallback render and
+    // then flip to English underneath them — that flicker (not just the extra requests
+    // behind it) was the actual complaint; a background patch technically never blocked the
+    // search, but it always produced that visible conversion. Folding it into the search
+    // itself does cost real wall-clock time (each blank title is its own MAL API round
+    // trip — see MalApi.englishTitles), which is also why that function's concurrency was
+    // raised: this path is no longer a "do it later, speed doesn't matter" background task.
+    // No-ops entirely when Title Language isn't English — nothing on screen reads
+    // titleEnglish otherwise, so there's nothing worth spending requests on. Also no-ops
+    // for the already-common case where every item already has a title (title search /
+    // ranking / creator search all come back with titleEnglish populated from the start).
+    private suspend fun resolveEnglishTitles(context: Context, items: List<MediaItem>): List<MediaItem> {
+        if (titleLanguage != TitleLanguage.English) return items
+        val targets = items.filter { it.titleEnglish.isBlank() }
+        if (targets.isEmpty()) return items
+        val byKind = targets.groupBy { if (it.type == MediaType.Anime) "anime" else "manga" }
+        val resolvedByKind = coroutineScope {
+            byKind.map { (kind, list) ->
+                async { kind to runCatching { MalApi(context).englishTitles(kind, list.mapNotNull { it.id.toIntOrNull() }) }.getOrElse { emptyMap() } }
+            }.awaitAll()
+        }.toMap()
+        if (resolvedByKind.values.all { it.isEmpty() }) return items
+        return items.map { item ->
+            val intId = item.id.toIntOrNull()
+            if (item.titleEnglish.isBlank() && intId != null) {
+                val kind = if (item.type == MediaType.Anime) "anime" else "manga"
+                resolvedByKind[kind]?.get(intId)?.takeIf { it.isNotBlank() }?.let { item.copy(titleEnglish = it) } ?: item
+            } else item
+        }
+    }
+    // Kicks off (and caches) the genre/theme/demographic name->id lookup ahead of time, as
+    // soon as the filter sheet opens rather than waiting for "Apply" — see
+    // MalGenreLookup.GenreFacetCache. Scraped straight off MAL's own anime.php/manga.php
+    // filter panel (one request per kind, no Tenrai involved — see MalGenreLookup's doc
+    // comment), so prewarming here hides that one round trip entirely instead of paying for
+    // it right when Apply is tapped.
+    fun prewarmGenreLookup() {
+        val genreLookup = MalGenreLookup()
+        viewModelScope.launch { genreLookup.prewarmGenreNames("anime") }
+        viewModelScope.launch { genreLookup.prewarmGenreNames("manga") }
     }
     private fun loadMoreTitleSearch(context: Context) {
         val api = MalApi(context)
@@ -982,7 +1035,7 @@ class LibraryViewModel : ViewModel() {
             discoverLoadingMore = false
         }
     }
-    private fun loadMoreGenreFiltered() {
+    private fun loadMoreGenreFiltered(context: Context) {
         val kind = discoverGenreKind ?: return
         val ids = discoverGenreIds.ifEmpty { return }
         // MAL's own advanced-search pager has a fixed 50-row page size (see
@@ -999,10 +1052,12 @@ class LibraryViewModel : ViewModel() {
                 .onSuccess { page ->
                     val existingKeys = discoverResults.mapTo(HashSet()) { it.id to it.type }
                     // Not reconciled against the library — see runDiscoverSearch's comment above.
-                    val newItems = page.items
+                    val newItemsRaw = page.items
                         .filter { (it.id to it.type) !in existingKeys }
                         .distinctBy { it.id to it.type }
-                        .sortedForDiscover(discoverSort, titleLanguage, discoverQuery)
+                    // Resolved before appending — see resolveEnglishTitles — so a page loaded
+                    // by scrolling doesn't flash romaji either.
+                    val newItems = resolveEnglishTitles(context, newItemsRaw).sortedForDiscover(discoverSort, titleLanguage, discoverQuery)
                     discoverResults = discoverResults + newItems
                     discoverHasMore = page.hasMore
                 }

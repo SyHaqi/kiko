@@ -360,7 +360,7 @@ import kotlinx.coroutines.launch
                             focusRequester = searchFocusRequester,
                         )
                     }
-                    FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
+                    FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true; vm.prewarmGenreLookup() }, modifier = Modifier.padding(start = 10.dp))
                 }
                 // Fixes type/format mismatch
                 if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) })

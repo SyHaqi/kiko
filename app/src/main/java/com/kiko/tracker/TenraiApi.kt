@@ -1,11 +1,16 @@
 package com.kiko.tracker
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.Request
@@ -44,21 +49,86 @@ private fun normalizeSource(jikanSource: String) = when (jikanSource.lowercase()
 class TenraiApi {
     private val client = NetworkClient.shared
 
-    // Build genre name-id map
+    // Per-(kind, facet) name->id maps and their in-flight fetches, rather than one merged
+    // map per kind covering all 4 facets — see facetNameMap below for why resolveGenreIds
+    // only fetches the specific facets a selection actually touches.
     private object Cache {
-        val byKind = mutableMapOf<String, Map<String, Int>>()
+        val byFacet = mutableMapOf<Pair<String, String>, Map<String, Int>>()
+        val inFlight = mutableMapOf<Pair<String, String>, Deferred<Map<String, Int>>>()
+        val mutex = Mutex()
+        // Its own SupervisorJob-backed scope rather than a caller's viewModelScope: the two
+        // callers racing here (prewarmGenreNames, fired when the filter sheet opens, and
+        // resolveGenreIds, fired on Apply) don't share a lifecycle — the filter sheet's
+        // prewarm coroutine can get cancelled (sheet dismissed) while Apply's search is
+        // still waiting on that same fetch, and the fetch needs to keep running for it.
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 
-    private suspend fun genreNameMap(kind: String): Map<String, Int> {
-        Cache.byKind[kind]?.let { return it }
-        val facets = listOf("genres", "explicit_genres", "themes", "demographics")
-        val merged = withContext(Dispatchers.IO) {
-            coroutineScope {
-                facets.map { facet -> async { runCatching { fetchGenreFacet(kind, facet) }.getOrElse { emptyMap() } } }.awaitAll()
-            }
-        }.fold(emptyMap<String, Int>()) { acc, m -> acc + m }
-        Cache.byKind[kind] = merged
-        return merged
+    // One facet's name->id map (a single Tenrai request), de-duplicated and cached exactly
+    // like genreNameMap's old whole-kind version was, but scoped down to one facet — see
+    // resolveGenreIds for why that split matters. A failed facet simply isn't cached and
+    // gets retried on the next call that needs it, same "only cache real successes" reasoning
+    // the old merged version had.
+    private suspend fun facetNameMap(kind: String, facet: String): Map<String, Int> {
+        val key = kind to facet
+        Cache.byFacet[key]?.let { return it }
+        val deferred = Cache.mutex.withLock {
+            Cache.byFacet[key]?.let { return it }
+            Cache.inFlight.getOrPut(key) { Cache.scope.async { runCatching { fetchGenreFacet(kind, facet) }.onSuccess { Cache.byFacet[key] = it }.getOrElse { emptyMap() } } }
+        }
+        return try {
+            deferred.await()
+        } finally {
+            Cache.mutex.withLock { if (Cache.inFlight[key] === deferred) Cache.inFlight.remove(key) }
+        }
+    }
+
+    // The "genres" chip picker in Advanced Filters draws from both Tenrai's "genres" and
+    // "explicit_genres" facets merged together (Hentai etc. show up as regular genre chips,
+    // not a separate category) — so resolving a genre name has to check both. Themes and
+    // demographics each map to exactly one facet.
+    private suspend fun genreFacetMap(kind: String): Map<String, Int> = coroutineScope {
+        val genres = async { facetNameMap(kind, "genres") }
+        val explicit = async { facetNameMap(kind, "explicit_genres") }
+        genres.await() + explicit.await()
+    }
+
+    // Populates genreNameMap's cache ahead of a real resolveGenreIds call, so a person's
+    // first genre-filtered search of the session doesn't pay for this lookup in the moment
+    // they tap Apply — see LibraryViewModel.prewarmGenreLookup, which calls this as soon as
+    // the filter sheet opens. Prewarms all 4 facets speculatively since the sheet doesn't yet
+    // know which category the person will actually pick from; resolveGenreIds itself only
+    // ever fetches what a given selection needs, so this is strictly a head start, not a
+    // dependency — Apply is correct and reasonably fast even if this hasn't finished (or
+    // wasn't triggered at all) by the time it's tapped. Safe to call repeatedly; each facet
+    // fetch already no-ops once cached.
+    suspend fun prewarmGenreNames(kind: String) {
+        coroutineScope {
+            listOf("genres", "explicit_genres", "themes", "demographics").map { facet -> async { facetNameMap(kind, facet) } }.awaitAll()
+        }
+    }
+
+    // Resolve labels to ids. Only fetches the Tenrai facets a selection actually touches
+    // (genres+explicit_genres / themes / demographics independently) rather than always
+    // fetching all 4 the way a single merged whole-kind map used to require — a person who
+    // only ever picks genre chips (the common case) now pays for 2 facet requests instead of
+    // 4 on an un-prewarmed first search, not just a de-duplicated version of the same 4.
+    suspend fun resolveGenreIds(kind: String, genres: Set<String>, themes: Set<String> = emptySet(), demographics: Set<String> = emptySet()): List<Int> {
+        if (genres.isEmpty() && themes.isEmpty() && demographics.isEmpty()) return emptyList()
+        val (genreMap, themeMap, demoMap) = coroutineScope {
+            val g = if (genres.isNotEmpty()) async { genreFacetMap(kind) } else null
+            val th = if (themes.isNotEmpty()) async { facetNameMap(kind, "themes") } else null
+            val d = if (demographics.isNotEmpty()) async { facetNameMap(kind, "demographics") } else null
+            Triple(g?.await() ?: emptyMap(), th?.await() ?: emptyMap(), d?.await() ?: emptyMap())
+        }
+        // Same "fail the whole set rather than silently drop an unresolved name" reasoning as
+        // before: a selection like Action+Adventure+Fantasy shouldn't quietly become
+        // Action+Adventure the moment Fantasy fails to resolve — the caller in
+        // LibraryViewModel has no way to tell "all resolved" from "some resolved" here, so it
+        // keeps using MalGenreApi with a narrower, wrong filter set instead of falling back
+        // the way it does when resolution fails outright.
+        val resolved = genres.map { genreMap[it.lowercase()] } + themes.map { themeMap[it.lowercase()] } + demographics.map { demoMap[it.lowercase()] }
+        return if (resolved.any { it == null }) emptyList() else resolved.filterNotNull()
     }
 
     private suspend fun fetchGenreFacet(kind: String, facet: String): Map<String, Int> {
@@ -69,13 +139,6 @@ class TenraiApi {
             val name = o.optString("name").takeIf { it.isNotBlank() } ?: return@mapNotNull null
             name.lowercase() to o.optInt("mal_id")
         }.toMap()
-    }
-
-    // Resolve labels to ids
-    suspend fun resolveGenreIds(kind: String, names: Set<String>): List<Int> {
-        if (names.isEmpty()) return emptyList()
-        val map = genreNameMap(kind)
-        return names.mapNotNull { map[it.lowercase()] }
     }
 
     // Id -> name, one map per facet (kept separate rather than merged like genreNameMap

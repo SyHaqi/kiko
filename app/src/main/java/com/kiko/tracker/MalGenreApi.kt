@@ -1,6 +1,12 @@
 package com.kiko.tracker
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Element
 
@@ -115,6 +121,25 @@ class MalGenreApi {
         val title = link.text()
         val idRegex = if (kind == "anime") Regex("/anime/(\\d+)/") else Regex("/manga/(\\d+)/")
         val id = idRegex.find(link.attr("href"))?.groupValues?.get(1)?.toIntOrNull() ?: return null
+        // The title link's own text is whatever MAL's advanced-search table renders by
+        // default (the site's default/romaji title) — it was never the English title, so
+        // MediaItem.titleEnglish was left blank for every row this scraper produced.
+        // A previous attempt tried to recover it from a per-row "#info{id}" hover box, but
+        // the actual page source (confirmed against a real saved anime.php response) shows
+        // that box doesn't even use that id pattern (it's "#sinfo{id}", not "#info{id}") —
+        // and more importantly it ships completely empty either way:
+        //   <div class="hoverinfo" id="sinfo41380" rel="a41380"></div>
+        // MAL populates it client-side, via JS, only when a real browser actually hovers the
+        // title — there is no English title anywhere in this page's static HTML for this
+        // scrape to read, for any row, so no selector fix here could ever have worked.
+        // English titles for these rows are instead backfilled after the fact, keyed by the
+        // MAL id this scrape already extracts above, via MalApi.englishTitles() — a small
+        // per-id request against MAL's own official API (fields=alternative_titles{en})
+        // rather than another scrape. See LibraryViewModel.enrichBlankEnglishTitles, which
+        // runs that lookup in the background after these results are already on screen so
+        // it can't add latency to the search itself, and only when the Title Language
+        // setting is actually English (nothing on screen needs it otherwise).
+        val titleEnglish = ""
         val cover = row.selectFirst("img")?.let { img ->
             val raw = img.attr("data-src").ifBlank { img.attr("src") }
             fullResMalImage(img.absUrl(if (img.hasAttr("data-src")) "data-src" else "src").ifBlank { raw })
@@ -149,6 +174,7 @@ class MalGenreApi {
             format = typeText,
             startDate = startYear,
             startDateFull = startDateFull,
+            titleEnglish = titleEnglish,
             inUserList = false,
             // The search results table never carries genre/theme/demographic/source/rating
             // per row — see the class doc above for why that's fine here.
@@ -177,5 +203,103 @@ class MalGenreApi {
         val month = (mm.toIntOrNull()?.takeIf { it in 1..12 } ?: 1).toString().padStart(2, '0')
         val day = (dd.toIntOrNull()?.takeIf { it in 1..31 } ?: 1).toString().padStart(2, '0')
         return fullYear.toString() to "$fullYear-$month-$day"
+    }
+}
+
+// Name -> id lookup for genre/theme/demographic filter chips, scraped straight off the
+// "Content Filter" checkbox panel on anime.php/manga.php's own Advanced Search — the exact
+// same page MalGenreApi.search() already fetches for results, so these are guaranteed to be
+// the real ids MAL's own search understands. Replaces TenraiApi.resolveGenreIds, which
+// needed 2-4 separate requests to api.tenrai.org (throttled to 3 concurrent with retry/
+// backoff on 429s) before a genre-filtered Discover search could even begin — that's what
+// made "search by genres" feel like it took forever. This gets every facet in a single
+// request per kind, with zero external dependency, and caches the result in memory for the
+// rest of the session (same one-request-per-kind shape as TenraiApi.Cache had, just against
+// MAL directly instead of a third party).
+//
+// Anime and manga do NOT share one id space here — e.g. manga's Crossdressing is id 44 where
+// anime's is 81 — so this resolves per kind rather than once globally, same as the old
+// Tenrai-backed version did.
+data class GenreFacets(
+    val genres: Map<String, Int>,
+    val explicitGenres: Map<String, Int>,
+    val themes: Map<String, Int>,
+    val demographics: Map<String, Int>,
+)
+
+private object GenreFacetCache {
+    val byKind = mutableMapOf<String, GenreFacets>()
+    val inFlight = mutableMapOf<String, Deferred<GenreFacets>>()
+    val mutex = Mutex()
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+}
+
+// Every checkbox label on the filter panel carries a trailing member-count, e.g.
+// "Action (5,017)" — stripped so the name matches what CommonGenres/CommonThemes/
+// CommonDemographics (Models.kt) and the person's own selections actually say.
+private val genreLabelCountSuffix = Regex("\\s*\\([\\d,]+\\)\\s*$")
+
+class MalGenreLookup {
+    private val client = NetworkClient.shared
+
+    // Fired when the filter sheet opens (see LibraryViewModel.prewarmGenreLookup), so the
+    // first genre-filtered search of the session doesn't pay for this fetch in the moment
+    // Apply is tapped. Safe to call repeatedly — facets() below no-ops once cached.
+    suspend fun prewarmGenreNames(kind: String) { runCatching { facets(kind) } }
+
+    // Same "fail the whole set rather than silently drop an unresolved name" contract the
+    // old TenraiApi.resolveGenreIds had: LibraryViewModel falls back to a broad ranking pool
+    // when this comes back empty, rather than quietly searching a narrower filter set.
+    suspend fun resolveGenreIds(kind: String, genres: Set<String>, themes: Set<String> = emptySet(), demographics: Set<String> = emptySet()): List<Int> {
+        if (genres.isEmpty() && themes.isEmpty() && demographics.isEmpty()) return emptyList()
+        val f = runCatching { facets(kind) }.getOrNull() ?: return emptyList()
+        // The "Genres" chip picker in Advanced Filters draws from both the panel's Genres
+        // and Explicit Genres groups merged together (Hentai etc. show up as regular genre
+        // chips, not a separate category) — same merge TenraiApi.genreFacetMap did.
+        val genreMap = f.genres + f.explicitGenres
+        val resolved = genres.map { genreMap[it.lowercase()] } + themes.map { f.themes[it.lowercase()] } + demographics.map { f.demographics[it.lowercase()] }
+        return if (resolved.any { it == null }) emptyList() else resolved.filterNotNull()
+    }
+
+    private suspend fun facets(kind: String): GenreFacets {
+        GenreFacetCache.byKind[kind]?.let { return it }
+        val deferred = GenreFacetCache.mutex.withLock {
+            GenreFacetCache.byKind[kind]?.let { return it }
+            GenreFacetCache.inFlight.getOrPut(kind) {
+                GenreFacetCache.scope.async { fetchFacets(kind).also { GenreFacetCache.byKind[kind] = it } }
+            }
+        }
+        return try {
+            deferred.await()
+        } finally {
+            GenreFacetCache.mutex.withLock { if (GenreFacetCache.inFlight[kind] === deferred) GenreFacetCache.inFlight.remove(kind) }
+        }
+    }
+
+    // One request gets every facet: the panel groups its checkboxes under a
+    // "Genres"/"Explicit Genres"/"Themes"/"Demographics" heading (div.category-type) inside
+    // a shared div.category-wrapper, each checkbox's real MAL id sitting in its own
+    // name="genre[]" input, with the display name (minus the trailing count) in the
+    // following <p>.
+    private fun fetchFacets(kind: String): GenreFacets {
+        val url = if (kind == "anime") "https://myanimelist.net/anime.php" else "https://myanimelist.net/manga.php"
+        val doc = client.fetchMalDocument(url)
+        val byCategory = mutableMapOf<String, MutableMap<String, Int>>()
+        doc.select("div.category-wrapper").forEach { wrapper ->
+            val category = wrapper.selectFirst("div.category-type")?.text()?.trim() ?: return@forEach
+            val map = byCategory.getOrPut(category) { mutableMapOf() }
+            wrapper.select("input[name=genre[]]").forEach { input ->
+                val id = input.attr("value").toIntOrNull() ?: return@forEach
+                val label = input.nextElementSibling()?.takeIf { it.tagName() == "p" }?.text()?.trim() ?: return@forEach
+                val name = label.replace(genreLabelCountSuffix, "").trim()
+                if (name.isNotBlank()) map[name.lowercase()] = id
+            }
+        }
+        return GenreFacets(
+            genres = byCategory["Genres"].orEmpty(),
+            explicitGenres = byCategory["Explicit Genres"].orEmpty(),
+            themes = byCategory["Themes"].orEmpty(),
+            demographics = byCategory["Demographics"].orEmpty(),
+        )
     }
 }
