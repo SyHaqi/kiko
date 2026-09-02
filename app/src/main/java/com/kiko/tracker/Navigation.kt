@@ -410,7 +410,19 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
                                 airingInfo = vm.getCachedAiring(screen.item.id),
                             )
-                            is TopScreen.CharacterPage -> CharacterDetailScreen(screen.character, onBack = { characterDetailOpen = null })
+                            is TopScreen.CharacterPage -> CharacterDetailScreen(
+                                screen.character,
+                                onBack = { val malId = characterDetailOpen?.malId; characterDetailOpen = null; malId?.let(vm::forgetCharacterScroll) },
+                                onOpenWork = { malId, type -> vm.openCharacterWork(context, malId, type, ::openDetail) },
+                                workLoadingId = vm.characterWorkLoadingId,
+                                myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
+                                initialScroll = vm.getCharacterScroll(screen.character.malId),
+                                initialAnimeScroll = vm.getCharacterAnimeScroll(screen.character.malId),
+                                initialMangaScroll = vm.getCharacterMangaScroll(screen.character.malId),
+                                onLeaveScroll = { index, offset -> vm.saveCharacterScroll(screen.character.malId, index, offset) },
+                                onLeaveAnimeScroll = { index, offset -> vm.saveCharacterAnimeScroll(screen.character.malId, index, offset) },
+                                onLeaveMangaScroll = { index, offset -> vm.saveCharacterMangaScroll(screen.character.malId, index, offset) },
+                            )
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
                             is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)

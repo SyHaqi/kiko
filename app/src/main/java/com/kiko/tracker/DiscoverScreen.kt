@@ -302,7 +302,7 @@ import androidx.compose.ui.layout.ContentScale
     val editResult: (MediaItem) -> Unit = { result -> vm.openDiscoverDetail(context, result, onEdit) }
     val openCharacterResult: (CharacterSummary) -> Unit = { result ->
         vm.saveDiscoverScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
-        vm.openCharacterDetail(result.malId, onOpenCharacter)
+        vm.openCharacterDetail(context, result.malId, onOpenCharacter)
     }
     // Search results come straight from the MAL search endpoint, not the user's own list, so
     // each result's baked-in status is just a snapshot from when the search ran — it doesn't

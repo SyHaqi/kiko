@@ -3,14 +3,15 @@
 package com.kiko.tracker
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -40,15 +42,59 @@ import coil.compose.AsyncImage
 // name, kanji name, bio fields, free-text about, then Voice Actors / Animeography /
 // Mangaography rows — same row-card language (PersonCard, DetailRowCard, SectionTitle)
 // the anime/manga detail page already uses, so it still reads as part of the same app.
-@Composable fun CharacterDetailScreen(character: CharacterDetail, onBack: () -> Unit) {
+//
+// Animeography/Mangaography specifically are treated exactly like the anime/manga detail
+// page's own Related/Recommended rows: same DetailRowCard, same in-app fetch-then-open
+// (onOpenWork) instead of a browser hop, same per-card loading spinner while that fetch is
+// in flight (workLoadingId), and the same "already in your list" status mark (myListStatus)
+// — a character's animeography/mangaography entries are real anime/manga ids on this same
+// MAL account, so there's no reason they should behave differently from Related/Recommended.
+// Titles in those two rows also follow this app's own Title Language setting the same way
+// DetailScreen's own title does — see CharacterWork.displayTitle() in CharacterModels.kt.
+//
+// Scroll position (this page's own vertical scroll, plus the Animeography/Mangaography
+// rows) is persisted the same way DetailScreen persists its own scroll + Related/
+// Recommended row scroll: seeded from initialScroll/initialAnimeScroll/initialMangaScroll
+// on entry, saved via onLeaveScroll/onLeaveAnimeScroll/onLeaveMangaScroll on the way out.
+// Without this, tapping an Animeography/Mangaography entry (which tears this composable
+// down via Navigation.kt's AnimatedContent, same as a related/recommended hop does for
+// DetailScreen) and backing out reset this page to the top instead of where the user left
+// it. Voice Actors deliberately isn't included here — tapping one opens an external browser
+// tab rather than navigating in-app, so this composable is never torn down for it and
+// there's nothing to lose.
+@Composable fun CharacterDetailScreen(
+    character: CharacterDetail,
+    onBack: () -> Unit,
+    onOpenWork: (malId: Int, type: MediaType) -> Unit,
+    workLoadingId: Int? = null,
+    myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(),
+    initialScroll: Pair<Int, Int> = 0 to 0,
+    initialAnimeScroll: Pair<Int, Int> = 0 to 0,
+    initialMangaScroll: Pair<Int, Int> = 0 to 0,
+    onLeaveScroll: (Int, Int) -> Unit = { _, _ -> },
+    onLeaveAnimeScroll: (Int, Int) -> Unit = { _, _ -> },
+    onLeaveMangaScroll: (Int, Int) -> Unit = { _, _ -> },
+) {
     val c = LocalKikoColors.current
     val uriHandler = LocalUriHandler.current
-    val listState = rememberLazyListState()
+    val listState = remember(character.malId) { LazyListState(initialScroll.first, initialScroll.second) }
+    val animeListState = remember(character.malId) { LazyListState(initialAnimeScroll.first, initialAnimeScroll.second) }
+    val mangaListState = remember(character.malId) { LazyListState(initialMangaScroll.first, initialMangaScroll.second) }
+    DisposableEffect(character.malId) {
+        onDispose {
+            onLeaveScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+            onLeaveAnimeScroll(animeListState.firstVisibleItemIndex, animeListState.firstVisibleItemScrollOffset)
+            onLeaveMangaScroll(mangaListState.firstVisibleItemIndex, mangaListState.firstVisibleItemScrollOffset)
+        }
+    }
     BackHandler(onBack = onBack)
     val voiceActorsSeen = rememberStaggerMemory()
     val animeSeen = rememberStaggerMemory()
     val mangaSeen = rememberStaggerMemory()
     var showFullImage by remember(character.malId) { mutableStateOf(false) }
+    // Same collapsed-to-3-lines / tap-to-expand treatment as DetailScreen's own Synopsis
+    // (see DetailScreen.kt) — a character's About/background text can run just as long.
+    var aboutExpanded by remember(character.malId) { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
@@ -113,7 +159,14 @@ import coil.compose.AsyncImage
 
                     if (character.about.isNotBlank()) {
                         SectionTitle("About", "", {})
-                        Text(character.about, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp)
+                        Text(
+                            character.about, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp,
+                            maxLines = if (aboutExpanded) Int.MAX_VALUE else 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .animateContentSize()
+                                .clickable { aboutExpanded = !aboutExpanded },
+                        )
                     }
 
                     if (character.voiceActors.isNotEmpty()) {
@@ -129,10 +182,16 @@ import coil.compose.AsyncImage
 
                     if (character.animeography.isNotEmpty()) {
                         SectionTitle("Animeography", "", {})
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        LazyRow(state = animeListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(character.animeography, key = { _, w -> "anime-${w.malId}" }) { i, work ->
                                 StaggeredItem(i, animeSeen) {
-                                    DetailRowCard(imageUrl = work.image, fallbackLetter = work.title.take(1), title = work.title, label = work.role, onClick = { runCatching { uriHandler.openUri("https://myanimelist.net/anime/${work.malId}") } })
+                                    val workTitle = work.displayTitle()
+                                    DetailRowCard(
+                                        imageUrl = work.image, fallbackLetter = workTitle.take(1), title = workTitle, label = work.role,
+                                        loading = workLoadingId == work.malId,
+                                        myStatus = myListStatus[work.malId to MediaType.Anime],
+                                        onClick = { onOpenWork(work.malId, MediaType.Anime) },
+                                    )
                                 }
                             }
                         }
@@ -140,10 +199,16 @@ import coil.compose.AsyncImage
 
                     if (character.mangaography.isNotEmpty()) {
                         SectionTitle("Mangaography", "", {})
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        LazyRow(state = mangaListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(character.mangaography, key = { _, w -> "manga-${w.malId}" }) { i, work ->
                                 StaggeredItem(i, mangaSeen) {
-                                    DetailRowCard(imageUrl = work.image, fallbackLetter = work.title.take(1), title = work.title, label = work.role, onClick = { runCatching { uriHandler.openUri("https://myanimelist.net/manga/${work.malId}") } })
+                                    val workTitle = work.displayTitle()
+                                    DetailRowCard(
+                                        imageUrl = work.image, fallbackLetter = workTitle.take(1), title = workTitle, label = work.role,
+                                        loading = workLoadingId == work.malId,
+                                        myStatus = myListStatus[work.malId to MediaType.Manga],
+                                        onClick = { onOpenWork(work.malId, MediaType.Manga) },
+                                    )
                                 }
                             }
                         }

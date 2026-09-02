@@ -1,5 +1,7 @@
 package com.kiko.tracker
 
+import androidx.compose.runtime.Composable
+
 // Character search/detail live outside the MediaItem model on purpose — MediaItem's shape
 // (episodes, format, genres, watch status, ...) is anime/manga tracking data that a
 // character simply doesn't have, and forcing it in would mean a pile of fields that are
@@ -18,8 +20,21 @@ data class CharacterSummary(
     val relatedWorks: List<String> = emptyList(),
 )
 
-// One row in a character's Animeography/Mangaography list
-data class CharacterWork(val malId: Int, val title: String, val image: String = "", val role: String = "")
+// One row in a character's Animeography/Mangaography list. titleEnglish starts blank —
+// MAL's character page only ever renders one title per work (whatever this MAL account's
+// own title-display preference is, which this app doesn't control) — and is filled in
+// afterwards by LibraryViewModel.resolveCharacterWorkTitles so displayTitle() below can
+// actually honor this app's own Title Language setting, same as everywhere else titles
+// appear (see MediaItem.displayTitle() in Models.kt).
+data class CharacterWork(val malId: Int, val title: String, val image: String = "", val role: String = "", val titleEnglish: String = "")
+
+// Mirrors MediaItem.displayTitle()/secondaryTitle() in Models.kt — same LocalTitleLanguage
+// preference, applied to a character's Animeography/Mangaography rows.
+@Composable
+fun CharacterWork.displayTitle(): String {
+    val pref = LocalTitleLanguage.current
+    return if (pref == TitleLanguage.English && titleEnglish.isNotBlank()) titleEnglish else title
+}
 
 // One row in a character's Voice Actors list — every dub, not just Japanese (unlike
 // CharacterEntry.japaneseVoiceActor on an anime/manga detail page, which only ever needs

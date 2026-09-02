@@ -545,6 +545,30 @@ class LibraryViewModel : ViewModel() {
     // Resolved character pages, so re-opening one already visited this session (e.g.
     // backing out and tapping it again) doesn't re-scrape MAL.
     private val characterDetailCache = mutableMapOf<Int, CharacterDetail>()
+    // Character detail page's own scroll positions — mirrors detailScrollPositions/
+    // getRelatedRowScroll/getRecommendedRowScroll above, but keyed by the character's own
+    // MAL id (a separate id space from anime/manga) rather than id+type. Without this,
+    // tapping into an Animeography/Mangaography entry and backing out reset the character
+    // page (and its two rows) to the top every time, since Navigation.kt's AnimatedContent
+    // tears CharacterDetailScreen down and rebuilds it, same as it does for DetailScreen's
+    // own related/recommended hops.
+    private data class CharacterScrollCache(
+        var main: Pair<Int, Int> = 0 to 0,
+        var anime: Pair<Int, Int> = 0 to 0,
+        var manga: Pair<Int, Int> = 0 to 0,
+    )
+    private val characterScrollCaches = mutableMapOf<Int, CharacterScrollCache>()
+    private fun characterScrollCache(malId: Int) = characterScrollCaches.getOrPut(malId) { CharacterScrollCache() }
+    fun getCharacterScroll(malId: Int) = characterScrollCache(malId).main
+    fun saveCharacterScroll(malId: Int, index: Int, offset: Int) { characterScrollCache(malId).main = index to offset }
+    fun getCharacterAnimeScroll(malId: Int) = characterScrollCache(malId).anime
+    fun saveCharacterAnimeScroll(malId: Int, index: Int, offset: Int) { characterScrollCache(malId).anime = index to offset }
+    fun getCharacterMangaScroll(malId: Int) = characterScrollCache(malId).manga
+    fun saveCharacterMangaScroll(malId: Int, index: Int, offset: Int) { characterScrollCache(malId).manga = index to offset }
+    // Drop a character's remembered scroll once its page is fully backed out of — call
+    // from Navigation.kt's onBack, same lifecycle as forgetDetailPage for the anime/manga
+    // related/recommended chain.
+    fun forgetCharacterScroll(malId: Int) { characterScrollCaches.remove(malId) }
 
     // Run a character search — mirrors runDiscoverSearch's role (sets discoverQuery/
     // discoverTypeFilter/discoverMode too) but talks to MalCharacterApi instead of the
@@ -595,16 +619,45 @@ class LibraryViewModel : ViewModel() {
     }
 
     // Fetch a tapped search row's full character page before navigating — same
-    // fetch-then-open shape as openDiscoverDetail below.
-    fun openCharacterDetail(malId: Int, onLoaded: (CharacterDetail) -> Unit) {
+    // fetch-then-open shape as openDiscoverDetail below. Animeography/Mangaography titles
+    // are resolved against this app's own Title Language setting before caching/handing
+    // back the result (see resolveCharacterWorkTitles) so a re-open from cache doesn't need
+    // to redo that work either.
+    fun openCharacterDetail(context: Context, malId: Int, onLoaded: (CharacterDetail) -> Unit) {
         characterDetailCache[malId]?.let { onLoaded(it); return }
         characterDetailLoadingId = malId
         viewModelScope.launch {
-            runCatching { malCharacterApi.detail(malId) }
+            runCatching { resolveCharacterWorkTitles(context, malCharacterApi.detail(malId)) }
                 .onSuccess { characterDetailCache[malId] = it; onLoaded(it) }
                 .onFailure { error = it.message ?: "Could not load character" }
             characterDetailLoadingId = null
         }
+    }
+    // Resolves English titles for a character's Animeography/Mangaography rows. MAL's
+    // character page only ever renders one title per work — whatever this MAL account's
+    // own title-display preference is, which nothing here controls (see
+    // MalCharacterApi.parseWorks's own doc comment) — so getting this app's own Title
+    // Language setting to actually govern those two rows needs the same englishTitles
+    // lookup resolveEnglishTitles above uses for Discover rows. No-ops when Title Language
+    // isn't English, for the same reason resolveEnglishTitles no-ops: nothing on screen
+    // reads titleEnglish otherwise. MalApi.englishTitles caches by kind+id internally, so a
+    // work that shows up in more than one character's animeography/mangaography (or was
+    // already resolved from Discover) is never re-fetched.
+    private suspend fun resolveCharacterWorkTitles(context: Context, detail: CharacterDetail): CharacterDetail {
+        if (titleLanguage != TitleLanguage.English) return detail
+        if (detail.animeography.isEmpty() && detail.mangaography.isEmpty()) return detail
+        suspend fun patch(works: List<CharacterWork>, kind: String): List<CharacterWork> {
+            if (works.isEmpty()) return works
+            val titles = runCatching { MalApi(context).englishTitles(kind, works.map { it.malId }) }.getOrElse { emptyMap() }
+            if (titles.isEmpty()) return works
+            return works.map { w -> titles[w.malId]?.takeIf { it.isNotBlank() }?.let { w.copy(titleEnglish = it) } ?: w }
+        }
+        val (animeTitles, mangaTitles) = coroutineScope {
+            val anime = async { patch(detail.animeography, "anime") }
+            val manga = async { patch(detail.mangaography, "manga") }
+            anime.await() to manga.await()
+        }
+        return detail.copy(animeography = animeTitles, mangaography = mangaTitles)
     }
 
     // Home recommendations row
@@ -1320,6 +1373,22 @@ class LibraryViewModel : ViewModel() {
                 .onSuccess { cache.resolvedItem = it; onLoaded(it) }
                 .onFailure { error = it.message ?: "Could not load title" }
             relatedLoadingId = null
+        }
+    }
+
+    // Animeography/Mangaography row loading id — same fetch-then-open shape as
+    // openRelated above, since a character's animeography/mangaography entries are real
+    // anime/manga ids and deserve the same in-app detail page, not a browser hop.
+    var characterWorkLoadingId by mutableStateOf<Int?>(null); private set
+    fun openCharacterWork(context: Context, malId: Int, type: MediaType, onLoaded: (MediaItem) -> Unit) {
+        val cache = detailCache(malId.toString(), type)
+        cache.resolvedItem?.let { onLoaded(it); return }
+        characterWorkLoadingId = malId
+        viewModelScope.launch {
+            runCatching { MalApi(context).detail(malId, type) }
+                .onSuccess { cache.resolvedItem = it; onLoaded(it) }
+                .onFailure { error = it.message ?: "Could not load title" }
+            characterWorkLoadingId = null
         }
     }
 
