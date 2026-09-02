@@ -191,6 +191,7 @@ class LibraryViewModel : ViewModel() {
         var scoreStats: ScoreStats? = null,
         var relatedScroll: Pair<Int, Int> = 0 to 0,
         var recommendedScroll: Pair<Int, Int> = 0 to 0,
+        var charactersScroll: Pair<Int, Int> = 0 to 0,
     )
     private val detailCaches = mutableMapOf<Pair<String, MediaType>, DetailCache>()
     private fun detailCache(id: String, type: MediaType) = detailCaches.getOrPut(id to type) { DetailCache() }
@@ -235,6 +236,12 @@ class LibraryViewModel : ViewModel() {
     fun saveRelatedRowScroll(id: String, type: MediaType, index: Int, offset: Int) { detailCache(id, type).relatedScroll = index to offset }
     fun getRecommendedRowScroll(id: String, type: MediaType) = detailCache(id, type).recommendedScroll
     fun saveRecommendedRowScroll(id: String, type: MediaType, index: Int, offset: Int) { detailCache(id, type).recommendedScroll = index to offset }
+    // Same idea for the Characters row — without this, opening a character from the
+    // row (see onOpenCharacter) and coming back snapped it to the first item, since
+    // that hop tears DetailScreen down and rebuilds it just like the related/
+    // recommended hops above.
+    fun getCharactersRowScroll(id: String, type: MediaType) = detailCache(id, type).charactersScroll
+    fun saveCharactersRowScroll(id: String, type: MediaType, index: Int, offset: Int) { detailCache(id, type).charactersScroll = index to offset }
     // Same idea for a stack's own entry grid — restores scroll position when
     // coming back from an entry's detail page instead of resetting to top
     private val stackDetailScrollPositions = mutableMapOf<Int, Pair<Int, Int>>()

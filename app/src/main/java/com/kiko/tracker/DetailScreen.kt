@@ -80,9 +80,15 @@ data class DetailScreenActions(
     val onOpenReviewList: (String, String) -> Unit = { _, _ -> },
     val onGenreClick: (String) -> Unit = {},
     val onCreatorClick: (String) -> Unit = {},
+    // Opens a Characters-row entry's own full character page in-app (see
+    // CharacterDetailScreen) — a fetch-then-open just like onOpenRelated/onOpenRecommended
+    // above, since CharacterEntry only carries the row's own summary fields, not the full
+    // bio/animeography/mangaography CharacterDetail needs.
+    val onOpenCharacter: (malId: Int) -> Unit = {},
     val onLeaveScroll: (Int, Int) -> Unit = { _, _ -> },
     val onLeaveRelatedScroll: (Int, Int) -> Unit = { _, _ -> },
     val onLeaveRecommendedScroll: (Int, Int) -> Unit = { _, _ -> },
+    val onLeaveCharactersScroll: (Int, Int) -> Unit = { _, _ -> },
     // Kicks off the best-effort AniList lookup for the confirmed next-episode number + air
     // time (see LibraryViewModel.loadAiringEpisode) — the result itself arrives via the
     // airingInfo param below, same split as relatedLoadingId/onBackfillRelated above.
@@ -128,7 +134,7 @@ data class DetailScreenActions(
     }
 }
 
-@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null, airingInfo: AiringInfo? = null) {
+@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, castLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, initialCharactersScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null, airingInfo: AiringInfo? = null) {
     LaunchedEffect(item.id) { actions.onLoadAiringEpisode(item) }
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
@@ -210,12 +216,17 @@ data class DetailScreenActions(
     // in Navigation.kt).
     val relatedListState = remember(item.id) { LazyListState(initialRelatedScroll.first, initialRelatedScroll.second) }
     val recommendedListState = remember(item.id) { LazyListState(initialRecommendedScroll.first, initialRecommendedScroll.second) }
+    // Same as relatedListState/recommendedListState above — without a remembered,
+    // cache-seeded state here, opening a character from this row and coming back
+    // snapped the Characters row back to its first item.
+    val charactersListState = remember(item.id) { LazyListState(initialCharactersScroll.first, initialCharactersScroll.second) }
     // Save spot on leave
     DisposableEffect(item.id) {
         onDispose {
             actions.onLeaveScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
             actions.onLeaveRelatedScroll(relatedListState.firstVisibleItemIndex, relatedListState.firstVisibleItemScrollOffset)
             actions.onLeaveRecommendedScroll(recommendedListState.firstVisibleItemIndex, recommendedListState.firstVisibleItemScrollOffset)
+            actions.onLeaveCharactersScroll(charactersListState.firstVisibleItemIndex, charactersListState.firstVisibleItemScrollOffset)
         }
     }
     // Share single decoded painter. Opts into hardware bitmaps (allowHardware(true)) here
@@ -467,8 +478,12 @@ data class DetailScreenActions(
 
                     if (characters.isNotEmpty()) {
                         SectionTitle("Characters", "See cast", { actions.onOpenReviewList(malCharactersUrl(item), itemDisplayTitle) })
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch -> StaggeredItem(i, charactersSeen) { CharacterCard(ch, uriHandler) } }
+                        LazyRow(state = charactersListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch ->
+                                StaggeredItem(i, charactersSeen) {
+                                    CharacterCard(ch, loading = castLoadingId == ch.malId, onClick = { actions.onOpenCharacter(ch.malId) })
+                                }
+                            }
                         }
                     } else if (charactersFailed) {
                         // Fetch itself failed (as opposed to the title just having no cast
@@ -738,17 +753,22 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 }
 // Compact card for characters/voice-actor rows
 
-@Composable fun PersonCard(imageUrl: String, fallbackLetter: String, name: String, role: String, onClick: (() -> Unit)?) {
+@Composable fun PersonCard(imageUrl: String, fallbackLetter: String, name: String, role: String, loading: Boolean = false, onClick: (() -> Unit)?) {
     val c = LocalKikoColors.current
     Column(
         Modifier.width(88.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)
-            .let { m -> onClick?.let { m.kikoClickable(onClick = it) } ?: m },
+            .let { m -> onClick?.let { m.kikoClickable(enabled = !loading, onClick = it) } ?: m },
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(3f / 4f).clip(RoundedCornerShape(topStart = kikoCorner(14.dp), topEnd = kikoCorner(14.dp))).background(c.surfaceLow)) {
             if (imageUrl.isNotBlank()) {
                 AsyncImage(model = imageUrl, contentDescription = name, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
                 Text(fallbackLetter, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+            }
+            if (loading) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .45f)), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                }
             }
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp)) {
@@ -757,15 +777,17 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
         }
     }
 }
-// Character card opens MAL page
+// Character card opens the character's own in-app detail page (see CharacterDetailScreen)
+// — a fetch-then-open via DetailScreenActions.onOpenCharacter, same shape as tapping a
+// Related/Recommended card, rather than the external MAL page hop this used to be.
 
-@Composable fun CharacterCard(entry: CharacterEntry, uriHandler: androidx.compose.ui.platform.UriHandler) {
-    PersonCard(entry.image, entry.name.take(1), entry.name, entry.role) { entry.url.takeIf { it.isNotBlank() }?.let { runCatching { uriHandler.openUri(it) } } }
+@Composable fun CharacterCard(entry: CharacterEntry, loading: Boolean = false, onClick: () -> Unit) {
+    PersonCard(entry.image, entry.name.take(1), entry.name, entry.role, loading = loading, onClick = onClick)
 }
 // Voice actor card opens the VA's own MAL page; the character they voice is shown as the subtitle
 
 @Composable fun VoiceActorCard(entry: VoiceActorEntry, characterName: String, uriHandler: androidx.compose.ui.platform.UriHandler) {
-    PersonCard(entry.image, entry.name.take(1), entry.name, characterName) { entry.url.takeIf { it.isNotBlank() }?.let { runCatching { uriHandler.openUri(it) } } }
+    PersonCard(entry.image, entry.name.take(1), entry.name, characterName, onClick = { entry.url.takeIf { it.isNotBlank() }?.let { runCatching { uriHandler.openUri(it) } } })
 }
 // Review card opens full text
 
