@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 
 @Composable fun DiscoverScreen(
     vm: LibraryViewModel,
@@ -64,7 +66,8 @@ import kotlinx.coroutines.launch
     onRecommendations: () -> Unit,
     onExitResults: () -> Unit = vm::exitDiscoverSearch,
     onEdit: (MediaItem) -> Unit = {},
-    selectedItem: MediaItem? = null
+    selectedItem: MediaItem? = null,
+    onOpenCharacter: (CharacterDetail) -> Unit = {},
 ) {
     val context = LocalContext.current
     // loadHomeExtras() populates both trendingManga (this row) and recommendations
@@ -78,7 +81,7 @@ import kotlinx.coroutines.launch
         transitionSpec = { if (targetState == DiscoverMode.Results) PushEnter togetherWith PushExit else PopEnter togetherWith PopExit },
         label = "discover-mode",
     ) { mode ->
-        if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults, onEdit, selectedItem)
+        if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults, onEdit, selectedItem, onOpenCharacter)
         else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks, onRecommendations, onEdit, selectedItem)
     }
 }
@@ -282,7 +285,7 @@ import kotlinx.coroutines.launch
 // Interest Stacks homepage — curated Challenge/Manga/Anime picks up top, Recent Interest Stacks below.
 // Greets the user when they tap the Stacks button, mirroring myanimelist.net/stacks.
 
-@Composable fun DiscoverResultsScreen(vm: LibraryViewModel, context: Context, onOpenDetail: (MediaItem) -> Unit, onExitResults: () -> Unit = vm::exitDiscoverSearch, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
+@Composable fun DiscoverResultsScreen(vm: LibraryViewModel, context: Context, onOpenDetail: (MediaItem) -> Unit, onExitResults: () -> Unit = vm::exitDiscoverSearch, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null, onOpenCharacter: (CharacterDetail) -> Unit = {}) {
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf(vm.discoverQuery) }
     var filterSheetOpen by remember { mutableStateOf(false) }
@@ -297,6 +300,10 @@ import kotlinx.coroutines.launch
     // Long-press to edit — same fetch-full-detail-first step as tapping through,
     // since a bare search result row doesn't carry everything EditSheet wants.
     val editResult: (MediaItem) -> Unit = { result -> vm.openDiscoverDetail(context, result, onEdit) }
+    val openCharacterResult: (CharacterSummary) -> Unit = { result ->
+        vm.saveDiscoverScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+        vm.openCharacterDetail(result.malId, onOpenCharacter)
+    }
     // Search results come straight from the MAL search endpoint, not the user's own list, so
     // each result's baked-in status is just a snapshot from when the search ran — it doesn't
     // update on its own after tracking/editing a title from its detail page and coming back.
@@ -354,44 +361,85 @@ import kotlinx.coroutines.launch
                     Box(Modifier.weight(1f)) {
                         SearchField(
                             query,
-                            { query = it; vm.fetchDiscoverSuggestions(context, it, vm.discoverTypeFilter) },
+                            { query = it; if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") vm.fetchDiscoverSuggestions(context, it, vm.discoverTypeFilter) else vm.clearDiscoverSuggestions() },
                             "Search in MAL",
-                            onSearch = { vm.clearDiscoverSuggestions(); vm.runDiscoverSearch(context, query, vm.discoverTypeFilter) },
+                            onSearch = { vm.clearDiscoverSuggestions(); vm.selectDiscoverType(context, vm.discoverTypeFilter, query) },
                             focusRequester = searchFocusRequester,
                         )
                     }
-                    FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true; vm.prewarmGenreLookup() }, modifier = Modifier.padding(start = 10.dp))
+                    // Advanced filters (format/genre/year/score) only make sense for Anime/Manga
+                    if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
+                        FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true; vm.prewarmGenreLookup() }, modifier = Modifier.padding(start = 10.dp))
+                    }
                 }
                 // Fixes type/format mismatch
                 if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) })
 
                 Row(Modifier.fillMaxWidth().padding(top = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
-                        items(listOf("Anime", "Manga")) { label -> FilterChip(selected = vm.discoverTypeFilter == label, onClick = { vm.runDiscoverSearch(context, query, label) }, label = { Text(label) }, colors = kikoFilterChipColors()) }
+                    DiscoverTypeDropdown(current = vm.discoverTypeFilter, onSelect = { picked -> vm.selectDiscoverType(context, picked, query) })
+                    if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
+                        DiscoverSortMenu(current = vm.discoverSort, onSelect = { vm.selectDiscoverSort(context, it) }, modifier = Modifier.padding(start = 8.dp))
                     }
-                    DiscoverSortMenu(current = vm.discoverSort, onSelect = { vm.selectDiscoverSort(context, it) }, modifier = Modifier.padding(start = 8.dp))
                 }
-                if (vm.discoverSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-                vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                when (vm.discoverTypeFilter) {
+                    "Characters" -> {
+                        if (vm.characterSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                        vm.characterError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                    }
+                    "Anime", "Manga" -> {
+                        if (vm.discoverSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                        vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                    }
+                    else -> {}
+                }
             }
-            if (!vm.discoverSearching && vm.visibleDiscoverResults.isEmpty() && vm.discoverError == null) {
-                val emptyMessage = if (vm.discoverQuery.isBlank()) "No results match your filters." else "No results for \"${vm.discoverQuery}\"."
-                item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-            }
-            // Keyed by id+type together, not id alone — anime and manga are separate MAL id
-            // spaces, so a search that mixes both kinds (e.g. "stein" matching an anime and
-            // an unrelated manga with the same numeric id) can produce two rows with the same
-            // id. LazyColumn requires unique keys; a collision here throws mid-scroll/fling
-            // ("Key ... was already used"), which is what the crash while scrolling was.
-            val resultsForList = vm.visibleDiscoverResults
-            if (vm.discoverSearching && resultsForList.isEmpty()) {
-                item { ListRowSkeletonGroup(6) }
-            } else {
-                itemsIndexed(resultsForList, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
-                    StaggeredItem(index, staggerSeen) {
-                        Column {
-                            SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type, myStatus = result.id.toIntOrNull()?.let { myListStatus[it to result.type] })
-                            if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+            when (vm.discoverTypeFilter) {
+                "Characters" -> {
+                    if (!vm.characterSearching && vm.characterResults.isEmpty() && vm.characterError == null) {
+                        val emptyMessage = if (vm.discoverQuery.isBlank()) "Search for a character." else "No characters for \"${vm.discoverQuery}\"."
+                        item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                    }
+                    val charResults = vm.characterResults
+                    if (vm.characterSearching && charResults.isEmpty()) {
+                        item { ListRowSkeletonGroup(6) }
+                    } else {
+                        itemsIndexed(charResults, key = { _, it -> "char_${it.malId}" }) { index, result ->
+                            StaggeredItem(index, staggerSeen) {
+                                Column {
+                                    CharacterSearchResultRow(result, loading = vm.characterDetailLoadingId == result.malId, onTap = { openCharacterResult(result) })
+                                    if (index < charResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                                }
+                            }
+                        }
+                    }
+                }
+                // Not implemented yet — Discover's own placeholder rather than one written
+                // per un-implemented type, since Companies and People will get the same
+                // real search treatment Characters just did.
+                "Companies", "People" -> {
+                    item { Text("${vm.discoverTypeFilter} search is coming soon.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                }
+                else -> {
+                    if (!vm.discoverSearching && vm.visibleDiscoverResults.isEmpty() && vm.discoverError == null) {
+                        val emptyMessage = if (vm.discoverQuery.isBlank()) "No results match your filters." else "No results for \"${vm.discoverQuery}\"."
+                        item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                    }
+                    // Keyed by id+type together, not id alone — anime and manga are separate MAL id
+                    // spaces, so a search that mixes both kinds (e.g. "stein" matching an anime and
+                    // an unrelated manga with the same numeric id) can produce two rows with the same
+                    // id. LazyColumn requires unique keys; a collision here throws mid-scroll/fling
+                    // ("Key ... was already used"), which is what the crash while scrolling was.
+                    val resultsForList = vm.visibleDiscoverResults
+                    if (vm.discoverSearching && resultsForList.isEmpty()) {
+                        item { ListRowSkeletonGroup(6) }
+                    } else {
+                        itemsIndexed(resultsForList, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
+                            StaggeredItem(index, staggerSeen) {
+                                Column {
+                                    SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type, myStatus = result.id.toIntOrNull()?.let { myListStatus[it to result.type] })
+                                    if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                                }
+                            }
                         }
                     }
                 }
@@ -414,7 +462,7 @@ import kotlinx.coroutines.launch
             onDismiss = vm::clearDiscoverSuggestions,
         ) { picked ->
             query = picked
-            vm.runDiscoverSearch(context, picked, vm.discoverTypeFilter)
+            vm.selectDiscoverType(context, vm.discoverTypeFilter, picked)
         }
     }
 }
@@ -648,6 +696,67 @@ import kotlinx.coroutines.launch
     }
 }
 // Format episode/season label
+
+// Discover's type-filter chip — a dropdown of the five searchable Discover categories
+// rather than a fixed Anime/Manga toggle row, since Characters/Companies/People each need
+// their own search entirely (see runCharacterSearch, selectDiscoverType) and a row of five
+// FilterChips side by side no longer fits comfortably next to the sort menu.
+@Composable fun DiscoverTypeDropdown(current: String, onSelect: (String) -> Unit) {
+    val c = LocalKikoColors.current
+    var expanded by remember { mutableStateOf(false) }
+    val options = listOf("Anime", "Manga", "Characters", "Companies", "People")
+    Box {
+        FilterChip(
+            selected = true,
+            onClick = { expanded = true },
+            label = { Text(current) },
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(18.dp)) },
+            colors = kikoFilterChipColors(),
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = RoundedCornerShape(kikoCorner(16.dp)), containerColor = c.surfaceContainer) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option, color = c.ink) },
+                    onClick = { expanded = false; onSelect(option) },
+                    trailingIcon = if (option == current) { { Icon(Icons.Default.Check, null, tint = c.primary, modifier = Modifier.size(18.dp)) } } else null,
+                )
+            }
+        }
+    }
+}
+
+// One row in the Characters search results — same row shape/sizing as SearchResultRow
+// above (92x128 thumbnail, name up top, muted line below), just built off CharacterSummary
+// instead of MediaItem since a character has no score/format/episode count to show.
+@Composable fun CharacterSearchResultRow(entry: CharacterSummary, loading: Boolean, onTap: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = 14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(Modifier.width(92.dp).height(128.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+            if (entry.image.isNotBlank()) {
+                AsyncImage(model = entry.image, contentDescription = entry.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } else {
+                Text(entry.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 30.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+            }
+            if (loading) {
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                }
+            }
+        }
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
+            Text(entry.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (entry.altName.isNotBlank()) {
+                Text(entry.altName, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
+            }
+            if (entry.relatedWorks.isNotEmpty()) {
+                Text(entry.relatedWorks.take(2).joinToString(" · "), color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
+            }
+        }
+    }
+}
 
 fun episodeAndYear(item: MediaItem): String {
     val unit = if (item.type == MediaType.Anime) "ep" else "ch"

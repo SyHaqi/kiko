@@ -106,6 +106,10 @@ sealed class TopScreen {
     data class FormatFilter(val type: MediaType, val format: String) : TopScreen()
     // Titles with one genre, opened by tapping a row in the profile's genre breakdown chart
     data class GenreFilter(val type: MediaType, val genre: String) : TopScreen()
+    // Character detail page, opened from Discover's Characters tab. Named CharacterPage
+    // (not CharacterDetail) to avoid colliding with the CharacterDetail data class itself
+    // (see CharacterModels.kt) that this wraps.
+    data class CharacterPage(val character: CharacterDetail) : TopScreen()
     data class Tab(val destination: Destination) : TopScreen()
 }
 // Same screen vs navigation
@@ -128,10 +132,11 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.YearFilter -> "yearFilter:$type:$year"
     is TopScreen.FormatFilter -> "formatFilter:$type:$format"
     is TopScreen.GenreFilter -> "genreFilter:$type:$genre"
+    is TopScreen.CharacterPage -> "characterPage:${character.malId}"
     is TopScreen.Tab -> "tab:$destination"
 }
 
-fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter
+fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage
 
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}) {
@@ -153,6 +158,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var stacksHomeOpen by remember { mutableStateOf(false) }
     var stacksBrowseKind by remember { mutableStateOf<StackBrowseKind?>(null) }
     var stackDetailOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    // Character detail page, opened from Discover's Characters tab
+    var characterDetailOpen by remember { mutableStateOf<CharacterDetail?>(null) }
     // Item to return to when backing out of a genre-chip/creator-tap jump to Discover
     var discoverReturnItem by remember { mutableStateOf<MediaItem?>(null) }
     // Where the detour started — the tab (My List, Home, ...) and, if applicable, the
@@ -288,7 +295,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Prefer live item copy — same id+type requirement as above
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && (vm.destination != Destination.Home || discoverReturnItem != null)) {
+    BackHandler(enabled = detailItem == null && characterDetailOpen == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && (vm.destination != Destination.Home || discoverReturnItem != null)) {
         val returnItem = discoverReturnItem
         if (returnItem != null && vm.destination == Destination.Discover) {
             discoverReturnItem = null
@@ -321,12 +328,13 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         ) {
             Scaffold(
                 containerColor = c.background,
-                bottomBar = { if (detailItem == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null) BottomBar(vm.destination, onDoubleTapDiscover = { vm.openDiscoverSearch(context) }) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
+                bottomBar = { if (detailItem == null && characterDetailOpen == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null) BottomBar(vm.destination, onDoubleTapDiscover = { vm.openDiscoverSearch(context) }) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val topScreen = when {
                         reviewOpen != null -> TopScreen.Review(reviewOpen!!.first, reviewOpen!!.second)
                         detailItem != null -> TopScreen.Detail(detailItem)
+                        characterDetailOpen != null -> TopScreen.CharacterPage(characterDetailOpen!!)
                         rankingOpen -> TopScreen.Ranking
                         recommendationsOpen -> TopScreen.Recommendations
                         scheduleOpen -> TopScreen.Schedule(scheduleInitialDay)
@@ -402,6 +410,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
                                 airingInfo = vm.getCachedAiring(screen.item.id),
                             )
+                            is TopScreen.CharacterPage -> CharacterDetailScreen(screen.character, onBack = { characterDetailOpen = null })
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
                             is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)
@@ -454,7 +463,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         else vm.exitDiscoverSearch()
                                     },
                                     onEdit = { editor = it },
-                                    selectedItem = editor
+                                    selectedItem = editor,
+                                    onOpenCharacter = { character -> characterDetailOpen = character },
                                 )
                                 Destination.Seasonal -> SeasonalScreen(vm, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
                                 Destination.Community -> CommunityScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onOpenClub = { clubDetailOpen = it })

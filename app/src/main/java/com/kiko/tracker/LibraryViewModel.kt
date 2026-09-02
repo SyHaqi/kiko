@@ -530,6 +530,83 @@ class LibraryViewModel : ViewModel() {
     // studio/author ever searched otherwise sticks around in memory for the rest of the session.
     private val creatorSearchCache = mutableMapOf<Pair<MediaType, String>, List<MediaItem>>()
 
+    // Discover's Characters tab — a separate result list from discoverResults above since
+    // characters aren't MediaItem at all (see CharacterModels.kt). discoverTypeFilter,
+    // discoverQuery, discoverMode, and discoverScroll* are still shared with the Anime/Manga
+    // path so switching the type dropdown mid-search keeps the same query/scroll behavior.
+    private val malCharacterApi by lazy { MalCharacterApi() }
+    var characterResults by mutableStateOf<List<CharacterSummary>>(emptyList()); private set
+    var characterSearching by mutableStateOf(false); private set
+    var characterError by mutableStateOf<String?>(null); private set
+    private var characterSearchJob: kotlinx.coroutines.Job? = null
+    // Loading spinner target for a tapped search row while its full detail page resolves —
+    // same shape as discoverDetailLoadingId below, just keyed by MAL character id.
+    var characterDetailLoadingId by mutableStateOf<Int?>(null); private set
+    // Resolved character pages, so re-opening one already visited this session (e.g.
+    // backing out and tapping it again) doesn't re-scrape MAL.
+    private val characterDetailCache = mutableMapOf<Int, CharacterDetail>()
+
+    // Run a character search — mirrors runDiscoverSearch's role (sets discoverQuery/
+    // discoverTypeFilter/discoverMode too) but talks to MalCharacterApi instead of the
+    // MediaItem search pipeline, since a character search has no format/genre/sort filters
+    // and isn't further-paginated the way title search is.
+    fun runCharacterSearch(query: String) {
+        discoverQuery = query; discoverTypeFilter = "Characters"; discoverMode = DiscoverMode.Results
+        discoverScrollIndex = 0; discoverScrollOffset = 0
+        characterSearchJob?.cancel()
+        if (query.isBlank()) { characterResults = emptyList(); characterSearching = false; characterError = null; return }
+        if (query.trim().length < 3) {
+            characterResults = emptyList(); characterSearching = false
+            characterError = "Type at least 3 characters to search"
+            return
+        }
+        characterSearchJob = viewModelScope.launch {
+            characterSearching = true
+            runCatching { malCharacterApi.search(query) }
+                .onSuccess { characterResults = it; characterError = null }
+                .onFailure {
+                    // Same cancellation-isn't-a-failure reasoning as runDiscoverSearch —
+                    // switching the type dropdown mid-search cancels this job via
+                    // characterSearchJob?.cancel() above.
+                    if (it is kotlinx.coroutines.CancellationException) throw it
+                    characterError = it.message ?: "Search failed"
+                }
+            characterSearching = false
+        }
+    }
+
+    // Switches the Discover type dropdown. Anime/Manga and Characters each have a real
+    // search behind them (runDiscoverSearch/runCharacterSearch); Companies and People
+    // don't yet — they just clear both result lists and show Discover's own "coming soon"
+    // placeholder rather than one written per un-implemented type.
+    fun selectDiscoverType(context: Context, type: String, query: String) {
+        when (type) {
+            "Anime", "Manga" -> runDiscoverSearch(context, query, type)
+            "Characters" -> runCharacterSearch(query)
+            else -> {
+                discoverQuery = query; discoverTypeFilter = type; discoverMode = DiscoverMode.Results
+                discoverSearchJob?.cancel(); discoverLoadMoreJob?.cancel(); characterSearchJob?.cancel()
+                discoverResults = emptyList(); characterResults = emptyList()
+                discoverSearching = false; characterSearching = false
+                discoverError = null; characterError = null; discoverHasMore = false
+                discoverPaginationSource = DiscoverPaginationSource.None
+            }
+        }
+    }
+
+    // Fetch a tapped search row's full character page before navigating — same
+    // fetch-then-open shape as openDiscoverDetail below.
+    fun openCharacterDetail(malId: Int, onLoaded: (CharacterDetail) -> Unit) {
+        characterDetailCache[malId]?.let { onLoaded(it); return }
+        characterDetailLoadingId = malId
+        viewModelScope.launch {
+            runCatching { malCharacterApi.detail(malId) }
+                .onSuccess { characterDetailCache[malId] = it; onLoaded(it) }
+                .onFailure { error = it.message ?: "Could not load character" }
+            characterDetailLoadingId = null
+        }
+    }
+
     // Home recommendations row
     var recommendations by mutableStateOf<List<MediaItem>>(emptyList()); private set
     // Trending manga row (manga has no personalized suggestions endpoint on MAL, so this
@@ -1074,6 +1151,7 @@ class LibraryViewModel : ViewModel() {
         discoverMode = DiscoverMode.Browse; discoverQuery = ""; discoverResults = emptyList(); discoverFilters = DiscoverFilters(); discoverError = null
         discoverHasMore = false; discoverLoadingMore = false; discoverPaginationSource = DiscoverPaginationSource.None
         discoverGenreKind = null; discoverGenreIds = emptyList()
+        characterSearchJob?.cancel(); characterResults = emptyList(); characterError = null; characterSearching = false
         // Drop the raw studio/author lookup cache here rather than letting it live for the
         // whole process — it existed purely so re-applying filters *within* the same results
         // page didn't re-scrape MAL. Once the person leaves the results page that reason is
