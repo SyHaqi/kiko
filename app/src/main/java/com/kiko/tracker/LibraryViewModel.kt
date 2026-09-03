@@ -549,8 +549,11 @@ class LibraryViewModel : ViewModel() {
     // Loading spinner target for a tapped search row while its full detail page resolves —
     // same shape as discoverDetailLoadingId below, just keyed by MAL character id.
     var characterDetailLoadingId by mutableStateOf<Int?>(null); private set
-    // Resolved character pages, so re-opening one already visited this session (e.g.
-    // backing out and tapping it again) doesn't re-scrape MAL.
+    // Resolved character pages — same "read from memory while it's still reachable"
+    // reasoning as detailCaches' resolvedItem below, but keyed by the character's own
+    // MAL id. Dropped on backing out (see forgetCharacterPage), same lifecycle as
+    // forgetDetailPage for the anime/manga chain, so a re-visit later re-scrapes MAL
+    // fresh rather than caching for the rest of the process.
     private val characterDetailCache = mutableMapOf<Int, CharacterDetail>()
     // Character detail page's own scroll positions — mirrors detailScrollPositions/
     // getRelatedRowScroll/getRecommendedRowScroll above, but keyed by the character's own
@@ -572,10 +575,12 @@ class LibraryViewModel : ViewModel() {
     fun saveCharacterAnimeScroll(malId: Int, index: Int, offset: Int) { characterScrollCache(malId).anime = index to offset }
     fun getCharacterMangaScroll(malId: Int) = characterScrollCache(malId).manga
     fun saveCharacterMangaScroll(malId: Int, index: Int, offset: Int) { characterScrollCache(malId).manga = index to offset }
-    // Drop a character's remembered scroll once its page is fully backed out of — call
-    // from Navigation.kt's onBack, same lifecycle as forgetDetailPage for the anime/manga
-    // related/recommended chain.
-    fun forgetCharacterScroll(malId: Int) { characterScrollCaches.remove(malId) }
+    // Drop a character's remembered scroll AND its resolved page data once it's fully
+    // backed out of — call from Navigation.kt's onBack, same lifecycle (and same
+    // cache-plus-position shape) as forgetDetailPage for the anime/manga related/
+    // recommended chain, so a re-visit later re-fetches instead of reading a
+    // session-long cache.
+    fun forgetCharacterPage(malId: Int) { characterScrollCaches.remove(malId); characterDetailCache.remove(malId) }
 
     // Run a character search — mirrors runDiscoverSearch's role (sets discoverQuery/
     // discoverTypeFilter/discoverMode too) but talks to MalCharacterApi instead of the
@@ -617,8 +622,8 @@ class LibraryViewModel : ViewModel() {
     // Loading spinner target for a tapped search row while its full detail page resolves —
     // same shape as characterDetailLoadingId above, just keyed by MAL person id.
     var personDetailLoadingId by mutableStateOf<Int?>(null); private set
-    // Resolved person pages, so re-opening one already visited this session doesn't
-    // re-scrape MAL.
+    // Resolved person pages — same lifecycle as characterDetailCache above (dropped on
+    // backing out via forgetPersonPage, not kept for the rest of the process).
     private val personDetailCache = mutableMapOf<Int, PersonDetail>()
     // Person detail page's own scroll positions — mirrors characterScrollCaches above,
     // keyed by the person's own MAL id (a separate id space from anime/manga/character)
@@ -640,9 +645,10 @@ class LibraryViewModel : ViewModel() {
     fun savePersonStaffScroll(malId: Int, index: Int, offset: Int) { personScrollCache(malId).staff = index to offset }
     fun getPersonMangaScroll(malId: Int) = personScrollCache(malId).manga
     fun savePersonMangaScroll(malId: Int, index: Int, offset: Int) { personScrollCache(malId).manga = index to offset }
-    // Drop a person's remembered scroll once its page is fully backed out of — call from
-    // Navigation.kt's onBack, same lifecycle as forgetCharacterScroll.
-    fun forgetPersonScroll(malId: Int) { personScrollCaches.remove(malId) }
+    // Drop a person's remembered scroll AND its resolved page data once it's fully
+    // backed out of — call from Navigation.kt's onBack, same lifecycle as
+    // forgetCharacterPage.
+    fun forgetPersonPage(malId: Int) { personScrollCaches.remove(malId); personDetailCache.remove(malId) }
 
     // Discover's Companies tab — same separate-result-list reasoning as Characters/People
     // above (a company isn't a MediaItem either — see CompanyModels.kt), talking to
@@ -658,8 +664,9 @@ class LibraryViewModel : ViewModel() {
     // same shape as characterDetailLoadingId/personDetailLoadingId above, just keyed by
     // MAL company id.
     var companyDetailLoadingId by mutableStateOf<Int?>(null); private set
-    // Resolved company pages, so re-opening one already visited this session doesn't
-    // re-scrape MAL.
+    // Resolved company pages — same lifecycle as characterDetailCache/personDetailCache
+    // above (dropped on backing out via forgetCompanyPage, not kept for the rest of the
+    // process).
     private val companyDetailCache = mutableMapOf<Int, CompanyDetail>()
     // Company detail page's own scroll position. A single Pair (not a per-row cache like
     // characterScrollCaches/personScrollCaches above) since the whole page — bio, one news
@@ -668,9 +675,10 @@ class LibraryViewModel : ViewModel() {
     private val companyScrollPositions = mutableMapOf<Int, Pair<Int, Int>>()
     fun getCompanyScroll(malId: Int) = companyScrollPositions[malId] ?: (0 to 0)
     fun saveCompanyScroll(malId: Int, index: Int, offset: Int) { companyScrollPositions[malId] = index to offset }
-    // Drop a company's remembered scroll once its page is fully backed out of — call from
-    // Navigation.kt's onBack, same lifecycle as forgetCharacterScroll/forgetPersonScroll.
-    fun forgetCompanyScroll(malId: Int) { companyScrollPositions.remove(malId) }
+    // Drop a company's remembered scroll AND its resolved page data once it's fully
+    // backed out of — call from Navigation.kt's onBack, same lifecycle as
+    // forgetCharacterPage/forgetPersonPage.
+    fun forgetCompanyPage(malId: Int) { companyScrollPositions.remove(malId); companyDetailCache.remove(malId) }
 
     // Run a company search — mirrors runCharacterSearch/runPersonSearch's role and
     // MAL-side minimum-length rule.

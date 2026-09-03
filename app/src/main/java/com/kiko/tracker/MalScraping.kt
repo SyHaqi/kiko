@@ -39,7 +39,22 @@ fun normalizeWhitespace(el: Element): String = el.text().replace('\u00A0', ' ')
 // MAL serves thumbnails (club/member avatars, credited-work covers, etc.) through a
 // resizing proxy path like "/r/50x70/images/manga/3/122224.jpg" — stripping the
 // "/r/WxH/" segment returns the same image at its original, higher-resolution size.
-fun fullResMalImage(url: String): String = url.replaceFirst(Regex("/r/\\d+x\\d+(?:-\\d+)?/"), "/")
+//
+// Company/producer logos never go through that proxy at all, though, so this strip is a
+// no-op for them — confirmed against MAL's own pages: Kyoto Animation's search-row logo
+// and its full profile logo are literally the same asset, just requested at a different
+// baked-in size ("cdn.myanimelist.net/s/common/company_logos/{uuid}_100x100_i" vs
+// "..._600x600_i" for the exact same uuid), not two files behind a resize proxy. That's
+// why company thumbnails specifically stayed blurry no matter what this function did:
+// there was never a "/r/WxH/" segment here to strip in the first place. Upgrading that
+// filename-encoded size to MAL's own largest variant (600x600 — the size its detail pages
+// already request) fixes it for both the Discover company search rows and the detail
+// page's own logo.
+private val companyLogoSize = Regex("_\\d+x\\d+_i(?=\\?|$)")
+fun fullResMalImage(url: String): String {
+    val proxyStripped = url.replaceFirst(Regex("/r/\\d+x\\d+(?:-\\d+)?/"), "/")
+    return if (proxyStripped.contains("/company_logos/")) proxyStripped.replaceFirst(companyLogoSize, "_600x600_i") else proxyStripped
+}
 
 // MAL/Jikan both print person names as "Last, First"; the app displays "First Last".
 fun reorderMalPersonName(raw: String): String {

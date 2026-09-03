@@ -452,6 +452,14 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                         detailItem != null -> TopScreen.Detail(detailItem)
                         characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
                         personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
+                        // A topic opened from *this* CompanyPage's own Recent News card (see
+                        // onOpenNews below) must show on top of it even though
+                        // companyDetailOpenId is still set underneath — same reasoning as
+                        // castCharacterOnTop/castPersonOnTop above. Checked before
+                        // companyDetailOpenId so the tap isn't swallowed by the company page
+                        // still matching first; forumTopicOpen == null the rest of the time so
+                        // this branch is a no-op for every other path that leads here.
+                        forumTopicOpen != null -> TopScreen.Topic(forumTopicOpen!!.first, forumTopicOpen!!.second)
                         companyDetailOpenId != null -> TopScreen.CompanyPage(companyDetailOpenId!!, companyDetailOpen)
                         rankingOpen -> TopScreen.Ranking
                         recommendationsOpen -> TopScreen.Recommendations
@@ -467,7 +475,6 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                         genreFilterOpen != null -> TopScreen.GenreFilter(genreFilterOpen!!.first, genreFilterOpen!!.second)
                         profileStatsOpen -> TopScreen.ProfileStats
                         settingsPageOpen -> TopScreen.SettingsPage
-                        forumTopicOpen != null -> TopScreen.Topic(forumTopicOpen!!.first, forumTopicOpen!!.second)
                         else -> TopScreen.Tab(vm.destination)
                     }
                     AnimatedContent(
@@ -536,7 +543,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             is TopScreen.CharacterPage -> CharacterDetailScreen(
                                 screen.malId,
                                 screen.character,
-                                onBack = { characterDetailOpenId = null; characterDetailOpen = null; castCharacterOnTop = false; vm.forgetCharacterScroll(screen.malId) },
+                                onBack = { characterDetailOpenId = null; characterDetailOpen = null; castCharacterOnTop = false; vm.forgetCharacterPage(screen.malId) },
                                 onOpenWork = { malId, type -> vm.openCharacterWork(context, malId, type, ::openDetail) },
                                 onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
                                 workLoadingId = vm.characterWorkLoadingId,
@@ -551,7 +558,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             is TopScreen.PersonPage -> PersonDetailScreen(
                                 screen.malId,
                                 screen.person,
-                                onBack = { personDetailOpenId = null; personDetailOpen = null; castPersonOnTop = false; vm.forgetPersonScroll(screen.malId) },
+                                onBack = { personDetailOpenId = null; personDetailOpen = null; castPersonOnTop = false; vm.forgetPersonPage(screen.malId) },
                                 onOpenWork = { malId, type -> vm.openCharacterWork(context, malId, type, ::openDetail) },
                                 workLoadingId = vm.characterWorkLoadingId,
                                 myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
@@ -567,7 +574,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             is TopScreen.CompanyPage -> CompanyDetailScreen(
                                 screen.malId,
                                 screen.company,
-                                onBack = { companyDetailOpenId = null; companyDetailOpen = null; vm.forgetCompanyScroll(screen.malId) },
+                                onBack = { companyDetailOpenId = null; companyDetailOpen = null; vm.forgetCompanyPage(screen.malId) },
                                 // A company's anime grid is always Anime — reuses the same
                                 // fetch-then-openDetail helper Character/PersonPage's own
                                 // work rows already share (see vm.openCharacterWork's doc).

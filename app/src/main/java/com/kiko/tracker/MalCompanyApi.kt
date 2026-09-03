@@ -1,6 +1,8 @@
 package com.kiko.tracker
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -89,10 +91,21 @@ class MalCompanyApi {
     // scraped straight off the page's own left column (see parseDetail below), anime
     // catalog reusing the exact tile parsing fetchWorks below already does — this is that
     // same page, fetched once.
+    //
+    // The page fetch and the Tenrai facet-id lookup used to run one after the other even
+    // though neither depends on the other (facetIdMaps is a small static genre/theme/
+    // demographic reference lookup, not anything about this specific company) — on a cold
+    // facet cache that meant every "open a company detail page" paid for two network round
+    // trips back to back instead of the one either of them actually needs to wait on. Now
+    // both fire together and only the slower of the two is actually waited on.
     suspend fun detail(id: Int): CompanyDetail = withContext(Dispatchers.IO) {
-        val doc = fetchDoc("https://myanimelist.net/anime/producer/$id")
-        val works = runCatching { parseWorks(doc, "") }.getOrElse { emptyList() }
-        parseDetail(id, doc, works)
+        coroutineScope {
+            val docDeferred = async { fetchDoc("https://myanimelist.net/anime/producer/$id") }
+            val facetsDeferred = async { runCatching { tenrai.facetIdMaps("anime") }.getOrNull() }
+            val doc = docDeferred.await()
+            val works = runCatching { parseWorks(doc, "", facetsDeferred.await()) }.getOrElse { emptyList() }
+            parseDetail(id, doc, works)
+        }
     }
 
     // Scrape a resolved studio's own MAL page for its full anime catalog.
@@ -101,20 +114,22 @@ class MalCompanyApi {
     // alongside the page's own canonical name — same reasoning as MalPeopleApi's
     // fetchCreditedWorks: matches() requires allCreators to contain the searched string,
     // and formatting can otherwise differ between the two.
+    //
+    // Same page-fetch/facet-lookup parallelization as detail() above, for the same reason.
     suspend fun fetchWorks(companyId: Int, queriedName: String): List<MediaItem> = withContext(Dispatchers.IO) {
-        runCatching { parseWorks(fetchDoc("https://myanimelist.net/anime/producer/$companyId"), queriedName) }.getOrElse { emptyList() }
+        coroutineScope {
+            val docDeferred = async { fetchDoc("https://myanimelist.net/anime/producer/$companyId") }
+            val facetsDeferred = async { runCatching { tenrai.facetIdMaps("anime") }.getOrNull() }
+            runCatching { parseWorks(docDeferred.await(), queriedName, facetsDeferred.await()) }.getOrElse { emptyList() }
+        }
     }
 
-    // Shared by fetchWorks above (studio-search flow, needs a fresh fetch of the company's
-    // page) and detail() above (already has the page in hand from parsing the rest of the
-    // profile, so this just re-parses the same Document instead of re-fetching it).
-    private suspend fun parseWorks(doc: Document, queriedName: String): List<MediaItem> {
+    // Shared by fetchWorks above (studio-search flow) and detail() above — both now resolve
+    // the page doc and the facet id maps concurrently themselves and hand the already-
+    // resolved facets in here, so this stays a plain (non-suspend) parse.
+    private fun parseWorks(doc: Document, queriedName: String, facets: TenraiApi.FacetIdMaps?): List<MediaItem> {
         val creatorLabel = doc.selectFirst("h1.title-name")?.text()?.takeIf { it.isNotBlank() }
         val allCreators = listOfNotNull(creatorLabel, queriedName.takeIf { it.isNotBlank() }).distinct().joinToString(", ")
-        // Resolved once for the whole page rather than once per row. A failure here
-        // doesn't fail the whole search — every row just falls back to no genre/theme/
-        // demographic data (flagged via unknownFacets) instead.
-        val facets = runCatching { tenrai.facetIdMaps("anime") }.getOrNull()
         return doc.select("div.js-seasonal-anime").mapNotNull { tile -> parseTile(tile, creatorLabel.orEmpty(), allCreators, facets) }
     }
 
