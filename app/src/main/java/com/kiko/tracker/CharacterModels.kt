@@ -62,13 +62,4 @@ data class CharacterDetail(
     val voiceActors: List<CharacterVoiceActor> = emptyList(),
     val animeography: List<CharacterWork> = emptyList(),
     val mangaography: List<CharacterWork> = emptyList(),
-    // True from the moment this page first appears until LibraryViewModel.resolveCharacterWorkTitles
-    // finishes patching English titles into the two rows above (see openCharacterDetail).
-    // Only ever true when Title Language is English and at least one of those rows is
-    // non-empty; false immediately otherwise. CharacterDetailScreen reads this — together
-    // with each row entry's own titleEnglish being still blank — to know whether to show a
-    // shimmer in place of that entry's title rather than the raw MAL-default one, so a
-    // character page never actually displays the wrong-language title, just a placeholder
-    // for the brief moment before the right one is in.
-    val workTitlesLoading: Boolean = false,
 )

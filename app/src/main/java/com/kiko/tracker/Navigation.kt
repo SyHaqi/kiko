@@ -119,6 +119,13 @@ sealed class TopScreen {
     // avoids colliding with the PersonDetail data class itself (see PersonModels.kt). Same
     // malId-carried-separately shape as CharacterPage above, same reason.
     data class PersonPage(val malId: Int, val person: PersonDetail?) : TopScreen()
+    // Company (studio/producer/licensor) detail page, opened from Discover's Companies
+    // tab. Unlike CharacterPage/PersonPage above, a company is never opened from on top of
+    // another detail page (no cast-style row anywhere links to one), so there's no
+    // castCompanyOnTop equivalent to thread through — Discover is always the only place
+    // this gets pushed from. Same malId-carried-separately shape as those two, same reason
+    // (CompanyDetailScreen shows CompanyDetailScreenSkeleton while company is still null).
+    data class CompanyPage(val malId: Int, val company: CompanyDetail?) : TopScreen()
     data class Tab(val destination: Destination) : TopScreen()
 }
 // Same screen vs navigation
@@ -143,10 +150,11 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.GenreFilter -> "genreFilter:$type:$genre"
     is TopScreen.CharacterPage -> "characterPage:$malId"
     is TopScreen.PersonPage -> "personPage:$malId"
+    is TopScreen.CompanyPage -> "companyPage:$malId"
     is TopScreen.Tab -> "tab:$destination"
 }
 
-fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage
+fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage || this is TopScreen.CompanyPage
 
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}) {
@@ -199,6 +207,12 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var personDetailOpenId by remember { mutableStateOf<Int?>(null) }
     var personDetailOpen by remember { mutableStateOf<PersonDetail?>(null) }
     var castPersonOnTop by remember { mutableStateOf(false) }
+    // Company detail page, opened from Discover's Companies tab. No castCompanyOnTop
+    // equivalent — see TopScreen.CompanyPage's doc comment above — since nothing ever
+    // opens a company from on top of another detail page the way a cast row does for
+    // Person/Character. Same immediate-id-then-fill shape as characterDetailOpenId above.
+    var companyDetailOpenId by remember { mutableStateOf<Int?>(null) }
+    var companyDetailOpen by remember { mutableStateOf<CompanyDetail?>(null) }
     // Item to return to when backing out of a genre-chip/creator-tap jump to Discover
     var discoverReturnItem by remember { mutableStateOf<MediaItem?>(null) }
     // Where the detour started — the tab (My List, Home, ...) and, if applicable, the
@@ -261,6 +275,17 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
             context, malId,
             onLoaded = { person -> if (personDetailOpenId == malId) personDetailOpen = person },
             onError = { if (personDetailOpenId == malId) { personDetailOpenId = null; castPersonOnTop = false } },
+        )
+    }
+    // Same shape as openCharacter/openPerson above, minus the castOnTop parameter —
+    // see companyDetailOpenId's doc comment.
+    fun openCompany(malId: Int) {
+        companyDetailOpenId = malId
+        companyDetailOpen = null
+        vm.openCompanyDetail(
+            context, malId,
+            onLoaded = { company -> if (companyDetailOpenId == malId) companyDetailOpen = company },
+            onError = { if (companyDetailOpenId == malId) companyDetailOpenId = null },
         )
     }
     fun backDetail() {
@@ -357,6 +382,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         selectedItem = null; detailStack = emptyList()
         characterDetailOpenId = null; characterDetailOpen = null; castCharacterOnTop = false
         personDetailOpenId = null; personDetailOpen = null; castPersonOnTop = false
+        companyDetailOpenId = null; companyDetailOpen = null
         stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = false
         clubDetailOpen = null
         rankingOpen = false; recommendationsOpen = false; scheduleOpen = false
@@ -373,7 +399,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Prefer live item copy — same id+type requirement as above
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && (vm.destination != Destination.Home || discoverReturnItem != null)) {
+    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && (vm.destination != Destination.Home || discoverReturnItem != null)) {
         val returnItem = discoverReturnItem
         if (returnItem != null && vm.destination == Destination.Discover) {
             discoverReturnItem = null
@@ -406,7 +432,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         ) {
             Scaffold(
                 containerColor = c.background,
-                bottomBar = { if (detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null) BottomBar(vm.destination, onDoubleTapDiscover = { vm.openDiscoverSearch(context) }) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
+                bottomBar = { if (detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null) BottomBar(vm.destination, onDoubleTapDiscover = { vm.openDiscoverSearch(context) }) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val topScreen = when {
@@ -426,6 +452,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                         detailItem != null -> TopScreen.Detail(detailItem)
                         characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
                         personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
+                        companyDetailOpenId != null -> TopScreen.CompanyPage(companyDetailOpenId!!, companyDetailOpen)
                         rankingOpen -> TopScreen.Ranking
                         recommendationsOpen -> TopScreen.Recommendations
                         scheduleOpen -> TopScreen.Schedule(scheduleInitialDay)
@@ -537,6 +564,23 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 onLeaveStaffScroll = { index, offset -> vm.savePersonStaffScroll(screen.malId, index, offset) },
                                 onLeaveMangaScroll = { index, offset -> vm.savePersonMangaScroll(screen.malId, index, offset) },
                             )
+                            is TopScreen.CompanyPage -> CompanyDetailScreen(
+                                screen.malId,
+                                screen.company,
+                                onBack = { companyDetailOpenId = null; companyDetailOpen = null; vm.forgetCompanyScroll(screen.malId) },
+                                // A company's anime grid is always Anime — reuses the same
+                                // fetch-then-openDetail helper Character/PersonPage's own
+                                // work rows already share (see vm.openCharacterWork's doc).
+                                onOpenWork = { malId -> vm.openCharacterWork(context, malId, MediaType.Anime, ::openDetail) },
+                                // The one Recent News card opens the same forum topic
+                                // HomeScreen's own News snapshots and every other in-app
+                                // news link already do.
+                                onOpenNews = { id, title -> forumTopicOpen = id to title },
+                                workLoadingId = vm.characterWorkLoadingId,
+                                myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.takeIf { li.type == MediaType.Anime }?.let { it to li.status } }.toMap(),
+                                initialScroll = vm.getCompanyScroll(screen.malId),
+                                onLeaveScroll = { index, offset -> vm.saveCompanyScroll(screen.malId, index, offset) },
+                            )
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
                             is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)
@@ -592,6 +636,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     selectedItem = editor,
                                     onOpenCharacter = { malId -> openCharacter(malId) },
                                     onOpenPerson = { malId -> openPerson(malId) },
+                                    onOpenCompany = { malId -> openCompany(malId) },
                                 )
                                 Destination.Seasonal -> SeasonalScreen(vm, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
                                 Destination.Community -> CommunityScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onOpenClub = { clubDetailOpen = it })

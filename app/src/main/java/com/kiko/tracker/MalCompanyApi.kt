@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.nodes.Node
+import org.jsoup.nodes.TextNode
 
 // Resolves a studio/producer name typed into the Discover filter to a MAL company id,
 // then scrapes that company's own MAL page for every anime it's credited on — the same
@@ -53,6 +55,46 @@ class MalCompanyApi {
         }.getOrNull()
     }
 
+    // Discover's Companies tab search — MAL's own dedicated company search page
+    // (https://myanimelist.net/company?q=...), the same page this app's own "Companies"
+    // A-Z browse links already point at. Row shape mirrors MalPeopleApi.search/
+    // MalCharacterApi.search: a thumbnail cell + a name cell, matched by the
+    // /anime/producer/{id}/ link every row has to have rather than a specific table class,
+    // so this survives a markup reskin the same way those two do.
+    suspend fun search(query: String): List<CompanySummary> = withContext(Dispatchers.IO) {
+        runCatching {
+            val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+            val doc = fetchDoc("https://myanimelist.net/company?q=$encoded")
+            doc.select("tr:has(td div.picSurround a[href~=/anime/producer/\\d+/])").mapNotNull(::parseSearchRow)
+        }.getOrElse { emptyList() }
+    }
+
+    private fun parseSearchRow(row: Element): CompanySummary? {
+        val cells = row.children()
+        val picCell = cells.getOrNull(0) ?: return null
+        val nameCell = cells.getOrNull(1) ?: return null
+        val nameLink = nameCell.selectFirst("a[href*=/anime/producer/]") ?: return null
+        val malId = Regex("/anime/producer/(\\d+)").find(nameLink.attr("abs:href"))?.groupValues?.get(1)?.toIntOrNull() ?: return null
+        val name = nameLink.text().trim().takeIf { it.isNotBlank() } ?: return null
+        // e.g. "(京都アニメーション)" — kept as-is (parens included), same as it reads on MAL's own row.
+        val japanese = nameCell.selectFirst("small")?.text()?.trim().orEmpty()
+        val image = picCell.selectFirst("img")
+            ?.let { it.attr("data-src").ifBlank { it.attr("src") } }
+            ?.takeIf { it.isNotBlank() && !it.contains("questionmark") }
+            ?.let(::fullResMalImage) ?: ""
+        return CompanySummary(malId = malId, name = name, japanese = japanese, image = image)
+    }
+
+    // Full company detail page: profile fields/favorites/about/links/one recent news item
+    // scraped straight off the page's own left column (see parseDetail below), anime
+    // catalog reusing the exact tile parsing fetchWorks below already does — this is that
+    // same page, fetched once.
+    suspend fun detail(id: Int): CompanyDetail = withContext(Dispatchers.IO) {
+        val doc = fetchDoc("https://myanimelist.net/anime/producer/$id")
+        val works = runCatching { parseWorks(doc, "") }.getOrElse { emptyList() }
+        parseDetail(id, doc, works)
+    }
+
     // Scrape a resolved studio's own MAL page for its full anime catalog.
     //
     // queriedName is what the person typed into the filter, stamped onto every result
@@ -60,22 +102,109 @@ class MalCompanyApi {
     // fetchCreditedWorks: matches() requires allCreators to contain the searched string,
     // and formatting can otherwise differ between the two.
     suspend fun fetchWorks(companyId: Int, queriedName: String): List<MediaItem> = withContext(Dispatchers.IO) {
-        runCatching {
-            val doc = fetchDoc("https://myanimelist.net/anime/producer/$companyId")
-            val creatorLabel = doc.selectFirst("h1.title-name")?.text()?.takeIf { it.isNotBlank() }
-            val allCreators = listOfNotNull(creatorLabel, queriedName.takeIf { it.isNotBlank() }).distinct().joinToString(", ")
-            // Resolved once for the whole page rather than once per row. A failure here
-            // doesn't fail the whole search — every row just falls back to no genre/theme/
-            // demographic data (flagged via unknownFacets) instead.
-            val facets = runCatching { tenrai.facetIdMaps("anime") }.getOrNull()
-            doc.select("div.js-seasonal-anime").mapNotNull { tile -> parseTile(tile, creatorLabel.orEmpty(), allCreators, facets) }
-        }.getOrElse { emptyList() }
+        runCatching { parseWorks(fetchDoc("https://myanimelist.net/anime/producer/$companyId"), queriedName) }.getOrElse { emptyList() }
+    }
+
+    // Shared by fetchWorks above (studio-search flow, needs a fresh fetch of the company's
+    // page) and detail() above (already has the page in hand from parsing the rest of the
+    // profile, so this just re-parses the same Document instead of re-fetching it).
+    private suspend fun parseWorks(doc: Document, queriedName: String): List<MediaItem> {
+        val creatorLabel = doc.selectFirst("h1.title-name")?.text()?.takeIf { it.isNotBlank() }
+        val allCreators = listOfNotNull(creatorLabel, queriedName.takeIf { it.isNotBlank() }).distinct().joinToString(", ")
+        // Resolved once for the whole page rather than once per row. A failure here
+        // doesn't fail the whole search — every row just falls back to no genre/theme/
+        // demographic data (flagged via unknownFacets) instead.
+        val facets = runCatching { tenrai.facetIdMaps("anime") }.getOrNull()
+        return doc.select("div.js-seasonal-anime").mapNotNull { tile -> parseTile(tile, creatorLabel.orEmpty(), allCreators, facets) }
     }
 
     // Convenience wrapper: name in, anime list out.
     suspend fun searchAnimeByStudio(name: String): List<MediaItem> {
         val companyId = searchCompany(name) ?: return emptyList()
         return fetchWorks(companyId, name)
+    }
+
+    // ---- Company detail page parsing (profile fields/about/links/one recent news item) ----
+
+    private fun parseDetail(id: Int, doc: Document, works: List<MediaItem>): CompanyDetail {
+        val name = doc.selectFirst("h1.title-name")?.text()?.trim().orEmpty().ifBlank { "Unknown" }
+        val image = doc.selectFirst("div.logo img")
+            ?.let { it.attr("data-src").ifBlank { it.attr("src") } }
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::fullResMalImage) ?: ""
+        // The one div.mb16 under content-left that actually holds the Synonyms/Japanese/
+        // Established/Member Favorites/about rows — the sibling div.mb16 above it (social
+        // share icons) has no div.spaceit_pad children, so this disambiguates cleanly.
+        val infoContainer = doc.selectFirst("div.content-left div.mb16:has(div.spaceit_pad)")
+        var favorites = 0
+        val bioFields = mutableListOf<Pair<String, String>>()
+        var about = ""
+        infoContainer?.select("div.spaceit_pad")?.forEach { row ->
+            val labelSpan = row.selectFirst("span.dark_text")
+            if (labelSpan != null) {
+                val label = labelSpan.text().trim().removeSuffix(":")
+                val clone = row.clone()
+                clone.selectFirst("span.dark_text")?.remove()
+                val value = clone.text().trim()
+                if (label.equals("Member Favorites", ignoreCase = true)) {
+                    favorites = value.replace(",", "").toIntOrNull() ?: 0
+                } else if (value.isNotBlank()) {
+                    bioFields += label to value
+                }
+            } else {
+                // The one row with no dark_text label at all is the free-text about
+                // paragraph — a single bare <span> whose own <br> tags mark its paragraph
+                // breaks, so a plain Element.text() call would flatten it into one run-on
+                // line (see brToNewlines below).
+                val text = brToNewlines(row)
+                if (text.isNotBlank()) about = text
+            }
+        }
+        val links = doc.selectFirst("div.user-profile-sns")?.select("a")?.mapNotNull { a ->
+            val href = a.attr("abs:href").trim()
+            val label = a.text().trim()
+            if (href.isBlank() || label.isBlank()) null else label to href
+        }.orEmpty()
+        val news = runCatching { parseNews(doc) }.getOrNull()
+        return CompanyDetail(
+            malId = id, name = name, image = image, favorites = favorites,
+            bioFields = bioFields, about = about, links = links, news = news, works = works,
+        )
+    }
+
+    // Same "walk the node tree, turn <br> into a real newline" approach MalPeopleApi/
+    // MalCharacterApi use for their own bio blocks.
+    private fun brToNewlines(container: Element): String {
+        val sb = StringBuilder()
+        fun walk(node: Node) {
+            when {
+                node is TextNode -> sb.append(node.text())
+                node is Element && node.tagName() == "br" -> sb.append("\n")
+                node is Element -> node.childNodes().forEach(::walk)
+            }
+        }
+        container.childNodes().forEach(::walk)
+        return sb.toString().replace(Regex("\n{3,}"), "\n\n").trim()
+    }
+
+    // The single most recent item off the page's own "Recent News" list — CompanyDetailScreen
+    // only ever shows one, same as MAL's own page does before its "More News" link; that
+    // link is what leads to the rest, which this doesn't need to replicate. topicId comes
+    // from the row's own comment-count link so tapping the card reuses this app's existing
+    // ForumTopicScreen rather than a bespoke news-article reader.
+    private fun parseNews(doc: Document): CompanyNews? {
+        val unit = doc.selectFirst("div.news-list div.news-unit") ?: return null
+        val titleLink = unit.selectFirst("p.title a") ?: return null
+        val title = titleLink.text().trim().takeIf { it.isNotBlank() } ?: return null
+        val image = unit.selectFirst("img")
+            ?.let { it.attr("data-src").ifBlank { it.attr("src") } }
+            ?.takeIf { it.isNotBlank() }
+            ?.let(::fullResMalImage) ?: ""
+        val snippet = unit.selectFirst("div.text")?.text()?.trim().orEmpty()
+        val date = unit.selectFirst("p.info")?.text()?.trim()?.substringBefore(" by ")?.trim().orEmpty()
+        val topicId = unit.selectFirst("a.comment")?.attr("abs:href")
+            ?.let { Regex("topicid=(\\d+)").find(it)?.groupValues?.get(1)?.toIntOrNull() } ?: return null
+        return CompanyNews(topicId = topicId, title = title, image = image, snippet = snippet, date = date)
     }
 
     private val typeFormats = mapOf(1 to "TV", 2 to "OVA", 3 to "Movie", 4 to "Special", 5 to "ONA", 6 to "Music")

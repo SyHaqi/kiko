@@ -709,15 +709,6 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     label: String? = null, subtitle: String? = null,
     loading: Boolean = false, onClick: (() -> Unit)? = null,
     myStatus: WatchStatus? = null,
-    // True while this specific row's title is still being resolved into the app's Title
-    // Language setting (see CharacterDetail/PersonDetail.workTitlesLoading and the
-    // per-entry titleEnglish.isBlank() check each caller does before passing this in).
-    // Renders a shimmer over the title instead of the `title` param, since `title` is
-    // whatever this card had on hand already — usually MAL's own default-language title —
-    // which would otherwise flash on screen and then get replaced a moment later once
-    // resolution finishes. Cover image/label/subtitle don't have this problem (they're not
-    // language-dependent) so only the title line itself is swapped for a placeholder.
-    titlePending: Boolean = false,
 ) {
     val c = LocalKikoColors.current
     Column(
@@ -741,17 +732,7 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
         // Fixed height text block
         Column(Modifier.fillMaxWidth().height(112.dp).padding(10.dp)) {
             if (label != null) Text(label.uppercase(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 10.sp, lineHeight = 13.sp, letterSpacing = 1.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (titlePending) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.fillMaxWidth().padding(top = if (label != null) 5.dp else 1.dp),
-                ) {
-                    SkeletonBlock(Modifier.fillMaxWidth(0.9f).height(11.dp))
-                    SkeletonBlock(Modifier.fillMaxWidth(0.6f).height(11.dp))
-                }
-            } else {
-                Text(title, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 15.sp, minLines = 3, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = if (label != null) 4.dp else 0.dp))
-            }
+            Text(title, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 15.sp, minLines = 3, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = if (label != null) 4.dp else 0.dp))
             if (subtitle != null) Text(subtitle, color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
         }
     }

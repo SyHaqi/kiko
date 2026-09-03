@@ -73,13 +73,4 @@ data class PersonDetail(
     // rows use, rather than a bespoke shape just for this page.
     val staffCredits: List<MediaItem> = emptyList(),
     val publishedManga: List<MediaItem> = emptyList(),
-    // True from the moment this page first appears until LibraryViewModel.resolvePersonWorkTitles
-    // finishes patching English titles into the three rows above (see openPersonDetail).
-    // Only ever true when Title Language is English and at least one of those rows is
-    // non-empty; false immediately otherwise. PersonDetailScreen reads this — together with
-    // each row entry's own titleEnglish being still blank — to know whether to show a
-    // shimmer in place of that entry's title rather than the raw MAL-default one, so a
-    // person page never actually displays the wrong-language title, just a placeholder
-    // for the brief moment before the right one is in.
-    val workTitlesLoading: Boolean = false,
 )

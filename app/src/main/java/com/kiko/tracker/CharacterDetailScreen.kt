@@ -235,7 +235,6 @@ import coil.compose.AsyncImage
                                         imageUrl = work.image, fallbackLetter = workTitle.take(1), title = workTitle, label = work.role,
                                         loading = workLoadingId == work.malId,
                                         myStatus = myListStatus[work.malId to MediaType.Anime],
-                                        titlePending = character.workTitlesLoading && work.titleEnglish.isBlank() && LocalTitleLanguage.current == TitleLanguage.English,
                                         onClick = { onOpenWork(work.malId, MediaType.Anime) },
                                     )
                                 }
@@ -253,7 +252,6 @@ import coil.compose.AsyncImage
                                         imageUrl = work.image, fallbackLetter = workTitle.take(1), title = workTitle, label = work.role,
                                         loading = workLoadingId == work.malId,
                                         myStatus = myListStatus[work.malId to MediaType.Manga],
-                                        titlePending = character.workTitlesLoading && work.titleEnglish.isBlank() && LocalTitleLanguage.current == TitleLanguage.English,
                                         onClick = { onOpenWork(work.malId, MediaType.Manga) },
                                     )
                                 }

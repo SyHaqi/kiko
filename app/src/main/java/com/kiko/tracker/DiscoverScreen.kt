@@ -69,6 +69,7 @@ import androidx.compose.ui.layout.ContentScale
     selectedItem: MediaItem? = null,
     onOpenCharacter: (Int) -> Unit = {},
     onOpenPerson: (Int) -> Unit = {},
+    onOpenCompany: (Int) -> Unit = {},
 ) {
     val context = LocalContext.current
     // loadHomeExtras() populates both trendingManga (this row) and recommendations
@@ -82,7 +83,7 @@ import androidx.compose.ui.layout.ContentScale
         transitionSpec = { if (targetState == DiscoverMode.Results) PushEnter togetherWith PushExit else PopEnter togetherWith PopExit },
         label = "discover-mode",
     ) { mode ->
-        if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults, onEdit, selectedItem, onOpenCharacter, onOpenPerson)
+        if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults, onEdit, selectedItem, onOpenCharacter, onOpenPerson, onOpenCompany)
         else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks, onRecommendations, onEdit, selectedItem)
     }
 }
@@ -286,7 +287,7 @@ import androidx.compose.ui.layout.ContentScale
 // Interest Stacks homepage — curated Challenge/Manga/Anime picks up top, Recent Interest Stacks below.
 // Greets the user when they tap the Stacks button, mirroring myanimelist.net/stacks.
 
-@Composable fun DiscoverResultsScreen(vm: LibraryViewModel, context: Context, onOpenDetail: (MediaItem) -> Unit, onExitResults: () -> Unit = vm::exitDiscoverSearch, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null, onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}) {
+@Composable fun DiscoverResultsScreen(vm: LibraryViewModel, context: Context, onOpenDetail: (MediaItem) -> Unit, onExitResults: () -> Unit = vm::exitDiscoverSearch, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null, onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {}) {
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf(vm.discoverQuery) }
     var filterSheetOpen by remember { mutableStateOf(false) }
@@ -312,6 +313,10 @@ import androidx.compose.ui.layout.ContentScale
     val openPersonResult: (PersonSummary) -> Unit = { result ->
         vm.saveDiscoverScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
         onOpenPerson(result.malId)
+    }
+    val openCompanyResult: (CompanySummary) -> Unit = { result ->
+        vm.saveDiscoverScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+        onOpenCompany(result.malId)
     }
     // Search results come straight from the MAL search endpoint, not the user's own list, so
     // each result's baked-in status is just a snapshot from when the search ran — it doesn't
@@ -399,6 +404,10 @@ import androidx.compose.ui.layout.ContentScale
                         if (vm.personSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
                         vm.personError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                     }
+                    "Companies" -> {
+                        if (vm.companySearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                        vm.companyError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                    }
                     "Anime", "Manga" -> {
                         if (vm.discoverSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
                         vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
@@ -426,9 +435,6 @@ import androidx.compose.ui.layout.ContentScale
                         }
                     }
                 }
-                // Not implemented yet — Discover's own placeholder rather than one written
-                // per un-implemented type, since Companies will get the same real search
-                // treatment Characters and People just did.
                 "People" -> {
                     if (!vm.personSearching && vm.personResults.isEmpty() && vm.personError == null) {
                         val emptyMessage = if (vm.discoverQuery.isBlank()) "Search for a person." else "No people for \"${vm.discoverQuery}\"."
@@ -449,7 +455,23 @@ import androidx.compose.ui.layout.ContentScale
                     }
                 }
                 "Companies" -> {
-                    item { Text("${vm.discoverTypeFilter} search is coming soon.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                    if (!vm.companySearching && vm.companyResults.isEmpty() && vm.companyError == null) {
+                        val emptyMessage = if (vm.discoverQuery.isBlank()) "Search for a company." else "No companies for \"${vm.discoverQuery}\"."
+                        item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                    }
+                    val companyResultsList = vm.companyResults
+                    if (vm.companySearching && companyResultsList.isEmpty()) {
+                        item { ListRowSkeletonGroup(6) }
+                    } else {
+                        itemsIndexed(companyResultsList, key = { _, it -> "company_${it.malId}" }) { index, result ->
+                            StaggeredItem(index, staggerSeen) {
+                                Column {
+                                    CompanySearchResultRow(result, loading = vm.companyDetailLoadingId == result.malId, onTap = { openCompanyResult(result) })
+                                    if (index < companyResultsList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                                }
+                            }
+                        }
+                    }
                 }
                 else -> {
                     if (!vm.discoverSearching && vm.visibleDiscoverResults.isEmpty() && vm.discoverError == null) {
@@ -815,6 +837,37 @@ import androidx.compose.ui.layout.ContentScale
             Text(entry.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (entry.altName.isNotBlank()) {
                 Text(entry.altName, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
+            }
+        }
+    }
+}
+
+// One row in the Companies search results — same shape as CharacterSearchResultRow/
+// PersonSearchResultRow above, but with a square 92x92 thumbnail rather than a 2:3 portrait
+// one, matching how MAL's own company logos are actually shaped (see CompanyDetailScreen's
+// own square logo treatment).
+@Composable fun CompanySearchResultRow(entry: CompanySummary, loading: Boolean, onTap: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = 14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(Modifier.size(92.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+            if (entry.image.isNotBlank()) {
+                AsyncImage(model = entry.image, contentDescription = entry.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+            } else {
+                Text(entry.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 26.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+            }
+            if (loading) {
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                }
+            }
+        }
+        Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
+            Text(entry.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (entry.japanese.isNotBlank()) {
+                Text(entry.japanese, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
             }
         }
     }

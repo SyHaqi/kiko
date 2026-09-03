@@ -644,6 +644,81 @@ class LibraryViewModel : ViewModel() {
     // Navigation.kt's onBack, same lifecycle as forgetCharacterScroll.
     fun forgetPersonScroll(malId: Int) { personScrollCaches.remove(malId) }
 
+    // Discover's Companies tab — same separate-result-list reasoning as Characters/People
+    // above (a company isn't a MediaItem either — see CompanyModels.kt), talking to
+    // MalCompanyApi's own search()/detail() (the studio-name-to-catalog lookup
+    // MalCompanyApi already did for the Advanced Filters "Studio" field is reused as-is —
+    // this just adds the same real search/detail flow on top of it).
+    private val malCompanyApi by lazy { MalCompanyApi() }
+    var companyResults by mutableStateOf<List<CompanySummary>>(emptyList()); private set
+    var companySearching by mutableStateOf(false); private set
+    var companyError by mutableStateOf<String?>(null); private set
+    private var companySearchJob: kotlinx.coroutines.Job? = null
+    // Loading spinner target for a tapped search row while its full detail page resolves —
+    // same shape as characterDetailLoadingId/personDetailLoadingId above, just keyed by
+    // MAL company id.
+    var companyDetailLoadingId by mutableStateOf<Int?>(null); private set
+    // Resolved company pages, so re-opening one already visited this session doesn't
+    // re-scrape MAL.
+    private val companyDetailCache = mutableMapOf<Int, CompanyDetail>()
+    // Company detail page's own scroll position. A single Pair (not a per-row cache like
+    // characterScrollCaches/personScrollCaches above) since the whole page — bio, one news
+    // card, and the anime grid — lives in one LazyColumn on CompanyDetailScreen, not
+    // several independent LazyRows; same single-scroll shape as stackDetailScrollPositions.
+    private val companyScrollPositions = mutableMapOf<Int, Pair<Int, Int>>()
+    fun getCompanyScroll(malId: Int) = companyScrollPositions[malId] ?: (0 to 0)
+    fun saveCompanyScroll(malId: Int, index: Int, offset: Int) { companyScrollPositions[malId] = index to offset }
+    // Drop a company's remembered scroll once its page is fully backed out of — call from
+    // Navigation.kt's onBack, same lifecycle as forgetCharacterScroll/forgetPersonScroll.
+    fun forgetCompanyScroll(malId: Int) { companyScrollPositions.remove(malId) }
+
+    // Run a company search — mirrors runCharacterSearch/runPersonSearch's role and
+    // MAL-side minimum-length rule.
+    fun runCompanySearch(query: String) {
+        discoverQuery = query; discoverTypeFilter = "Companies"; discoverMode = DiscoverMode.Results
+        discoverScrollIndex = 0; discoverScrollOffset = 0
+        companySearchJob?.cancel()
+        if (query.isBlank()) { companyResults = emptyList(); companySearching = false; companyError = null; return }
+        if (query.trim().length < 3) {
+            companyResults = emptyList(); companySearching = false
+            companyError = "Type at least 3 characters to search"
+            return
+        }
+        companySearchJob = viewModelScope.launch {
+            companySearching = true
+            runCatching { malCompanyApi.search(query) }
+                .onSuccess { companyResults = it; companyError = null }
+                .onFailure {
+                    // Same cancellation-isn't-a-failure reasoning as runCharacterSearch/
+                    // runPersonSearch — switching the type dropdown mid-search cancels this
+                    // job via companySearchJob?.cancel() above.
+                    if (it is kotlinx.coroutines.CancellationException) throw it
+                    companyError = it.message ?: "Search failed"
+                }
+            companySearching = false
+        }
+    }
+
+    // Fetch a tapped row's full company page — same immediate-navigate, fire-and-resolve
+    // shape openCharacterDetail/openPersonDetail document above (Navigation.kt shows
+    // CompanyDetailScreenSkeleton right away, this just needs to resolve as fast as it
+    // can). The anime grid shows whatever title MAL's own studio page actually rendered —
+    // no English-title backfill here, deliberately: Related/Recommended on the main
+    // anime/manga DetailScreen never got that treatment either (that HTML only ever bakes
+    // in one title per row, same as this page), so resolving it just for this one row
+    // would make Company inconsistent with the row style it's most directly comparable to,
+    // for a title-language mismatch that's genuinely minor on a row this size.
+    fun openCompanyDetail(context: Context, malId: Int, onLoaded: (CompanyDetail) -> Unit, onError: () -> Unit = {}) {
+        companyDetailCache[malId]?.let { onLoaded(it); return }
+        companyDetailLoadingId = malId
+        viewModelScope.launch {
+            runCatching { malCompanyApi.detail(malId) }
+                .onSuccess { companyDetailCache[malId] = it; onLoaded(it) }
+                .onFailure { error = it.message ?: "Could not load company"; onError() }
+            companyDetailLoadingId = null
+        }
+    }
+
     // Run a people search — mirrors runCharacterSearch's role and MAL-side minimum-length
     // rule.
     fun runPersonSearch(query: String) {
@@ -676,149 +751,61 @@ class LibraryViewModel : ViewModel() {
     // shows PersonDetailScreenSkeleton until onLoaded fires, so this no longer needs to
     // gate anything before returning; it just needs to return as fast as it can.
     //
-    // Title resolution used to be awaited right here before onLoaded ever fired, so the
-    // page never appeared until every Voice Acting Roles/Anime Staff Positions/Published
-    // Manga title was already resolved — correct, but for a person with a long list that
-    // meant sitting on the skeleton for however many sequential MalApi.englishTitles
-    // round trips that list took (Semaphore(10), so a long list is still several batches),
-    // on top of the page scrape itself, before the person appeared at all. That traded a
-    // *visible* wrong-language flicker for an *invisible* one — the page just looked stuck.
-    // Back to firing onLoaded with the raw page the moment the scrape finishes (workTitlesLoading
-    // = true tags it so nothing downstream mistakes blank titleEnglish for "no English title
-    // exists" while this is still in flight), with resolvePersonWorkTitles patching English
-    // titles in afterward via a second onLoaded call. The flicker this was meant to avoid is
-    // handled downstream instead — see PersonDetailScreen's DetailRowCard calls, which read
-    // workTitlesLoading to show a shimmer over a row's title rather than ever rendering it in
-    // the wrong language.
+    // Voice Acting Roles/Anime Staff Positions/Published Manga rows show whatever title
+    // MAL's own person page actually rendered — no English-title backfill here (this used
+    // to run one via resolvePersonWorkTitles). Related/Recommended on the main anime/manga
+    // DetailScreen never got that treatment either, for the same reason: that HTML only
+    // ever bakes in one title per row, and resolving it just for these rows made Person
+    // inconsistent with the row style it's most directly comparable to.
     fun openPersonDetail(context: Context, malId: Int, onLoaded: (PersonDetail) -> Unit, onError: () -> Unit = {}) {
         personDetailCache[malId]?.let { onLoaded(it); return }
         personDetailLoadingId = malId
         viewModelScope.launch {
             runCatching { malPeopleApi.detail(malId) }
-                .onSuccess { raw ->
-                    val pending = titleLanguage == TitleLanguage.English &&
-                            (raw.voiceActingRoles.isNotEmpty() || raw.staffCredits.isNotEmpty() || raw.publishedManga.isNotEmpty())
-                    val tagged = raw.copy(workTitlesLoading = pending)
-                    personDetailCache[malId] = tagged
-                    onLoaded(tagged)
-                    if (pending) {
-                        // Not awaited by the outer launch — personDetailLoadingId (and the
-                        // caller's own in-flight bookkeeping) clears the moment the page
-                        // itself is ready rather than lingering for title resolution too.
-                        viewModelScope.launch {
-                            val patched = runCatching { resolvePersonWorkTitles(context, raw) }.getOrDefault(raw).copy(workTitlesLoading = false)
-                            personDetailCache[malId] = patched
-                            onLoaded(patched)
-                        }
-                    }
-                }
+                .onSuccess { personDetailCache[malId] = it; onLoaded(it) }
                 .onFailure { error = it.message ?: "Could not load person"; onError() }
             personDetailLoadingId = null
         }
     }
-    // Resolves English titles for a person's Voice Acting Roles/Anime Staff
-    // Positions/Published Manga rows — same reasoning as resolveCharacterWorkTitles below:
-    // MAL's own page only ever renders one title per work, so honoring this app's Title
-    // Language setting needs the same englishTitles lookup. Staff Positions/Published Manga
-    // are already MediaItem lists (via MalPeopleApi.fetchCreditedWorks), so those two reuse
-    // resolveEnglishTitles verbatim; Voice Acting Roles needs its own small patch step since
-    // PersonVoiceRole isn't a MediaItem. No-ops when Title Language isn't English, for the
-    // same reason resolveEnglishTitles/resolveCharacterWorkTitles do.
-    private suspend fun resolvePersonWorkTitles(context: Context, detail: PersonDetail): PersonDetail {
-        if (titleLanguage != TitleLanguage.English) return detail
-        if (detail.voiceActingRoles.isEmpty() && detail.staffCredits.isEmpty() && detail.publishedManga.isEmpty()) return detail
-        val (roles, staffCredits, publishedManga) = coroutineScope {
-            val rolesDeferred = async {
-                if (detail.voiceActingRoles.isEmpty()) detail.voiceActingRoles else {
-                    val titles = runCatching { MalApi(context).englishTitles("anime", detail.voiceActingRoles.map { it.workId }) }.getOrElse { emptyMap() }
-                    if (titles.isEmpty()) detail.voiceActingRoles
-                    else detail.voiceActingRoles.map { r -> titles[r.workId]?.takeIf { it.isNotBlank() }?.let { r.copy(workTitleEnglish = it) } ?: r }
-                }
-            }
-            val staffDeferred = async { resolveEnglishTitles(context, detail.staffCredits) }
-            val mangaDeferred = async { resolveEnglishTitles(context, detail.publishedManga) }
-            Triple(rolesDeferred.await(), staffDeferred.await(), mangaDeferred.await())
-        }
-        return detail.copy(voiceActingRoles = roles, staffCredits = staffCredits, publishedManga = publishedManga)
-    }
 
-    // Switches the Discover type dropdown. Anime/Manga, Characters, and People each have
-    // a real search behind them (runDiscoverSearch/runCharacterSearch/runPersonSearch);
-    // Companies doesn't yet — it just clears every result list and shows Discover's own
-    // "coming soon" placeholder rather than one written per un-implemented type.
+    // Switches the Discover type dropdown. Anime/Manga, Characters, People, and Companies
+    // each have a real search behind them (runDiscoverSearch/runCharacterSearch/
+    // runPersonSearch/runCompanySearch); any other value just clears every result list.
     fun selectDiscoverType(context: Context, type: String, query: String) {
         when (type) {
             "Anime", "Manga" -> runDiscoverSearch(context, query, type)
             "Characters" -> runCharacterSearch(query)
             "People" -> runPersonSearch(query)
+            "Companies" -> runCompanySearch(query)
             else -> {
                 discoverQuery = query; discoverTypeFilter = type; discoverMode = DiscoverMode.Results
-                discoverSearchJob?.cancel(); discoverLoadMoreJob?.cancel(); characterSearchJob?.cancel(); personSearchJob?.cancel()
-                discoverResults = emptyList(); characterResults = emptyList(); personResults = emptyList()
-                discoverSearching = false; characterSearching = false; personSearching = false
-                discoverError = null; characterError = null; personError = null; discoverHasMore = false
+                discoverSearchJob?.cancel(); discoverLoadMoreJob?.cancel(); characterSearchJob?.cancel(); personSearchJob?.cancel(); companySearchJob?.cancel()
+                discoverResults = emptyList(); characterResults = emptyList(); personResults = emptyList(); companyResults = emptyList()
+                discoverSearching = false; characterSearching = false; personSearching = false; companySearching = false
+                discoverError = null; characterError = null; personError = null; companyError = null; discoverHasMore = false
                 discoverPaginationSource = DiscoverPaginationSource.None
             }
         }
     }
 
-    // Fetch a tapped row's full character page — same immediate-navigate,
-    // fire-then-backfill shape openPersonDetail documents above (Navigation.kt shows
+    // Fetch a tapped row's full character page — same immediate-navigate, fire-and-resolve
+    // shape openPersonDetail documents above (Navigation.kt shows
     // CharacterDetailScreenSkeleton right away, this just needs to resolve as fast as it
-    // can): onLoaded fires with the raw page the moment the single page scrape finishes
-    // (workTitlesLoading = true tags it while resolution is still in flight), and
-    // resolveCharacterWorkTitles patches Animeography/Mangaography titles in with a second
-    // onLoaded call afterward. See openPersonDetail's doc comment for why this isn't
-    // awaited before the first onLoaded anymore — the flicker that was meant to avoid is
-    // handled downstream instead, by CharacterDetailScreen reading workTitlesLoading to
-    // shimmer a row's title rather than ever rendering it in the wrong language.
+    // can). Animeography/Mangaography rows show whatever title MAL's own character page
+    // actually rendered — no English-title backfill here (this used to run one via
+    // resolveCharacterWorkTitles). Related/Recommended on the main anime/manga
+    // DetailScreen never got that treatment either, for the same reason: that HTML only
+    // ever bakes in one title per row, and resolving it just for these two rows made
+    // Character inconsistent with the row style it's most directly comparable to.
     fun openCharacterDetail(context: Context, malId: Int, onLoaded: (CharacterDetail) -> Unit, onError: () -> Unit = {}) {
         characterDetailCache[malId]?.let { onLoaded(it); return }
         characterDetailLoadingId = malId
         viewModelScope.launch {
             runCatching { malCharacterApi.detail(malId) }
-                .onSuccess { raw ->
-                    val pending = titleLanguage == TitleLanguage.English && (raw.animeography.isNotEmpty() || raw.mangaography.isNotEmpty())
-                    val tagged = raw.copy(workTitlesLoading = pending)
-                    characterDetailCache[malId] = tagged
-                    onLoaded(tagged)
-                    if (pending) {
-                        viewModelScope.launch {
-                            val patched = runCatching { resolveCharacterWorkTitles(context, raw) }.getOrDefault(raw).copy(workTitlesLoading = false)
-                            characterDetailCache[malId] = patched
-                            onLoaded(patched)
-                        }
-                    }
-                }
+                .onSuccess { characterDetailCache[malId] = it; onLoaded(it) }
                 .onFailure { error = it.message ?: "Could not load character"; onError() }
             characterDetailLoadingId = null
         }
-    }
-    // Resolves English titles for a character's Animeography/Mangaography rows. MAL's
-    // character page only ever renders one title per work — whatever this MAL account's
-    // own title-display preference is, which nothing here controls (see
-    // MalCharacterApi.parseWorks's own doc comment) — so getting this app's own Title
-    // Language setting to actually govern those two rows needs the same englishTitles
-    // lookup resolveEnglishTitles above uses for Discover rows. No-ops when Title Language
-    // isn't English, for the same reason resolveEnglishTitles no-ops: nothing on screen
-    // reads titleEnglish otherwise. MalApi.englishTitles caches by kind+id internally, so a
-    // work that shows up in more than one character's animeography/mangaography (or was
-    // already resolved from Discover) is never re-fetched.
-    private suspend fun resolveCharacterWorkTitles(context: Context, detail: CharacterDetail): CharacterDetail {
-        if (titleLanguage != TitleLanguage.English) return detail
-        if (detail.animeography.isEmpty() && detail.mangaography.isEmpty()) return detail
-        suspend fun patch(works: List<CharacterWork>, kind: String): List<CharacterWork> {
-            if (works.isEmpty()) return works
-            val titles = runCatching { MalApi(context).englishTitles(kind, works.map { it.malId }) }.getOrElse { emptyMap() }
-            if (titles.isEmpty()) return works
-            return works.map { w -> titles[w.malId]?.takeIf { it.isNotBlank() }?.let { w.copy(titleEnglish = it) } ?: w }
-        }
-        val (animeTitles, mangaTitles) = coroutineScope {
-            val anime = async { patch(detail.animeography, "anime") }
-            val manga = async { patch(detail.mangaography, "manga") }
-            anime.await() to manga.await()
-        }
-        return detail.copy(animeography = animeTitles, mangaography = mangaTitles)
     }
 
     // Home recommendations row
@@ -1367,6 +1354,7 @@ class LibraryViewModel : ViewModel() {
         discoverGenreKind = null; discoverGenreIds = emptyList()
         characterSearchJob?.cancel(); characterResults = emptyList(); characterError = null; characterSearching = false
         personSearchJob?.cancel(); personResults = emptyList(); personError = null; personSearching = false
+        companySearchJob?.cancel(); companyResults = emptyList(); companyError = null; companySearching = false
         // Drop the raw studio/author lookup cache here rather than letting it live for the
         // whole process — it existed purely so re-applying filters *within* the same results
         // page didn't re-scrape MAL. Once the person leaves the results page that reason is

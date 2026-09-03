@@ -203,7 +203,6 @@ import coil.compose.AsyncImage
                                         label = role.roleLabel, subtitle = role.characterName,
                                         loading = workLoadingId == role.workId,
                                         myStatus = myListStatus[role.workId to MediaType.Anime],
-                                        titlePending = person.workTitlesLoading && role.workTitleEnglish.isBlank() && LocalTitleLanguage.current == TitleLanguage.English,
                                         onClick = { onOpenWork(role.workId, MediaType.Anime) },
                                     )
                                 }
@@ -221,7 +220,6 @@ import coil.compose.AsyncImage
                                         imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,
                                         loading = workLoadingId == work.id.toIntOrNull(),
                                         myStatus = work.id.toIntOrNull()?.let { myListStatus[it to MediaType.Anime] },
-                                        titlePending = person.workTitlesLoading && work.titleEnglish.isBlank() && LocalTitleLanguage.current == TitleLanguage.English,
                                         onClick = { work.id.toIntOrNull()?.let { onOpenWork(it, MediaType.Anime) } },
                                     )
                                 }
@@ -239,7 +237,6 @@ import coil.compose.AsyncImage
                                         imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,
                                         loading = workLoadingId == work.id.toIntOrNull(),
                                         myStatus = work.id.toIntOrNull()?.let { myListStatus[it to MediaType.Manga] },
-                                        titlePending = person.workTitlesLoading && work.titleEnglish.isBlank() && LocalTitleLanguage.current == TitleLanguage.English,
                                         onClick = { work.id.toIntOrNull()?.let { onOpenWork(it, MediaType.Manga) } },
                                     )
                                 }
