@@ -85,6 +85,10 @@ data class DetailScreenActions(
     // above, since CharacterEntry only carries the row's own summary fields, not the full
     // bio/animeography/mangaography CharacterDetail needs.
     val onOpenCharacter: (malId: Int) -> Unit = {},
+    // Opens a voice actor's own full person page in-app (see PersonDetailScreen) — same
+    // fetch-then-open shape as onOpenCharacter above, since VoiceActorEntry only carries
+    // the row's own summary fields, not the full bio/roles/credits PersonDetail needs.
+    val onOpenPerson: (malId: Int) -> Unit = {},
     val onLeaveScroll: (Int, Int) -> Unit = { _, _ -> },
     val onLeaveRelatedScroll: (Int, Int) -> Unit = { _, _ -> },
     val onLeaveRecommendedScroll: (Int, Int) -> Unit = { _, _ -> },
@@ -477,7 +481,7 @@ data class DetailScreenActions(
                     }
 
                     if (characters.isNotEmpty()) {
-                        SectionTitle("Characters", "See cast", { actions.onOpenReviewList(malCharactersUrl(item), itemDisplayTitle) })
+                        SectionTitle("Characters", "", {})
                         LazyRow(state = charactersListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch ->
                                 StaggeredItem(i, charactersSeen) {
@@ -510,7 +514,7 @@ data class DetailScreenActions(
                     if (japaneseVoiceActors.isNotEmpty()) {
                         SectionTitle("Voice Actors", "", {})
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(japaneseVoiceActors, key = { _, (va, charName) -> "${va.malId}-$charName" }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, uriHandler) } }
+                            itemsIndexed(japaneseVoiceActors, key = { _, (va, charName) -> "${va.malId}-$charName" }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, onClick = { actions.onOpenPerson(va.malId) }) } }
                         }
                     }
 
@@ -705,6 +709,15 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     label: String? = null, subtitle: String? = null,
     loading: Boolean = false, onClick: (() -> Unit)? = null,
     myStatus: WatchStatus? = null,
+    // True while this specific row's title is still being resolved into the app's Title
+    // Language setting (see CharacterDetail/PersonDetail.workTitlesLoading and the
+    // per-entry titleEnglish.isBlank() check each caller does before passing this in).
+    // Renders a shimmer over the title instead of the `title` param, since `title` is
+    // whatever this card had on hand already — usually MAL's own default-language title —
+    // which would otherwise flash on screen and then get replaced a moment later once
+    // resolution finishes. Cover image/label/subtitle don't have this problem (they're not
+    // language-dependent) so only the title line itself is swapped for a placeholder.
+    titlePending: Boolean = false,
 ) {
     val c = LocalKikoColors.current
     Column(
@@ -728,7 +741,17 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
         // Fixed height text block
         Column(Modifier.fillMaxWidth().height(112.dp).padding(10.dp)) {
             if (label != null) Text(label.uppercase(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 10.sp, lineHeight = 13.sp, letterSpacing = 1.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(title, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 15.sp, minLines = 3, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = if (label != null) 4.dp else 0.dp))
+            if (titlePending) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = if (label != null) 5.dp else 1.dp),
+                ) {
+                    SkeletonBlock(Modifier.fillMaxWidth(0.9f).height(11.dp))
+                    SkeletonBlock(Modifier.fillMaxWidth(0.6f).height(11.dp))
+                }
+            } else {
+                Text(title, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 15.sp, minLines = 3, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = if (label != null) 4.dp else 0.dp))
+            }
             if (subtitle != null) Text(subtitle, color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
         }
     }
@@ -784,10 +807,12 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
 @Composable fun CharacterCard(entry: CharacterEntry, loading: Boolean = false, onClick: () -> Unit) {
     PersonCard(entry.image, entry.name.take(1), entry.name, entry.role, loading = loading, onClick = onClick)
 }
-// Voice actor card opens the VA's own MAL page; the character they voice is shown as the subtitle
+// Voice actor card opens the VA's own in-app person page (see PersonDetailScreen) — a
+// fetch-then-open via DetailScreenActions.onOpenPerson, same shape as CharacterCard opening
+// CharacterDetailScreen, rather than the external MAL page hop this used to be.
 
-@Composable fun VoiceActorCard(entry: VoiceActorEntry, characterName: String, uriHandler: androidx.compose.ui.platform.UriHandler) {
-    PersonCard(entry.image, entry.name.take(1), entry.name, characterName, onClick = { entry.url.takeIf { it.isNotBlank() }?.let { runCatching { uriHandler.openUri(it) } } })
+@Composable fun VoiceActorCard(entry: VoiceActorEntry, characterName: String, onClick: () -> Unit) {
+    PersonCard(entry.image, entry.name.take(1), entry.name, characterName, onClick = onClick)
 }
 // Review card opens full text
 

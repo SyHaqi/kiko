@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -62,9 +64,44 @@ import coil.compose.AsyncImage
 // it. Voice Actors deliberately isn't included here — tapping one opens an external browser
 // tab rather than navigating in-app, so this composable is never torn down for it and
 // there's nothing to lose.
+// Loading placeholder shaped like the real page below (portrait + eyebrow + name +
+// Details card + one row of horizontal cards) — shown the instant a character row is
+// tapped, before the fetch behind it resolves (see characterDetailOpenId's doc comment
+// in Navigation.kt), so the page reads as "this character is arriving" rather than
+// leaving the user parked on the row they tapped. Back stays tappable the whole time,
+// same reasoning as DetailScreenSkeleton in DetailScreen.kt, which this mirrors — just
+// without a backdrop banner, since a character page never has one either.
+@Composable fun CharacterDetailScreenSkeleton(onBack: () -> Unit) {
+    val c = LocalKikoColors.current
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            }
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                SkeletonBlock(Modifier.width(128.dp).aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(16.dp)))
+                SkeletonBlock(Modifier.padding(top = 18.dp).width(84.dp).height(12.dp))
+                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.6f).height(26.dp))
+                SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.3f).height(14.dp))
+                SkeletonBlock(Modifier.padding(top = 26.dp).width(90.dp).height(18.dp))
+                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth().height(120.dp), shape = RoundedCornerShape(kikoCorner(24.dp)))
+                SkeletonBlock(Modifier.padding(top = 26.dp).width(120.dp).height(18.dp))
+                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(3) { SkeletonBlock(Modifier.width(92.dp).height(128.dp), shape = RoundedCornerShape(kikoCorner(14.dp))) }
+                }
+            }
+        }
+    }
+}
+
 @Composable fun CharacterDetailScreen(
-    character: CharacterDetail,
+    malId: Int,
+    character: CharacterDetail?,
     onBack: () -> Unit,
+    // Opens a Voice Actors row entry's own full person page in-app (see
+    // PersonDetailScreen) — same fetch-then-open shape as onOpenWork above, rather than
+    // the external MAL page hop this used to be.
+    onOpenPerson: (malId: Int) -> Unit = {},
     onOpenWork: (malId: Int, type: MediaType) -> Unit,
     workLoadingId: Int? = null,
     myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(),
@@ -75,6 +112,14 @@ import coil.compose.AsyncImage
     onLeaveAnimeScroll: (Int, Int) -> Unit = { _, _ -> },
     onLeaveMangaScroll: (Int, Int) -> Unit = { _, _ -> },
 ) {
+    // Navigation.kt now shows this route the instant a character row is tapped, before
+    // the fetch behind it has resolved (see characterDetailOpenId's doc comment there) —
+    // character is null for that first beat, so render the loading placeholder and bail
+    // out before touching anything else below that assumes a resolved page.
+    if (character == null) {
+        CharacterDetailScreenSkeleton(onBack = onBack)
+        return
+    }
     val c = LocalKikoColors.current
     val uriHandler = LocalUriHandler.current
     val listState = remember(character.malId) { LazyListState(initialScroll.first, initialScroll.second) }
@@ -174,7 +219,7 @@ import coil.compose.AsyncImage
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             itemsIndexed(character.voiceActors, key = { _, va -> "${va.malId}-${va.language}" }) { i, va ->
                                 StaggeredItem(i, voiceActorsSeen) {
-                                    PersonCard(va.image, va.name.take(1), va.name, va.language) { runCatching { uriHandler.openUri("https://myanimelist.net/people/${va.malId}") } }
+                                    PersonCard(va.image, va.name.take(1), va.name, va.language) { onOpenPerson(va.malId) }
                                 }
                             }
                         }
@@ -190,6 +235,7 @@ import coil.compose.AsyncImage
                                         imageUrl = work.image, fallbackLetter = workTitle.take(1), title = workTitle, label = work.role,
                                         loading = workLoadingId == work.malId,
                                         myStatus = myListStatus[work.malId to MediaType.Anime],
+                                        titlePending = character.workTitlesLoading && work.titleEnglish.isBlank() && LocalTitleLanguage.current == TitleLanguage.English,
                                         onClick = { onOpenWork(work.malId, MediaType.Anime) },
                                     )
                                 }
@@ -207,6 +253,7 @@ import coil.compose.AsyncImage
                                         imageUrl = work.image, fallbackLetter = workTitle.take(1), title = workTitle, label = work.role,
                                         loading = workLoadingId == work.malId,
                                         myStatus = myListStatus[work.malId to MediaType.Manga],
+                                        titlePending = character.workTitlesLoading && work.titleEnglish.isBlank() && LocalTitleLanguage.current == TitleLanguage.English,
                                         onClick = { onOpenWork(work.malId, MediaType.Manga) },
                                     )
                                 }

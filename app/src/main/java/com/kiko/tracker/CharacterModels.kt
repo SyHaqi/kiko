@@ -22,10 +22,12 @@ data class CharacterSummary(
 
 // One row in a character's Animeography/Mangaography list. titleEnglish starts blank —
 // MAL's character page only ever renders one title per work (whatever this MAL account's
-// own title-display preference is, which this app doesn't control) — and is filled in
-// afterwards by LibraryViewModel.resolveCharacterWorkTitles so displayTitle() below can
-// actually honor this app's own Title Language setting, same as everywhere else titles
-// appear (see MediaItem.displayTitle() in Models.kt).
+// own title-display preference is, which this app doesn't control) — and is resolved by
+// LibraryViewModel.resolveCharacterWorkTitles (awaited before openCharacterDetail's
+// onLoaded ever fires, so this is never blank by the time displayTitle() below reads it
+// under Title Language: English) so displayTitle() can actually honor this app's own
+// Title Language setting, same as everywhere else titles appear (see
+// MediaItem.displayTitle() in Models.kt).
 data class CharacterWork(val malId: Int, val title: String, val image: String = "", val role: String = "", val titleEnglish: String = "")
 
 // Mirrors MediaItem.displayTitle()/secondaryTitle() in Models.kt — same LocalTitleLanguage
@@ -60,4 +62,13 @@ data class CharacterDetail(
     val voiceActors: List<CharacterVoiceActor> = emptyList(),
     val animeography: List<CharacterWork> = emptyList(),
     val mangaography: List<CharacterWork> = emptyList(),
+    // True from the moment this page first appears until LibraryViewModel.resolveCharacterWorkTitles
+    // finishes patching English titles into the two rows above (see openCharacterDetail).
+    // Only ever true when Title Language is English and at least one of those rows is
+    // non-empty; false immediately otherwise. CharacterDetailScreen reads this — together
+    // with each row entry's own titleEnglish being still blank — to know whether to show a
+    // shimmer in place of that entry's title rather than the raw MAL-default one, so a
+    // character page never actually displays the wrong-language title, just a placeholder
+    // for the brief moment before the right one is in.
+    val workTitlesLoading: Boolean = false,
 )

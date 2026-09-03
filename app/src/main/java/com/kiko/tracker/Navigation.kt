@@ -108,8 +108,17 @@ sealed class TopScreen {
     data class GenreFilter(val type: MediaType, val genre: String) : TopScreen()
     // Character detail page, opened from Discover's Characters tab. Named CharacterPage
     // (not CharacterDetail) to avoid colliding with the CharacterDetail data class itself
-    // (see CharacterModels.kt) that this wraps.
-    data class CharacterPage(val character: CharacterDetail) : TopScreen()
+    // (see CharacterModels.kt) that this wraps. malId is carried separately from character
+    // (nullable) so this route can show the instant a row is tapped, before the fetch
+    // resolves — CharacterDetailScreen renders CharacterDetailScreenSkeleton while
+    // character is still null and swaps to the real page once it arrives. See
+    // characterDetailOpenId's doc comment below for the full reasoning.
+    data class CharacterPage(val malId: Int, val character: CharacterDetail?) : TopScreen()
+    // Person detail page, opened from Discover's People tab (or a voice-actor row on a
+    // Detail/CharacterPage). Named PersonPage for the same reason CharacterPage is —
+    // avoids colliding with the PersonDetail data class itself (see PersonModels.kt). Same
+    // malId-carried-separately shape as CharacterPage above, same reason.
+    data class PersonPage(val malId: Int, val person: PersonDetail?) : TopScreen()
     data class Tab(val destination: Destination) : TopScreen()
 }
 // Same screen vs navigation
@@ -132,11 +141,12 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.YearFilter -> "yearFilter:$type:$year"
     is TopScreen.FormatFilter -> "formatFilter:$type:$format"
     is TopScreen.GenreFilter -> "genreFilter:$type:$genre"
-    is TopScreen.CharacterPage -> "characterPage:${character.malId}"
+    is TopScreen.CharacterPage -> "characterPage:$malId"
+    is TopScreen.PersonPage -> "personPage:$malId"
     is TopScreen.Tab -> "tab:$destination"
 }
 
-fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage
+fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage
 
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}) {
@@ -158,18 +168,37 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var stacksHomeOpen by remember { mutableStateOf(false) }
     var stacksBrowseKind by remember { mutableStateOf<StackBrowseKind?>(null) }
     var stackDetailOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
-    // Character detail page, opened from Discover's Characters tab
+    // Character detail page, opened from Discover's Characters tab, a Detail page's own
+    // cast row, or a Voice Actors row on a CharacterPage/PersonPage.
+    //
+    // characterDetailOpenId is set the instant a row is tapped — before the fetch behind
+    // it has even started — so the CharacterPage route (and CharacterDetailScreen's own
+    // skeleton, see CharacterDetailScreenSkeleton) shows immediately instead of leaving the
+    // user parked on the row they tapped until the full page resolves. characterDetailOpen
+    // (the resolved data) fills in a beat later via openCharacter() below; every place that
+    // used to gate on "characterDetailOpen != null" now gates on "characterDetailOpenId !=
+    // null" instead, since the id is what marks the route as active — the resolved data is
+    // just what CharacterDetailScreen renders once it's ready.
+    var characterDetailOpenId by remember { mutableStateOf<Int?>(null) }
     var characterDetailOpen by remember { mutableStateOf<CharacterDetail?>(null) }
-    // True while characterDetailOpen was opened from *inside* a Detail page's own
-    // Characters row (see onOpenCharacter below) rather than from Discover — the two
-    // flows need opposite topScreen priority when detailItem and characterDetailOpen are
-    // both non-null at once: a character opened from Discover should never outrank an
-    // unrelated Detail page that happens to still be lingering underneath, but a character
-    // opened *from* the very Detail page currently on screen must show on top of it. Reset
-    // to false by openDetail() (any fresh open, including tapping a work from the
-    // character's own Animeography/Mangaography row) and by the character page's own
-    // onBack, so it never outlives the specific Detail<->Character hop it was set for.
+    // True while the open character page was opened from *inside* a Detail page's own
+    // Characters row (see openCharacter below) rather than from Discover — the two flows
+    // need opposite topScreen priority when detailItem and characterDetailOpenId are both
+    // non-null at once: a character opened from Discover should never outrank an unrelated
+    // Detail page that happens to still be lingering underneath, but a character opened
+    // *from* the very Detail page currently on screen must show on top of it. Reset to
+    // false by openDetail() (any fresh open, including tapping a work from the character's
+    // own Animeography/Mangaography row) and by the character page's own onBack, so it
+    // never outlives the specific Detail<->Character hop it was set for.
     var castCharacterOnTop by remember { mutableStateOf(false) }
+    // Person detail page, opened from Discover's People tab, or from a voice-actor row on
+    // a Detail page's or CharacterPage's own cast — see castPersonOnTop below, same
+    // reasoning as characterDetailOpenId/castCharacterOnTop just one level further out,
+    // since a person can be opened from on top of either a Detail page or a CharacterPage.
+    // Same immediate-id-then-fill shape as characterDetailOpenId above.
+    var personDetailOpenId by remember { mutableStateOf<Int?>(null) }
+    var personDetailOpen by remember { mutableStateOf<PersonDetail?>(null) }
+    var castPersonOnTop by remember { mutableStateOf(false) }
     // Item to return to when backing out of a genre-chip/creator-tap jump to Discover
     var discoverReturnItem by remember { mutableStateOf<MediaItem?>(null) }
     // Where the detour started — the tab (My List, Home, ...) and, if applicable, the
@@ -192,6 +221,10 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         // including a work opened from a character page's own Animeography/Mangaography
         // row, which also goes through this function (see openCharacterWork below).
         castCharacterOnTop = false
+        // Same reasoning, one level further out — a fresh Detail open (including a work
+        // opened from a person page's own rows) also always outranks a lingering person
+        // overlay from wherever it was opened.
+        castPersonOnTop = false
         // A title opened while a Discover detour is still in progress (e.g. tapping
         // another result on the author's search page) is just drilling further into
         // that same detour — keep the breadcrumbs so backing out eventually still
@@ -201,6 +234,35 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         selectedItem = item
     }
     fun openRelatedDetail(from: MediaItem, to: MediaItem) { detailGoingBack = false; detailStack = detailStack + from; selectedItem = to }
+    // Opens the Character page immediately — see characterDetailOpenId's doc comment
+    // above for why. Every tap that used to fetch-then-navigate onto characterDetailOpen
+    // now goes through this one function instead, so the id-set/data-fill split only has
+    // to be gotten right in one place. castOnTop mirrors the castCharacterOnTop each call
+    // site used to set inline for itself. If the fetch fails, this bounces back out to
+    // whatever was underneath (same as if the row had never been tapped) rather than
+    // leaving the skeleton on screen forever — vm.openCharacterDetail's onFailure already
+    // raises vm.error for the toast, so there's nothing else to show here.
+    fun openCharacter(malId: Int, castOnTop: Boolean = false) {
+        characterDetailOpenId = malId
+        characterDetailOpen = null
+        castCharacterOnTop = castOnTop
+        vm.openCharacterDetail(
+            context, malId,
+            onLoaded = { character -> if (characterDetailOpenId == malId) characterDetailOpen = character },
+            onError = { if (characterDetailOpenId == malId) { characterDetailOpenId = null; castCharacterOnTop = false } },
+        )
+    }
+    // Same shape as openCharacter above, one level further out — see personDetailOpenId.
+    fun openPerson(malId: Int, castOnTop: Boolean = false) {
+        personDetailOpenId = malId
+        personDetailOpen = null
+        castPersonOnTop = castOnTop
+        vm.openPersonDetail(
+            context, malId,
+            onLoaded = { person -> if (personDetailOpenId == malId) personDetailOpen = person },
+            onError = { if (personDetailOpenId == malId) { personDetailOpenId = null; castPersonOnTop = false } },
+        )
+    }
     fun backDetail() {
         val leaving = selectedItem
         val prev = detailStack.lastOrNull()
@@ -293,7 +355,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         discoverReturnItem = from
         vm.clearDetailCache()
         selectedItem = null; detailStack = emptyList()
-        characterDetailOpen = null; castCharacterOnTop = false
+        characterDetailOpenId = null; characterDetailOpen = null; castCharacterOnTop = false
+        personDetailOpenId = null; personDetailOpen = null; castPersonOnTop = false
         stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = false
         clubDetailOpen = null
         rankingOpen = false; recommendationsOpen = false; scheduleOpen = false
@@ -310,7 +373,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Prefer live item copy — same id+type requirement as above
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && characterDetailOpen == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && (vm.destination != Destination.Home || discoverReturnItem != null)) {
+    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && (vm.destination != Destination.Home || discoverReturnItem != null)) {
         val returnItem = discoverReturnItem
         if (returnItem != null && vm.destination == Destination.Discover) {
             discoverReturnItem = null
@@ -343,7 +406,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         ) {
             Scaffold(
                 containerColor = c.background,
-                bottomBar = { if (detailItem == null && characterDetailOpen == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null) BottomBar(vm.destination, onDoubleTapDiscover = { vm.openDiscoverSearch(context) }) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
+                bottomBar = { if (detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && clubDetailOpen == null && !profileStatsOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null) BottomBar(vm.destination, onDoubleTapDiscover = { vm.openDiscoverSearch(context) }) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val topScreen = when {
@@ -355,9 +418,14 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                         // Detail is opened from anywhere (including the character page's
                         // own Animeography/Mangaography row — see openDetail above), so it
                         // never lingers past the specific hop it was set for.
-                        castCharacterOnTop && characterDetailOpen != null -> TopScreen.CharacterPage(characterDetailOpen!!)
+                        // A person opened from *this* Detail page's or CharacterPage's own
+                        // voice-actor row — same castCharacterOnTop reasoning, one level
+                        // further out, so it outranks both of those too.
+                        castPersonOnTop && personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
+                        castCharacterOnTop && characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
                         detailItem != null -> TopScreen.Detail(detailItem)
-                        characterDetailOpen != null -> TopScreen.CharacterPage(characterDetailOpen!!)
+                        characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
+                        personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
                         rankingOpen -> TopScreen.Ranking
                         recommendationsOpen -> TopScreen.Recommendations
                         scheduleOpen -> TopScreen.Schedule(scheduleInitialDay)
@@ -424,7 +492,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(creator = creator))
                                     },
                                     onLoadAiringEpisode = { forItem -> vm.loadAiringEpisode(forItem) },
-                                    onOpenCharacter = { malId -> vm.openCharacterDetail(context, malId) { character -> characterDetailOpen = character; castCharacterOnTop = true } },
+                                    onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) },
+                                    onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
                                 ),
                                 relatedLoadingId = vm.relatedLoadingId,
                                 recommendedLoadingId = vm.recommendedLoadingId,
@@ -438,17 +507,35 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 airingInfo = vm.getCachedAiring(screen.item.id),
                             )
                             is TopScreen.CharacterPage -> CharacterDetailScreen(
+                                screen.malId,
                                 screen.character,
-                                onBack = { val malId = characterDetailOpen?.malId; characterDetailOpen = null; castCharacterOnTop = false; malId?.let(vm::forgetCharacterScroll) },
+                                onBack = { characterDetailOpenId = null; characterDetailOpen = null; castCharacterOnTop = false; vm.forgetCharacterScroll(screen.malId) },
+                                onOpenWork = { malId, type -> vm.openCharacterWork(context, malId, type, ::openDetail) },
+                                onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
+                                workLoadingId = vm.characterWorkLoadingId,
+                                myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
+                                initialScroll = vm.getCharacterScroll(screen.malId),
+                                initialAnimeScroll = vm.getCharacterAnimeScroll(screen.malId),
+                                initialMangaScroll = vm.getCharacterMangaScroll(screen.malId),
+                                onLeaveScroll = { index, offset -> vm.saveCharacterScroll(screen.malId, index, offset) },
+                                onLeaveAnimeScroll = { index, offset -> vm.saveCharacterAnimeScroll(screen.malId, index, offset) },
+                                onLeaveMangaScroll = { index, offset -> vm.saveCharacterMangaScroll(screen.malId, index, offset) },
+                            )
+                            is TopScreen.PersonPage -> PersonDetailScreen(
+                                screen.malId,
+                                screen.person,
+                                onBack = { personDetailOpenId = null; personDetailOpen = null; castPersonOnTop = false; vm.forgetPersonScroll(screen.malId) },
                                 onOpenWork = { malId, type -> vm.openCharacterWork(context, malId, type, ::openDetail) },
                                 workLoadingId = vm.characterWorkLoadingId,
                                 myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
-                                initialScroll = vm.getCharacterScroll(screen.character.malId),
-                                initialAnimeScroll = vm.getCharacterAnimeScroll(screen.character.malId),
-                                initialMangaScroll = vm.getCharacterMangaScroll(screen.character.malId),
-                                onLeaveScroll = { index, offset -> vm.saveCharacterScroll(screen.character.malId, index, offset) },
-                                onLeaveAnimeScroll = { index, offset -> vm.saveCharacterAnimeScroll(screen.character.malId, index, offset) },
-                                onLeaveMangaScroll = { index, offset -> vm.saveCharacterMangaScroll(screen.character.malId, index, offset) },
+                                initialScroll = vm.getPersonScroll(screen.malId),
+                                initialRolesScroll = vm.getPersonRolesScroll(screen.malId),
+                                initialStaffScroll = vm.getPersonStaffScroll(screen.malId),
+                                initialMangaScroll = vm.getPersonMangaScroll(screen.malId),
+                                onLeaveScroll = { index, offset -> vm.savePersonScroll(screen.malId, index, offset) },
+                                onLeaveRolesScroll = { index, offset -> vm.savePersonRolesScroll(screen.malId, index, offset) },
+                                onLeaveStaffScroll = { index, offset -> vm.savePersonStaffScroll(screen.malId, index, offset) },
+                                onLeaveMangaScroll = { index, offset -> vm.savePersonMangaScroll(screen.malId, index, offset) },
                             )
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
@@ -503,7 +590,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     },
                                     onEdit = { editor = it },
                                     selectedItem = editor,
-                                    onOpenCharacter = { character -> characterDetailOpen = character },
+                                    onOpenCharacter = { malId -> openCharacter(malId) },
+                                    onOpenPerson = { malId -> openPerson(malId) },
                                 )
                                 Destination.Seasonal -> SeasonalScreen(vm, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
                                 Destination.Community -> CommunityScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onOpenClub = { clubDetailOpen = it })
