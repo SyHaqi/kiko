@@ -3,6 +3,8 @@ package com.kiko.tracker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+import org.jsoup.nodes.TextNode
 import java.io.IOException
 
 private const val MAL = "https://myanimelist.net"
@@ -35,12 +37,30 @@ private const val MAL = "https://myanimelist.net"
 class MalDetailScrapeApi {
     private val client = NetworkClient.shared
 
-    data class PageExtras(val related: List<RelatedEntry>, val recommended: List<RecommendedEntry>)
+    data class PageExtras(
+        val related: List<RelatedEntry>,
+        val recommended: List<RecommendedEntry>,
+        // Recent News / Recent Forum Discussion / Recent Featured Articles — the three
+        // widgets sitting below the Interest Stacks preview row on the same detail page,
+        // parsed off this same fetched doc rather than a separate request. News reuses
+        // CompanyNews (see CompanyModels.kt) since it's the same shape CompanyDetailScreen's
+        // own Recent News card already renders; forumDiscussion reuses ForumTopic so
+        // DetailForumDiscussionRow can share ForumsScreen's row styling.
+        val news: List<CompanyNews> = emptyList(),
+        val forumDiscussion: List<ForumTopic> = emptyList(),
+        val featuredArticles: List<FeaturedArticleEntry> = emptyList(),
+    )
 
     suspend fun fetch(id: Int, type: MediaType): PageExtras = withContext(Dispatchers.IO) {
         val kind = if (type == MediaType.Anime) "anime" else "manga"
         val doc = client.fetchMalDocument("$MAL/$kind/$id")
-        PageExtras(parseRelated(doc), parseRecommended(doc, id))
+        PageExtras(
+            related = parseRelated(doc),
+            recommended = parseRecommended(doc, id),
+            news = parseDetailNews(doc),
+            forumDiscussion = parseDetailForumDiscussion(doc, limit = 2),
+            featuredArticles = parseFeaturedArticles(doc, limit = 2),
+        )
     }
 
     // Fetch characters row for the detail page (also feeds the Japanese Voice Actors row —
@@ -304,4 +324,101 @@ class MalDetailScrapeApi {
             val votes = if (isAuto) 0 else Regex("\\d+").find(usersText)?.value?.toIntOrNull() ?: 0
             RecommendedEntry(malId = malId, title = title, cover = cover, votes = votes, malType = malType, isAuto = isAuto)
         }.distinctBy { it.malId to it.malType }
+
+    // "Recent News" widget (h2#recent_news) — each item is a plain sibling
+    // div.clearfix (thumbnail + title + snippet + "Month d, yyyy by <author> | Discuss (N
+    // comments)" line), not the div.news-list/div.news-unit shape MalCompanyApi.parseNews
+    // scrapes off the company page — that markup is what this same page's own "Recent
+    // Featured Articles" widget uses instead (see parseFeaturedArticles below). Walks
+    // element siblings after the header rather than a single CSS selector since the items
+    // aren't wrapped in a common container, stopping the moment a sibling holds another h2
+    // (the next widget's own header). topicId comes off the row's "Discuss" link so tapping
+    // reuses ForumTopicScreen, same as every other in-app news link (see
+    // MalCompanyApi.parseNews's own comment) — an item with no such link is skipped rather
+    // than opened with a bogus id.
+    private fun parseDetailNews(doc: Document, limit: Int = 5): List<CompanyNews> {
+        val header = doc.selectFirst("h2#recent_news") ?: return emptyList()
+        val results = mutableListOf<CompanyNews>()
+        var sib: Element? = header.parent()?.nextElementSibling()
+        while (sib != null && results.size < limit) {
+            if (sib.selectFirst("h2") != null) break
+            val titleLink = sib.selectFirst("p.spaceit a")
+            if (sib.tagName() == "div" && titleLink != null) {
+                val title = titleLink.text().trim()
+                val topicId = sib.selectFirst("a[href*=topicid=]")?.attr("abs:href")
+                    ?.let { Regex("topicid=(\\d+)").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+                val image = sib.selectFirst("img")
+                    ?.let { it.attr("data-src").ifBlank { it.attr("src") } }
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let(::fullResMalImage) ?: ""
+                // The snippet paragraph ends with an inline "read more" link with no space
+                // before it in the source markup, so a plain .text() would glue it onto the
+                // truncated sentence (e.g. "...Th...read more") — stripping the <a> out of a
+                // clone before reading text avoids that.
+                val snippet = sib.selectFirst("div.clearfix p")?.let { p ->
+                    val clone = p.clone(); clone.select("a").remove(); clone.text().trim()
+                }.orEmpty()
+                val date = sib.selectFirst("p.lightLink")?.text()?.substringBefore(" by ")?.trim().orEmpty()
+                if (title.isNotBlank() && topicId != null) {
+                    results.add(CompanyNews(topicId = topicId, title = title, image = image, snippet = snippet, date = date))
+                }
+            }
+            sib = sib.nextElementSibling()
+        }
+        return results
+    }
+
+    // "Recent Forum Discussion" widget (h2#recent_forum_discussion) — a plain
+    // table#forumTopics, one <tr data-topic-id="..."> per topic, so this reads straight off
+    // the row/cell markup rather than walking siblings the way parseDetailNews above has to.
+    // Title link is picked out by its own data-ga-click-type (rather than the row's first
+    // link generally) so this doesn't accidentally grab the "watch/unwatch" icon link or a
+    // pagination number from a topic with a long reply history. lastPostAt is read off the
+    // final cell's own trailing text node (after its "by <author> »»" line and a <br>) since
+    // there's no wrapping element around just that date to select instead.
+    private fun parseDetailForumDiscussion(doc: Document, limit: Int): List<ForumTopic> =
+        doc.select("table#forumTopics tr[data-topic-id]").take(limit).mapNotNull { row ->
+            val id = row.attr("data-topic-id").toIntOrNull() ?: return@mapNotNull null
+            val titleCell = row.selectFirst("td.forum_boardrow1") ?: return@mapNotNull null
+            val titleLink = titleCell.selectFirst("a[data-ga-click-type=anime-recent-forum-discussion]")
+                ?: return@mapNotNull null
+            val title = titleLink.text().trim()
+            if (title.isBlank()) return@mapNotNull null
+            val authorName = titleCell.selectFirst("span.forum_postusername a")?.text()?.trim().orEmpty()
+            val createdAt = titleCell.selectFirst("span.lightLink")?.text()?.trim().orEmpty()
+            val cells = row.select("td")
+            val postCount = cells.getOrNull(2)?.text()?.let { Regex("\\d+").find(it)?.value?.toIntOrNull() } ?: 0
+            val lastCell = cells.getOrNull(3)
+            val lastPostAuthorName = lastCell?.selectFirst("a")?.text()?.trim().orEmpty()
+            val lastPostAt = (lastCell?.childNodes()?.lastOrNull() as? TextNode)?.text()?.trim().orEmpty()
+            ForumTopic(
+                id = id, title = title, createdAt = createdAt, author = ForumUser(name = authorName),
+                postCount = postCount, lastPostAt = lastPostAt, lastPostAuthor = ForumUser(name = lastPostAuthorName),
+            )
+        }
+
+    // "Recent Featured Articles" widget (h2#recent_featured_articles) — this is the widget
+    // that actually matches the div.news-list/div.news-unit markup MalCompanyApi.parseNews
+    // scrapes (p.title/div.text/p.info), not this same page's own differently-shaped "Recent
+    // News" widget above. No "Discuss" link/topicId here — these link straight to MAL's own
+    // "/featured/{id}/{slug}" article page, so DetailScreen opens the url directly rather
+    // than routing through ForumTopicScreen.
+    private fun parseFeaturedArticles(doc: Document, limit: Int): List<FeaturedArticleEntry> {
+        val header = doc.selectFirst("h2#recent_featured_articles") ?: return emptyList()
+        val container = header.parent()?.nextElementSibling() ?: return emptyList()
+        return container.select("div.news-list div.news-unit").take(limit).mapNotNull { unit ->
+            val titleLink = unit.selectFirst("p.title a") ?: return@mapNotNull null
+            val title = titleLink.text().trim()
+            if (title.isBlank()) return@mapNotNull null
+            val url = titleLink.attr("abs:href")
+            val image = unit.selectFirst("img")
+                ?.let { it.attr("data-src").ifBlank { it.attr("src") } }
+                ?.takeIf { it.isNotBlank() }
+                ?.let(::fullResMalImage) ?: ""
+            val snippet = unit.selectFirst("div.text")?.text()?.trim().orEmpty()
+            val author = unit.selectFirst("p.info a")?.text()?.trim().orEmpty()
+            val views = unit.selectFirst("div.information b")?.text()?.trim().orEmpty()
+            FeaturedArticleEntry(url = url, title = title, image = image, snippet = snippet, author = author, views = views)
+        }
+    }
 }

@@ -119,6 +119,10 @@ fun Double.twoDecimals(): String = decimalString(2)
 fun List<MediaItem>.nsfwFiltered(allowAdult: Boolean) = if (allowAdult) this else filterNot { it.isAdultContent() }
 
 data class RelatedEntry(val relation: String, val title: String, val malId: Int = 0, val malType: String = "anime", val cover: String = "")
+
+// One entry off a title's own "Recent Featured Articles" list (Detail screen) — links to
+// MAL's own article page rather than an in-app reader, so DetailScreen opens it externally.
+data class FeaturedArticleEntry(val url: String, val title: String, val image: String = "", val snippet: String = "", val author: String = "", val views: String = "")
 // Characters/staff row entries
 
 // Japanese VA only — the Voice Actors row only ever shows the Japanese cast, so no

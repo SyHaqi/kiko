@@ -190,6 +190,13 @@ class LibraryViewModel : ViewModel() {
         var reviews: List<ReviewEntry>? = null,
         var scoreStats: ScoreStats? = null,
         var stacks: List<StackSummary>? = null,
+        // Recent News / Recent Forum Discussion / Recent Featured Articles rows below the
+        // Interest Stacks preview — see MalDetailScrapeApi.PageExtras, folded into the same
+        // ensureDetailFetched scrape as related/recommended below rather than their own
+        // network round trip.
+        var news: List<CompanyNews>? = null,
+        var forumDiscussion: List<ForumTopic>? = null,
+        var featuredArticles: List<FeaturedArticleEntry>? = null,
         var relatedScroll: Pair<Int, Int> = 0 to 0,
         var recommendedScroll: Pair<Int, Int> = 0 to 0,
         var charactersScroll: Pair<Int, Int> = 0 to 0,
@@ -213,9 +220,12 @@ class LibraryViewModel : ViewModel() {
         val characters: List<CharacterEntry>?,
         val reviews: List<ReviewEntry>?,
         val stacks: List<StackSummary>?,
+        val news: List<CompanyNews>?,
+        val forumDiscussion: List<ForumTopic>?,
+        val featuredArticles: List<FeaturedArticleEntry>?,
     )
     fun peekDetailCache(id: String, type: MediaType): DetailCacheSnapshot? = detailCaches[id to type]?.let {
-        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.reviews, it.stacks)
+        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.reviews, it.stacks, it.news, it.forumDiscussion, it.featuredArticles)
     }
     // Drops every cached detail sub-section, and every remembered scroll position —
     // call this once the user has fully left the related/recommended chain (not on
@@ -1734,6 +1744,15 @@ class LibraryViewModel : ViewModel() {
                 val mergedKeys = merged.map { it.malId to it.malType }.toSet()
                 cache.recommended = (merged + sliderRecs.filterNot { (it.malId to it.malType) in mergedKeys })
                     .ifEmpty { fresh?.recommended ?: emptyList() }
+                // Recent News / Recent Forum Discussion / Recent Featured Articles — only
+                // cached when the scrape itself actually succeeded (unlike related above,
+                // there's no separate API fallback source for these), so a genuine fetch
+                // failure still retries next time instead of caching a permanent blank.
+                if (scraped != null) {
+                    cache.news = scraped.news
+                    cache.forumDiscussion = scraped.forumDiscussion
+                    cache.featuredArticles = scraped.featuredArticles
+                }
             }
         }
         detailFetchInFlight[key] = deferred
@@ -1854,6 +1873,52 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             ensureDetailFetched(context, item.id, item.type).await()
             val result = cache.recommended ?: emptyList()
+            if (result.isNotEmpty()) onFound(result)
+            onDone()
+        }
+    }
+
+    // Recent News row on the detail page — same MalDetailScrapeApi.fetch() scrape as
+    // related/recommended above (see ensureDetailFetched), just reading a different field
+    // off the already-cached result rather than firing a second request. Tapping an entry
+    // opens the same forum topic HomeScreen's own News snapshots and CompanyDetailScreen's
+    // Recent News card already do.
+    fun loadDetailNews(context: Context, item: MediaItem, onFound: (List<CompanyNews>) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(item.id, item.type)
+        cache.news?.let { onFound(it); onDone(); return }
+        val intId = item.id.toIntOrNull()
+        if (intId == null) { onDone(); return }
+        viewModelScope.launch {
+            ensureDetailFetched(context, item.id, item.type).await()
+            val result = cache.news ?: emptyList()
+            if (result.isNotEmpty()) onFound(result)
+            onDone()
+        }
+    }
+
+    // Recent Forum Discussion row — capped at 2 by MalDetailScrapeApi's own scrape.
+    fun loadDetailForumDiscussion(context: Context, item: MediaItem, onFound: (List<ForumTopic>) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(item.id, item.type)
+        cache.forumDiscussion?.let { onFound(it); onDone(); return }
+        val intId = item.id.toIntOrNull()
+        if (intId == null) { onDone(); return }
+        viewModelScope.launch {
+            ensureDetailFetched(context, item.id, item.type).await()
+            val result = cache.forumDiscussion ?: emptyList()
+            if (result.isNotEmpty()) onFound(result)
+            onDone()
+        }
+    }
+
+    // Recent Featured Articles row — capped at 2 by MalDetailScrapeApi's own scrape.
+    fun loadDetailFeaturedArticles(context: Context, item: MediaItem, onFound: (List<FeaturedArticleEntry>) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(item.id, item.type)
+        cache.featuredArticles?.let { onFound(it); onDone(); return }
+        val intId = item.id.toIntOrNull()
+        if (intId == null) { onDone(); return }
+        viewModelScope.launch {
+            ensureDetailFetched(context, item.id, item.type).await()
+            val result = cache.featuredArticles ?: emptyList()
             if (result.isNotEmpty()) onFound(result)
             onDone()
         }

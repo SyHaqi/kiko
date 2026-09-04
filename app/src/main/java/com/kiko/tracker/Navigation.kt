@@ -469,17 +469,20 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                         // way castCharacterOnTop/castPersonOnTop do above, just without needing
                         // a separate "on top" boolean (see mediaStacksOpen's own doc comment).
                         mediaStacksOpen != null -> TopScreen.MediaStacks(mediaStacksOpen!!)
+                        // A topic opened from *this* Detail page's own Recent News/Recent Forum
+                        // Discussion rows, or from CompanyPage's own Recent News card (see
+                        // onOpenNews/onOpenTopic below), must show on top of either page even
+                        // though detailItem/companyDetailOpenId is still set underneath — same
+                        // reasoning as castCharacterOnTop/castPersonOnTop and mediaStacksOpen
+                        // above. Checked before both of those (moved up from just above
+                        // companyDetailOpenId, where it only needed to outrank that one) so a
+                        // tap from Detail isn't swallowed by the TopScreen.Detail branch
+                        // matching first; forumTopicOpen == null the rest of the time so this
+                        // branch is a no-op for every other path that leads here.
+                        forumTopicOpen != null -> TopScreen.Topic(forumTopicOpen!!.first, forumTopicOpen!!.second)
                         detailItem != null -> TopScreen.Detail(detailItem)
                         characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
                         personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
-                        // A topic opened from *this* CompanyPage's own Recent News card (see
-                        // onOpenNews below) must show on top of it even though
-                        // companyDetailOpenId is still set underneath — same reasoning as
-                        // castCharacterOnTop/castPersonOnTop above. Checked before
-                        // companyDetailOpenId so the tap isn't swallowed by the company page
-                        // still matching first; forumTopicOpen == null the rest of the time so
-                        // this branch is a no-op for every other path that leads here.
-                        forumTopicOpen != null -> TopScreen.Topic(forumTopicOpen!!.first, forumTopicOpen!!.second)
                         companyDetailOpenId != null -> TopScreen.CompanyPage(companyDetailOpenId!!, companyDetailOpen)
                         rankingOpen -> TopScreen.Ranking
                         recommendationsOpen -> TopScreen.Recommendations
@@ -533,6 +536,11 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onLoadStacks = { forItem, onFound -> vm.loadMediaStacks(forItem, onFound) },
                                     onOpenStacksList = { mediaStacksOpen = it },
                                     onOpenStack = { id, title -> stackDetailOpen = id to title },
+                                    onLoadNews = { forItem, onFound, onDone -> vm.loadDetailNews(context, forItem, onFound, onDone) },
+                                    onLoadForumDiscussion = { forItem, onFound, onDone -> vm.loadDetailForumDiscussion(context, forItem, onFound, onDone) },
+                                    onLoadFeaturedArticles = { forItem, onFound, onDone -> vm.loadDetailFeaturedArticles(context, forItem, onFound, onDone) },
+                                    onOpenTopic = { id, title -> forumTopicOpen = id to title },
+                                    onOpenFeaturedArticle = { url -> CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) },
                                     onLoadCharacters = { forItem, onFound, onDone, onError -> vm.loadCharacters(forItem, onFound, onDone, onError) },
                                     onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) },
                                     onOpenReview = { rev -> reviewOpen = rev to screen.item.title },

@@ -81,6 +81,18 @@ data class DetailScreenActions(
     val onLoadStacks: (MediaItem, (List<StackSummary>) -> Unit) -> Unit = { _, _ -> },
     val onOpenStacksList: (MediaItem) -> Unit = {},
     val onOpenStack: (Int, String) -> Unit = { _, _ -> },
+    // Recent News / Recent Forum Discussion / Recent Featured Articles rows below the
+    // Interest Stacks row — all three come off the same MalDetailScrapeApi scrape (see
+    // LibraryViewModel.ensureDetailFetched), just surfaced through their own loaders so
+    // each row's LaunchedEffect can gate on its own cached field independently. News and
+    // forum-discussion entries both open the same in-app forum topic (onOpenTopic, shared
+    // with onOpenStack's sibling actions elsewhere in the app); a featured article has no
+    // in-app reader, so it opens externally instead.
+    val onLoadNews: (MediaItem, (List<CompanyNews>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onLoadForumDiscussion: (MediaItem, (List<ForumTopic>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onLoadFeaturedArticles: (MediaItem, (List<FeaturedArticleEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onOpenTopic: (Int, String) -> Unit = { _, _ -> },
+    val onOpenFeaturedArticle: (String) -> Unit = {},
     val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit, () -> Unit) -> Unit = { _, _, onDone, _ -> onDone() },
     val onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenReview: (ReviewEntry) -> Unit = {},
@@ -214,6 +226,15 @@ data class DetailScreenActions(
     // a slow or failed stacks fetch never holds up the rest of the page.
     var stacks by remember(item.id) { mutableStateOf(cachedSnapshot?.stacks ?: emptyList()) }
     LaunchedEffect(item.id) { actions.onLoadStacks(item) { stacks = it } }
+    // Recent News / Recent Forum Discussion / Recent Featured Articles rows, below the
+    // Interest Stacks row — same "load async, seed from cache, no gating" treatment as
+    // stacks above, each independent of the others.
+    var news by remember(item.id) { mutableStateOf(cachedSnapshot?.news ?: emptyList()) }
+    LaunchedEffect(item.id) { actions.onLoadNews(item, { news = it }, {}) }
+    var forumDiscussion by remember(item.id) { mutableStateOf(cachedSnapshot?.forumDiscussion ?: emptyList()) }
+    LaunchedEffect(item.id) { actions.onLoadForumDiscussion(item, { forumDiscussion = it }, {}) }
+    var featuredArticles by remember(item.id) { mutableStateOf(cachedSnapshot?.featuredArticles ?: emptyList()) }
+    LaunchedEffect(item.id) { actions.onLoadFeaturedArticles(item, { featuredArticles = it }, {}) }
     // Fresh scroll state per-title
     val listState = remember(item.id) { LazyListState(initialScroll.first, initialScroll.second) }
     // One stagger-memory set per horizontal row so each row's entrance animation plays
@@ -640,6 +661,38 @@ data class DetailScreenActions(
                             }
                         }
                     }
+
+                    // Recent News — reuses CompanyDetailScreen's own news card so this reads
+                    // the same as the company page's Recent News section (see
+                    // CompanyNewsCard in CompanyDetailScreen.kt).
+                    if (news.isNotEmpty()) {
+                        SectionTitle("Recent News", "", {})
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            news.forEach { n -> CompanyNewsCard(n) { actions.onOpenTopic(n.topicId, n.title) } }
+                        }
+                    }
+
+                    // Recent Forum Discussion — capped to 2 rows (see
+                    // MalDetailScrapeApi.parseDetailForumDiscussion's own limit).
+                    if (forumDiscussion.isNotEmpty()) {
+                        SectionTitle("Recent Forum Discussion", "", {})
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            forumDiscussion.forEachIndexed { i, topic ->
+                                DetailForumDiscussionRow(topic) { actions.onOpenTopic(topic.id, topic.title) }
+                                if (i < forumDiscussion.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                            }
+                        }
+                    }
+
+                    // Recent Featured Articles — capped to 2 cards (see
+                    // MalDetailScrapeApi.parseFeaturedArticles's own limit). No in-app reader
+                    // for these, so tapping opens the article's MAL page externally.
+                    if (featuredArticles.isNotEmpty()) {
+                        SectionTitle("Recent Featured Articles", "", {})
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            featuredArticles.forEach { article -> DetailFeaturedArticleCard(article) { actions.onOpenFeaturedArticle(article.url) } }
+                        }
+                    }
                 }
             }
         }
@@ -650,6 +703,71 @@ data class DetailScreenActions(
             containerColor = c.primary,
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
         )
+    }
+}
+
+// One row for the "Recent Forum Discussion" section — title, author + created date, and a
+// "Last reply by ..." line when the topic has replies, plus a reply-count pill. Deliberately
+// not ForumsScreen's own ForumTopicRow: that composable formats createdAt/lastPostAt through
+// formatForumDate, which expects the official API's ISO timestamp shape
+// ("yyyy-MM-dd'T'HH:mm:ssXXX") and silently mangles anything else (falls back to a bare
+// 10-char prefix) — MalDetailScrapeApi.parseDetailForumDiscussion scrapes plain
+// already-human-readable strings ("Mar 14, 2018", "Sep 2, 11:55 AM") straight off the page,
+// so this just shows them as-is instead of running them through that formatter.
+@Composable fun DetailForumDiscussionRow(topic: ForumTopic, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(
+        Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text("by ${topic.author.name.ifBlank { "Unknown" }} · ${topic.createdAt}", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+            if (topic.lastPostAuthor.name.isNotBlank()) {
+                Text("Last reply by ${topic.lastPostAuthor.name} · ${topic.lastPostAt}", color = c.primary, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 3.dp))
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp)) {
+            Icon(Icons.Default.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
+            Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+        }
+    }
+}
+
+// One card for the "Recent Featured Articles" section — same visual shape as
+// CompanyNewsCard (thumbnail + title + snippet), just with an "by <author> · <views> views"
+// meta line instead of a bare date, since a featured article has neither a topicId nor a
+// discussion-count the way a news item does. No in-app reader for these (unlike news/forum
+// discussion, which reuse ForumTopicScreen), so onClick opens the article's own MAL page
+// externally — see DetailScreenActions.onOpenFeaturedArticle.
+@Composable fun DetailFeaturedArticleCard(article: FeaturedArticleEntry, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(20.dp))).background(c.surfaceContainer)
+            .kikoClickable(onClick = onClick)
+            .padding(12.dp),
+    ) {
+        Box(Modifier.width(76.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+            if (article.image.isNotBlank()) {
+                AsyncImage(model = article.image, contentDescription = article.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            } else {
+                Text(article.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 24.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+            }
+        }
+        Column(Modifier.padding(start = 14.dp).weight(1f)) {
+            Text(article.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 19.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (article.snippet.isNotBlank()) {
+                Text(article.snippet, color = c.muted, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
+            }
+            val meta = listOfNotNull(
+                article.author.takeIf { it.isNotBlank() }?.let { "by $it" },
+                article.views.takeIf { it.isNotBlank() }?.let { "$it views" },
+            ).joinToString(" · ")
+            if (meta.isNotBlank()) {
+                Text(meta, color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 7.dp))
+            }
+        }
     }
 }
 

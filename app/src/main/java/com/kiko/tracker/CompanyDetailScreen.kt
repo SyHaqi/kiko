@@ -362,10 +362,12 @@ private fun companyLinkIconRes(url: String): Int? {
     }
 }
 
-// One horizontal card for the page's single "Recent News" item — thumbnail, title, snippet,
-// date. Tapping opens the same forum topic this app's own News section already knows how to
-// render (see ForumTopicScreen), rather than a bespoke news-article reader.
-@Composable private fun CompanyNewsCard(news: CompanyNews, onClick: () -> Unit) {
+// One horizontal card for a "Recent News" item — thumbnail, title, snippet, date. Tapping
+// opens the same forum topic this app's own News section already knows how to render (see
+// ForumTopicScreen), rather than a bespoke news-article reader. Not private: DetailScreen's
+// own Recent News row (see DetailScreen.kt) reuses this same card for the anime/manga detail
+// page's news widget.
+@Composable fun CompanyNewsCard(news: CompanyNews, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Row(
         Modifier.fillMaxWidth()
