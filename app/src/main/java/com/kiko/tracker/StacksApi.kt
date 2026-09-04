@@ -73,6 +73,29 @@ class StacksApi {
         parseSummaries(fetchDoc(url), limit)
     }
 
+    // A page of forMedia() results, paired with MAL's own reported total count for that
+    // title (from the "Showing: X/Y" counter at the top of the page) when it's present.
+    data class MediaStacksPage(val items: List<StackSummary>, val total: Int?)
+
+    // Interest stacks that include a given anime/manga title — MAL's own
+    // "/anime/{id}/stacks" (or "/manga/{id}/stacks") subpage, the same one linked from
+    // that title's own detail page ("Interest Stacks" section / its own "View All").
+    // Row shape (title/author/entry-count/covers) is close enough to the general
+    // browse/search page above that the shared parseSummaries below handles it as-is —
+    // only the URL and paging differ. offset follows MAL's own pagination there (20 rows
+    // per page: offset=0, 20, 40, ...). total comes straight from the page's own
+    // "#total-count" counter rather than being inferred from how many rows this page
+    // parsed out — inferring "last page" from a row count that depends on parseSummaries
+    // getting every row right is exactly what let pagination stop one row short of the
+    // real end whenever the scraper undercounted a page by even one row.
+    suspend fun forMedia(mediaId: Int, type: MediaType, offset: Int = 0, limit: Int? = null): MediaStacksPage = withContext(Dispatchers.IO) {
+        val kind = if (type == MediaType.Anime) "anime" else "manga"
+        val url = "$MAL/$kind/$mediaId/stacks" + if (offset > 0) "?offset=$offset" else ""
+        val doc = fetchDoc(url)
+        val total = doc.selectFirst("#total-count")?.attr("data-total")?.toIntOrNull()
+        MediaStacksPage(parseSummaries(doc, limit), total)
+    }
+
     // First usable image URLs under an element, preferring MAL's own CDN paths
     // and lazy-load attributes (data-src) over a blank/placeholder src.
     // Resolved via absUrl so relative or protocol-relative srcs still load.

@@ -189,6 +189,7 @@ class LibraryViewModel : ViewModel() {
         var characters: List<CharacterEntry>? = null,
         var reviews: List<ReviewEntry>? = null,
         var scoreStats: ScoreStats? = null,
+        var stacks: List<StackSummary>? = null,
         var relatedScroll: Pair<Int, Int> = 0 to 0,
         var recommendedScroll: Pair<Int, Int> = 0 to 0,
         var charactersScroll: Pair<Int, Int> = 0 to 0,
@@ -211,9 +212,10 @@ class LibraryViewModel : ViewModel() {
         val statusDistribution: StatusDistribution?,
         val characters: List<CharacterEntry>?,
         val reviews: List<ReviewEntry>?,
+        val stacks: List<StackSummary>?,
     )
     fun peekDetailCache(id: String, type: MediaType): DetailCacheSnapshot? = detailCaches[id to type]?.let {
-        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.reviews)
+        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.reviews, it.stacks)
     }
     // Drops every cached detail sub-section, and every remembered scroll position —
     // call this once the user has fully left the related/recommended chain (not on
@@ -1883,4 +1885,74 @@ class LibraryViewModel : ViewModel() {
             onDone()
         }
     }
+
+    // Interest Stacks preview row (3 cards) on the detail page — see
+    // DetailScreenActions.onLoadStacks. Its own scrape (StacksApi.forMedia), entirely
+    // separate from ensureDetailFetched's related/recommended/etc pipeline above, so a
+    // slow or failed fetch here never holds up anything else on the page — DetailScreen's
+    // own gating condition deliberately leaves this one out.
+    fun loadMediaStacks(item: MediaItem, onFound: (List<StackSummary>) -> Unit) {
+        val cache = detailCache(item.id, item.type)
+        cache.stacks?.let { onFound(it); return }
+        val intId = item.id.toIntOrNull() ?: return
+        viewModelScope.launch {
+            val result = runCatching { StacksApi().forMedia(intId, item.type, limit = 5).items }.getOrElse { emptyList() }
+            cache.stacks = result
+            if (result.isNotEmpty()) onFound(result)
+        }
+    }
+
+    // Full "Interest Stacks" page for one anime/manga title (Detail's "See more" above
+    // the preview row) — same offset-paged shape as loadMoreStacksBrowse/loadStacksBrowse
+    // above, just scoped to StacksApi.forMedia(mediaId, type) instead of a type/query
+    // search. reset with the same (mediaId, type) as the currently loaded target is a
+    // no-op if results are already there — same "don't refetch on revisit" reasoning as
+    // setStacksBrowseKind — so leaving this page and coming back doesn't reload it.
+    var mediaStacksResults by mutableStateOf<List<StackSummary>>(emptyList()); private set
+    var mediaStacksLoading by mutableStateOf(false); private set
+    // Whether another page might exist, driven by MAL's own reported total for this
+    // title (see StacksApi.MediaStacksPage.total) rather than by how many rows this
+    // page's own scrape happened to parse out — inferring "last page" from a row count
+    // meant pagination stopped one page short of the real end the moment the scraper
+    // ever undercounted a genuinely full page by even one row. Falls back to the old
+    // "fewer than 20 rows on this page" signal only on the rare page where the total
+    // counter itself doesn't parse.
+    var mediaStacksHasMore by mutableStateOf(true); private set
+    private var mediaStacksOffset = 0
+    private var mediaStacksTarget: Pair<Int, MediaType>? = null
+    var mediaStacksScrollIndex by mutableStateOf(0); private set
+    var mediaStacksScrollOffset by mutableStateOf(0); private set
+    fun saveMediaStacksScroll(index: Int, offset: Int) { mediaStacksScrollIndex = index; mediaStacksScrollOffset = offset }
+
+    fun loadMediaStacksPage(mediaId: Int, type: MediaType, reset: Boolean = false) {
+        val target = mediaId to type
+        if (reset) {
+            if (mediaStacksTarget == target && mediaStacksResults.isNotEmpty()) return
+            mediaStacksTarget = target
+            mediaStacksResults = emptyList()
+            mediaStacksOffset = 0
+            mediaStacksHasMore = true
+            mediaStacksScrollIndex = 0; mediaStacksScrollOffset = 0
+        } else if (mediaStacksLoading || mediaStacksTarget != target || !mediaStacksHasMore) return
+        val targetOffset = if (reset) 0 else mediaStacksOffset + 20
+        mediaStacksLoading = true
+        viewModelScope.launch {
+            val page = runCatching { StacksApi().forMedia(mediaId, type, offset = targetOffset) }
+                .getOrElse { StacksApi.MediaStacksPage(emptyList(), null) }
+            if (mediaStacksTarget == target) {
+                // MAL's own pagination here is a raw offset into a "Recently Added" feed,
+                // not a stable cursor — a stack added between page loads shifts every row
+                // after it, which can reprint the previous page's last row as this page's
+                // first one. distinctBy guards the id key the LazyColumn keys rows by
+                // (StackListRow, key = it.id in MediaStacksScreen) from that overlap, which
+                // otherwise crashes with "Key ... was already used".
+                val merged = (if (reset) page.items else mediaStacksResults + page.items).distinctBy { it.id }
+                mediaStacksResults = merged
+                mediaStacksOffset = targetOffset
+                mediaStacksHasMore = if (page.total != null) merged.size < page.total else page.items.size >= 20
+            }
+            mediaStacksLoading = false
+        }
+    }
+    fun loadMoreMediaStacks(mediaId: Int, type: MediaType) = loadMediaStacksPage(mediaId, type, reset = false)
 }

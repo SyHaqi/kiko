@@ -74,6 +74,13 @@ data class DetailScreenActions(
     val onOpenRecommended: (RecommendedEntry) -> Unit = {},
     val onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenScoreStats: (MediaItem) -> Unit = {},
+    // Interest Stacks preview row (3 cards) + its own "See more" full page — see
+    // LibraryViewModel.loadMediaStacks/loadMediaStacksPage. onOpenStack takes the stack's
+    // own id+title directly (not a MediaItem, unlike onOpenRelated/onOpenRecommended
+    // above) since a stack isn't an anime/manga title itself.
+    val onLoadStacks: (MediaItem, (List<StackSummary>) -> Unit) -> Unit = { _, _ -> },
+    val onOpenStacksList: (MediaItem) -> Unit = {},
+    val onOpenStack: (Int, String) -> Unit = { _, _ -> },
     val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit, () -> Unit) -> Unit = { _, _, onDone, _ -> onDone() },
     val onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenReview: (ReviewEntry) -> Unit = {},
@@ -202,6 +209,11 @@ data class DetailScreenActions(
     // Status distribution loads async — seeded from cache too.
     var statusDistribution by remember(item.id) { mutableStateOf(cachedSnapshot?.statusDistribution) }
     LaunchedEffect(item.id) { actions.onLoadStatusDistribution(item, { statusDistribution = it }, {}) }
+    // Interest Stacks preview row loads async too — no "done" flag; unlike related/
+    // recommended above, this one is deliberately left out of the gating check below, so
+    // a slow or failed stacks fetch never holds up the rest of the page.
+    var stacks by remember(item.id) { mutableStateOf(cachedSnapshot?.stacks ?: emptyList()) }
+    LaunchedEffect(item.id) { actions.onLoadStacks(item) { stacks = it } }
     // Fresh scroll state per-title
     val listState = remember(item.id) { LazyListState(initialScroll.first, initialScroll.second) }
     // One stagger-memory set per horizontal row so each row's entrance animation plays
@@ -213,6 +225,7 @@ data class DetailScreenActions(
     val reviewsSeen = rememberStaggerMemory()
     val relatedSeen = rememberStaggerMemory()
     val recommendedSeen = rememberStaggerMemory()
+    val stacksSeen = rememberStaggerMemory()
     // Related/recommended rows get their own remembered scroll state too — without
     // this, tapping an entry mid-scroll and coming back snaps the row back to its
     // first item, since a plain rememberLazyListState() resets whenever this
@@ -610,6 +623,20 @@ data class DetailScreenActions(
                                 StatBar("On hold", dist.onHold, dist.total, c, statusColor("On hold"))
                                 StatBar("Dropped", dist.dropped, dist.total, c, statusColor("Dropped"))
                                 StatBar("Plan to watch", dist.planToWatch, dist.total, c, statusColor("Plan to watch"))
+                            }
+                        }
+                    }
+
+                    // Interest Stacks — always shows a full row of 5 cards, no "See more"
+                    // link (see loadMediaStacks' limit = 5). Loads and fails independently
+                    // of everything else on this page (see stacks' own LaunchedEffect
+                    // above, deliberately left out of the gating check at the top of this
+                    // function) so a slow fetch here never blocks the rest of the page.
+                    if (stacks.isNotEmpty()) {
+                        SectionTitle("Interest Stacks", "", {})
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                            itemsIndexed(stacks, key = { _, it -> it.id }) { i, s ->
+                                StaggeredItem(i, stacksSeen) { DetailStackCard(s) { actions.onOpenStack(s.id, s.title) } }
                             }
                         }
                     }

@@ -367,8 +367,95 @@ import kotlinx.coroutines.launch
         }
     }
 }
+// Compact stack card for the anime/manga detail page's own preview row (up to 3
+// cards; "See more" opens the full MediaStacksScreen) — reuses StackCoverBanner/
+// StackStatsRow from the cards above, just narrower, and without their vm-backed
+// on-demand cover fetch: StacksApi.forMedia's own scrape (see
+// LibraryViewModel.loadMediaStacks) already ships each row's covers inline, so
+// there's nothing to backfill here.
+@Composable fun DetailStackCard(stack: StackSummary, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    Card(
+        onClick = onClick,
+        interactionSource = interactionSource,
+        shape = RoundedCornerShape(kikoCorner(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
+        modifier = Modifier.width(210.dp).pressScale(interactionSource),
+    ) {
+        Column {
+            StackCoverBanner(stack.covers, modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp))))
+            Column(Modifier.padding(13.dp)) {
+                Text(stack.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (stack.author.isNotBlank()) Text("by ${stack.author}", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 5.dp))
+                Box(Modifier.padding(top = 8.dp)) { StackStatsRow(stack.entryCount, stack.restacks, stack.updatedLabel) }
+            }
+        }
+    }
+}
+// Full "Interest Stacks" page for one anime/manga title, opened from Detail's own
+// preview row ("See more") — same offset-paged LazyColumn/auto-load-more shape as
+// StacksScreen's general browse above, just scoped to
+// LibraryViewModel.loadMediaStacksPage (StacksApi.forMedia) instead of a type/query
+// search, and titled with the title itself as a subtitle rather than a type-tab row.
+@Composable fun MediaStacksScreen(vm: LibraryViewModel, item: MediaItem, onBack: () -> Unit, onOpenStack: (Int, String) -> Unit) {
+    val c = LocalKikoColors.current
+    BackHandler(onBack = onBack)
+    val mediaId = item.id.toIntOrNull()
+    LaunchedEffect(item.id, item.type) { if (mediaId != null) vm.loadMediaStacksPage(mediaId, item.type, reset = true) }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.mediaStacksScrollIndex, initialFirstVisibleItemScrollOffset = vm.mediaStacksScrollOffset)
+    val staggerSeen = rememberStaggerMemory()
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    DisposableEffect(item.id) { onDispose { vm.saveMediaStacksScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) } }
+    // Auto-load the next page as the user nears the bottom, same as StacksScreen's browse above
+    LaunchedEffect(listState, mediaId, vm.mediaStacksResults.size) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
+            .distinctUntilChanged()
+            .collect { (lastVisible, total) ->
+                if (mediaId != null && lastVisible != null && total > 0 && lastVisible >= total - 6 && vm.mediaStacksResults.isNotEmpty() && !vm.mediaStacksLoading && vm.mediaStacksHasMore) {
+                    vm.loadMoreMediaStacks(mediaId, item.type)
+                }
+            }
+    }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            Column(Modifier.padding(start = 12.dp)) {
+                Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink)
+                Text(item.displayTitle(), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+        Box(Modifier.fillMaxSize()) {
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+                if (vm.mediaStacksResults.isEmpty() && !vm.mediaStacksLoading) {
+                    item { Text("No interest stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                }
+                if (vm.mediaStacksLoading && vm.mediaStacksResults.isEmpty()) {
+                    item { ListRowSkeletonGroup(6) }
+                } else {
+                    itemsIndexed(vm.mediaStacksResults, key = { _, it -> it.id }) { index, s ->
+                        StaggeredItem(index, staggerSeen) {
+                            Column {
+                                StackListRow(s, vm) { onOpenStack(s.id, s.title) }
+                                if (index < vm.mediaStacksResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                            }
+                        }
+                    }
+                }
+                if (vm.mediaStacksLoading && vm.mediaStacksResults.isNotEmpty()) {
+                    item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+                }
+            }
+            GoToTopButton(
+                visible = showGoToTop,
+                onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            )
+        }
+    }
+}
 // Recent-stacks list row — mirrors SearchResultRow's discover layout (cover left, tags/description/stats right)
-
 @Composable fun StackListRow(stack: StackSummary, vm: LibraryViewModel, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     // Same on-demand-and-cached cover fetch as StackSpotlightCard above (see loadStackCovers)
