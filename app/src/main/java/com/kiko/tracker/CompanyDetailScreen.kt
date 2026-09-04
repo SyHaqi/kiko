@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,8 +17,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -117,13 +120,21 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
     // Same collapsed-to-3-lines / tap-to-expand treatment as Person/CharacterDetailScreen's
     // own About section — a studio's history paragraph can run just as long.
     var aboutExpanded by remember(company.malId) { mutableStateOf(false) }
-    // Only offer a chip for a format the studio's own catalog actually has, in the same
+    // Only offer an option for a format the studio's own catalog actually has, in the same
     // fixed TV/Movie/OVA/ONA/Special/Music order the rest of the app's format filters use,
     // not whatever order they happened to appear on the page in.
     val availableFormats = remember(company.works) { CompanyFormatOrder.filter { f -> company.works.any { it.format == f } } }
     var selectedFormat by remember(company.malId) { mutableStateOf("All") }
-    val filteredWorks = remember(company.works, selectedFormat) {
-        if (selectedFormat == "All") company.works else company.works.filter { it.format == selectedFormat }
+    // Reuses Discover's own DiscoverSort/sortedForDiscover/DiscoverSortMenu wholesale rather
+    // than a bespoke company-page sort — same Members/Score/Newest/Title options MAL's own
+    // studio page offers, and Relevance (the shared default) just leaves the catalog in
+    // MAL's original order with no query to rank against, same as it does everywhere else
+    // in the app.
+    var selectedSort by remember(company.malId) { mutableStateOf(DiscoverSort.Relevance) }
+    val titleLanguage = LocalTitleLanguage.current
+    val filteredWorks = remember(company.works, selectedFormat, selectedSort, titleLanguage) {
+        val byFormat = if (selectedFormat == "All") company.works else company.works.filter { it.format == selectedFormat }
+        byFormat.sortedForDiscover(selectedSort, titleLanguage)
     }
     val gridRows = remember(filteredWorks) { filteredWorks.chunked(3) }
     val gridSeen = rememberStaggerMemory()
@@ -192,9 +203,15 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
 
                     if (company.links.isNotEmpty()) {
                         SectionTitle("Links", "", {})
+                        // Wrapping FlowRow of icon-led pills, one per platform — same
+                        // placement as the genre chips on the anime detail screen, just with
+                        // room for the icon up front. Icon is resolved from the link's own
+                        // host (companyLinkIcon below), so it still degrades gracefully to a
+                        // generic globe icon for a platform this app doesn't specifically
+                        // recognize.
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             company.links.forEach { (label, url) ->
-                                GenreChip(label, onClick = { runCatching { uriHandler.openUri(url) } })
+                                CompanyLinkChip(label, url, onClick = { runCatching { uriHandler.openUri(url) } })
                             }
                         }
                     }
@@ -206,9 +223,11 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
 
                     if (company.works.isNotEmpty()) {
                         SectionTitle("Anime (${company.works.size})", "", {})
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(selected = selectedFormat == "All", onClick = { selectedFormat = "All" }, label = { Text("All") }, colors = kikoFilterChipColors())
-                            availableFormats.forEach { f -> FilterChip(selected = selectedFormat == f, onClick = { selectedFormat = f }, label = { Text(f) }, colors = kikoFilterChipColors()) }
+                        // Format filter + sort, same Row(SpaceBetween) pairing DiscoverScreen
+                        // already uses for its own type dropdown + DiscoverSortMenu.
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            CompanyFormatDropdown(current = selectedFormat, options = availableFormats, works = company.works, onSelect = { selectedFormat = it })
+                            DiscoverSortMenu(current = selectedSort, onSelect = { selectedSort = it })
                         }
                         Spacer(Modifier.height(4.dp))
                     }
@@ -265,6 +284,79 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
                     onClick = { showFullImage = false },
                     modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.White.copy(alpha = .15f)),
                 ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
+            }
+        }
+    }
+}
+
+// Resolves a link's own host to the platform's icon — checked against the URL rather than
+// the link's visible label text, since MAL's own label can be a handle ("@kyoani_") or a
+// bare domain rather than the platform's name. Falls back to a generic globe icon (the
+// studio's own official site, or any platform this app doesn't specifically recognize)
+// rather than leaving the chip icon-less.
+private fun companyLinkIconRes(url: String): Int? {
+    val host = runCatching { java.net.URI(url).host?.lowercase() }.getOrNull().orEmpty()
+    return when {
+        "youtube" in host -> R.drawable.ic_youtube
+        "facebook" in host -> R.drawable.ic_facebook
+        "instagram" in host -> R.drawable.ic_instagram
+        "twitter" in host || host == "x.com" || host.endsWith(".x.com") -> R.drawable.ic_x
+        else -> null
+    }
+}
+
+// One "Available At" pill — leading platform icon (see companyLinkIconRes above) + the
+// link's own label, in the app's standard pill shape (rounded surfaceContainer background,
+// same as GenreChip used to be here, just with room for the icon up front).
+@Composable private fun CompanyLinkChip(label: String, url: String, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    val iconRes = companyLinkIconRes(url)
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(kikoCorner(14.dp)))
+            .background(c.surfaceContainer)
+            .kikoClickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (iconRes != null) {
+            Icon(painterResource(iconRes), null, tint = c.ink, modifier = Modifier.size(16.dp))
+        } else {
+            Icon(Icons.Default.Language, null, tint = c.ink, modifier = Modifier.size(16.dp))
+        }
+        Text(label, color = c.ink, fontWeight = FontWeight.Medium, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+// Anime catalog's format filter, as a dropdown rather than a FlowRow of chips — mirrors
+// DiscoverTypeDropdown's own FilterChip-trigger/DropdownMenu shape, since a studio's
+// catalog can offer up to six formats at once (see CompanyFormatOrder) and that no longer
+// sits comfortably as a row of chips next to the sort menu. Each option shows its own
+// count, same as MAL's own studio page filter ("All (141)", "TV (34)", ...).
+@Composable private fun CompanyFormatDropdown(current: String, options: List<String>, works: List<MediaItem>, onSelect: (String) -> Unit) {
+    val c = LocalKikoColors.current
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        FilterChip(
+            selected = true,
+            onClick = { expanded = true },
+            label = { Text(current) },
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(18.dp)) },
+            colors = kikoFilterChipColors(),
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = RoundedCornerShape(kikoCorner(16.dp)), containerColor = c.surfaceContainer) {
+            DropdownMenuItem(
+                text = { Text("All (${works.size})", color = if (current == "All") c.accent else c.ink, fontWeight = if (current == "All") FontWeight.Bold else FontWeight.Normal) },
+                onClick = { expanded = false; onSelect("All") },
+                trailingIcon = if (current == "All") { { Icon(Icons.Default.Check, null, tint = c.primary, modifier = Modifier.size(18.dp)) } } else null,
+            )
+            options.forEach { f ->
+                val count = works.count { it.format == f }
+                DropdownMenuItem(
+                    text = { Text("$f ($count)", color = if (f == current) c.accent else c.ink, fontWeight = if (f == current) FontWeight.Bold else FontWeight.Normal) },
+                    onClick = { expanded = false; onSelect(f) },
+                    trailingIcon = if (f == current) { { Icon(Icons.Default.Check, null, tint = c.primary, modifier = Modifier.size(18.dp)) } } else null,
+                )
             }
         }
     }

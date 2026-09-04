@@ -40,7 +40,7 @@ class MalDetailScrapeApi {
     suspend fun fetch(id: Int, type: MediaType): PageExtras = withContext(Dispatchers.IO) {
         val kind = if (type == MediaType.Anime) "anime" else "manga"
         val doc = client.fetchMalDocument("$MAL/$kind/$id")
-        PageExtras(parseRelated(doc), parseRecommended(doc))
+        PageExtras(parseRelated(doc), parseRecommended(doc, id))
     }
 
     // Fetch characters row for the detail page (also feeds the Japanese Voice Actors row —
@@ -238,6 +238,28 @@ class MalDetailScrapeApi {
         return id to match.groupValues[1]
     }
 
+    // The Recommendations slider's own entries (see parseRecommended below) don't link to
+    // a plain "/anime/{id}" page the way every other href malRefFromUrl handles does —
+    // they link to MAL's "/recommendations/{type}/{a}-{b}" permalink for the pairing, with
+    // a and b just the two titles' ids sorted numerically rather than "this title" and
+    // "the recommended one" in a fixed order. malRefFromUrl's plain first-match regex
+    // silently took whichever id happened to come first — i.e. this title's own id
+    // whenever it was the numerically smaller of the pair — mis-keying that entry under
+    // the wrong id entirely. That id is what LibraryViewModel.ensureDetailFetched's merge
+    // uses to patch a known-bad cover from the separate "/userrecs" scrape (see its own
+    // comment on covers "coming back wrong"); a mis-keyed id let that bad cover through
+    // uncorrected, which is what showed this title's own poster on a recommended entry.
+    // Picking whichever of the pair isn't selfId sidesteps that regardless of sort order.
+    // Falls back to malRefFromUrl for the "?suggestion"-tagged AutoRec links in the same
+    // slider, which link to a normal single-id title page rather than this paired form.
+    private fun malRefFromRecommendationUrl(url: String, selfId: Int): Pair<Int, String>? {
+        val pairMatch = Regex("/recommendations/(anime|manga)/(\\d+)-(\\d+)").find(url) ?: return malRefFromUrl(url)
+        val type = pairMatch.groupValues[1]
+        val a = pairMatch.groupValues[2].toIntOrNull() ?: return null
+        val b = pairMatch.groupValues[3].toIntOrNull() ?: return null
+        return (if (a == selfId) b else a) to type
+    }
+
     private fun parseRelated(doc: Document): List<RelatedEntry> =
         doc.select("div.related-entries div.entry").mapNotNull { entry ->
             val link = entry.selectFirst(".content .title a") ?: entry.selectFirst(".image a") ?: return@mapNotNull null
@@ -267,9 +289,9 @@ class MalDetailScrapeApi {
     // fetchUserRecommendations' dedicated "/userrecs" scrape rather than replaced by it
     // (see LibraryViewModel.ensureDetailFetched), so AutoRec picks still pad out the row
     // even for titles that already have real user recs.
-    private fun parseRecommended(doc: Document): List<RecommendedEntry> =
+    private fun parseRecommended(doc: Document, selfId: Int): List<RecommendedEntry> =
         doc.select("a[href*='?suggestion'], a[href*='/recommendations/anime/'], a[href*='/recommendations/manga/']").mapNotNull { a ->
-            val (malId, malType) = malRefFromUrl(a.attr("abs:href")) ?: return@mapNotNull null
+            val (malId, malType) = malRefFromRecommendationUrl(a.attr("abs:href"), selfId) ?: return@mapNotNull null
             val title = a.selectFirst(".title")?.text()?.takeIf { it.isNotBlank() }
                 ?: a.closest("li")?.attr("title")?.takeIf { it.isNotBlank() }
                 ?: return@mapNotNull null
