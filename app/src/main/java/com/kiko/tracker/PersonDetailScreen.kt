@@ -192,53 +192,67 @@ import coil.compose.AsyncImage
                         )
                     }
 
-                    if (person.voiceActingRoles.isNotEmpty()) {
-                        SectionTitle("Voice Acting Roles", "", {})
-                        LazyRow(state = rolesListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(person.voiceActingRoles, key = { _, r -> "role-${r.workId}-${r.characterId}" }) { i, role ->
-                                StaggeredItem(i, rolesSeen) {
-                                    val workTitle = role.displayTitle()
-                                    DetailRowCard(
-                                        imageUrl = role.workImage, fallbackLetter = workTitle.take(1), title = workTitle,
-                                        label = role.roleLabel, subtitle = role.characterName,
-                                        loading = workLoadingId == role.workId,
-                                        myStatus = myListStatus[role.workId to MediaType.Anime],
-                                        onClick = { onOpenWork(role.workId, MediaType.Anime) },
-                                    )
+                    // Each row below reads workLoadingId to flip a per-card spinner while a
+                    // tapped entry is being opened. Since the whole page lives in one
+                    // LazyColumn item{} (see the wrapping LazyColumn below), an ungated read
+                    // of workLoadingId here ties the ENTIRE page — portrait, About text,
+                    // every other row — to it, so tapping any one entry would recompose the
+                    // whole page twice (once to show the spinner, once to clear it), possibly
+                    // while the user has already scrolled on. key(...) scopes each row's
+                    // recomposition to itself instead, without adding a layout node.
+                    key("voiceActingRoles") {
+                        if (person.voiceActingRoles.isNotEmpty()) {
+                            SectionTitle("Voice Acting Roles", "", {})
+                            LazyRow(state = rolesListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(person.voiceActingRoles, key = { _, r -> "role-${r.workId}-${r.characterId}" }) { i, role ->
+                                    StaggeredItem(i, rolesSeen) {
+                                        val workTitle = role.displayTitle()
+                                        DetailRowCard(
+                                            imageUrl = role.workImage, fallbackLetter = workTitle.take(1), title = workTitle,
+                                            label = role.roleLabel, subtitle = role.characterName,
+                                            loading = workLoadingId == role.workId,
+                                            myStatus = myListStatus[role.workId to MediaType.Anime],
+                                            onClick = { onOpenWork(role.workId, MediaType.Anime) },
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    if (person.staffCredits.isNotEmpty()) {
-                        SectionTitle("Anime Staff Positions", "", {})
-                        LazyRow(state = staffListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(person.staffCredits, key = { _, w -> "staff-${w.id}" }) { i, work ->
-                                StaggeredItem(i, staffSeen) {
-                                    val workTitle = work.displayTitle()
-                                    DetailRowCard(
-                                        imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,
-                                        loading = workLoadingId == work.id.toIntOrNull(),
-                                        myStatus = work.id.toIntOrNull()?.let { myListStatus[it to MediaType.Anime] },
-                                        onClick = { work.id.toIntOrNull()?.let { onOpenWork(it, MediaType.Anime) } },
-                                    )
+                    key("staffCredits") {
+                        if (person.staffCredits.isNotEmpty()) {
+                            SectionTitle("Anime Staff Positions", "", {})
+                            LazyRow(state = staffListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(person.staffCredits, key = { _, w -> "staff-${w.id}" }) { i, work ->
+                                    StaggeredItem(i, staffSeen) {
+                                        val workTitle = work.displayTitle()
+                                        DetailRowCard(
+                                            imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,
+                                            loading = workLoadingId == work.id.toIntOrNull(),
+                                            myStatus = work.id.toIntOrNull()?.let { myListStatus[it to MediaType.Anime] },
+                                            onClick = { work.id.toIntOrNull()?.let { onOpenWork(it, MediaType.Anime) } },
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    if (person.publishedManga.isNotEmpty()) {
-                        SectionTitle("Published Manga", "", {})
-                        LazyRow(state = mangaListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(person.publishedManga, key = { _, w -> "manga-${w.id}" }) { i, work ->
-                                StaggeredItem(i, mangaSeen) {
-                                    val workTitle = work.displayTitle()
-                                    DetailRowCard(
-                                        imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,
-                                        loading = workLoadingId == work.id.toIntOrNull(),
-                                        myStatus = work.id.toIntOrNull()?.let { myListStatus[it to MediaType.Manga] },
-                                        onClick = { work.id.toIntOrNull()?.let { onOpenWork(it, MediaType.Manga) } },
-                                    )
+                    key("publishedManga") {
+                        if (person.publishedManga.isNotEmpty()) {
+                            SectionTitle("Published Manga", "", {})
+                            LazyRow(state = mangaListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(person.publishedManga, key = { _, w -> "manga-${w.id}" }) { i, work ->
+                                    StaggeredItem(i, mangaSeen) {
+                                        val workTitle = work.displayTitle()
+                                        DetailRowCard(
+                                            imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,
+                                            loading = workLoadingId == work.id.toIntOrNull(),
+                                            myStatus = work.id.toIntOrNull()?.let { myListStatus[it to MediaType.Manga] },
+                                            onClick = { work.id.toIntOrNull()?.let { onOpenWork(it, MediaType.Manga) } },
+                                        )
+                                    }
                                 }
                             }
                         }

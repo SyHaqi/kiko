@@ -115,12 +115,26 @@ import kotlinx.coroutines.launch
                         java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault()),
                         color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
                     )
-                    if (airingNext.isNotEmpty()) {
-                        SectionTitle("Airing next", "See all", click = { onSchedule(today) })
-                        AiringNextRow(airingNext, vm, trackedOpenDetail)
-                    } else if (vm.discoverBrowseLoading) {
-                        SectionTitle("Airing next", "See all", click = { onSchedule(today) })
-                        AiringNextRowSkeleton()
+                    // Each of these home sections (airing next, announcement, snapshots,
+                    // featured articles) loads independently and can pop in seconds after
+                    // the rest of the page — well after the user has already started
+                    // scrolling. Without a key(...) boundary here, since ALL of Home's
+                    // content lives in a single LazyColumn item{} (see below), a state read
+                    // anywhere in that item{} block ties the WHOLE block to that state:
+                    // every one of these arrivals would recompose the entire page (header,
+                    // every row, every image) instead of just its own section, competing
+                    // with the scroll gesture for frame time and reading as "scrolling feels
+                    // slow" right after opening the tab. key(...) doesn't add a layout node
+                    // (unlike Box/Column) — it just gives the Compose runtime a slot-table
+                    // boundary, so a read inside only invalidates that boundary.
+                    key("airingNext") {
+                        if (airingNext.isNotEmpty()) {
+                            SectionTitle("Airing next", "See all", click = { onSchedule(today) })
+                            AiringNextRow(airingNext, vm, trackedOpenDetail)
+                        } else if (vm.discoverBrowseLoading) {
+                            SectionTitle("Airing next", "See all", click = { onSchedule(today) })
+                            AiringNextRowSkeleton()
+                        }
                     }
                     // Most recently updated in-progress title — hidden behind showContinueCard
                     // (see top of function) while testing the announcement card below in its
@@ -137,44 +151,50 @@ import kotlinx.coroutines.launch
                     // Latest MAL announcement, standing in Continue's old slot — boxed and
                     // sized (via AnnouncementCard's identical Cover footprint) to match
                     // AiringNextCard above it, so the two shelves read as the same height.
-                    val announcement = vm.homeAnnouncement
-                    if (announcement != null) {
-                        SectionTitle("MAL Announcement", "See more", click = onOpenAnnouncements)
-                        AnnouncementCard(announcement, onClick = { trackedOpenTopic(announcement.id, announcement.title) })
-                    } else if (vm.homeAnnouncementLoading) {
-                        SectionTitle("MAL Announcement", "See more", click = onOpenAnnouncements)
-                        AiringNextCardSkeleton(modifier = Modifier.fillMaxWidth())
+                    key("announcement") {
+                        val announcement = vm.homeAnnouncement
+                        if (announcement != null) {
+                            SectionTitle("MAL Announcement", "See more", click = onOpenAnnouncements)
+                            AnnouncementCard(announcement, onClick = { trackedOpenTopic(announcement.id, announcement.title) })
+                        } else if (vm.homeAnnouncementLoading) {
+                            SectionTitle("MAL Announcement", "See more", click = onOpenAnnouncements)
+                            AiringNextCardSkeleton(modifier = Modifier.fillMaxWidth())
+                        }
                     }
                     // Home recent news row
-                    if (vm.newsSnapshots.isNotEmpty()) {
-                        SectionTitle("Snapshots", "See news", onSeeNews)
-                        // Extra breathing room here specifically — the Pinterest-style grid
-                        // reads as more "content-dense" than the single-row shelves above it,
-                        // so it wants a bit more separation from the title than SectionTitle's
-                        // default bottom padding gives the other sections.
-                        Spacer(Modifier.height(8.dp))
-                        SnapshotsGrid(vm.newsSnapshots, trackedOpenTopic)
-                    } else if (vm.newsSnapshotsLoading) {
-                        SectionTitle("Snapshots", "See news", onSeeNews)
-                        Spacer(Modifier.height(8.dp))
-                        SnapshotsGridSkeleton()
+                    key("snapshots") {
+                        if (vm.newsSnapshots.isNotEmpty()) {
+                            SectionTitle("Snapshots", "See news", onSeeNews)
+                            // Extra breathing room here specifically — the Pinterest-style grid
+                            // reads as more "content-dense" than the single-row shelves above it,
+                            // so it wants a bit more separation from the title than SectionTitle's
+                            // default bottom padding gives the other sections.
+                            Spacer(Modifier.height(8.dp))
+                            SnapshotsGrid(vm.newsSnapshots, trackedOpenTopic)
+                        } else if (vm.newsSnapshotsLoading) {
+                            SectionTitle("Snapshots", "See news", onSeeNews)
+                            Spacer(Modifier.height(8.dp))
+                            SnapshotsGridSkeleton()
+                        }
                     }
                     // Top 3 MAL homepage "Featured Articles", under Snapshots — same card
                     // (DetailFeaturedArticleCard) and "by <author> · <views> views" meta line
                     // DetailScreen's own "Recent Featured Articles" section uses, opened the
                     // same way: no in-app reader, tapping opens the article's MAL page
                     // externally via a custom tab.
-                    if (vm.homeFeaturedArticles.isNotEmpty()) {
-                        SectionTitle("Featured Articles", "View more", { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/featured")) })
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            vm.homeFeaturedArticles.forEach { article ->
-                                DetailFeaturedArticleCard(article) { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(article.url)) }
+                    key("featuredArticles") {
+                        if (vm.homeFeaturedArticles.isNotEmpty()) {
+                            SectionTitle("Featured Articles", "View more", { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/featured")) })
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                vm.homeFeaturedArticles.forEach { article ->
+                                    DetailFeaturedArticleCard(article) { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(article.url)) }
+                                }
                             }
-                        }
-                    } else if (vm.homeFeaturedArticlesLoading) {
-                        SectionTitle("Featured Articles", "View more", { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/featured")) })
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            repeat(3) { DetailFeaturedArticleCardSkeleton() }
+                        } else if (vm.homeFeaturedArticlesLoading) {
+                            SectionTitle("Featured Articles", "View more", { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/featured")) })
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                repeat(3) { DetailFeaturedArticleCardSkeleton() }
+                            }
                         }
                     }
                     if (vm.authChecked && !vm.signedIn && !vm.loading) {

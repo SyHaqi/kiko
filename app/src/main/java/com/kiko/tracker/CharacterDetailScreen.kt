@@ -214,46 +214,60 @@ import coil.compose.AsyncImage
                         )
                     }
 
-                    if (character.voiceActors.isNotEmpty()) {
-                        SectionTitle("Voice Actors", "", {})
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(character.voiceActors, key = { _, va -> "${va.malId}-${va.language}" }) { i, va ->
-                                StaggeredItem(i, voiceActorsSeen) {
-                                    PersonCard(va.image, va.name.take(1), va.name, va.language) { onOpenPerson(va.malId) }
+                    // Each row below reads workLoadingId to flip a per-card spinner while a
+                    // tapped entry is being opened. Since the whole page lives in one
+                    // LazyColumn item{} (see the wrapping LazyColumn below), an ungated read
+                    // of workLoadingId here ties the ENTIRE page — portrait, About text,
+                    // every other row — to it, so tapping any one entry would recompose the
+                    // whole page twice (once to show the spinner, once to clear it), possibly
+                    // while the user has already scrolled on. key(...) scopes each row's
+                    // recomposition to itself instead, without adding a layout node.
+                    key("voiceActors") {
+                        if (character.voiceActors.isNotEmpty()) {
+                            SectionTitle("Voice Actors", "", {})
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(character.voiceActors, key = { _, va -> "${va.malId}-${va.language}" }) { i, va ->
+                                    StaggeredItem(i, voiceActorsSeen) {
+                                        PersonCard(va.image, va.name.take(1), va.name, va.language) { onOpenPerson(va.malId) }
+                                    }
                                 }
                             }
                         }
                     }
 
-                    if (character.animeography.isNotEmpty()) {
-                        SectionTitle("Animeography", "", {})
-                        LazyRow(state = animeListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(character.animeography, key = { _, w -> "anime-${w.malId}" }) { i, work ->
-                                StaggeredItem(i, animeSeen) {
-                                    val workTitle = work.displayTitle()
-                                    DetailRowCard(
-                                        imageUrl = work.image, fallbackLetter = workTitle.take(1), title = workTitle, label = work.role,
-                                        loading = workLoadingId == work.malId,
-                                        myStatus = myListStatus[work.malId to MediaType.Anime],
-                                        onClick = { onOpenWork(work.malId, MediaType.Anime) },
-                                    )
+                    key("animeography") {
+                        if (character.animeography.isNotEmpty()) {
+                            SectionTitle("Animeography", "", {})
+                            LazyRow(state = animeListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(character.animeography, key = { _, w -> "anime-${w.malId}" }) { i, work ->
+                                    StaggeredItem(i, animeSeen) {
+                                        val workTitle = work.displayTitle()
+                                        DetailRowCard(
+                                            imageUrl = work.image, fallbackLetter = workTitle.take(1), title = workTitle, label = work.role,
+                                            loading = workLoadingId == work.malId,
+                                            myStatus = myListStatus[work.malId to MediaType.Anime],
+                                            onClick = { onOpenWork(work.malId, MediaType.Anime) },
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    if (character.mangaography.isNotEmpty()) {
-                        SectionTitle("Mangaography", "", {})
-                        LazyRow(state = mangaListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(character.mangaography, key = { _, w -> "manga-${w.malId}" }) { i, work ->
-                                StaggeredItem(i, mangaSeen) {
-                                    val workTitle = work.displayTitle()
-                                    DetailRowCard(
-                                        imageUrl = work.image, fallbackLetter = workTitle.take(1), title = workTitle, label = work.role,
-                                        loading = workLoadingId == work.malId,
-                                        myStatus = myListStatus[work.malId to MediaType.Manga],
-                                        onClick = { onOpenWork(work.malId, MediaType.Manga) },
-                                    )
+                    key("mangaography") {
+                        if (character.mangaography.isNotEmpty()) {
+                            SectionTitle("Mangaography", "", {})
+                            LazyRow(state = mangaListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(character.mangaography, key = { _, w -> "manga-${w.malId}" }) { i, work ->
+                                    StaggeredItem(i, mangaSeen) {
+                                        val workTitle = work.displayTitle()
+                                        DetailRowCard(
+                                            imageUrl = work.image, fallbackLetter = workTitle.take(1), title = workTitle, label = work.role,
+                                            loading = workLoadingId == work.malId,
+                                            myStatus = myListStatus[work.malId to MediaType.Manga],
+                                            onClick = { onOpenWork(work.malId, MediaType.Manga) },
+                                        )
+                                    }
                                 }
                             }
                         }

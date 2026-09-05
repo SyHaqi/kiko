@@ -289,11 +289,18 @@ data class DetailScreenActions(
                 // Tap cover opens fullscreen
                 var showFullCover by remember(item.id) { mutableStateOf(false) }
                 val displayTitle = item.displayTitle()
-                // Backdrop from second picture
-                val backdropUrl = covers.getOrNull(1)
                 // Unclipped wrapper for poster
                 Box(Modifier.fillMaxWidth()) {
                     Box(Modifier.fillMaxWidth().height(248.dp).clip(RoundedCornerShape(bottomStart = kikoCorner(32.dp), bottomEnd = kikoCorner(32.dp)))) {
+                        // Backdrop from second picture — read here (inside this nested Box's
+                        // own composable-lambda scope) rather than up in item{}'s own body.
+                        // `covers` backfills asynchronously after the page is already showing
+                        // (see the LaunchedEffect above), and a read used directly in item{}'s
+                        // body ties the ENTIRE page — header, poster, every section below — to
+                        // that state, so the whole page would recompose the moment the backfill
+                        // lands, often while the user is mid-scroll. Scoped here, only this one
+                        // Box redraws.
+                        val backdropUrl = covers.getOrNull(1)
                         if (backdropUrl != null) {
                             AsyncImage(
                                 model = ImageRequest.Builder(context).data(backdropUrl).allowHardware(true).build(), contentDescription = null,
@@ -514,41 +521,53 @@ data class DetailScreenActions(
                         }
                     }
 
-                    if (characters.isNotEmpty()) {
-                        SectionTitle("Characters", "", {})
-                        LazyRow(state = charactersListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch ->
-                                StaggeredItem(i, charactersSeen) {
-                                    CharacterCard(ch, loading = castLoadingId == ch.malId, onClick = { actions.onOpenCharacter(ch.malId) })
+                    // characters/charactersFailed load async, well after the page is already
+                    // shown (unlike related/themes/recommended, which the top-of-function gate
+                    // waits on before rendering at all). Wrapping the section in key(...) keeps
+                    // its arrival from recomposing the WHOLE page — everything in this item{}
+                    // block that isn't itself inside another composable-lambda boundary shares
+                    // one recompose scope, so an ungated read here would otherwise invalidate
+                    // the header, poster, and every other section too, right as the fetch lands
+                    // (often mid-scroll). Same reasoning for every key(...) added below.
+                    key("characters") {
+                        if (characters.isNotEmpty()) {
+                            SectionTitle("Characters", "", {})
+                            LazyRow(state = charactersListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch ->
+                                    StaggeredItem(i, charactersSeen) {
+                                        CharacterCard(ch, loading = castLoadingId == ch.malId, onClick = { actions.onOpenCharacter(ch.malId) })
+                                    }
                                 }
                             }
-                        }
-                    } else if (charactersFailed) {
-                        // Fetch itself failed (as opposed to the title just having no cast
-                        // listed) — surface it instead of silently hiding the section, since
-                        // that's the difference between "no data" and "something's blocking
-                        // this" (e.g. a network-level filter on the user's WiFi).
-                        SectionTitle("Characters", "", {})
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(kikoCorner(16.dp)))
-                                .background(c.surfaceContainer)
-                                .kikoClickable { charactersRetryKey++ }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(Icons.Default.Refresh, null, tint = c.muted, modifier = Modifier.size(16.dp))
-                            Text("Couldn't load cast — tap to retry", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
+                        } else if (charactersFailed) {
+                            // Fetch itself failed (as opposed to the title just having no cast
+                            // listed) — surface it instead of silently hiding the section, since
+                            // that's the difference between "no data" and "something's blocking
+                            // this" (e.g. a network-level filter on the user's WiFi).
+                            SectionTitle("Characters", "", {})
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(kikoCorner(16.dp)))
+                                    .background(c.surfaceContainer)
+                                    .kikoClickable { charactersRetryKey++ }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Default.Refresh, null, tint = c.muted, modifier = Modifier.size(16.dp))
+                                Text("Couldn't load cast — tap to retry", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
+                            }
                         }
                     }
                     // Japanese cast only, one row — characters without a listed Japanese VA
                     // (e.g. a role recast mid-series with no dub credited yet) are skipped.
-                    val japaneseVoiceActors = characters.mapNotNull { ch -> ch.japaneseVoiceActor?.let { it to ch.name } }
-                    if (japaneseVoiceActors.isNotEmpty()) {
-                        SectionTitle("Voice Actors", "", {})
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(japaneseVoiceActors, key = { _, (va, charName) -> "${va.malId}-$charName" }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, onClick = { actions.onOpenPerson(va.malId) }) } }
+                    key("voiceActors") {
+                        val japaneseVoiceActors = characters.mapNotNull { ch -> ch.japaneseVoiceActor?.let { it to ch.name } }
+                        if (japaneseVoiceActors.isNotEmpty()) {
+                            SectionTitle("Voice Actors", "", {})
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(japaneseVoiceActors, key = { _, (va, charName) -> "${va.malId}-$charName" }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, onClick = { actions.onOpenPerson(va.malId) }) } }
+                            }
                         }
                     }
 
@@ -592,10 +611,12 @@ data class DetailScreenActions(
                         }
                     }
 
-                    if (reviews.isNotEmpty()) {
-                        SectionTitle("Reviews", "See more", { actions.onOpenReviewList(malReviewsUrl(item), itemDisplayTitle) })
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(reviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i, reviewsSeen) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
+                    key("reviews") {
+                        if (reviews.isNotEmpty()) {
+                            SectionTitle("Reviews", "See more", { actions.onOpenReviewList(malReviewsUrl(item), itemDisplayTitle) })
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(reviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i, reviewsSeen) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
+                            }
                         }
                     }
 
@@ -635,15 +656,17 @@ data class DetailScreenActions(
                     }
 
                     // Reuse status bar styling
-                    statusDistribution?.takeIf { it.total > 0 }?.let { dist ->
-                        SectionTitle("Status distribution", "See more", { actions.onOpenScoreStats(item) }, icon = Icons.Default.BarChart)
-                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
-                                StatBar("Watching", dist.watching, dist.total, c, statusColor("Watching"))
-                                StatBar("Completed", dist.completed, dist.total, c, statusColor("Completed"))
-                                StatBar("On hold", dist.onHold, dist.total, c, statusColor("On hold"))
-                                StatBar("Dropped", dist.dropped, dist.total, c, statusColor("Dropped"))
-                                StatBar("Plan to watch", dist.planToWatch, dist.total, c, statusColor("Plan to watch"))
+                    key("statusDistribution") {
+                        statusDistribution?.takeIf { it.total > 0 }?.let { dist ->
+                            SectionTitle("Status distribution", "See more", { actions.onOpenScoreStats(item) }, icon = Icons.Default.BarChart)
+                            Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+                                    StatBar("Watching", dist.watching, dist.total, c, statusColor("Watching"))
+                                    StatBar("Completed", dist.completed, dist.total, c, statusColor("Completed"))
+                                    StatBar("On hold", dist.onHold, dist.total, c, statusColor("On hold"))
+                                    StatBar("Dropped", dist.dropped, dist.total, c, statusColor("Dropped"))
+                                    StatBar("Plan to watch", dist.planToWatch, dist.total, c, statusColor("Plan to watch"))
+                                }
                             }
                         }
                     }
@@ -653,11 +676,13 @@ data class DetailScreenActions(
                     // of everything else on this page (see stacks' own LaunchedEffect
                     // above, deliberately left out of the gating check at the top of this
                     // function) so a slow fetch here never blocks the rest of the page.
-                    if (stacks.isNotEmpty()) {
-                        SectionTitle("Interest Stacks", "", {})
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                            itemsIndexed(stacks, key = { _, it -> it.id }) { i, s ->
-                                StaggeredItem(i, stacksSeen) { DetailStackCard(s) { actions.onOpenStack(s.id, s.title) } }
+                    key("stacks") {
+                        if (stacks.isNotEmpty()) {
+                            SectionTitle("Interest Stacks", "", {})
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                                itemsIndexed(stacks, key = { _, it -> it.id }) { i, s ->
+                                    StaggeredItem(i, stacksSeen) { DetailStackCard(s) { actions.onOpenStack(s.id, s.title) } }
+                                }
                             }
                         }
                     }
@@ -665,21 +690,25 @@ data class DetailScreenActions(
                     // Recent News — reuses CompanyDetailScreen's own news card so this reads
                     // the same as the company page's Recent News section (see
                     // CompanyNewsCard in CompanyDetailScreen.kt).
-                    if (news.isNotEmpty()) {
-                        SectionTitle("Recent News", "", {})
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            news.forEach { n -> CompanyNewsCard(n) { actions.onOpenTopic(n.topicId, n.title) } }
+                    key("news") {
+                        if (news.isNotEmpty()) {
+                            SectionTitle("Recent News", "", {})
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                news.forEach { n -> CompanyNewsCard(n) { actions.onOpenTopic(n.topicId, n.title) } }
+                            }
                         }
                     }
 
                     // Recent Forum Discussion — capped to 2 rows (see
                     // MalDetailScrapeApi.parseDetailForumDiscussion's own limit).
-                    if (forumDiscussion.isNotEmpty()) {
-                        SectionTitle("Recent Forum Discussion", "", {})
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            forumDiscussion.forEachIndexed { i, topic ->
-                                DetailForumDiscussionRow(topic) { actions.onOpenTopic(topic.id, topic.title) }
-                                if (i < forumDiscussion.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                    key("forumDiscussion") {
+                        if (forumDiscussion.isNotEmpty()) {
+                            SectionTitle("Recent Forum Discussion", "", {})
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                forumDiscussion.forEachIndexed { i, topic ->
+                                    DetailForumDiscussionRow(topic) { actions.onOpenTopic(topic.id, topic.title) }
+                                    if (i < forumDiscussion.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                                }
                             }
                         }
                     }
@@ -687,10 +716,12 @@ data class DetailScreenActions(
                     // Recent Featured Articles — capped to 2 cards (see
                     // MalDetailScrapeApi.parseFeaturedArticles's own limit). No in-app reader
                     // for these, so tapping opens the article's MAL page externally.
-                    if (featuredArticles.isNotEmpty()) {
-                        SectionTitle("Recent Featured Articles", "", {})
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            featuredArticles.forEach { article -> DetailFeaturedArticleCard(article) { actions.onOpenFeaturedArticle(article.url) } }
+                    key("detailFeaturedArticles") {
+                        if (featuredArticles.isNotEmpty()) {
+                            SectionTitle("Recent Featured Articles", "", {})
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                featuredArticles.forEach { article -> DetailFeaturedArticleCard(article) { actions.onOpenFeaturedArticle(article.url) } }
+                            }
                         }
                     }
                 }
