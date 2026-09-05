@@ -152,11 +152,18 @@ import kotlinx.coroutines.launch
         Text(title, style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.weight(1f))
         // Same squircle arrow affordance as Home/Discover/Detail's SectionTitle — see there
         // for why (Play Store-style section header link, but shaped like the rest of the
-        // app's rounded-rectangle language rather than a full circle).
-        IconButton(
-            onClick = onSeeAll,
-            modifier = Modifier.size(34.dp).clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.surfaceContainerHigh),
-        ) { Icon(Icons.Default.ArrowForward, "See all", tint = c.ink, modifier = Modifier.size(16.dp)) }
+        // app's rounded-rectangle language rather than a full circle). Uses a plain
+        // clickable Box rather than IconButton, same as SectionTitle, so the size below
+        // is exactly what renders instead of being padded out by IconButton's own
+        // default 40dp touch target.
+        Box(
+            Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(kikoCorner(10.dp)))
+                .background(c.surfaceContainerHigh)
+                .kikoClickable(onClick = onSeeAll),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Default.ArrowForward, "See all", tint = c.ink, modifier = Modifier.size(17.dp)) }
     }
 }
 
@@ -482,7 +489,7 @@ import kotlinx.coroutines.launch
 // One stack's entries — header (back button + title), description, "my progress"
 // breakdown against the signed-in user's list, then a seasonal-chart-style grid
 
-@Composable fun StackDetailScreen(vm: LibraryViewModel, stackId: Int, initialTitle: String, loadingId: Int?, myListStatus: Map<Pair<Int, MediaType>, WatchStatus>, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit, onEditEntry: (StackTitleEntry) -> Unit = {}, selectedItem: MediaItem? = null) {
+@Composable fun StackDetailScreen(vm: LibraryViewModel, stackId: Int, initialTitle: String, loadingId: Int?, myListStatus: Map<Pair<Int, MediaType>, WatchStatus>, initialScroll: Pair<Int, Int> = 0 to 0, onLeaveScroll: (Int, Int) -> Unit = { _, _ -> }, onBack: () -> Unit, onOpenEntry: (StackTitleEntry) -> Unit, onEditEntry: (StackTitleEntry) -> Unit = {}, selectedItem: MediaItem? = null, onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {}) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     BackHandler(onBack = onBack)
@@ -518,6 +525,16 @@ import kotlinx.coroutines.launch
         onDispose { onLeaveScroll(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset) }
     }
     val showGoToTop by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 } }
+    // Dispatches a tapped character/person/company link (see parseMalProfileLink) in the
+    // stack's description to this screen's own open-in-app callbacks, same as
+    // ForumTopicScreen/ClubDetailScreen do for their own BBCode-rendered text.
+    val onOpenProfileLink: (MalProfileLink) -> Unit = { link ->
+        when (link) {
+            is MalProfileLink.Character -> onOpenCharacter(link.malId)
+            is MalProfileLink.Person -> onOpenPerson(link.malId)
+            is MalProfileLink.Company -> onOpenCompany(link.malId)
+        }
+    }
     Box(Modifier.fillMaxSize()) {
         LazyVerticalGrid(
             state = gridState,
@@ -554,7 +571,7 @@ import kotlinx.coroutines.launch
                         // so links stay tappable (blue + underlined) and any embedded
                         // images load, instead of falling back to unstyled plain text.
                         if (d.description.isNotBlank()) {
-                            ForumBody(d.description, Modifier.padding(top = 10.dp))
+                            ForumBody(d.description, Modifier.padding(top = 10.dp), onOpenProfileLink = onOpenProfileLink)
                         }
                         Box(Modifier.padding(top = 12.dp)) { StackStatsRow(d.entries.size, d.restacks, "") }
                         StackMyProgressBar(d.entries, myListStatus, c, Modifier.padding(top = 16.dp))

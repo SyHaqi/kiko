@@ -191,7 +191,7 @@ import kotlinx.coroutines.launch
 private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet"), Members("Members") }
 
 // Full club page — banner, Couch/Cabinet/Members segmented tabs
-@Composable fun ClubDetailScreen(club: MalClub, onBack: () -> Unit) {
+@Composable fun ClubDetailScreen(club: MalClub, onBack: () -> Unit, onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {}) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     val api = remember { ClubsApi() }
@@ -210,6 +210,16 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
 
     BackHandler(onBack = onBack)
     var tab by remember { mutableStateOf(ClubTab.Couch) }
+    // Dispatches a tapped character/person/company link (see parseMalProfileLink) in the
+    // club description or a Couch post to this screen's own open-in-app callbacks, same as
+    // ForumTopicScreen does for forum posts.
+    val onOpenProfileLink: (MalProfileLink) -> Unit = { link ->
+        when (link) {
+            is MalProfileLink.Character -> onOpenCharacter(link.malId)
+            is MalProfileLink.Person -> onOpenPerson(link.malId)
+            is MalProfileLink.Company -> onOpenCompany(link.malId)
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -256,7 +266,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
             item {
                 AnimatedContent(tab, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "club-tab", modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) { t ->
                     when (t) {
-                        ClubTab.Couch -> ClubCouchSection(club.id, full, onOpenBrowser = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(full.url)) })
+                        ClubTab.Couch -> ClubCouchSection(club.id, full, onOpenBrowser = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(full.url)) }, onOpenProfileLink = onOpenProfileLink)
                         ClubTab.Cabinet -> ClubCabinetSection(full, loading, onOpenBrowser = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(it)) })
                         ClubTab.Members -> ClubMembersSection(club.id, onOpenBrowser = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(it)) })
                     }
@@ -267,7 +277,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
 }
 
 // Couch = the club's own discussion feed, scraped from its MAL home page
-@Composable private fun ClubCouchSection(clubId: Int, club: MalClub, onOpenBrowser: () -> Unit) {
+@Composable private fun ClubCouchSection(clubId: Int, club: MalClub, onOpenBrowser: () -> Unit, onOpenProfileLink: (MalProfileLink) -> Unit = {}) {
     val c = LocalKikoColors.current
     val api = remember { ClubsApi() }
     var posts by remember(clubId) { mutableStateOf<List<ClubPost>>(emptyList()) }
@@ -283,7 +293,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
     Column {
         if (club.description.isNotBlank()) {
             Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                ForumBody(club.description, modifier = Modifier.padding(18.dp))
+                ForumBody(club.description, modifier = Modifier.padding(18.dp), onOpenProfileLink = onOpenProfileLink)
             }
             Spacer(Modifier.height(18.dp))
         }
@@ -315,7 +325,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                                     Text(post.username.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink)
                                     if (post.postedLabel.isNotBlank()) Text("  ·  ${post.postedLabel}", color = c.muted, fontSize = 11.sp)
                                 }
-                                ForumBody(post.body, modifier = Modifier.padding(top = 3.dp))
+                                ForumBody(post.body, modifier = Modifier.padding(top = 3.dp), onOpenProfileLink = onOpenProfileLink)
                             }
                         }
                         if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.outlineVariant)

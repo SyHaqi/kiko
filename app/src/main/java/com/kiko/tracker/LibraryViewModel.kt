@@ -1510,6 +1510,26 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    // Latest MAL announcement (board id 5, "Updates & Announcements") for Home's
+    // announcement card — a single-item cousin of loadNewsSnapshots above, reusing the
+    // same forumTopics endpoint the Forums tab already calls instead of a new API surface.
+    var homeAnnouncement by mutableStateOf<ForumTopic?>(null); private set
+    var homeAnnouncementLoading by mutableStateOf(false); private set
+    private var homeAnnouncementLoaded = false
+    fun loadHomeAnnouncement(context: Context, force: Boolean = false) {
+        val api = MalApi(context)
+        if ((homeAnnouncementLoaded && !force) || !api.signedIn) return
+        homeAnnouncementLoaded = true
+        homeAnnouncementLoading = true
+        viewModelScope.launch {
+            runCatching { api.forumTopics(boardId = 5, limit = 1, withThumbnails = true).items.firstOrNull() }
+                .onSuccess { homeAnnouncement = it }
+                // Fail silently, no banner — same as loadNewsSnapshots
+                .onFailure { homeAnnouncementLoaded = false }
+            homeAnnouncementLoading = false
+        }
+    }
+
     // Related row loading id
     var relatedLoadingId by mutableStateOf<Int?>(null); private set
 

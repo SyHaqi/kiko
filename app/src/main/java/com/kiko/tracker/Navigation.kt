@@ -211,12 +211,32 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var personDetailOpenId by remember { mutableStateOf<Int?>(null) }
     var personDetailOpen by remember { mutableStateOf<PersonDetail?>(null) }
     var castPersonOnTop by remember { mutableStateOf(false) }
-    // Company detail page, opened from Discover's Companies tab. No castCompanyOnTop
-    // equivalent — see TopScreen.CompanyPage's doc comment above — since nothing ever
-    // opens a company from on top of another detail page the way a cast row does for
-    // Person/Character. Same immediate-id-then-fill shape as characterDetailOpenId above.
+    // Company detail page, opened from Discover's Companies tab, or from a company/studio
+    // link tapped inside a forum post, club post, or stack description (see
+    // parseMalProfileLink) — castCompanyOnTop below covers that second case, same
+    // reasoning as castCharacterOnTop/castPersonOnTop above, just for Company. Same
+    // immediate-id-then-fill shape as characterDetailOpenId above.
     var companyDetailOpenId by remember { mutableStateOf<Int?>(null) }
     var companyDetailOpen by remember { mutableStateOf<CompanyDetail?>(null) }
+    // True while the open company page was opened from a link tapped inside a forum
+    // post/club post/stack description rather than from Discover — same reasoning as
+    // castCharacterOnTop/castPersonOnTop, just there's no Detail-page-cast-row equivalent
+    // for Company, only this link-tap one. Reset by openDetail() and by the company
+    // page's own onBack, same lifecycle as the other two.
+    var castCompanyOnTop by remember { mutableStateOf(false) }
+    // True while the currently-open Detail page was opened by tapping an anime/manga link
+    // inside a still-open Topic or StackDetail screen. Those links never go through
+    // parseMalProfileLink (there's no in-app title page to route to besides Detail itself)
+    // — they fall through to the browser via uriHandler.openUri, and since Kiko is
+    // registered to open myanimelist.net/anime and /manga URLs itself (see
+    // AndroidManifest.xml), the tap round-trips straight back into MainActivity and comes
+    // out the malLink handler below. Same castCharacterOnTop-style override, just for
+    // detailItem instead of a cast page — needed because forumTopicOpen/stackDetailOpen
+    // are otherwise checked ahead of detailItem in the priority chain below (so that a
+    // topic/stack opened *from* a Detail page still shows on top of it), which would
+    // otherwise hide the freshly opened Detail page until the topic/stack itself is
+    // closed. Reset by openDetail() (any fresh open elsewhere) and by Detail's own onBack.
+    var detailOnTopOfTopicOrStack by remember { mutableStateOf(false) }
     // Item to return to when backing out of a genre-chip/creator-tap jump to Discover
     var discoverReturnItem by remember { mutableStateOf<MediaItem?>(null) }
     // Where the detour started — the tab (My List, Home, ...) and, if applicable, the
@@ -243,6 +263,14 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         // opened from a person page's own rows) also always outranks a lingering person
         // overlay from wherever it was opened.
         castPersonOnTop = false
+        // Same reasoning — a fresh Detail open also always outranks a lingering company
+        // overlay opened from a forum/club/stack link.
+        castCompanyOnTop = false
+        // Same reasoning, for the anime/manga-link-inside-a-Topic/StackDetail case (see
+        // detailOnTopOfTopicOrStack's doc comment) — a fresh open elsewhere always starts
+        // this back at false; the malLink handler below sets it true again itself right
+        // after calling openDetail(), for that one specific path.
+        detailOnTopOfTopicOrStack = false
         // A title opened while a Discover detour is still in progress (e.g. tapping
         // another result on the author's search page) is just drilling further into
         // that same detour — keep the breadcrumbs so backing out eventually still
@@ -281,15 +309,18 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
             onError = { if (personDetailOpenId == malId) { personDetailOpenId = null; castPersonOnTop = false } },
         )
     }
-    // Same shape as openCharacter/openPerson above, minus the castOnTop parameter —
-    // see companyDetailOpenId's doc comment.
-    fun openCompany(malId: Int) {
+    // Same shape as openCharacter/openPerson above — castOnTop mirrors those two, covering
+    // the one case a company can now be opened on top of something else: a company/studio
+    // link tapped inside a forum post, club post, or stack description (see
+    // parseMalProfileLink and castCompanyOnTop's doc comment above).
+    fun openCompany(malId: Int, castOnTop: Boolean = false) {
         companyDetailOpenId = malId
         companyDetailOpen = null
+        castCompanyOnTop = castOnTop
         vm.openCompanyDetail(
             context, malId,
             onLoaded = { company -> if (companyDetailOpenId == malId) companyDetailOpen = company },
-            onError = { if (companyDetailOpenId == malId) companyDetailOpenId = null },
+            onError = { if (companyDetailOpenId == malId) { companyDetailOpenId = null; castCompanyOnTop = false } },
         )
     }
     fun backDetail() {
@@ -308,6 +339,10 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         // is now unreachable, so drop everything cached for it (see clearDetailCache()).
         vm.clearDetailCache()
         selectedItem = null
+        // Detail page is gone now, so this no longer means anything — reset rather than
+        // let it linger true for whatever eventually reopens Detail next (see
+        // detailOnTopOfTopicOrStack's doc comment).
+        detailOnTopOfTopicOrStack = false
         // Only restore once the detour's own "return to origin item" stop has already
         // been consumed (discoverReturnItem null) — otherwise this was just closing an
         // intermediate title opened mid-detour, which should reveal the search results
@@ -319,13 +354,20 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
             discoverReturnDestination = null; discoverReturnStack = null
         }
     }
+    // Forum topic screen state
+    var forumTopicOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
     // Handle tapped MAL link
     LaunchedEffect(malLink) {
         val uri = malLink ?: return@LaunchedEffect
         parseMalDeepLink(uri)?.let { (id, type) ->
+            // Captured before openDetail() resets detailOnTopOfTopicOrStack to false (its
+            // default for every other call site) — see that flag's doc comment for why a
+            // link tapped from inside one of these two screens needs it set back to true
+            // right after.
+            val openedFromTopicOrStack = forumTopicOpen != null || stackDetailOpen != null
             vm.loading = true
             runCatching { MalApi(context).detail(id, type) }
-                .onSuccess { openDetail(it) }
+                .onSuccess { openDetail(it); detailOnTopOfTopicOrStack = openedFromTopicOrStack }
                 .onFailure { vm.error = it.message ?: "Could not load that MAL link" }
             vm.loading = false
         }
@@ -338,8 +380,6 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var scheduleOpen by remember { mutableStateOf(false) }
     var scheduleInitialDay by remember { mutableStateOf(java.time.LocalDate.now().dayOfWeek) }
     fun openSchedule(day: java.time.DayOfWeek) { scheduleInitialDay = day; scheduleOpen = true }
-    // Forum topic screen state
-    var forumTopicOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
     // About page open state
     var aboutOpen by remember { mutableStateOf(false) }
     // Full review readout state
@@ -459,6 +499,14 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                         // further out, so it outranks both of those too.
                         castPersonOnTop && personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
                         castCharacterOnTop && characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
+                        // Company/anime/manga links tapped inside a still-open Topic or
+                        // StackDetail screen — see castCompanyOnTop and
+                        // detailOnTopOfTopicOrStack's doc comments above for why these two
+                        // must be checked here, ahead of stackDetailOpen/forumTopicOpen
+                        // just below, rather than down with companyDetailOpenId/detailItem's
+                        // own plain checks further down.
+                        castCompanyOnTop && companyDetailOpenId != null -> TopScreen.CompanyPage(companyDetailOpenId!!, companyDetailOpen)
+                        detailOnTopOfTopicOrStack && detailItem != null -> TopScreen.Detail(detailItem)
                         // Checked ahead of detailItem/mediaStacksOpen below so a stack opened
                         // from either (or from Stacks Home/Browse, where neither is set) always
                         // shows on top rather than being swallowed by whichever of those is
@@ -604,7 +652,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             is TopScreen.CompanyPage -> CompanyDetailScreen(
                                 screen.malId,
                                 screen.company,
-                                onBack = { companyDetailOpenId = null; companyDetailOpen = null; vm.forgetCompanyPage(screen.malId) },
+                                onBack = { companyDetailOpenId = null; companyDetailOpen = null; castCompanyOnTop = false; vm.forgetCompanyPage(screen.malId) },
                                 // A company's anime grid is always Anime — reuses the same
                                 // fetch-then-openDetail helper Character/PersonPage's own
                                 // work rows already share (see vm.openCharacterWork's doc).
@@ -621,7 +669,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                             TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
                             is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)
-                            is TopScreen.Topic -> ForumTopicScreen(vm, topicId = screen.topicId, title = screen.title, onBack = { forumTopicOpen = null })
+                            is TopScreen.Topic -> ForumTopicScreen(vm, topicId = screen.topicId, title = screen.title, onBack = { forumTopicOpen = null }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
                             TopScreen.About -> AboutScreen(
                                 onBack = { aboutOpen = false },
                                 updateInfo = vm.updateInfo, updateChecking = vm.updateChecking, updateUpToDate = vm.updateUpToDateMessage,
@@ -639,9 +687,9 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             // (i.e. this stack was opened directly, e.g. from the Home teaser) —
                             // otherwise the user is just returning to Home/Browse, still inside
                             // the flow, and the cache should stick around.
-                            is TopScreen.StackDetail -> StackDetailScreen(vm, screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), initialScroll = vm.getStackDetailScroll(screen.stackId), onLeaveScroll = { index, offset -> vm.saveStackDetailScroll(screen.stackId, index, offset) }, onBack = { stackDetailOpen = null; if (!stacksHomeOpen && stacksBrowseKind == null && mediaStacksOpen == null) vm.clearStackDetailCache() }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } }, onEditEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> editor = fetched } }, selectedItem = editor)
+                            is TopScreen.StackDetail -> StackDetailScreen(vm, screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), initialScroll = vm.getStackDetailScroll(screen.stackId), onLeaveScroll = { index, offset -> vm.saveStackDetailScroll(screen.stackId, index, offset) }, onBack = { stackDetailOpen = null; if (!stacksHomeOpen && stacksBrowseKind == null && mediaStacksOpen == null) vm.clearStackDetailCache() }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } }, onEditEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> editor = fetched } }, selectedItem = editor, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
                             is TopScreen.MediaStacks -> MediaStacksScreen(vm = vm, item = screen.item, onBack = { mediaStacksOpen = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
-                            is TopScreen.ClubDetail -> ClubDetailScreen(screen.club, onBack = { clubDetailOpen = null })
+                            is TopScreen.ClubDetail -> ClubDetailScreen(screen.club, onBack = { clubDetailOpen = null }, onOpenCharacter = { malId -> openCharacter(malId) }, onOpenPerson = { malId -> openPerson(malId) }, onOpenCompany = { malId -> openCompany(malId) })
                             TopScreen.ProfileStats -> ProfileStatsScreen(vm.signedIn, vm.malProfile, vm.items, onConnect = onSignIn, onBack = { profileStatsOpen = false }, scrollOffset = vm.profileScrollOffset, onSaveScroll = vm::saveProfileScroll, statsTab = vm.profileStatsTab, onStatsTabChange = vm::selectProfileStatsTab, onScoreClick = { type, score -> scoreFilterOpen = type to score }, onYearClick = { type, year -> yearFilterOpen = type to year }, onFormatClick = { type, format -> formatFilterOpen = type to format }, onGenreClick = { type, genre -> genreFilterOpen = type to genre }, onSignOut = { profileStatsOpen = false; onSignOut() }, refreshing = vm.loading || vm.profileLoading, onRefresh = { vm.load(context) })
                             is TopScreen.ScoreFilter -> ScoreFilterScreen(vm = vm, type = screen.type, initialScore = screen.score, onBack = { scoreFilterOpen = null }, onOpenDetail = ::openDetail)
                             is TopScreen.YearFilter -> YearFilterScreen(vm = vm, type = screen.type, initialYear = screen.year, onBack = { yearFilterOpen = null }, onOpenDetail = ::openDetail)

@@ -354,7 +354,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
 }
 // Single topic posts screen
 
-@Composable fun ForumTopicScreen(vm: LibraryViewModel, topicId: Int, title: String, onBack: () -> Unit) {
+@Composable fun ForumTopicScreen(vm: LibraryViewModel, topicId: Int, title: String, onBack: () -> Unit, onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {}) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -390,6 +390,16 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex, initialFirstVisibleItemScrollOffset = initialOffset)
     val goBack = { vm.saveForumTopicScroll(topicId, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onBack() }
     BackHandler(onBack = goBack)
+    // Dispatches a tapped character/person/company link (see parseMalProfileLink) in any
+    // post's body to this screen's own open-in-app callbacks, same as tapping the
+    // equivalent row elsewhere in the app.
+    val onOpenProfileLink: (MalProfileLink) -> Unit = { link ->
+        when (link) {
+            is MalProfileLink.Character -> onOpenCharacter(link.malId)
+            is MalProfileLink.Person -> onOpenPerson(link.malId)
+            is MalProfileLink.Company -> onOpenCompany(link.malId)
+        }
+    }
     // Item-index alone misses cases where a single tall item (e.g. a long OP post) is
     // scrolled through without the index ever advancing, so also trigger off pixel offset
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
@@ -446,7 +456,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
             itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
                 StaggeredItem(index) {
                     Column {
-                        ForumPostCard(post, isOriginalPost = post.number == 1)
+                        ForumPostCard(post, isOriginalPost = post.number == 1, onOpenProfileLink = onOpenProfileLink)
                         if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.outlineVariant)
                     }
                 }
@@ -702,7 +712,7 @@ sealed class BbToken {
 }
 // Render BBCode as column
 
-@Composable fun ForumBody(body: String, modifier: Modifier = Modifier) {
+@Composable fun ForumBody(body: String, modifier: Modifier = Modifier, onOpenProfileLink: (MalProfileLink) -> Unit = {}) {
     val c = LocalKikoColors.current
     val uriHandler = LocalUriHandler.current
     val blocks = remember(body, c.primary) { parseBBCode(body, c.primary) }
@@ -710,12 +720,20 @@ sealed class BbToken {
     var fullscreenImage by remember { mutableStateOf<String?>(null) }
     fullscreenImage?.let { url -> ZoomableImageDialog(url, onDismiss = { fullscreenImage = null }) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        blocks.forEach { block -> ForumBlockView(block, c, uriHandler) { fullscreenImage = it } }
+        blocks.forEach { block -> ForumBlockView(block, c, uriHandler, onOpenProfileLink = onOpenProfileLink) { fullscreenImage = it } }
     }
+}
+// A tapped BBCode link: opens character/person/company profile links in the app itself
+// (see parseMalProfileLink), same as tapping the equivalent row anywhere else in the app
+// would; anything else falls through to the browser exactly as before.
+
+private fun openForumLink(url: String, uriHandler: androidx.compose.ui.platform.UriHandler, onOpenProfileLink: (MalProfileLink) -> Unit) {
+    val profileLink = parseMalProfileLink(url)
+    if (profileLink != null) onOpenProfileLink(profileLink) else runCatching { uriHandler.openUri(url) }
 }
 // Recursive block rendering helper
 
-@Composable fun ForumBlockView(block: ForumBlock, c: KikoColors, uriHandler: androidx.compose.ui.platform.UriHandler, muted: Boolean = false, onImageTap: (String) -> Unit) {
+@Composable fun ForumBlockView(block: ForumBlock, c: KikoColors, uriHandler: androidx.compose.ui.platform.UriHandler, muted: Boolean = false, onOpenProfileLink: (MalProfileLink) -> Unit = {}, onImageTap: (String) -> Unit) {
     when (block) {
         is ForumBlock.Paragraph -> ClickableText(
             text = block.text,
@@ -725,7 +743,7 @@ sealed class BbToken {
                 textAlign = if (block.center) TextAlign.Center else TextAlign.Start,
             ),
             modifier = Modifier.fillMaxWidth(),
-            onClick = { offset -> block.text.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { runCatching { uriHandler.openUri(it.item) } } },
+            onClick = { offset -> block.text.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { openForumLink(it.item, uriHandler, onOpenProfileLink) } },
         )
         // Ignore fixed pixel width
         is ForumBlock.ImageBlock -> {
@@ -757,7 +775,7 @@ sealed class BbToken {
                     Text(if (block.ordered) "${index + 1}." else "•", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(end = 8.dp).width(18.dp))
                     ClickableText(
                         text = item, style = TextStyle(color = c.ink, fontSize = 14.sp, lineHeight = 20.sp), modifier = Modifier.weight(1f),
-                        onClick = { offset -> item.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { runCatching { uriHandler.openUri(it.item) } } },
+                        onClick = { offset -> item.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { openForumLink(it.item, uriHandler, onOpenProfileLink) } },
                     )
                 }
             }
@@ -767,13 +785,13 @@ sealed class BbToken {
                 .border(androidx.compose.foundation.BorderStroke(3.dp, c.muted.copy(alpha = .35f)), RoundedCornerShape(kikoCorner(10.dp))).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            block.blocks.forEach { nested -> ForumBlockView(nested, c, uriHandler, muted = true, onImageTap = onImageTap) }
+            block.blocks.forEach { nested -> ForumBlockView(nested, c, uriHandler, muted = true, onOpenProfileLink = onOpenProfileLink, onImageTap = onImageTap) }
         }
     }
 }
 // Single topic reply row
 
-@Composable fun ForumPostCard(post: ForumPost, isOriginalPost: Boolean = false) {
+@Composable fun ForumPostCard(post: ForumPost, isOriginalPost: Boolean = false, onOpenProfileLink: (MalProfileLink) -> Unit = {}) {
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
         if (post.author.avatar.isNotBlank()) {
@@ -795,7 +813,7 @@ sealed class BbToken {
                 }
             }
             Text(formatForumDate(post.createdAt), color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 1.dp))
-            ForumBody(post.body, Modifier.padding(top = 8.dp))
+            ForumBody(post.body, Modifier.padding(top = 8.dp), onOpenProfileLink = onOpenProfileLink)
         }
     }
 }

@@ -58,7 +58,10 @@ import kotlinx.coroutines.launch
 @Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onLocateInList: (MediaItem) -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
-    LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context); vm.loadHomeLatestStack(context) }
+    LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context); vm.loadHomeLatestStack(context); vm.loadHomeAnnouncement(context) }
+    // Testing swap: hide (not remove) the "Continue" shortcut and show a single latest
+    // MAL announcement card in its old slot instead. Flip back to true to restore Continue.
+    val showContinueCard = false
     // Was recomputing (filter + maxByOrNull) over the whole library on every recomposition —
     // including ones triggered by unrelated state like vm.loading toggling during a
     // background sync — instead of only when the inputs that actually affect the result
@@ -116,13 +119,31 @@ import kotlinx.coroutines.launch
                         SectionTitle("Airing next", "See all", click = { onSchedule(today) })
                         AiringNextRowSkeleton()
                     }
-                    // Most recently updated in-progress title
-                    if (active != null) {
-                        SectionTitle("Continue", "See list", onList)
-                        ContinueCard(active, vm, onClick = { onLocateInList(active) }, onLongPress = onEdit, isSelected = selectedItem?.id == active.id && selectedItem?.type == active.type)
-                    } else if (vm.loading) {
-                        SectionTitle("Continue", "See list", onList)
-                        ContinueCardSkeleton()
+                    // Most recently updated in-progress title — hidden behind showContinueCard
+                    // (see top of function) while testing the announcement card below in its
+                    // place. Nothing here was removed, just gated.
+                    if (showContinueCard) {
+                        if (active != null) {
+                            SectionTitle("Continue", "See list", onList)
+                            ContinueCard(active, vm, onClick = { onLocateInList(active) }, onLongPress = onEdit, isSelected = selectedItem?.id == active.id && selectedItem?.type == active.type)
+                        } else if (vm.loading) {
+                            SectionTitle("Continue", "See list", onList)
+                            ContinueCardSkeleton()
+                        }
+                    }
+                    // Latest MAL announcement, standing in Continue's old slot — boxed and
+                    // sized (via AnnouncementCard's identical Cover footprint) to match
+                    // AiringNextCard above it, so the two shelves read as the same height.
+                    val announcement = vm.homeAnnouncement
+                    if (announcement != null) {
+                        // No board-list callback is wired into Home (unlike onList/onSeeNews/
+                        // onOpenStacks), so this section skips the "See all" affordance rather
+                        // than send it to the wrong place — tapping the card is the only action.
+                        SectionTitle("Announcements", "", click = {})
+                        AnnouncementCard(announcement, onClick = { trackedOpenTopic(announcement.id, announcement.title) })
+                    } else if (vm.homeAnnouncementLoading) {
+                        SectionTitle("Announcements", "", click = {})
+                        AiringNextCardSkeleton(modifier = Modifier.fillMaxWidth())
                     }
                     // Home recent news row
                     if (vm.newsSnapshots.isNotEmpty()) {
@@ -278,6 +299,56 @@ import kotlinx.coroutines.launch
             .background(c.surfaceContainer),
     ) {
         ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = Modifier.padding(horizontal = 14.dp), vm = vm)
+    }
+}
+// Latest-announcement card standing in for Home's "Continue" slot (see showContinueCard
+// above) — deliberately built on the exact same Cover footprint (84x118) and 14dp
+// padding as AiringNextCard, rather than ContinueCard's slightly larger 92x128 one, so
+// this shelf lines up at precisely the same height as the "Airing next" shelf directly
+// above it. Falls back to a plain campaign-icon tile when the topic has no thumbnail
+// (true for most Announcements-board posts, which rarely carry an image).
+@Composable fun AnnouncementCard(topic: ForumTopic, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    Box(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(22.dp)))
+            .background(c.surfaceContainer)
+            .kikoClickable(onClick = onClick),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(width = 84.dp, height = 118.dp)
+                    .clip(RoundedCornerShape(kikoCorner(14.dp)))
+                    .background(c.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (!topic.imageUrl.isNullOrBlank()) {
+                    AsyncImage(model = topic.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                } else {
+                    Icon(Icons.Default.Campaign, null, tint = c.onPrimaryContainer, modifier = Modifier.size(30.dp))
+                }
+            }
+            Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                Text(topic.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "by ${topic.author.name.ifBlank { "MyAnimeList" }} · ${formatForumDate(topic.createdAt)}",
+                    color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp),
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Forum, null, tint = c.accent, modifier = Modifier.size(13.dp))
+                    Text(
+                        "${topic.postCount} replies",
+                        color = c.accent, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
+                    )
+                }
+            }
+        }
     }
 }
 // Pinterest-style snapshots layout

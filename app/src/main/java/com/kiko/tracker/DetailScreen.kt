@@ -848,6 +848,35 @@ fun parseMalDeepLink(uri: Uri): Pair<Int, MediaType>? {
     val id = segments[1].toIntOrNull() ?: return null
     return id to type
 }
+// Recognizes a MAL character/person/company profile URL — the three profile types this app
+// has its own detail screens for (CharacterPage/PersonPage/CompanyPage). Used to route a
+// tapped link (forum posts, club descriptions, stack descriptions — anywhere ForumBody
+// renders BBCode) into the app instead of a browser tab. Anything else (a title link, an
+// image link, some other site entirely) returns null and falls through to the browser as
+// before. Company matches both /anime/producer/{id} and /manga/producer/{id} — MAL uses the
+// same producer id and page under either prefix depending on which side linked to it.
+
+sealed class MalProfileLink {
+    data class Character(val malId: Int) : MalProfileLink()
+    data class Person(val malId: Int) : MalProfileLink()
+    data class Company(val malId: Int) : MalProfileLink()
+}
+
+fun parseMalProfileLink(url: String): MalProfileLink? {
+    val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return null
+    val host = uri.host?.lowercase() ?: return null
+    if (host != "myanimelist.net" && !host.endsWith(".myanimelist.net")) return null
+    val segments = uri.pathSegments
+    if (segments.isEmpty()) return null
+    return when (segments[0].lowercase()) {
+        "character" -> segments.getOrNull(1)?.toIntOrNull()?.let { MalProfileLink.Character(it) }
+        "people" -> segments.getOrNull(1)?.toIntOrNull()?.let { MalProfileLink.Person(it) }
+        "anime", "manga" ->
+            if (segments.getOrNull(1)?.lowercase() == "producer") segments.getOrNull(2)?.toIntOrNull()?.let { MalProfileLink.Company(it) }
+            else null
+        else -> null
+    }
+}
 
 @Composable fun DetailRowCard(
     imageUrl: String, fallbackLetter: String, title: String,
