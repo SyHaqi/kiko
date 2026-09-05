@@ -10,7 +10,7 @@ Join the community on Discord: [Himawari HS](https://discord.gg/KZYQHpDWKH)
 
 ## ✨ Features at a Glance
 
-- **Home** — airing schedule (times synced via AniList), forum snapshots, featured Interest Stack.
+- **Home** — airing schedule (times synced via AniList), MAL latest announcement, forum snapshots, featured articles.
 - **My List** — sync your MAL list, filter/sort/search, edit entries, quick +1 progress.
 - **Discover** — search anime, manga, characters, people and companies, with advanced filters and personalized recommendations.
 - **Rankings & Seasonal Charts** — browse by score, popularity, favorites or season/year (accessible from Home/Discover).
