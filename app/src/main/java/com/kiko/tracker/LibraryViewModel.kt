@@ -1491,6 +1491,21 @@ class LibraryViewModel : ViewModel() {
             board?.let { openForumBoard(context, it) }
         }
     }
+    // Jump to the Announcements board (id 5) — matched by id rather than title, same as
+    // forumBoardIcon (ForumsScreen.kt) already keys its Announcements glyph off id 5, since
+    // ids are the stable identifier MAL's own board query params use while titles can be
+    // re-worded. Used by Home's "MAL Announcement" section See more button.
+    fun openAnnouncementsBoard(context: Context) {
+        viewModelScope.launch {
+            val cached = forumCategories.flatMap { it.boards }.firstOrNull { it.id == 5 }
+            val board = cached ?: run {
+                val fetched = runCatching { MalApi(context).forumBoards() }.getOrNull() ?: return@run null
+                forumCategories = fetched; forumBoardsLoaded = true
+                fetched.flatMap { it.boards }.firstOrNull { it.id == 5 }
+            }
+            board?.let { openForumBoard(context, it) }
+        }
+    }
 
     // Home snapshots row state
     var newsSnapshots by mutableStateOf<List<NewsSnapshot>>(emptyList()); private set

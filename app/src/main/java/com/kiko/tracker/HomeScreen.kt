@@ -55,10 +55,10 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
-@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onLocateInList: (MediaItem) -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
+@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onLocateInList: (MediaItem) -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onOpenAnnouncements: () -> Unit, onSignIn: () -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
-    LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context); vm.loadHomeLatestStack(context); vm.loadHomeAnnouncement(context) }
+    LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context); vm.loadHomeAnnouncement(context) }
     // Testing swap: hide (not remove) the "Continue" shortcut and show a single latest
     // MAL announcement card in its old slot instead. Flip back to true to restore Continue.
     val showContinueCard = false
@@ -100,7 +100,7 @@ import kotlinx.coroutines.launch
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     PullToRefreshBox(
         isRefreshing = vm.loading,
-        onRefresh = { vm.load(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeLatestStack(context, force = true) },
+        onRefresh = { vm.load(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeAnnouncement(context, force = true) },
         modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = if (showGoToTop) 90.dp else 24.dp)) {
@@ -136,13 +136,10 @@ import kotlinx.coroutines.launch
                     // AiringNextCard above it, so the two shelves read as the same height.
                     val announcement = vm.homeAnnouncement
                     if (announcement != null) {
-                        // No board-list callback is wired into Home (unlike onList/onSeeNews/
-                        // onOpenStacks), so this section skips the "See all" affordance rather
-                        // than send it to the wrong place — tapping the card is the only action.
-                        SectionTitle("MAL Announcement", "", click = {})
+                        SectionTitle("MAL Announcement", "See more", click = onOpenAnnouncements)
                         AnnouncementCard(announcement, onClick = { trackedOpenTopic(announcement.id, announcement.title) })
                     } else if (vm.homeAnnouncementLoading) {
-                        SectionTitle("MAL Announcement", "", click = {})
+                        SectionTitle("MAL Announcement", "See more", click = onOpenAnnouncements)
                         AiringNextCardSkeleton(modifier = Modifier.fillMaxWidth())
                     }
                     // Home recent news row
@@ -158,11 +155,6 @@ import kotlinx.coroutines.launch
                         SectionTitle("Snapshots", "See news", onSeeNews)
                         Spacer(Modifier.height(8.dp))
                         SnapshotsGridSkeleton()
-                    }
-                    // Freshest Interest Stack teaser
-                    vm.homeLatestStack?.let { stack ->
-                        SectionTitle("Interest Stacks", "See all", onOpenStacks)
-                        StackFeaturedCard(stack, vm) { onOpenStack(stack.id, stack.title) }
                     }
                     if (vm.authChecked && !vm.signedIn && !vm.loading) {
                         Column(Modifier.fillMaxWidth().padding(top = 50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
