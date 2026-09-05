@@ -197,6 +197,9 @@ class LibraryViewModel : ViewModel() {
         var news: List<CompanyNews>? = null,
         var forumDiscussion: List<ForumTopic>? = null,
         var featuredArticles: List<FeaturedArticleEntry>? = null,
+        // "Available At" links — same MalDetailScrapeApi.PageExtras scrape as news/
+        // forumDiscussion/featuredArticles above, just reading its links field.
+        var links: List<Pair<String, String>>? = null,
         var relatedScroll: Pair<Int, Int> = 0 to 0,
         var recommendedScroll: Pair<Int, Int> = 0 to 0,
         var charactersScroll: Pair<Int, Int> = 0 to 0,
@@ -223,9 +226,10 @@ class LibraryViewModel : ViewModel() {
         val news: List<CompanyNews>?,
         val forumDiscussion: List<ForumTopic>?,
         val featuredArticles: List<FeaturedArticleEntry>?,
+        val links: List<Pair<String, String>>?,
     )
     fun peekDetailCache(id: String, type: MediaType): DetailCacheSnapshot? = detailCaches[id to type]?.let {
-        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.reviews, it.stacks, it.news, it.forumDiscussion, it.featuredArticles)
+        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.reviews, it.stacks, it.news, it.forumDiscussion, it.featuredArticles, it.links)
     }
     // Drops every cached detail sub-section, and every remembered scroll position —
     // call this once the user has fully left the related/recommended chain (not on
@@ -1827,6 +1831,7 @@ class LibraryViewModel : ViewModel() {
                     cache.news = scraped.news
                     cache.forumDiscussion = scraped.forumDiscussion
                     cache.featuredArticles = scraped.featuredArticles
+                    cache.links = scraped.links
                 }
             }
         }
@@ -1994,6 +1999,22 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             ensureDetailFetched(context, item.id, item.type).await()
             val result = cache.featuredArticles ?: emptyList()
+            if (result.isNotEmpty()) onFound(result)
+            onDone()
+        }
+    }
+
+    // "Available At" Links section, shown right under Synopsis — same
+    // MalDetailScrapeApi.fetch() scrape as news/forumDiscussion/featuredArticles above,
+    // just reading its links field off the already-cached result.
+    fun loadDetailLinks(context: Context, item: MediaItem, onFound: (List<Pair<String, String>>) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(item.id, item.type)
+        cache.links?.let { onFound(it); onDone(); return }
+        val intId = item.id.toIntOrNull()
+        if (intId == null) { onDone(); return }
+        viewModelScope.launch {
+            ensureDetailFetched(context, item.id, item.type).await()
+            val result = cache.links ?: emptyList()
             if (result.isNotEmpty()) onFound(result)
             onDone()
         }

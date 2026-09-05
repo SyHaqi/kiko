@@ -49,6 +49,11 @@ class MalDetailScrapeApi {
         val news: List<CompanyNews> = emptyList(),
         val forumDiscussion: List<ForumTopic> = emptyList(),
         val featuredArticles: List<FeaturedArticleEntry> = emptyList(),
+        // "Available At" links (official site + socials) sitting in the left sidebar just
+        // below Statistics — same shape as CompanyDetail.links (label is the link's own
+        // visible text, value is the absolute URL to open), so DetailScreen can render it
+        // with CompanyDetailScreen's own link-chip row rather than a bespoke one.
+        val links: List<Pair<String, String>> = emptyList(),
     )
 
     suspend fun fetch(id: Int, type: MediaType): PageExtras = withContext(Dispatchers.IO) {
@@ -60,7 +65,27 @@ class MalDetailScrapeApi {
             news = parseDetailNews(doc),
             forumDiscussion = parseDetailForumDiscussion(doc, limit = 2),
             featuredArticles = parseFeaturedArticles(doc, limit = 2),
+            links = parseAvailableLinks(doc),
         )
+    }
+
+    // "Available At" sidebar block — an "Available At" <h2> immediately followed by a
+    // <div class="external_links"> of <a> tags, each carrying a <div class="caption">
+    // for its visible label (e.g. "Official Site", "@Violet_Letter"). The page also has a
+    // "Resources" block (AniDB/ANN/Wikipedia/...) built from the exact same
+    // div.external_links markup right below it, so this is anchored off the "Available At"
+    // heading specifically rather than doc.selectFirst("div.external_links"), which would
+    // silently grab whichever of the two happened to come first.
+    private fun parseAvailableLinks(doc: Document): List<Pair<String, String>> {
+        val block = doc.select("h2").firstOrNull { it.text().trim() == "Available At" }
+            ?.nextElementSibling()
+            ?.takeIf { it.hasClass("external_links") }
+            ?: return emptyList()
+        return block.select("a[href]").mapNotNull { a ->
+            val url = a.attr("abs:href")
+            val label = a.selectFirst("div.caption")?.text()?.trim().orEmpty()
+            if (url.isBlank() || label.isBlank()) null else label to url
+        }
     }
 
     // Fetch characters row for the detail page (also feeds the Japanese Voice Actors row —

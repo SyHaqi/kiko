@@ -91,6 +91,7 @@ data class DetailScreenActions(
     val onLoadNews: (MediaItem, (List<CompanyNews>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onLoadForumDiscussion: (MediaItem, (List<ForumTopic>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onLoadFeaturedArticles: (MediaItem, (List<FeaturedArticleEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onLoadLinks: (MediaItem, (List<Pair<String, String>>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenTopic: (Int, String) -> Unit = { _, _ -> },
     val onOpenFeaturedArticle: (String) -> Unit = {},
     val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit, () -> Unit) -> Unit = { _, _, onDone, _ -> onDone() },
@@ -235,6 +236,10 @@ data class DetailScreenActions(
     LaunchedEffect(item.id) { actions.onLoadForumDiscussion(item, { forumDiscussion = it }, {}) }
     var featuredArticles by remember(item.id) { mutableStateOf(cachedSnapshot?.featuredArticles ?: emptyList()) }
     LaunchedEffect(item.id) { actions.onLoadFeaturedArticles(item, { featuredArticles = it }, {}) }
+    // "Available At" links — shown right under Synopsis, same chip row CompanyDetailScreen
+    // already uses for a company's own Links section (see CompanyLinkChip).
+    var links by remember(item.id) { mutableStateOf(cachedSnapshot?.links ?: emptyList()) }
+    LaunchedEffect(item.id) { actions.onLoadLinks(item, { links = it }, {}) }
     // Fresh scroll state per-title
     val listState = remember(item.id) { LazyListState(initialScroll.first, initialScroll.second) }
     // One stagger-memory set per horizontal row so each row's entrance animation plays
@@ -468,6 +473,23 @@ data class DetailScreenActions(
                             .animateContentSize()
                             .let { if (item.synopsis.isNotBlank()) it.clickable { synopsisExpanded = !synopsisExpanded } else it },
                     )
+
+                    // "Available At" — official site + socials, straight under Synopsis.
+                    // Same icon-led pill row (CompanyLinkChip/companyLinkIconRes) the
+                    // company detail page's own Links section already uses. Loads async via
+                    // its own LaunchedEffect (same as characters/news/etc. below), so it's
+                    // wrapped in key(...) too — see the comment on key("characters") further
+                    // down for why an unwrapped read here would recompose the whole page.
+                    key("links") {
+                        if (links.isNotEmpty()) {
+                            SectionTitle("Links", "", {})
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                links.forEach { (label, url) ->
+                                    CompanyLinkChip(label, url, onClick = { runCatching { uriHandler.openUri(url) } })
+                                }
+                            }
+                        }
+                    }
 
                     // Community rank/popularity stats
                     if (item.rank > 0 || item.popularity > 0 || item.listUsers > 0) {

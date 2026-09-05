@@ -294,7 +294,11 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
 // bare domain rather than the platform's name. Falls back to a generic globe icon (the
 // studio's own official site, or any platform this app doesn't specifically recognize)
 // rather than leaving the chip icon-less.
-private fun companyLinkIconRes(url: String): Int? {
+//
+// Not private — DetailScreen's own "Available At" Links section (anime/manga detail page)
+// reuses this and CompanyLinkChip below wholesale rather than duplicating the same
+// icon-resolution + pill styling.
+fun companyLinkIconRes(url: String): Int? {
     val host = runCatching { java.net.URI(url).host?.lowercase() }.getOrNull().orEmpty()
     return when {
         "youtube" in host -> R.drawable.ic_youtube
@@ -308,7 +312,9 @@ private fun companyLinkIconRes(url: String): Int? {
 // One "Available At" pill — leading platform icon (see companyLinkIconRes above) + the
 // link's own label, in the app's standard pill shape (rounded surfaceContainer background,
 // same as GenreChip used to be here, just with room for the icon up front).
-@Composable private fun CompanyLinkChip(label: String, url: String, onClick: () -> Unit) {
+//
+// Not private — shared with DetailScreen's own Links section, see companyLinkIconRes above.
+@Composable fun CompanyLinkChip(label: String, url: String, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     val iconRes = companyLinkIconRes(url)
     Row(

@@ -600,6 +600,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onLoadNews = { forItem, onFound, onDone -> vm.loadDetailNews(context, forItem, onFound, onDone) },
                                     onLoadForumDiscussion = { forItem, onFound, onDone -> vm.loadDetailForumDiscussion(context, forItem, onFound, onDone) },
                                     onLoadFeaturedArticles = { forItem, onFound, onDone -> vm.loadDetailFeaturedArticles(context, forItem, onFound, onDone) },
+                                    onLoadLinks = { forItem, onFound, onDone -> vm.loadDetailLinks(context, forItem, onFound, onDone) },
                                     onOpenTopic = { id, title -> forumTopicOpen = id to title },
                                     onOpenFeaturedArticle = { url -> CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) },
                                     onLoadCharacters = { forItem, onFound, onDone, onError -> vm.loadCharacters(forItem, onFound, onDone, onError) },
