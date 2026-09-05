@@ -21,6 +21,18 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import com.kiko.tracker.data.api.MalApi
+import com.kiko.tracker.data.api.NetworkClient
+import com.kiko.tracker.navigation.KikoApp
+import com.kiko.tracker.ui.components.CrashDialog
+import com.kiko.tracker.ui.components.SkeletonPhaseProvider
+import com.kiko.tracker.util.AppUpdateChecker
+import com.kiko.tracker.util.AppUpdateInfo
+import com.kiko.tracker.util.copyCrashLogToClipboard
+import com.kiko.tracker.util.postUpdateNotification
+import com.kiko.tracker.util.saveCrashLogToDownloads
+import com.kiko.tracker.util.shareCrashLogToDiscord
+import com.kiko.tracker.viewmodel.LibraryViewModel
 
 class MainActivity : ComponentActivity() {
     private var callback by mutableStateOf<Uri?>(null)
@@ -49,12 +61,12 @@ class MainActivity : ComponentActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Best-effort crash capture: if anything throws an uncaught exception
-        // anywhere in the process (not just the UI thread), write it to a plain
-        // file before the process dies, so it survives past the crash without
-        // needing adb/Logcat hooked up. Delegates to the previous handler
-        // afterward so normal OS crash/ANR behavior (and any crash reporting
-        // tool that registers its own handler) still happens.
+        // Best-effort crash capture: if
+        // anywhere in the process
+        // file before the process
+        // needing adb/Logcat hooked up.
+        // afterward so normal OS
+        // tool that registers its
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching {
@@ -65,24 +77,24 @@ class MainActivity : ComponentActivity() {
             }
             previousHandler?.uncaughtException(thread, throwable)
         }
-        // Must run before the very first NetworkClient.shared access below (and before any
-        // API class gets constructed later in setContent{}) so the shared OkHttpClient picks
-        // up a disk cache dir instead of building itself uncached.
+        // Must run before the
+        // API class gets constructed
+        // up a disk cache
         NetworkClient.init(this)
-        // Register animated GIF decoders + Referer/UA for hotlink-protected images.
-        // Built off the shared client (newBuilder()) so Coil's image loading reuses the
-        // same connection pool/dispatcher as the rest of the app's networking instead of
+        // Register animated GIF decoders
+        // Built off the shared
+        // same connection pool/dispatcher as
         // spinning up its own.
         val forumImageClient = NetworkClient.shared.newBuilder()
             .addInterceptor { chain ->
                 val original = chain.request()
-                // Some MAL image links (older avatars/uploads, pasted forum links) are
-                // still plain http://. Cleartext traffic is blocked by default since
-                // API 28, and this app declares no networkSecurityConfig to allow it,
-                // so those requests would otherwise fail before ever reaching the
-                // server. Upgrade the scheme here so it covers every AsyncImage call
-                // in the app (this client backs the single global Coil ImageLoader),
-                // not just the forum-post body renderer.
+                // Some MAL image links
+                // still plain http://. Cleartext
+                // API 28, and this
+                // so those requests would
+                // server. Upgrade the scheme
+                // in the app (this
+                // not just the forum-post
                 val url = if (original.url.scheme == "http") original.url.newBuilder().scheme("https").build() else original.url
                 val req = original.newBuilder()
                     .url(url)
@@ -98,36 +110,36 @@ class MainActivity : ComponentActivity() {
                 .components {
                     if (Build.VERSION.SDK_INT >= 28) add(coil.decode.ImageDecoderDecoder.Factory()) else add(coil.decode.GifDecoder.Factory())
                 }
-                // Short fade-in on every AsyncImage in the app instead of a hard pop the
-                // instant decode finishes — cheap (Coil does it as a drawable transition,
-                // no extra measure/layout pass) and reads as noticeably smoother scrolling
-                // through cover grids. Coil only applies this on an actual load (disk/
-                // network); an image already sitting in memory cache still renders
-                // instantly, so re-scrolling past something already-seen isn't slowed down.
+                // Short fade-in on every
+                // instant decode finishes —
+                // no extra measure/layout pass)
+                // through cover grids. Coil
+                // network); an image already
+                // instantly, so re-scrolling past
                 .crossfade(200)
-                // Hardware bitmaps (the Coil/platform default) stay on globally now — cover
-                // art, avatars, banners, and every other single-image spot in the app decode
-                // and draw faster with them, and there's only ever one such image in flight
-                // per card. The one real exhaustion risk is a forum post with a dozen+ small
-                // reaction stickers decoding back-to-back against the GPU-driver-limited
-                // hardware bitmap pool — that's scoped to allowHardware(false) locally, on
-                // just the ForumImage composable that renders those, instead of paying the
-                // software-decode cost for every image everywhere.
+                // Hardware bitmaps (the Coil/platform
+                // art, avatars, banners, and
+                // and draw faster with
+                // per card. The one
+                // reaction stickers decoding back-to-back
+                // hardware bitmap pool —
+                // just the ForumImage composable
+                // software-decode cost for every
                 .build()
         )
         routeIntentUri(intent?.data)
-        // If the app crashed last run, show it now so it's easy to grab and
-        // report, then clear it so it doesn't keep reappearing.
+        // If the app crashed
+        // report, then clear it
         val crashFile = java.io.File(filesDir, "last_crash.txt")
         var crashText by mutableStateOf<String?>(if (crashFile.exists()) runCatching { crashFile.readText() }.getOrNull() else null)
         setContent {
             val vm: LibraryViewModel = viewModel()
-            // Note: vm.loadHomeExtras() (Discover's "You might like" recommendations +
-            // trending manga rows) is deliberately NOT kicked off here — Home never reads
-            // either of those lists, so firing it at cold start just adds two more requests
-            // competing for bandwidth with vm.load()/loadDiscoverBrowse() (which Home's
-            // Continue card and Airing Next row actually wait on). DiscoverScreen already
-            // calls it lazily itself, the first time that screen is actually opened.
+            // Note: vm.loadHomeExtras() (Discover's "You
+            // trending manga rows) is
+            // either of those lists,
+            // competing for bandwidth with
+            // Continue card and Airing
+            // calls it lazily itself,
             LaunchedEffect(Unit) { vm.loadTheme(this@MainActivity); vm.loadColorSource(this@MainActivity); vm.loadPaletteStyle(this@MainActivity); vm.loadCustomColor(this@MainActivity); vm.loadTitleLanguage(this@MainActivity); vm.loadListFilter(this@MainActivity); vm.loadListTypeTab(this@MainActivity); vm.loadCommunityTab(this@MainActivity); vm.loadListSort(this@MainActivity); vm.loadListViewMode(this@MainActivity); vm.loadScoreFilterViewMode(this@MainActivity); vm.loadScoreFilterSort(this@MainActivity); vm.loadYearFilterViewMode(this@MainActivity); vm.loadYearFilterSort(this@MainActivity); vm.loadFormatFilterViewMode(this@MainActivity); vm.loadFormatFilterSort(this@MainActivity); vm.loadGenreFilterViewMode(this@MainActivity); vm.loadGenreFilterSort(this@MainActivity); vm.loadNsfwPref(this@MainActivity); vm.loadAmoledDark(this@MainActivity); vm.load(this@MainActivity); vm.loadDiscoverBrowse(this@MainActivity) }
             // Throttled background update check
             LaunchedEffect(Unit) {
@@ -148,7 +160,7 @@ class MainActivity : ComponentActivity() {
                     callback = null
                 }
             }
-            // Single shared shimmer clock for every skeleton placeholder in the app —
+            // Single shared shimmer clock
             // see SkeletonPhaseProvider in CommonComponents.kt.
             SkeletonPhaseProvider {
                 KikoApp(
@@ -159,8 +171,8 @@ class MainActivity : ComponentActivity() {
                     onMalLinkHandled = { malLink = null },
                 )
             }
-            // Shows once, right after a crash-and-relaunch, so the actual stack
-            // trace is one tap away to copy/paste instead of needing adb.
+            // Shows once, right after
+            // trace is one tap
             crashText?.let { text ->
                 CrashDialog(
                     crashText = text,
