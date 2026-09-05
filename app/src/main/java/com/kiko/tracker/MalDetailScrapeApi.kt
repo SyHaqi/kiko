@@ -406,7 +406,16 @@ class MalDetailScrapeApi {
     private fun parseFeaturedArticles(doc: Document, limit: Int): List<FeaturedArticleEntry> {
         val header = doc.selectFirst("h2#recent_featured_articles") ?: return emptyList()
         val container = header.parent()?.nextElementSibling() ?: return emptyList()
-        return container.select("div.news-list div.news-unit").take(limit).mapNotNull { unit ->
+        return parseFeaturedArticleUnits(container.select("div.news-list div.news-unit"), limit)
+    }
+
+    // Shared by parseFeaturedArticles above (detail page's "Recent Featured Articles" box)
+    // and parseHomeFeaturedArticles below (home page's own "Featured Articles" widget) —
+    // both are the exact same div.news-list/div.news-unit markup (p.title/div.text/p.info/
+    // div.information b), just embedded in a different spot on two different pages, so the
+    // per-unit field extraction only needs to live in one place.
+    private fun parseFeaturedArticleUnits(units: List<Element>, limit: Int): List<FeaturedArticleEntry> =
+        units.take(limit).mapNotNull { unit ->
             val titleLink = unit.selectFirst("p.title a") ?: return@mapNotNull null
             val title = titleLink.text().trim()
             if (title.isBlank()) return@mapNotNull null
@@ -420,5 +429,16 @@ class MalDetailScrapeApi {
             val views = unit.selectFirst("div.information b")?.text()?.trim().orEmpty()
             FeaturedArticleEntry(url = url, title = title, image = image, snippet = snippet, author = author, views = views)
         }
+
+    // Home page's own "Featured Articles" widget (div.widget.featured on
+    // "https://myanimelist.net/") — feeds Home's "Featured Articles" section, shown under
+    // the Snapshots row (see HomeScreen.kt). Top 3 by default, matching that section's own
+    // cap. A plain, unauthenticated GET of the homepage — unlike fetch(id, type) above this
+    // isn't keyed to any particular title, so it's its own entry point rather than folded
+    // into PageExtras.
+    suspend fun fetchHomeFeaturedArticles(limit: Int = 3): List<FeaturedArticleEntry> = withContext(Dispatchers.IO) {
+        val doc = client.fetchMalDocument(MAL)
+        val container = doc.selectFirst("div.widget.featured div.news-list") ?: return@withContext emptyList()
+        parseFeaturedArticleUnits(container.select("div.news-unit"), limit)
     }
 }

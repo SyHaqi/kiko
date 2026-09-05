@@ -262,6 +262,31 @@ fun AiringNextBannerSkeleton() {
     }
 }
 
+/** Stand-in for a single [DetailFeaturedArticleCard] — same tonal surfaceContainer fill,
+ *  20dp rounded corners, and 76dp-wide 2:3 thumbnail as the real card, so Home's own
+ *  "Featured Articles" section (and any other spot reusing that card) doesn't reflow once
+ *  the scrape lands. */
+@Composable
+fun DetailFeaturedArticleCardSkeleton(modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(20.dp)))
+            .background(c.surfaceContainer)
+            .padding(12.dp),
+    ) {
+        SkeletonBlock(Modifier.width(76.dp).aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(14.dp)))
+        Column(Modifier.padding(start = 14.dp).weight(1f)) {
+            SkeletonBlock(Modifier.fillMaxWidth(0.9f).height(14.dp))
+            SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.6f).height(14.dp))
+            SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.7f).height(11.dp))
+            SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.4f).height(11.dp))
+            SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.35f).height(10.dp))
+        }
+    }
+}
+
 /** Stand-in for [SnapshotsGrid]'s Pinterest-style two-column layout — same
  *  alternating tall/short rhythm as the real cards so the page doesn't reflow
  *  once the images land. */

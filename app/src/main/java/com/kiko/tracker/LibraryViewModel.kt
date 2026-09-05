@@ -1525,6 +1525,28 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    // Home "Featured Articles" row, shown under Snapshots — top 3 items off MAL's own
+    // homepage widget (see MalDetailScrapeApi.fetchHomeFeaturedArticles), rendered with the
+    // same DetailFeaturedArticleCard DetailScreen's "Recent Featured Articles" section
+    // already uses. A plain HTML scrape of the public homepage rather than a call through
+    // the official (OAuth) API, so — unlike loadNewsSnapshots/loadHomeAnnouncement above —
+    // this isn't gated behind api.signedIn.
+    var homeFeaturedArticles by mutableStateOf<List<FeaturedArticleEntry>>(emptyList()); private set
+    var homeFeaturedArticlesLoading by mutableStateOf(false); private set
+    private var homeFeaturedArticlesLoaded = false
+    fun loadHomeFeaturedArticles(force: Boolean = false) {
+        if (homeFeaturedArticlesLoaded && !force) return
+        homeFeaturedArticlesLoaded = true
+        homeFeaturedArticlesLoading = true
+        viewModelScope.launch {
+            runCatching { MalDetailScrapeApi().fetchHomeFeaturedArticles(limit = 3) }
+                .onSuccess { homeFeaturedArticles = it }
+                // Fail silently, no banner — same as loadNewsSnapshots
+                .onFailure { homeFeaturedArticlesLoaded = false }
+            homeFeaturedArticlesLoading = false
+        }
+    }
+
     // Latest MAL announcement (board id 5, "Updates & Announcements") for Home's
     // announcement card — a single-item cousin of loadNewsSnapshots above, reusing the
     // same forumTopics endpoint the Forums tab already calls instead of a new API surface.

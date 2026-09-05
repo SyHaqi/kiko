@@ -2,6 +2,8 @@
 
 package com.kiko.tracker
 
+import android.net.Uri
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -59,6 +61,7 @@ import kotlinx.coroutines.launch
     val c = LocalKikoColors.current
     val context = LocalContext.current
     LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context); vm.loadHomeAnnouncement(context) }
+    LaunchedEffect(Unit) { vm.loadHomeFeaturedArticles() }
     // Testing swap: hide (not remove) the "Continue" shortcut and show a single latest
     // MAL announcement card in its old slot instead. Flip back to true to restore Continue.
     val showContinueCard = false
@@ -100,7 +103,7 @@ import kotlinx.coroutines.launch
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     PullToRefreshBox(
         isRefreshing = vm.loading,
-        onRefresh = { vm.load(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeAnnouncement(context, force = true) },
+        onRefresh = { vm.load(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeAnnouncement(context, force = true); vm.loadHomeFeaturedArticles(force = true) },
         modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = if (showGoToTop) 90.dp else 24.dp)) {
@@ -155,6 +158,24 @@ import kotlinx.coroutines.launch
                         SectionTitle("Snapshots", "See news", onSeeNews)
                         Spacer(Modifier.height(8.dp))
                         SnapshotsGridSkeleton()
+                    }
+                    // Top 3 MAL homepage "Featured Articles", under Snapshots — same card
+                    // (DetailFeaturedArticleCard) and "by <author> · <views> views" meta line
+                    // DetailScreen's own "Recent Featured Articles" section uses, opened the
+                    // same way: no in-app reader, tapping opens the article's MAL page
+                    // externally via a custom tab.
+                    if (vm.homeFeaturedArticles.isNotEmpty()) {
+                        SectionTitle("Featured Articles", "View more", { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/featured")) })
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            vm.homeFeaturedArticles.forEach { article ->
+                                DetailFeaturedArticleCard(article) { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(article.url)) }
+                            }
+                        }
+                    } else if (vm.homeFeaturedArticlesLoading) {
+                        SectionTitle("Featured Articles", "View more", { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/featured")) })
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            repeat(3) { DetailFeaturedArticleCardSkeleton() }
+                        }
                     }
                     if (vm.authChecked && !vm.signedIn && !vm.loading) {
                         Column(Modifier.fillMaxWidth().padding(top = 50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
