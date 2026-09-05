@@ -1522,13 +1522,31 @@ class LibraryViewModel : ViewModel() {
         homeAnnouncementLoaded = true
         homeAnnouncementLoading = true
         viewModelScope.launch {
-            runCatching { api.forumTopics(boardId = 5, limit = 1, withThumbnails = true).items.firstOrNull() }
+            runCatching {
+                // forumTopics sorts by sort=recent (most-recently-*replied*-to), so
+                // items.first() can be an old thread bumped back to the top by a new
+                // reply rather than the newest announcement post. Pull a small batch
+                // without thumbnails and pick the true newest by created_at instead of
+                // trusting list order.
+                val latest = api.forumTopics(boardId = 5, limit = 25).items
+                    .maxByOrNull { parseForumCreatedAtMillis(it.createdAt) } ?: return@runCatching null
+                // Thumbnail lookup only for the one topic actually kept, not the whole
+                // batch — forumTopics(withThumbnails = true) would otherwise fetch all 25.
+                val image = runCatching { api.forumTopic(latest.id, limit = 1) }.getOrNull()
+                    ?.posts?.firstOrNull()?.body?.let { firstImageUrl(it) }
+                if (image != null) latest.copy(imageUrl = image) else latest
+            }
                 .onSuccess { homeAnnouncement = it }
                 // Fail silently, no banner — same as loadNewsSnapshots
                 .onFailure { homeAnnouncementLoaded = false }
             homeAnnouncementLoading = false
         }
     }
+    // ForumTopic.createdAt format ("yyyy-MM-dd'T'HH:mm:ssXXX") — same one formatForumDate
+    // (ForumsScreen.kt) already parses — turned into epoch millis so the newest of a batch
+    // can be picked by comparison instead of relying on API list order.
+    private fun parseForumCreatedAtMillis(raw: String): Long =
+        runCatching { java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US).parse(raw)?.time }.getOrNull() ?: 0L
 
     // Related row loading id
     var relatedLoadingId by mutableStateOf<Int?>(null); private set

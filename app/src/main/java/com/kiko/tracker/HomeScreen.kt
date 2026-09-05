@@ -139,10 +139,10 @@ import kotlinx.coroutines.launch
                         // No board-list callback is wired into Home (unlike onList/onSeeNews/
                         // onOpenStacks), so this section skips the "See all" affordance rather
                         // than send it to the wrong place — tapping the card is the only action.
-                        SectionTitle("Announcements", "", click = {})
+                        SectionTitle("MAL Announcement", "", click = {})
                         AnnouncementCard(announcement, onClick = { trackedOpenTopic(announcement.id, announcement.title) })
                     } else if (vm.homeAnnouncementLoading) {
-                        SectionTitle("Announcements", "", click = {})
+                        SectionTitle("MAL Announcement", "", click = {})
                         AiringNextCardSkeleton(modifier = Modifier.fillMaxWidth())
                     }
                     // Home recent news row

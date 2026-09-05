@@ -80,7 +80,11 @@ private fun firstImageBlockUrl(blocks: List<ForumBlock>): String? {
     }
     return null
 }
-private fun firstImageUrl(body: String): String? =
+// Was file-private; now internal so a caller that already has a single topic's post body
+// (e.g. LibraryViewModel.loadHomeAnnouncement, which fetches just one topic's thumbnail
+// instead of running forumTopics' withThumbnails path over a whole batch) can reuse the
+// same extraction logic instead of duplicating it.
+internal fun firstImageUrl(body: String): String? =
     firstImageBlockUrl(parseBlocks(normalizeMalMarkup(body), androidx.compose.ui.graphics.Color.Unspecified))
 
 // User-submitted title recommendation. isAuto marks a MAL "AutoRec" entry — an
