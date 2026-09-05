@@ -427,7 +427,15 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
             discoverReturnStack = stackDetailOpen
         }
         discoverReturnItem = from
-        vm.clearDetailCache()
+        // Deliberately NOT calling vm.clearDetailCache() here — unlike a fresh openDetail(),
+        // this is just a detour off of `from`'s own page (tapping its author/studio or a
+        // genre chip), and `from` is exactly what discoverReturnItem will restore once the
+        // detour is backed out of. Wiping the cache here would force that return trip to
+        // re-fetch everything (related/recommended rows, cast, scroll positions) from
+        // scratch instead of popping back in instantly. The cache is only ever a stand-in
+        // for a page that's still reachable, so leaving it intact here is safe; it gets
+        // dropped for real once the whole detour is abandoned (see onExitResults, which
+        // resets the search itself back to Discover's Browse tab in the same beat).
         selectedItem = null; detailStack = emptyList()
         characterDetailOpenId = null; characterDetailOpen = null; castCharacterOnTop = false
         personDetailOpenId = null; personDetailOpen = null; castPersonOnTop = false
@@ -454,6 +462,11 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         if (returnItem != null && vm.destination == Destination.Discover) {
             discoverReturnItem = null
             selectedItem = returnItem
+            // Same reset as onExitResults below (DiscoverResultsScreen's own BackHandler
+            // normally beats this one to the press while Results is actually on screen,
+            // but keep this in sync in case that ever changes) — leaving the detour should
+            // always drop the search itself, not just the breadcrumb back to `from`.
+            vm.exitDiscoverSearch()
         } else {
             vm.destination = Destination.Home
         }
@@ -716,7 +729,13 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onExitResults = {
                                         val returnItem = discoverReturnItem
                                         if (returnItem != null) { discoverReturnItem = null; selectedItem = returnItem }
-                                        else vm.exitDiscoverSearch()
+                                        // Always reset the search itself back to Discover's Browse tab on the
+                                        // way out — previously this only ran on the "genuinely leaving Discover"
+                                        // path (returnItem == null), so backing out of an author/studio or
+                                        // genre-chip detour left the query/filters/results sitting in the
+                                        // ViewModel; navigating to the Discover tab afterward would resurface
+                                        // that stale search instead of a fresh Browse view.
+                                        vm.exitDiscoverSearch()
                                     },
                                     onEdit = { editor = it },
                                     selectedItem = editor,
