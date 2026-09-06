@@ -72,6 +72,7 @@ import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.PersonSummary
 import com.kiko.tracker.data.model.SeasonName
+import com.kiko.tracker.data.model.currentSeasonName
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.data.model.oneDecimal
@@ -156,6 +157,14 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    // Only titles that actually premiered this season — vm.visibleDiscoverNewSeason
+    // also carries older, still-airing shows (needed by the Release Schedule /
+    // "airing next" rows elsewhere), so filter those out here instead of at the source.
+    val curYear = remember { java.util.Calendar.getInstance().get(java.util.Calendar.YEAR).toString() }
+    val curSeason = remember { currentSeasonName() }
+    val newSeasonPremieres = remember(vm.visibleDiscoverNewSeason, curYear, curSeason) {
+        vm.visibleDiscoverNewSeason.filter { it.startDate == curYear && it.season.equals(curSeason.label, ignoreCase = true) }
+    }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
@@ -217,7 +226,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 // is a cached (derivedStateOf-backed)
                 // .take(n) on it still
                 // read+take per row beats
-                val newSeason = vm.visibleDiscoverNewSeason.take(7)
+                val newSeason = newSeasonPremieres.take(7)
                 if (newSeason.isNotEmpty()) {
                     item {
                         SectionTitle("New this season", "See all", onSeasonal)

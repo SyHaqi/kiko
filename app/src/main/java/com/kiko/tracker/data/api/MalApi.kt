@@ -278,10 +278,11 @@ class MalApi(private val context: Context) {
         (0 until arr.length()).mapNotNull { arr.getJSONObject(it).optJSONObject("node")?.safeTitle()?.takeIf { t -> t.isNotBlank() } }
     }
 
-    // Current season anime list
+    // Current season anime list — sorted by members (same default as the Seasonal tab)
+    // so "New this season" shows the same top titles in the same order.
     suspend fun seasonalAnime(limit: Int = 10): List<MediaItem> = withContext(Dispatchers.IO) {
         val (year, season) = currentSeason()
-        val body = authorized { get("$API/anime/season/$year/$season?limit=$limit&nsfw=true&fields=${browseFields("anime")}") }
+        val body = authorized { get("$API/anime/season/$year/$season?limit=$limit&sort=anime_num_list_users&nsfw=true&fields=${browseFields("anime")}") }
         val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
         (0 until arr.length()).map { parseEntry("anime", arr.getJSONObject(it)) }
     }
