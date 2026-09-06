@@ -84,6 +84,7 @@ import com.kiko.tracker.data.model.verdict
 import com.kiko.tracker.data.model.verdictColor
 import com.kiko.tracker.ui.components.CoverStatusMark
 import com.kiko.tracker.ui.components.GenreChip
+import com.kiko.tracker.ui.components.LinkifiedText
 import com.kiko.tracker.ui.components.SkeletonBlock
 import com.kiko.tracker.ui.components.StatBlock
 import com.kiko.tracker.ui.components.centerChip
@@ -524,15 +525,14 @@ data class DetailScreenActions(
                     if (meta.isNotEmpty()) Text(meta.joinToString("   ·   "), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
 
                     SectionTitle("Synopsis", "", {})
-                    Text(
+                    LinkifiedText(
                         item.synopsis.ifBlank { "No synopsis available yet." },
                         color = if (item.synopsis.isBlank()) c.muted else c.ink,
                         fontSize = 14.sp, lineHeight = 21.sp,
                         maxLines = if (synopsisExpanded) Int.MAX_VALUE else 3,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .animateContentSize()
-                            .let { if (item.synopsis.isNotBlank()) it.clickable { synopsisExpanded = !synopsisExpanded } else it },
+                        modifier = Modifier.animateContentSize(),
+                        onClick = if (item.synopsis.isNotBlank()) { { synopsisExpanded = !synopsisExpanded } } else null,
                     )
 
                     // "Available At" — official
@@ -736,7 +736,7 @@ data class DetailScreenActions(
 
                     if (item.background.isNotBlank()) {
                         SectionTitle("Background", "", {})
-                        Text(item.background, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp)
+                        LinkifiedText(item.background, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp)
                     }
 
                     // Reuse status bar styling

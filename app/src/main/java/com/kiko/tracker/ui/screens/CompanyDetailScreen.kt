@@ -47,6 +47,7 @@ import com.kiko.tracker.data.model.LocalTitleLanguage
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.sortedForDiscover
+import com.kiko.tracker.ui.components.LinkifiedText
 import com.kiko.tracker.ui.components.SkeletonBlock
 import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.theme.ListGridCardSkeleton
@@ -208,13 +209,12 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
 
                     if (company.about.isNotBlank()) {
                         SectionTitle("About", "", {})
-                        Text(
+                        LinkifiedText(
                             company.about, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp,
                             maxLines = if (aboutExpanded) Int.MAX_VALUE else 3,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .animateContentSize()
-                                .clickable { aboutExpanded = !aboutExpanded },
+                            modifier = Modifier.animateContentSize(),
+                            onClick = { aboutExpanded = !aboutExpanded },
                         )
                     }
 
@@ -321,7 +321,10 @@ fun companyLinkIconRes(url: String): Int? {
         "youtube" in host -> R.drawable.ic_youtube
         "facebook" in host -> R.drawable.ic_facebook
         "instagram" in host -> R.drawable.ic_instagram
-        "twitter" in host || host == "x.com" || host.endsWith(".x.com") -> R.drawable.ic_x
+        "twitter" in host || host == "x.com" || host.endsWith(".x.com") || host == "t.co" -> R.drawable.ic_x
+        "discord" in host -> R.drawable.ic_discord
+        "steampowered" in host -> R.drawable.ic_steam
+        "reddit" in host || host == "redd.it" -> R.drawable.ic_reddit
         else -> null
     }
 }

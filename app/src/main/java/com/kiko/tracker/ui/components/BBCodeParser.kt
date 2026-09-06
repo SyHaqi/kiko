@@ -118,7 +118,7 @@ val unclosedImgRegex = Regex("""\[img(?:[^\]]*)\]\s*(https?://[^\s\[\]]++)(?!\s*
 // some uploaded images use
 // fell through to the
 // to-open text instead of
-val bareUrlRegex = Regex(
+private val bareImageUrlRegex = Regex(
     """(?<!\[img\])(?<!\[img\][ \t]{0,10})(?:https?://\S*?\.(?:png|jpe?g|gif|webp)(?:\?\S*)?|https?://cdn\.myanimelist\.net/s/common/bbcode/\S+?|https?://image\.myanimelist\.net/ui/\S+?)(?=\s|$)(?!\[/img\])""",
     setOf(RegexOption.IGNORE_CASE),
 )
@@ -147,7 +147,7 @@ fun normalizeMalMarkup(raw: String): String =
         .let { bareImageLinkRegex.replace(it) { m -> "[img]${m.groupValues[1]}[/img]" } }
         .let { unclosedImgRegex.replace(it) { m -> "[img]${m.groupValues[1]}[/img]" } }
         .let { bareTenorLinkRegex.replace(it) { m -> "[img]tenor:${m.groupValues[1].ifBlank { m.groupValues[2] }}[/img]" } }
-        .let { bareUrlRegex.replace(it) { m -> "[img]${m.value}[/img]" } }
+        .let { bareImageUrlRegex.replace(it) { m -> "[img]${m.value}[/img]" } }
         .let { bareGenericUrlRegex.replace(it) { m -> "[url]${m.value}[/url]" } }
 
 

@@ -139,6 +139,10 @@ sealed class ArticleBlock {
     object Divider : ArticleBlock()
 }
 
+// `links` holds the article's own official/social links (Facebook, X,
+// Discord, Steam, official site, etc.) scraped out of its info list — same
+// (label, url) shape as CompanyDetail.links, so the reader can render them
+// with the exact same CompanyLinkChip row instead of a bespoke look.
 data class FeaturedArticleContent(
     val title: String,
     val author: String = "",
@@ -146,6 +150,7 @@ data class FeaturedArticleContent(
     val views: String = "",
     val tags: List<String> = emptyList(),
     val blocks: List<ArticleBlock> = emptyList(),
+    val links: List<Pair<String, String>> = emptyList(),
 )
 // Characters/staff row entries
 

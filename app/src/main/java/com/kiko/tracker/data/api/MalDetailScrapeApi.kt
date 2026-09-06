@@ -649,7 +649,85 @@ class MalDetailScrapeApi {
         val tags = container.select("div.tags .tag").map { it.text().trim() }.filter { it.isNotBlank() }
         val bodyEl = container.selectFirst("div.featured-article-body")
         val blocks = bodyEl?.let(::parseFeaturedArticleBody).orEmpty()
-        FeaturedArticleContent(title = title, author = author, date = date, views = views, tags = tags, blocks = blocks)
+        val links = bodyEl?.let(::parseFeaturedArticleLinks).orEmpty()
+        FeaturedArticleContent(title = title, author = author, date = date, views = views, tags = tags, blocks = blocks, links = links)
+    }
+
+    // Host suffix for MAL's own domain — links to MAL's own anime/people/forum
+    // pages already surface elsewhere (inline text, Related Database Entries),
+    // so they're excluded here rather than duplicated as "official link" chips.
+    private val malHostRegex = Regex("""(^|\.)myanimelist\.net$""", RegexOption.IGNORE_CASE)
+
+    // Pulls an advertorial article's own official/social links — the
+    // "Official Site: <a>...</a>", "Official Discord: <a>...</a>", "Official
+    // X: <a>...</a>", "Add to Wishlist: <a>...</a>" lines its Game
+    // Information list (or equivalent inline links) carries — into the same
+    // (label, url) shape CompanyDetail.links uses, deduped by URL, first
+    // occurrence wins. Anchors that only wrap an <img> are skipped: those are
+    // already surfaced as ArticleBlock.Image banners, not info links.
+    private fun parseFeaturedArticleLinks(body: Element): List<Pair<String, String>> {
+        val seen = LinkedHashMap<String, String>()
+        for (a in body.select("a[href]")) {
+            if (a.selectFirst("img") != null) continue
+            val href = a.attr("abs:href").ifBlank { a.attr("href") }
+            if (href.isBlank()) continue
+            val host = runCatching { java.net.URI(href).host?.lowercase() }.getOrNull().orEmpty()
+            if (host.isBlank() || malHostRegex.containsMatchIn(host)) continue
+            if (seen.containsKey(href)) continue
+            val ownText = a.text().trim()
+            val container = a.closest("li") ?: a.closest("p")
+            val prefix = container?.text()?.trim()?.removeSuffix(ownText)?.trim()?.trimEnd(':', ' ').orEmpty()
+            seen[href] = prefix.ifBlank { friendlyLinkLabel(host, ownText) }
+        }
+        return seen.map { (url, label) -> label to url }
+    }
+
+    // Fallback label for a link with no readable "Label: <a>" prefix (a bare
+    // "here"/button-style link, or the anchor's own text is just the URL) —
+    // a friendly service name when the host is recognizable, else the host.
+    // Generic CTA words ("here", "click here", "link") are never used as a
+    // label even as a last resort — the host name reads better than "Here".
+    private val genericLinkTextRegex = Regex("""^(click\s+)?here!?$|^this\s+link$|^link$""", RegexOption.IGNORE_CASE)
+
+    private fun friendlyLinkLabel(host: String, ownText: String): String = when {
+        "facebook" in host -> "Facebook"
+        "twitter" in host || host == "x.com" || host.endsWith(".x.com") || host == "t.co" -> "X"
+        "instagram" in host -> "Instagram"
+        "youtube" in host || host == "youtu.be" -> "YouTube"
+        "discord" in host -> "Discord"
+        "steampowered" in host -> "Steam"
+        "tiktok" in host -> "TikTok"
+        ownText.isNotBlank() && !ownText.startsWith("http", ignoreCase = true) && ownText.length <= 40 && !genericLinkTextRegex.matches(ownText) -> ownText
+        else -> host.removePrefix("www.")
+    }
+
+    // Flattens an element's inline content to plain text like Element.text()
+    // does, but first rewrites any `<a href>` anchor (other than an
+    // image-only one — those are pulled out as ArticleBlock.Image instead)
+    // into a "[label](href)" marker, since a plain Element.text() call keeps
+    // only the anchor's visible words and silently drops the href — fine
+    // when that text already happens to be the URL, but it loses the link
+    // entirely for anchors like "Here" or "Official Discord". linkify()
+    // (CommonComponents.kt) turns the marker back into a tappable span.
+    // Operates on a clone so the original body tree stays untouched for
+    // parseFeaturedArticleLinks (called right after this, on the same
+    // Element) to read anchors' real text/href from.
+    private fun textWithLinks(el: Element): String {
+        val clone = el.clone()
+        for (a in clone.select("a[href]")) {
+            if (a.selectFirst("img") != null) continue // image-only anchor, handled as ArticleBlock.Image
+            val href = a.attr("abs:href").ifBlank { a.attr("href") }
+            val label = a.text().trim()
+            if (href.isBlank() || label.isBlank()) continue
+            // A literal '[' / ']' in the label, or ')' in the href, would
+            // corrupt the "[label](href)" shape markdownLinkRegex expects —
+            // fall back to the bare href as its own label rather than risk
+            // a garbled marker (neither character is expected in practice).
+            val safeLabel = if ('[' in label || ']' in label) href else label
+            val safeHref = href.substringBefore(")")
+            a.text("[$safeLabel]($safeHref)")
+        }
+        return clone.text()
     }
 
     // Flattens an article body's top-level elements into ArticleBlocks.
@@ -666,13 +744,13 @@ class MalDetailScrapeApi {
                     if (img != null && node.text().isBlank()) {
                         imageSrc(img).takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Image(fullResMalImage(it)) }
                     } else {
-                        node.text().trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Paragraph(it) }
+                        textWithLinks(node).trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Paragraph(it) }
                     }
                 }
-                "h1", "h2", "h3", "h4", "h5", "h6" -> node.text().trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Heading(it) }
+                "h1", "h2", "h3", "h4", "h5", "h6" -> textWithLinks(node).trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Heading(it) }
                 "hr" -> if (blocks.lastOrNull() != ArticleBlock.Divider) blocks += ArticleBlock.Divider
                 "ul", "ol" -> {
-                    val items = node.children().filter { it.tagName().equals("li", ignoreCase = true) }.map { it.text().trim() }.filter { it.isNotBlank() }
+                    val items = node.children().filter { it.tagName().equals("li", ignoreCase = true) }.map { textWithLinks(it).trim() }.filter { it.isNotBlank() }
                     if (items.isNotEmpty()) blocks += ArticleBlock.ListBlock(items, ordered = node.tagName().equals("ol", ignoreCase = true))
                 }
                 "img" -> imageSrc(node).takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Image(fullResMalImage(it)) }
@@ -681,11 +759,11 @@ class MalDetailScrapeApi {
                     if (img != null) {
                         imageSrc(img).takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Image(fullResMalImage(it)) }
                     } else {
-                        node.text().trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Paragraph(it) }
+                        textWithLinks(node).trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Paragraph(it) }
                     }
                 }
                 "br", "iframe", "script", "style" -> {}
-                else -> node.text().trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Paragraph(it) }
+                else -> textWithLinks(node).trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Paragraph(it) }
             }
         }
         while (blocks.firstOrNull() == ArticleBlock.Divider) blocks.removeAt(0)

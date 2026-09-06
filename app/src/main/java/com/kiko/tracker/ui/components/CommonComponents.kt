@@ -6,6 +6,13 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -714,5 +721,99 @@ fun statusColor(label: String): Color = when {
         Text(value, color = c.ink, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
         Text(label, color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
     }
+}
+
+// Bare http(s)/www URL matcher for plain (non-BBCode) text — About/bio blurbs,
+// synopsis, Featured Article paragraphs. Trims trailing punctuation a sentence
+// would naturally leave stuck to the URL (a period ending the sentence, a
+// closing paren, etc.) so links don't swallow it.
+private val bareUrlRegex = Regex(
+    """(https?://[^\s<>"'\u201c\u201d]+|www\.[^\s<>"'\u201c\u201d]+\.[a-zA-Z]{2,}[^\s<>"'\u201c\u201d]*)""",
+    RegexOption.IGNORE_CASE,
+)
+
+// Inline "[label](https://...)" marker — the shape parseFeaturedArticleBody's
+// textWithLinks() rewrites a scraped `<a href>` into, since a plain
+// Element.text() call has no way to carry a URL that isn't also the
+// anchor's own visible text (an "Official Discord" or "Here" link would
+// otherwise lose its href entirely). Kept private to this file: nothing
+// else emits or should emit this marker.
+private val markdownLinkRegex = Regex("""\[([^\[\]]+)\]\((https?://[^\s)]+)\)""")
+
+// Marks every bare URL and "[label](url)" marker found in `text` with a
+// tappable "URL" string annotation — same annotation key ForumBlockView's
+// ClickableText already reads via getStringAnnotations("URL", ...), so the
+// click handler below mirrors that screen's openForumLink instead of
+// inventing a second scheme. Markdown-style markers are resolved first and
+// always win over a bare-URL match landing on the same span (the URL inside
+// the parens would otherwise also satisfy bareUrlRegex), so the two forms
+// are merged into one left-to-right pass ordered by position rather than
+// run as two independent, potentially-overlapping passes.
+private fun linkify(text: String, linkColor: Color): AnnotatedString = buildAnnotatedString {
+    fun appendWithBareUrls(segment: String) {
+        var cursor = 0
+        for (match in bareUrlRegex.findAll(segment)) {
+            var end = match.range.last + 1
+            while (end > match.range.first && segment[end - 1] in ".,!?:;)]}\u201d\u2019") end--
+            if (end <= match.range.first) continue
+            val start = match.range.first
+            append(segment.substring(cursor, start))
+            val raw = segment.substring(start, end)
+            val href = if (raw.startsWith("www.", ignoreCase = true)) "https://$raw" else raw
+            val spanStart = length
+            append(raw)
+            addStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline), spanStart, length)
+            addStringAnnotation("URL", href, spanStart, length)
+            cursor = end
+        }
+        append(segment.substring(cursor))
+    }
+
+    var cursor = 0
+    for (match in markdownLinkRegex.findAll(text)) {
+        appendWithBareUrls(text.substring(cursor, match.range.first))
+        val (label, href) = match.destructured
+        val spanStart = length
+        append(label)
+        addStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline), spanStart, length)
+        addStringAnnotation("URL", href, spanStart, length)
+        cursor = match.range.last + 1
+    }
+    appendWithBareUrls(text.substring(cursor))
+}
+
+// Drop-in replacement for `Text(text, ...)` on any free-text surface that
+// might contain a bare URL (Featured Article body, Company "About", media
+// synopsis/background) — same look as Text when there's nothing to link,
+// but linkifies + makes URLs tappable when there is. Tapping a link opens it
+// through LocalUriHandler, i.e. a plain ACTION_VIEW browser intent, never
+// in-app; tapping elsewhere in the text runs `onClick` (e.g. an
+// expand/collapse toggle) when one is supplied, same as the plain
+// Modifier.clickable these Text calls used to carry.
+@Composable fun LinkifiedText(
+    text: String,
+    color: Color,
+    fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
+    lineHeight: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
+    fontWeight: FontWeight? = null,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Clip,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    val c = LocalKikoColors.current
+    val uriHandler = LocalUriHandler.current
+    val annotated = remember(text, c.primary) { linkify(text, c.primary) }
+    ClickableText(
+        text = annotated,
+        style = TextStyle(color = color, fontSize = fontSize, lineHeight = lineHeight, fontWeight = fontWeight ?: FontWeight.Normal),
+        maxLines = maxLines,
+        overflow = overflow,
+        modifier = modifier,
+        onClick = { offset ->
+            val link = annotated.getStringAnnotations("URL", offset, offset).firstOrNull()
+            if (link != null) runCatching { uriHandler.openUri(link.item) } else onClick?.invoke()
+        },
+    )
 }
 // Uniform shared card shell
