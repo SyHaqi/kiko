@@ -698,6 +698,20 @@ class MalDetailScrapeApi {
     // (label, url) shape CompanyDetail.links uses, deduped by URL, first
     // occurrence wins. Anchors that only wrap an <img> are skipped: those are
     // already surfaced as ArticleBlock.Image banners, not info links.
+    //
+    // Narrative articles (event reports, interviews) litter their body with
+    // dozens of inline citation links — "Blink of Ray" -> youtube.com, a
+    // setlist's worth of "unravel"/"GYUTTO!!"/... -> youtube.com, etc. None
+    // of those are preceded by an explicit "Label: " prefix, so without a
+    // filter every single one fell through to friendlyLinkLabel's generic
+    // per-host name ("YouTube") and the Links section turned into dozens of
+    // identically-labeled chips. Only two shapes are treated as a real
+    // info-link now: an explicit "Label: <a>" line (checked for a literal
+    // trailing colon, not just "whatever text happened to precede the
+    // anchor" — that looser check also let a long, colon-less run-on
+    // sentence get used verbatim as a chip's label), or a bare link to one
+    // of the small set of recognized official/social hosts.
+    private val officialFallbackHosts = listOf("facebook", "twitter", "x.com", "t.co", "instagram", "discord", "steampowered", "tiktok")
     private fun parseFeaturedArticleLinks(body: Element): List<Pair<String, String>> {
         val seen = LinkedHashMap<String, String>()
         for (a in body.select("a[href]")) {
@@ -718,10 +732,19 @@ class MalDetailScrapeApi {
             // whenever the anchor sat at the *start* of the paragraph
             // instead of the end, since the string then doesn't end with
             // ownText and removeSuffix is a no-op.
-            val prefix = container?.let { textBeforeNode(it, a) }?.trim()?.trimEnd(':', ' ').orEmpty()
-            seen[href] = prefix.ifBlank { friendlyLinkLabel(host, ownText) }
+            val rawPrefix = container?.let { textBeforeNode(it, a) }?.trimEnd().orEmpty()
+            // A real "Label:" line ends with a colon right before the
+            // anchor — anything else preceding the link (a run-on sentence,
+            // mid-paragraph prose) is not a label and must be discarded
+            // rather than used as one.
+            val explicitLabel = rawPrefix.takeIf { it.endsWith(":") }?.dropLast(1)?.trim()?.takeIf { it.isNotBlank() && it.length <= 40 }
+            val label = explicitLabel ?: officialFallbackHosts.firstOrNull { it in host }?.let { friendlyLinkLabel(host, ownText) } ?: continue
+            seen[href] = label
         }
-        return seen.map { (url, label) -> label to url }
+        // Defensive cap — even a legitimate advertorial rarely lists more
+        // than a handful of official links, so this guards against any
+        // article shape this heuristic doesn't anticipate.
+        return seen.map { (url, label) -> label to url }.take(8)
     }
 
     // Concatenates the text of `container`'s content that appears strictly

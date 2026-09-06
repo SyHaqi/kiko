@@ -859,6 +859,7 @@ data class DetailScreenActions(
 // Same flush-thumbnail treatment as CompanyNewsCard above — see its comment.
 @Composable fun DetailFeaturedArticleCard(article: FeaturedArticleEntry, onClick: () -> Unit) {
     val c = LocalKikoColors.current
+    val context = LocalContext.current
     Row(
         Modifier.fillMaxWidth()
             .height(138.dp)
@@ -867,7 +868,15 @@ data class DetailScreenActions(
     ) {
         Box(Modifier.fillMaxHeight().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (article.image.isNotBlank()) {
-                AsyncImage(model = article.image, contentDescription = article.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                AsyncImage(
+                    // Size.ORIGINAL + High filter quality — same reasoning
+                    // as FeaturedArticleGridCard/HomeFeaturedArticleCard.
+                    model = ImageRequest.Builder(context).data(article.image).size(Size.ORIGINAL).allowHardware(true).build(),
+                    contentDescription = article.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+                )
             } else {
                 Text(article.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 24.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }

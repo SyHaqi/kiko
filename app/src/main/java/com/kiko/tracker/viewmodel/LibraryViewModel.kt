@@ -1653,6 +1653,17 @@ class LibraryViewModel : ViewModel() {
     var featuredArticlesScrollOffset by mutableStateOf(0); private set
     fun saveFeaturedArticlesScroll(index: Int, offset: Int) { featuredArticlesScrollIndex = index; featuredArticlesScrollOffset = offset }
 
+    // Per-article reading position (article url -> vertical scroll px) for
+    // the single-article reader (FeaturedArticleScreen). Unlike the grid's
+    // scroll above, this needs to be keyed per-url rather than a single
+    // index/offset pair, since any number of articles can be opened and
+    // left mid-read across a session (tap a link that opens the browser or
+    // an anime/manga Detail page on top, then come back — same idea as the
+    // grid's scroll-restore, just per-article instead of one global slot).
+    private val featuredArticleScrollPositions = mutableStateMapOf<String, Int>()
+    fun featuredArticleScrollFor(url: String): Int = featuredArticleScrollPositions[url] ?: 0
+    fun saveFeaturedArticleScroll(url: String, value: Int) { featuredArticleScrollPositions[url] = value }
+
     // Submitted text query — set by the search icon's expandable field.
     // Mutually exclusive with the tag filter below (submitting a search
     // clears any selected tag, and vice versa).

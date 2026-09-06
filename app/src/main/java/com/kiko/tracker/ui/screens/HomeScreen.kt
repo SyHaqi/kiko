@@ -53,6 +53,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.size.Size
+import androidx.compose.ui.graphics.FilterQuality
 import kotlinx.coroutines.launch
 import com.kiko.tracker.data.api.NewsSnapshot
 import com.kiko.tracker.data.model.DiscoverSort
@@ -461,6 +464,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // on Interest Stacks cards (see StackStatsRow in StacksScreen.kt).
 @Composable fun HomeFeaturedArticleCard(article: FeaturedArticleEntry, onClick: () -> Unit) {
     val c = LocalKikoColors.current
+    val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     Card(
         onClick = onClick,
@@ -478,7 +482,18 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     .background(c.surfaceContainerHigh),
             ) {
                 if (article.image.isNotBlank()) {
-                    AsyncImage(model = article.image, contentDescription = article.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                    AsyncImage(
+                        // Size.ORIGINAL + High filter quality — same
+                        // reasoning as FeaturedArticleGridCard's own
+                        // thumbnail: these news-unit images are small,
+                        // unproxied uploads, so avoid compounding that with
+                        // Coil's default downsampling/low-quality filtering.
+                        model = ImageRequest.Builder(context).data(article.image).size(Size.ORIGINAL).allowHardware(true).build(),
+                        contentDescription = article.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        filterQuality = FilterQuality.High,
+                    )
                 } else {
                     Text(article.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 26.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
                 }
