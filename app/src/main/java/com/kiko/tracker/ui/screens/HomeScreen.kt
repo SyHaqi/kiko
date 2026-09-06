@@ -99,7 +99,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     LaunchedEffect(Unit) { vm.loadHomeFeaturedArticles() }
     // Testing swap: hide (not
     // MAL announcement card in
-    val showContinueCard = false
+    val showContinueCard = true
     // Was recomputing (filter +
     // including ones triggered by
     // background sync — instead
@@ -353,15 +353,56 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // List rather than opening
 // into the list, not
 
+// Same card shell as AiringNextCard (rounded surfaceContainer box, cover
+// flush against the left/top/bottom edges) — inlined here instead of
+// nesting ListRow, since ListRow's own padding would inset the cover
+// again and ListRow is shared by screens that aren't card-shaped.
 @Composable fun ContinueCard(item: MediaItem, vm: LibraryViewModel, onClick: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
+    val haptic = LocalHapticFeedback.current
+    LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
+    val confirmed = vm.getCachedAiring(item.id)
     Box(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(kikoCorner(22.dp)))
-            .background(c.surfaceContainer),
+            .background(if (isSelected) c.primaryContainer else c.surfaceContainer)
+            .kikoCombinedClickable(
+                onClick = { onClick(item) },
+                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
+            ),
     ) {
-        ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = Modifier.padding(horizontal = 14.dp), vm = vm)
+        Row(
+            // Fixed height matching the old ListRow-based card (92dp-wide cover +
+            // 14dp top/bottom padding = 156dp), so this card's overall size doesn't
+            // change — only the cover grows to fill it edge-to-edge.
+            Modifier.fillMaxWidth().height(156.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Cover(item, Modifier.fillMaxHeight().aspectRatio(92f / 128f), selected = isSelected)
+            Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp, top = 14.dp, bottom = 14.dp)) {
+                Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(item.genre, color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (item.myRating > 0) {
+                        Text("  ·  ", color = c.muted, fontSize = 13.sp)
+                        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                        Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+                    }
+                }
+                if (item.total > 0) {
+                    LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth(0.75f).padding(top = 9.dp).height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))), color = statusColor(item.status), trackColor = c.surfaceLow)
+                }
+                Text(progressLabel(item), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                item.nextEpisodeLabel(confirmed)?.let { label ->
+                    Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(12.dp))
+                        Text(label, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                    }
+                }
+            }
+            Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.padding(end = 14.dp).size(22.dp))
+        }
     }
 }
 // Pinterest-style snapshots layout

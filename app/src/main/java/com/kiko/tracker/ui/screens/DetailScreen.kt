@@ -856,22 +856,23 @@ data class DetailScreenActions(
 // discussion-count the way a
 // discussion, which reuse ForumTopicScreen),
 // externally — see DetailScreenActions.onOpenFeaturedArticle.
+// Same flush-thumbnail treatment as CompanyNewsCard above — see its comment.
 @Composable fun DetailFeaturedArticleCard(article: FeaturedArticleEntry, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Row(
         Modifier.fillMaxWidth()
+            .height(138.dp)
             .clip(RoundedCornerShape(kikoCorner(20.dp))).background(c.surfaceContainer)
-            .kikoClickable(onClick = onClick)
-            .padding(12.dp),
+            .kikoClickable(onClick = onClick),
     ) {
-        Box(Modifier.width(76.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.fillMaxHeight().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (article.image.isNotBlank()) {
                 AsyncImage(model = article.image, contentDescription = article.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
                 Text(article.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 24.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }
         }
-        Column(Modifier.padding(start = 14.dp).weight(1f)) {
+        Column(Modifier.padding(start = 14.dp, end = 12.dp, top = 12.dp, bottom = 12.dp).weight(1f)) {
             Text(article.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 19.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (article.snippet.isNotBlank()) {
                 Text(article.snippet, color = c.muted, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
