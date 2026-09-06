@@ -56,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
-import com.kiko.tracker.data.api.ForumTopic
 import com.kiko.tracker.data.api.NewsSnapshot
 import com.kiko.tracker.data.model.DiscoverSort
 import com.kiko.tracker.data.model.FeaturedArticleEntry
@@ -78,7 +77,6 @@ import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.Cover
 import com.kiko.tracker.ui.components.ExpandableSearchHeader
 import com.kiko.tracker.ui.components.statusColor
-import com.kiko.tracker.ui.theme.AiringNextCardSkeleton
 import com.kiko.tracker.ui.theme.AiringNextRowSkeleton
 import com.kiko.tracker.ui.theme.ContinueCardSkeleton
 import com.kiko.tracker.ui.theme.HomeFeaturedArticleRowSkeleton
@@ -96,10 +94,10 @@ import com.kiko.tracker.ui.theme.pressScale
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
 import com.kiko.tracker.viewmodel.LibraryViewModel
 
-@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onLocateInList: (MediaItem) -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onOpenAnnouncements: () -> Unit, onSignIn: () -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
+@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onLocateInList: (MediaItem) -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
-    LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context); vm.loadHomeAnnouncement(context) }
+    LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context) }
     LaunchedEffect(Unit) { vm.loadHomeFeaturedArticles() }
     // Testing swap: hide (not
     // MAL announcement card in
@@ -142,7 +140,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     PullToRefreshBox(
         isRefreshing = vm.loading,
-        onRefresh = { vm.load(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeAnnouncement(context, force = true); vm.loadHomeFeaturedArticles(force = true) },
+        onRefresh = { vm.load(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeFeaturedArticles(force = true) },
         modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = if (showGoToTop) 90.dp else 24.dp)) {
@@ -185,19 +183,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         } else if (vm.loading) {
                             SectionTitle("Continue", "See list", onList)
                             ContinueCardSkeleton()
-                        }
-                    }
-                    // Latest MAL announcement, standing
-                    // sized (via AnnouncementCard's identical
-                    // AiringNextCard above it, so
-                    key("announcement") {
-                        val announcement = vm.homeAnnouncement
-                        if (announcement != null) {
-                            SectionTitle("MAL Announcement", "See more", click = onOpenAnnouncements)
-                            AnnouncementCard(announcement, onClick = { trackedOpenTopic(announcement.id, announcement.title) })
-                        } else if (vm.homeAnnouncementLoading) {
-                            SectionTitle("MAL Announcement", "See more", click = onOpenAnnouncements)
-                            AiringNextCardSkeleton(modifier = Modifier.fillMaxWidth())
                         }
                     }
                     // Home recent news row
@@ -369,56 +354,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .background(c.surfaceContainer),
     ) {
         ListRow(item, onClick, showType = false, onLongPress = onLongPress, isSelected = isSelected, showChevron = true, modifier = Modifier.padding(horizontal = 14.dp), vm = vm)
-    }
-}
-// Latest-announcement card standing in
-// above) — deliberately built
-// padding as AiringNextCard, rather
-// this shelf lines up
-// above it. Falls back
-// (true for most Announcements-board
-@Composable fun AnnouncementCard(topic: ForumTopic, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val c = LocalKikoColors.current
-    Box(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(kikoCorner(22.dp)))
-            .background(c.surfaceContainer)
-            .kikoClickable(onClick = onClick),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier
-                    .size(width = 84.dp, height = 118.dp)
-                    .clip(RoundedCornerShape(kikoCorner(14.dp)))
-                    .background(c.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (!topic.imageUrl.isNullOrBlank()) {
-                    AsyncImage(model = topic.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                } else {
-                    Icon(Icons.Default.Campaign, null, tint = c.onPrimaryContainer, modifier = Modifier.size(30.dp))
-                }
-            }
-            Column(Modifier.weight(1f).padding(start = 16.dp)) {
-                Text(topic.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(
-                    "by ${topic.author.name.ifBlank { "MyAnimeList" }} · ${formatForumDate(topic.createdAt)}",
-                    color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp),
-                )
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Forum, null, tint = c.accent, modifier = Modifier.size(13.dp))
-                    Text(
-                        "${topic.postCount} replies",
-                        color = c.accent, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
-                    )
-                }
-            }
-        }
     }
 }
 // Pinterest-style snapshots layout

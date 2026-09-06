@@ -147,4 +147,14 @@ class AppUpdateChecker(private val context: Context) {
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         context.startActivity(intent)
     }
+
+    // Delete a downloaded update APK left behind in cacheDir — from an
+    // install the user backed out of, an interrupted download, or one
+    // that was already applied last session. Safe to call any time no
+    // download is actively in progress: cacheDir otherwise holds onto
+    // this indefinitely, and downloadApk() would overwrite it anyway.
+    fun cleanupDownloadedApk() {
+        val target = File(context.cacheDir, "kiko-update.apk")
+        if (target.exists()) target.delete()
+    }
 }

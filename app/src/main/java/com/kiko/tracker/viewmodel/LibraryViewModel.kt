@@ -48,7 +48,6 @@ import com.kiko.tracker.data.api.StackSummary
 import com.kiko.tracker.data.api.StackTitleEntry
 import com.kiko.tracker.data.api.StacksApi
 import com.kiko.tracker.data.api.TenraiApi
-import com.kiko.tracker.data.api.firstImageUrl
 import com.kiko.tracker.data.model.CharacterDetail
 import com.kiko.tracker.data.model.CharacterEntry
 import com.kiko.tracker.data.model.CharacterSummary
@@ -500,6 +499,10 @@ class LibraryViewModel : ViewModel() {
     // Instant cached check read
     fun loadCachedUpdate(context: Context) {
         val checker = AppUpdateChecker(context)
+        // No download is running this early in the app's lifecycle
+        // (updateDownloadProgress is only non-null while one is active),
+        // so it's always safe to clear out a leftover APK here.
+        if (updateDownloadProgress == null) checker.cleanupDownloadedApk()
         val cached = checker.cached() ?: return
         // Drop stale cached version
         if (!checker.isStillNewer(cached.version)) { checker.clearCache(); return }
@@ -1593,22 +1596,6 @@ class LibraryViewModel : ViewModel() {
             board?.let { openForumBoard(context, it) }
         }
     }
-    // Jump to the Announcements
-    // forumBoardIcon (ForumsScreen.kt) already keys
-    // ids are the stable
-    // re-worded. Used by Home's
-    fun openAnnouncementsBoard(context: Context) {
-        viewModelScope.launch {
-            val cached = forumCategories.flatMap { it.boards }.firstOrNull { it.id == 5 }
-            val board = cached ?: run {
-                val fetched = runCatching { MalApi(context).forumBoards() }.getOrNull() ?: return@run null
-                forumCategories = fetched; forumBoardsLoaded = true
-                fetched.flatMap { it.boards }.firstOrNull { it.id == 5 }
-            }
-            board?.let { openForumBoard(context, it) }
-        }
-    }
-
     // Home snapshots row state
     var newsSnapshots by mutableStateOf<List<NewsSnapshot>>(emptyList()); private set
     var newsSnapshotsLoading by mutableStateOf(false); private set
@@ -1649,45 +1636,8 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
-    // Latest MAL announcement (board
-    // announcement card — a
-    // same forumTopics endpoint the
-    var homeAnnouncement by mutableStateOf<ForumTopic?>(null); private set
-    var homeAnnouncementLoading by mutableStateOf(false); private set
-    private var homeAnnouncementLoaded = false
-    fun loadHomeAnnouncement(context: Context, force: Boolean = false) {
-        val api = MalApi(context)
-        if ((homeAnnouncementLoaded && !force) || !api.signedIn) return
-        homeAnnouncementLoaded = true
-        homeAnnouncementLoading = true
-        viewModelScope.launch {
-            runCatching {
-                // forumTopics sorts by sort=recent
-                // items.first() can be an
-                // reply rather than the
-                // without thumbnails and pick
-                // trusting list order.
-                val latest = api.forumTopics(boardId = 5, limit = 25).items
-                    .maxByOrNull { parseForumCreatedAtMillis(it.createdAt) } ?: return@runCatching null
-                // Thumbnail lookup only for
-                // batch — forumTopics(withThumbnails =
-                val image = runCatching { api.forumTopic(latest.id, limit = 1) }.getOrNull()
-                    ?.posts?.firstOrNull()?.body?.let { firstImageUrl(it) }
-                if (image != null) latest.copy(imageUrl = image) else latest
-            }
-                .onSuccess { homeAnnouncement = it }
-                // Fail silently, no banner
-                .onFailure { homeAnnouncementLoaded = false }
-            homeAnnouncementLoading = false
-        }
-    }
     // ForumTopic.createdAt format ("yyyy-MM-dd'T'HH:mm:ssXXX") —
     // (ForumsScreen.kt) already parses —
-    // can be picked by
-    private fun parseForumCreatedAtMillis(raw: String): Long =
-        runCatching { java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US).parse(raw)?.time }.getOrNull() ?: 0L
-
-    // Related row loading id
     var relatedLoadingId by mutableStateOf<Int?>(null); private set
 
     // Recommended row loading id
