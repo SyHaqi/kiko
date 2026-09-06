@@ -266,7 +266,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .kikoClickable { onOpenDetail(item) },
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+            // Fixed height — same total as before (118dp cover + 14dp top/bottom
+            // padding = 146dp) — so every card in the row is the same size
+            // regardless of how much text a given item has. IntrinsicSize.Min
+            // was tried here instead but let short-content cards (no genre,
+            // one-line title) shrink the whole row and clip the episode/time
+            // line; a fixed height avoids that entirely.
+            Modifier.fillMaxWidth().height(146.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // overrideStatus: airingNext is discoverNewSeason
@@ -274,8 +280,11 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             // lookup here is what
             // and disappear immediately after
             // whenever this row happens
-            Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true, overrideStatus = vm.trackedStatus(item))
-            Column(Modifier.weight(1f).padding(start = 16.dp)) {
+            // No padding here: the cover is flush against the card's
+            // left/top/bottom edges and fills the fixed row height above,
+            // so it reads as one piece with the card background.
+            Cover(item, Modifier.fillMaxHeight().aspectRatio(84f / 118f), showStatus = true, overrideStatus = vm.trackedStatus(item))
+            Column(Modifier.weight(1f).padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 14.dp)) {
                 Text(item.displayTitle(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (item.genre.isNotBlank()) {
                     Text(item.genre, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))

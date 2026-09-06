@@ -322,7 +322,7 @@ fun companyLinkIconRes(url: String): Int? {
         "facebook" in host -> R.drawable.ic_facebook
         "instagram" in host -> R.drawable.ic_instagram
         "twitter" in host || host == "x.com" || host.endsWith(".x.com") || host == "t.co" -> R.drawable.ic_x
-        "discord" in host -> R.drawable.ic_discord
+        "discord" in host || host == "official discord" -> R.drawable.ic_discord
         "steampowered" in host -> R.drawable.ic_steam
         "reddit" in host || host == "redd.it" -> R.drawable.ic_reddit
         else -> null
