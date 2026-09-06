@@ -1180,6 +1180,11 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                             status = s
                             // Auto-fill progress to the
                             if (s == WatchStatus.Completed && item.total > 0) progress = item.total
+                            // Auto-fill start date to
+                            // an already-set date is
+                            if ((s == WatchStatus.Watching || s == WatchStatus.Reading) && startDate.isBlank()) {
+                                startDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+                            }
                             statusScope.centerChip(statusListState, index)
                         },
                         label = { Text(s.displayLabel(item.type)) },
@@ -1278,6 +1283,12 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(if (value.isBlank()) "Not set" else formatUserDate(value), color = if (value.isBlank()) c.muted else c.ink, fontWeight = FontWeight.Medium, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 6.dp))
+            // Only offer clearing once
+            // a date has actually
+            if (value.isNotBlank()) {
+                IconButton(onClick = { onPick("") }, modifier = Modifier.size(20.dp)) { Icon(Icons.Default.Close, "Clear $label", tint = c.muted, modifier = Modifier.size(16.dp)) }
+                Spacer(Modifier.width(6.dp))
+            }
             Icon(Icons.Default.DateRange, null, tint = c.muted, modifier = Modifier.size(18.dp))
         }
     }

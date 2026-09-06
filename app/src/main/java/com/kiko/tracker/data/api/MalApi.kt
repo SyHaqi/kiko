@@ -473,7 +473,8 @@ class MalApi(private val context: Context) {
         val endpoint = "$API/${if (item.type == MediaType.Anime) "anime" else "manga"}/${item.id}/my_list_status"
         val status = when (item.status) {
             WatchStatus.Watching -> "watching"; WatchStatus.Reading -> "reading"; WatchStatus.Completed -> "completed"
-            WatchStatus.OnHold -> "on_hold"; WatchStatus.Dropped -> "dropped"; WatchStatus.Plan -> "plan_to_watch"
+            WatchStatus.OnHold -> "on_hold"; WatchStatus.Dropped -> "dropped"
+            WatchStatus.Plan -> if (item.type == MediaType.Anime) "plan_to_watch" else "plan_to_read"
         }
         // Fix episode write key
         val progressField = if (item.type == MediaType.Anime) "num_watched_episodes" else "num_chapters_read"
@@ -484,8 +485,10 @@ class MalApi(private val context: Context) {
             put("status", status)
             put(progressField, item.progress.toString())
             put("score", item.myRating.toString())
-            if (item.watchStartDate.isNotBlank()) put("start_date", item.watchStartDate)
-            if (item.watchEndDate.isNotBlank()) put("finish_date", item.watchEndDate)
+            // Always send, even blank
+            // is how MAL clears
+            put("start_date", item.watchStartDate)
+            put("finish_date", item.watchEndDate)
             put(rewatchingField, item.isRewatching.toString())
             put(timesRewatchedField, item.timesRewatched.toString())
             // MAL accepts tags as

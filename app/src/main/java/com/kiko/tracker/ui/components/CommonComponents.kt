@@ -654,15 +654,35 @@ fun statusColor(label: String): Color = when {
 // main activity window don't
 // to appear offset from
 
-@Composable fun Avatar(picture: String = "", name: String = "", onClick: ((Rect) -> Unit)? = null) {
+@Composable fun Avatar(picture: String = "", name: String = "", showUpdateBadge: Boolean = false, onClick: ((Rect) -> Unit)? = null) {
     val c = LocalKikoColors.current
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val posMod = Modifier.onGloballyPositioned { val pos = it.positionOnScreen(); bounds = Rect(pos.x, pos.y, pos.x + it.size.width, pos.y + it.size.height) }
     val tapMod = if (onClick != null) Modifier.kikoClickable { onClick(bounds) } else Modifier
-    if (picture.isNotBlank()) {
-        AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.warm).then(posMod).then(tapMod))
-    } else {
-        Box(Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.warm).then(posMod).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink) }
+    Box {
+        if (picture.isNotBlank()) {
+            AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.warm).then(posMod).then(tapMod))
+        } else {
+            Box(Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.warm).then(posMod).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink) }
+        }
+        // Small dot signaling an
+        // app update is ready.
+        // Ring cut in the
+        // background color makes it
+        // read as "attached" to
+        // the avatar's corner rather
+        // than floating on top.
+        if (showUpdateBadge) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 3.dp, y = (-3).dp)
+                    .size(13.dp)
+                    .clip(kikoCircleShape())
+                    .background(c.primary)
+                    .border(2.dp, c.background, kikoCircleShape()),
+            )
+        }
     }
 }
 
