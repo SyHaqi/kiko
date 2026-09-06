@@ -128,6 +128,11 @@ data class RelatedEntry(val relation: String, val title: String, val malId: Int 
 // MAL's own article page
 data class FeaturedArticleEntry(val url: String, val title: String, val image: String = "", val snippet: String = "", val author: String = "", val views: String = "", val tag: String = "")
 
+// One chip off myanimelist.net/featured/tag's category table (Interview,
+// Analysis, Cosplay, ...) — `slug` is the URL segment used to browse
+// /featured/tag/{slug}, `name` is the display label shown on the chip.
+data class FeaturedTag(val name: String, val slug: String)
+
 // Rendered piece of a Featured Article body (see MalDetailScrapeApi.parseFeaturedArticleBody) — plain-text
 // blocks only, same "scrape into a serializable shape" approach as ForumTopic/ForumPost, so the ui.screens
 // renderer (FeaturedArticleScreen) never needs Jsoup.

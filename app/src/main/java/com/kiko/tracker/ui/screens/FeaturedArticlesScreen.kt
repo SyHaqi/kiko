@@ -7,11 +7,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -38,117 +38,239 @@ import com.kiko.tracker.data.api.MalDetailScrapeApi
 import com.kiko.tracker.data.model.ArticleBlock
 import com.kiko.tracker.data.model.FeaturedArticleContent
 import com.kiko.tracker.data.model.FeaturedArticleEntry
+import com.kiko.tracker.data.model.FeaturedTag
 import com.kiko.tracker.ui.components.LinkifiedText
+import com.kiko.tracker.ui.components.Pill
+import com.kiko.tracker.ui.components.SearchField
 import com.kiko.tracker.ui.components.SkeletonBlock
+import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
+import com.kiko.tracker.ui.theme.kikoClickable
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.ui.theme.kikoPillShape
 import com.kiko.tracker.ui.theme.pressScale
 import com.kiko.tracker.viewmodel.LibraryViewModel
 
-// Full "Featured Articles" browse — 2-column grid, infinite scroll,
+// Full "Featured Articles" browse — single-column list, infinite scroll,
 // backed by LibraryViewModel.loadFeaturedArticlesGrid/loadMoreFeaturedArticlesGrid
-// (MalDetailScrapeApi.fetchFeaturedArticlesPage). Same shape as StacksScreen's
-// browse grid; tapping a card opens FeaturedArticleScreen in-app instead of
-// the CustomTabsIntent browser tab Home/Detail used to use.
+// (MalDetailScrapeApi.fetchFeaturedArticlesPage). Tapping a card opens
+// FeaturedArticleScreen in-app instead of the CustomTabsIntent browser tab
+// Home/Detail used to use. Every item below (including the header, empty
+// state, and loading footer) carries an explicit `key` so LazyColumn can
+// diff/animate reliably and scroll stays smooth as pages load in.
 @Composable fun FeaturedArticlesScreen(vm: LibraryViewModel, onBack: () -> Unit, onOpenArticle: (String, String) -> Unit) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
-    LaunchedEffect(Unit) { vm.loadFeaturedArticlesGrid() }
-    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(
+    LaunchedEffect(Unit) { vm.loadFeaturedArticlesGrid(); vm.loadFeaturedTags() }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState(
         initialFirstVisibleItemIndex = vm.featuredArticlesScrollIndex,
         initialFirstVisibleItemScrollOffset = vm.featuredArticlesScrollOffset,
     )
     val scope = rememberCoroutineScope()
-    val showGoToTop by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 } }
+    // Search icon in the header expands into this field (My List's own
+    // search-on-submit shape) — text is local until submitted, so typing
+    // doesn't refetch on every keystroke.
+    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf(vm.featuredArticlesQuery) }
+    val searchFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(searchExpanded) { if (searchExpanded) searchFocusRequester.requestFocus() }
+    val closeSearch: () -> Unit = { searchExpanded = false; searchQuery = ""; vm.searchFeaturedArticles("") }
+    // Only resets the field's own local state — used when a tag gets
+    // applied from the sheet below, so the two filters never fight over
+    // what's showing in the header (selectFeaturedArticlesTag already
+    // clears the vm's query, this just keeps the UI in sync with it).
+    val collapseSearchUi: () -> Unit = { searchExpanded = false; searchQuery = "" }
+    // Tag-filter sheet — "All" plus every category off
+    // myanimelist.net/featured/tag (Interview, Analysis, Cosplay, ...).
+    var tagSheetOpen by remember { mutableStateOf(false) }
+    val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     val openArticle: (FeaturedArticleEntry) -> Unit = { article ->
-        vm.saveFeaturedArticlesScroll(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+        vm.saveFeaturedArticlesScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
         onOpenArticle(article.url, article.title)
     }
-    // Load next page as
-    // last two grid rows
-    LaunchedEffect(gridState) {
-        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to gridState.layoutInfo.totalItemsCount }
+    // Load next page as the last few rows come into view
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
             .distinctUntilChanged()
             .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 5) vm.loadMoreFeaturedArticlesGrid() }
     }
     Box(Modifier.fillMaxSize()) {
         PullToRefreshBox(isRefreshing = vm.featuredArticlesLoading && vm.featuredArticles.isNotEmpty(), onRefresh = { vm.loadFeaturedArticlesGrid(force = true) }, modifier = Modifier.fillMaxSize()) {
-            LazyVerticalGrid(
-                state = gridState,
-                columns = GridCells.Fixed(2),
+            LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item(key = "header") {
                     Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-                        Text("Featured Articles", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
+                        if (searchExpanded) {
+                            Box(Modifier.weight(1f).padding(start = 12.dp)) {
+                                SearchField(
+                                    value = searchQuery,
+                                    change = { searchQuery = it },
+                                    hint = "Search articles",
+                                    onSearch = { vm.searchFeaturedArticles(searchQuery) },
+                                    onClear = { searchQuery = ""; vm.searchFeaturedArticles("") },
+                                    focusRequester = searchFocusRequester,
+                                )
+                            }
+                            IconButton(onClick = closeSearch, modifier = Modifier.padding(start = 8.dp).size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.Close, "Close search", tint = c.ink) }
+                        } else {
+                            Text("Featured Articles", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                            if (vm.featuredTags.isNotEmpty()) {
+                                FeaturedTagFilterButton(
+                                    selectedName = vm.featuredTags.firstOrNull { it.slug == vm.featuredArticlesTagSlug }?.name,
+                                    onClick = { tagSheetOpen = true },
+                                    modifier = Modifier.padding(start = 8.dp),
+                                )
+                            }
+                            IconButton(onClick = { searchExpanded = true }, modifier = Modifier.padding(start = 8.dp).size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.Search, "Search articles", tint = c.ink) }
+                        }
                     }
                     vm.featuredArticlesError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp)) }
                 }
                 if (vm.featuredArticlesLoading && vm.featuredArticles.isEmpty()) {
-                    items(8) { i -> StaggeredItem(i) { FeaturedArticleGridCardSkeleton() } }
+                    items(8, key = { "skeleton_$it" }) { i -> StaggeredItem(i) { FeaturedArticleGridCardSkeleton() } }
                 } else if (vm.featuredArticles.isEmpty() && vm.featuredArticlesError == null) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { Text("No articles found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                    item(key = "empty") { Text("No articles found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
                 } else {
                     itemsIndexed(vm.featuredArticles, key = { _, it -> it.url }) { index, article ->
                         StaggeredItem(index) { FeaturedArticleGridCard(article) { openArticle(article) } }
                     }
                 }
                 if (vm.featuredArticlesLoadingMore) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+                    item(key = "loading_more") { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
                 }
             }
         }
+        if (tagSheetOpen) {
+            FeaturedTagFilterSheet(
+                tags = vm.featuredTags,
+                current = vm.featuredArticlesTagSlug,
+                onDismiss = { tagSheetOpen = false },
+                onApply = { picked -> tagSheetOpen = false; collapseSearchUi(); vm.selectFeaturedArticlesTag(picked) },
+            )
+        }
         GoToTopButton(
             visible = showGoToTop,
-            onClick = { scope.launch { gridState.animateScrollToItem(0) } },
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
         )
     }
 }
 
-// Single card in the 2-column browse grid — banner cover, title,
+// Small header button that opens FeaturedTagFilterSheet — shows the
+// selected tag's name once one is applied (truncated), otherwise just
+// "Tags", same rounded-square footprint as the back/search buttons
+// beside it but sized to its label instead of a fixed 38dp square.
+@Composable fun FeaturedTagFilterButton(selectedName: String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    val active = selectedName != null
+    Row(
+        modifier
+            .height(38.dp)
+            .clip(RoundedCornerShape(kikoCorner(13.dp)))
+            .background(if (active) c.primary else c.surfaceContainerHigh)
+            .kikoClickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Default.FilterList, "Filter by tag", tint = if (active) c.onPrimary else c.ink, modifier = Modifier.size(16.dp))
+        Text(
+            selectedName ?: "Tags",
+            color = if (active) c.onPrimary else c.ink,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 6.dp).widthIn(max = 100.dp),
+        )
+    }
+}
+
+// Tag-filter sheet — every category off myanimelist.net/featured/tag
+// (Interview, Analysis, Cosplay, Studios, ...) as single-select chips,
+// staged locally until "Apply" so browsing the sheet doesn't refetch on
+// every tap. Same Reset/Apply footer shape as DiscoverScreen's own
+// AdvancedFilterSheet.
+@Composable fun FeaturedTagFilterSheet(tags: List<FeaturedTag>, current: String?, onDismiss: () -> Unit, onApply: (String?) -> Unit) {
+    val c = LocalKikoColors.current
+    var pending by remember { mutableStateOf(current) }
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
+            Text("Featured Articles", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text("Filter by tag", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 18.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = pending == null, onClick = { pending = null }, label = { Text("All") }, colors = kikoFilterChipColors())
+                tags.forEach { tag -> FilterChip(selected = pending == tag.slug, onClick = { pending = tag.slug }, label = { Text(tag.name) }, colors = kikoFilterChipColors()) }
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 26.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                TextButton(onClick = { pending = null }, modifier = Modifier.weight(1f)) { Text("Reset", color = c.muted, fontWeight = FontWeight.Bold) }
+                Button(
+                    onClick = { onApply(pending) },
+                    colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
+                    modifier = Modifier.weight(2f),
+                ) { Text("Apply", fontWeight = FontWeight.Bold) }
+            }
+        }
+    }
+}
+
+// Single card in the single-column browse list — bigger banner cover, title,
 // author, and an optional tag pill (Advertorial/Spoiler/Events/...)
-// echoing the one shown on myanimelist.net's own news-unit rows.
+// echoing the one shown on myanimelist.net's own news-unit rows. Sized up
+// now that it spans the full width instead of sharing a row with a sibling.
 @Composable fun FeaturedArticleGridCard(article: FeaturedArticleEntry, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     val interactionSource = remember { MutableInteractionSource() }
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(kikoCorner(18.dp)),
+        shape = RoundedCornerShape(kikoCorner(20.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
         modifier = Modifier.fillMaxWidth().pressScale(interactionSource),
     ) {
         Column {
             Box(
-                Modifier.fillMaxWidth().height(100.dp)
-                    .clip(RoundedCornerShape(topStart = kikoCorner(18.dp), topEnd = kikoCorner(18.dp)))
+                Modifier.fillMaxWidth().height(180.dp)
+                    .clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp)))
                     .background(c.surfaceContainerHigh),
             ) {
                 if (article.image.isNotBlank()) {
-                    AsyncImage(model = article.image, contentDescription = article.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                    AsyncImage(
+                        model = article.image,
+                        contentDescription = article.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        // High filter quality so the bitmap is resampled with
+                        // bilinear/mip-mapped filtering rather than Coil's
+                        // low-quality default — this card's cover is now a
+                        // full-width 180dp banner (much bigger than the old
+                        // half-width 2-column tile), so the source thumbnail
+                        // gets stretched noticeably more; without this the
+                        // extra stretch reads as soft/blurry next to Home's
+                        // smaller, sharper-looking 210x120dp article cards.
+                        filterQuality = FilterQuality.High,
+                    )
                 } else {
-                    Text(article.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
-                }
-                if (article.tag.isNotBlank()) {
-                    Box(
-                        Modifier.align(Alignment.TopStart).padding(8.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 8.dp, vertical = 3.dp),
-                    ) { Text(article.tag, color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 10.sp) }
+                    Text(article.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 30.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
                 }
             }
-            Column(Modifier.padding(11.dp)) {
-                Text(article.title, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 16.sp, color = c.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                if (article.author.isNotBlank()) Text("by ${article.author}", color = c.muted, fontSize = 10.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.padding(15.dp)) {
+                // Tag pill sits above the title now — same placement as
+                // Interest Stacks' own StackSpotlightCard (StackTagsRow
+                // above stack.title), instead of overlaid on the cover image.
+                if (article.tag.isNotBlank()) Box(Modifier.padding(bottom = 8.dp)) { Pill(article.tag, c.primaryContainer, c.onPrimaryContainer) }
+                Text(article.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 21.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (article.author.isNotBlank()) Text("by ${article.author}", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 7.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (article.views.isNotBlank()) {
-                    Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Visibility, null, tint = c.muted, modifier = Modifier.size(11.dp))
-                        Text(article.views, color = c.muted, fontWeight = FontWeight.Medium, fontSize = 10.sp, modifier = Modifier.padding(start = 4.dp))
+                    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Visibility, null, tint = c.muted, modifier = Modifier.size(13.dp))
+                        Text(article.views, color = c.muted, fontWeight = FontWeight.Medium, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
             }
@@ -158,12 +280,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 @Composable fun FeaturedArticleGridCardSkeleton(modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
-    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainer)) {
-        SkeletonBlock(Modifier.fillMaxWidth().height(100.dp), shape = RoundedCornerShape(topStart = kikoCorner(18.dp), topEnd = kikoCorner(18.dp)))
-        Column(Modifier.padding(11.dp)) {
-            SkeletonBlock(Modifier.fillMaxWidth().height(12.dp))
-            SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.7f).height(12.dp))
-            SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.4f).height(10.dp))
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(20.dp))).background(c.surfaceContainer)) {
+        SkeletonBlock(Modifier.fillMaxWidth().height(180.dp), shape = RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp)))
+        Column(Modifier.padding(15.dp)) {
+            SkeletonBlock(Modifier.width(64.dp).height(20.dp), shape = kikoPillShape())
+            SkeletonBlock(Modifier.padding(top = 10.dp).fillMaxWidth().height(14.dp))
+            SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.5f).height(14.dp))
+            SkeletonBlock(Modifier.padding(top = 10.dp).fillMaxWidth(0.3f).height(11.dp))
         }
     }
 }

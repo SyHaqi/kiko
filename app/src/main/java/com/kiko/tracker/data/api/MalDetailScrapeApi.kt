@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 import java.io.IOException
 import com.kiko.tracker.data.model.ArticleBlock
@@ -11,6 +12,7 @@ import com.kiko.tracker.data.model.CharacterEntry
 import com.kiko.tracker.data.model.CompanyNews
 import com.kiko.tracker.data.model.FeaturedArticleContent
 import com.kiko.tracker.data.model.FeaturedArticleEntry
+import com.kiko.tracker.data.model.FeaturedTag
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.RelatedEntry
 import com.kiko.tracker.data.model.ReviewEntry
@@ -614,19 +616,50 @@ class MalDetailScrapeApi {
 
     data class FeaturedArticlesPage(val articles: List<FeaturedArticleEntry>, val hasMore: Boolean)
 
-    // Full "myanimelist.net/featured?p=N" browse list — 20 news-unit
-    // entries per page (matches the site's own "1 - 20"/"21 - 40"
-    // pager labels). Deliberately skips the page-1-only "featured-pickup"
-    // editorial pinning strip so every page parses the exact same
-    // shape, rather than special-casing page 1 for four extra cards.
-    suspend fun fetchFeaturedArticlesPage(page: Int): FeaturedArticlesPage = withContext(Dispatchers.IO) {
-        val doc = client.fetchMalDocument("$MAL/featured?p=$page")
+    // Shared by the three "browse a page of Featured Article news-units"
+    // entry points below (plain browse, tag filter, search) — same
+    // news-unit/pagination shape on all three (matches the site's own
+    // "1 - 20"/"21 - 40" pager labels), only the source URL differs.
+    private suspend fun fetchFeaturedArticlesFrom(url: String, page: Int): FeaturedArticlesPage = withContext(Dispatchers.IO) {
+        val doc = client.fetchMalDocument(url)
         val units = doc.select("div.news-list div.news-unit")
         val articles = parseFeaturedArticleUnits(units, units.size)
         val maxPage = doc.select("div.pagination a.link").mapNotNull { a ->
             Regex("[?&]p=(\\d+)").find(a.attr("href"))?.groupValues?.get(1)?.toIntOrNull()
         }.maxOrNull() ?: page
         FeaturedArticlesPage(articles, hasMore = page < maxPage)
+    }
+
+    // Full "myanimelist.net/featured?p=N" browse list — 20 news-unit
+    // entries per page. Deliberately skips the page-1-only "featured-pickup"
+    // editorial pinning strip so every page parses the exact same
+    // shape, rather than special-casing page 1 for four extra cards.
+    suspend fun fetchFeaturedArticlesPage(page: Int): FeaturedArticlesPage =
+        fetchFeaturedArticlesFrom("$MAL/featured?p=$page", page)
+
+    // "myanimelist.net/featured/tag/{slug}?p=N" — Featured Articles scoped
+    // to one tag chip off fetchFeaturedTags() below (e.g. "interview",
+    // "cosplay"). Backs the tag-filter chip row on the Featured Articles screen.
+    suspend fun fetchFeaturedArticlesByTag(tagSlug: String, page: Int): FeaturedArticlesPage =
+        fetchFeaturedArticlesFrom("$MAL/featured/tag/$tagSlug?p=$page", page)
+
+    // "myanimelist.net/featured/search?cat=featured&q=...&p=N" — full-text
+    // search over Featured Articles. Backs the search icon on the
+    // Featured Articles screen.
+    suspend fun fetchFeaturedArticlesSearch(query: String, page: Int): FeaturedArticlesPage =
+        fetchFeaturedArticlesFrom("$MAL/featured/search?cat=featured&q=${java.net.URLEncoder.encode(query, "UTF-8")}&p=$page", page)
+
+    // "myanimelist.net/featured/tag" — the full category table (Interview,
+    // Analysis, Cosplay, Studios, ...), each linking to its own
+    // /featured/tag/{slug} browse page. Fetched once and cached by the
+    // ViewModel (same shape as forum subboards) to fill the tag-filter chip row.
+    suspend fun fetchFeaturedTags(): List<FeaturedTag> = withContext(Dispatchers.IO) {
+        val doc = client.fetchMalDocument("$MAL/featured/tag")
+        doc.select("div.news-tags-table a.tag-name-link").mapNotNull { a ->
+            val name = a.selectFirst("span.tag-name")?.text()?.trim().orEmpty()
+            val slug = a.attr("href").substringAfterLast("/featured/tag/").substringBefore("?")
+            if (name.isBlank() || slug.isBlank()) null else FeaturedTag(name = name, slug = slug)
+        }
     }
 
     // Single "/featured/{id}/{slug}" article page — the actual reader,
@@ -676,10 +709,43 @@ class MalDetailScrapeApi {
             if (seen.containsKey(href)) continue
             val ownText = a.text().trim()
             val container = a.closest("li") ?: a.closest("p")
-            val prefix = container?.text()?.trim()?.removeSuffix(ownText)?.trim()?.trimEnd(':', ' ').orEmpty()
+            // Only the text *before* the anchor can be a "Label: " prefix —
+            // text after it (e.g. a <br/>-separated sentence sharing the
+            // same <p> as a bare "https://..." link, common in article
+            // bodies) is unrelated prose, not part of the link's label, and
+            // must never leak into the chip. Using container.text() minus
+            // a removeSuffix(ownText) used to grab that trailing prose
+            // whenever the anchor sat at the *start* of the paragraph
+            // instead of the end, since the string then doesn't end with
+            // ownText and removeSuffix is a no-op.
+            val prefix = container?.let { textBeforeNode(it, a) }?.trim()?.trimEnd(':', ' ').orEmpty()
             seen[href] = prefix.ifBlank { friendlyLinkLabel(host, ownText) }
         }
         return seen.map { (url, label) -> label to url }
+    }
+
+    // Concatenates the text of `container`'s content that appears strictly
+    // before `target` in document order, stopping as soon as `target` is
+    // reached during the depth-first walk. Used instead of a naive
+    // container.text() (which includes everything, before AND after) so a
+    // link's own trailing sentence never gets mistaken for its label.
+    private fun textBeforeNode(container: Element, target: Element): String {
+        val sb = StringBuilder()
+        fun walk(node: Node): Boolean {
+            if (node === target) return true
+            if (node is TextNode) {
+                sb.append(node.text())
+            } else {
+                for (child in node.childNodes()) {
+                    if (walk(child)) return true
+                }
+            }
+            return false
+        }
+        for (child in container.childNodes()) {
+            if (walk(child)) break
+        }
+        return sb.toString()
     }
 
     // Fallback label for a link with no readable "Label: <a>" prefix (a bare
@@ -740,12 +806,18 @@ class MalDetailScrapeApi {
         for (node in body.children()) {
             when (node.tagName().lowercase()) {
                 "p" -> {
-                    val img = node.selectFirst("img")
-                    if (img != null && node.text().isBlank()) {
+                    // MAL often puts a banner <img> *and* trailing prose in
+                    // the same <p> (e.g. "<img/><br/>Some text..."), so image
+                    // and text are no longer mutually exclusive here — emit
+                    // an Image block for every <img> found, in document
+                    // order, then a Paragraph for any remaining text.
+                    // Previously this only emitted an Image when the <p>'s
+                    // text was *entirely* blank, so any <img> sharing a <p>
+                    // with real text was silently dropped.
+                    for (img in node.select("img")) {
                         imageSrc(img).takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Image(fullResMalImage(it)) }
-                    } else {
-                        textWithLinks(node).trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Paragraph(it) }
                     }
+                    textWithLinks(node).trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Paragraph(it) }
                 }
                 "h1", "h2", "h3", "h4", "h5", "h6" -> textWithLinks(node).trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Heading(it) }
                 "hr" -> if (blocks.lastOrNull() != ArticleBlock.Divider) blocks += ArticleBlock.Divider

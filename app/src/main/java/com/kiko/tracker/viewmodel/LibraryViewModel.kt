@@ -61,6 +61,7 @@ import com.kiko.tracker.data.model.DiscoverFilters
 import com.kiko.tracker.data.model.DiscoverMode
 import com.kiko.tracker.data.model.DiscoverSort
 import com.kiko.tracker.data.model.FeaturedArticleEntry
+import com.kiko.tracker.data.model.FeaturedTag
 import com.kiko.tracker.data.model.ForumMode
 import com.kiko.tracker.data.model.ListSort
 import com.kiko.tracker.data.model.ListViewMode
@@ -1651,13 +1652,43 @@ class LibraryViewModel : ViewModel() {
     var featuredArticlesScrollIndex by mutableStateOf(0); private set
     var featuredArticlesScrollOffset by mutableStateOf(0); private set
     fun saveFeaturedArticlesScroll(index: Int, offset: Int) { featuredArticlesScrollIndex = index; featuredArticlesScrollOffset = offset }
+
+    // Submitted text query — set by the search icon's expandable field.
+    // Mutually exclusive with the tag filter below (submitting a search
+    // clears any selected tag, and vice versa).
+    var featuredArticlesQuery by mutableStateOf(""); private set
+
+    // Tag-filter chip row — fed by fetchFeaturedTags() below, cached once
+    // like ForumsScreen's subboards. null slug means "All" (no tag filter).
+    var featuredTags by mutableStateOf<List<FeaturedTag>>(emptyList()); private set
+    private var featuredTagsLoaded = false
+    var featuredArticlesTagSlug by mutableStateOf<String?>(null); private set
+    fun loadFeaturedTags() {
+        if (featuredTagsLoaded) return
+        featuredTagsLoaded = true
+        viewModelScope.launch {
+            runCatching { MalDetailScrapeApi().fetchFeaturedTags() }
+                .onSuccess { featuredTags = it }
+                // Fail silently — chip row just stays empty, browse still works
+                .onFailure { featuredTagsLoaded = false }
+        }
+    }
+
+    // Picks which of the three "page of Featured Article news-units"
+    // endpoints (plain browse / tag filter / search) the grid is currently
+    // reading from, based on featuredArticlesQuery/featuredArticlesTagSlug.
+    private suspend fun fetchFeaturedArticlesPageForCurrentMode(page: Int) = when {
+        featuredArticlesQuery.isNotBlank() -> MalDetailScrapeApi().fetchFeaturedArticlesSearch(featuredArticlesQuery, page)
+        featuredArticlesTagSlug != null -> MalDetailScrapeApi().fetchFeaturedArticlesByTag(featuredArticlesTagSlug!!, page)
+        else -> MalDetailScrapeApi().fetchFeaturedArticlesPage(page)
+    }
     fun loadFeaturedArticlesGrid(force: Boolean = false) {
         if (featuredArticlesLoaded && !force) return
         featuredArticlesLoaded = true
         featuredArticlesPage = 1
         featuredArticlesLoading = true
         viewModelScope.launch {
-            runCatching { MalDetailScrapeApi().fetchFeaturedArticlesPage(1) }
+            runCatching { fetchFeaturedArticlesPageForCurrentMode(1) }
                 .onSuccess { featuredArticles = it.articles; featuredArticlesHasMore = it.hasMore; featuredArticlesError = null }
                 .onFailure { featuredArticlesLoaded = false; featuredArticlesError = it.message ?: "Could not load articles" }
             featuredArticlesLoading = false
@@ -1668,11 +1699,30 @@ class LibraryViewModel : ViewModel() {
         val nextPage = featuredArticlesPage + 1
         featuredArticlesLoadingMore = true
         viewModelScope.launch {
-            runCatching { MalDetailScrapeApi().fetchFeaturedArticlesPage(nextPage) }
+            runCatching { fetchFeaturedArticlesPageForCurrentMode(nextPage) }
                 .onSuccess { featuredArticlesPage = nextPage; featuredArticles = featuredArticles + it.articles; featuredArticlesHasMore = it.hasMore }
                 .onFailure { featuredArticlesHasMore = false }
             featuredArticlesLoadingMore = false
         }
+    }
+
+    // Submits a text search — clears any active tag filter and reloads
+    // page 1 from myanimelist.net/featured/search.
+    fun searchFeaturedArticles(query: String) {
+        val trimmed = query.trim()
+        if (trimmed == featuredArticlesQuery) return
+        featuredArticlesQuery = trimmed
+        featuredArticlesTagSlug = null
+        loadFeaturedArticlesGrid(force = true)
+    }
+
+    // Selects a tag chip (or null for "All") — clears any active search
+    // and reloads page 1 from myanimelist.net/featured/tag/{slug}.
+    fun selectFeaturedArticlesTag(slug: String?) {
+        if (slug == featuredArticlesTagSlug) return
+        featuredArticlesTagSlug = slug
+        featuredArticlesQuery = ""
+        loadFeaturedArticlesGrid(force = true)
     }
 
     // ForumTopic.createdAt format ("yyyy-MM-dd'T'HH:mm:ssXXX") —
