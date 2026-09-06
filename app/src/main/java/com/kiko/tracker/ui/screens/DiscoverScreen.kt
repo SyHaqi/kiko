@@ -177,7 +177,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 .kikoClickable { vm.openDiscoverSearch(context) },
                             contentAlignment = Alignment.Center,
                         ) { Icon(Icons.Default.Search, "Search", tint = c.ink) }
-                        Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
+                        Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
                     }
                 }
                 Spacer(Modifier.height(17.dp))

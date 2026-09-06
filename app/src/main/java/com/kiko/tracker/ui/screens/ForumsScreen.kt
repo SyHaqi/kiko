@@ -161,7 +161,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     hint = "Search topics",
                     horizontalPadding = 0.dp,
                     switchDescription = "Switch between Forums and Clubs",
-                ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty()) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
+                ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
             }
             if (vm.authChecked && !vm.signedIn) {
                 item { Text("Sign in from Profile to browse the MAL forums", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
