@@ -59,6 +59,7 @@ import kotlinx.coroutines.launch
 import com.kiko.tracker.data.api.ForumTopic
 import com.kiko.tracker.data.api.NewsSnapshot
 import com.kiko.tracker.data.model.DiscoverSort
+import com.kiko.tracker.data.model.FeaturedArticleEntry
 import com.kiko.tracker.data.model.ListSort
 import com.kiko.tracker.data.model.ListViewMode
 import com.kiko.tracker.data.model.MediaItem
@@ -80,7 +81,7 @@ import com.kiko.tracker.ui.components.statusColor
 import com.kiko.tracker.ui.theme.AiringNextCardSkeleton
 import com.kiko.tracker.ui.theme.AiringNextRowSkeleton
 import com.kiko.tracker.ui.theme.ContinueCardSkeleton
-import com.kiko.tracker.ui.theme.DetailFeaturedArticleCardSkeleton
+import com.kiko.tracker.ui.theme.HomeFeaturedArticleRowSkeleton
 import com.kiko.tracker.ui.theme.ListGridCardSkeleton
 import com.kiko.tracker.ui.theme.ListRowSkeletonGroup
 import com.kiko.tracker.ui.theme.LocalKikoColors
@@ -90,6 +91,8 @@ import com.kiko.tracker.ui.theme.accent
 import com.kiko.tracker.ui.theme.kikoClickable
 import com.kiko.tracker.ui.theme.kikoCombinedClickable
 import com.kiko.tracker.ui.theme.kikoCorner
+import com.kiko.tracker.ui.theme.kikoPillShape
+import com.kiko.tracker.ui.theme.pressScale
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
 import com.kiko.tracker.viewmodel.LibraryViewModel
 
@@ -221,16 +224,14 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     key("featuredArticles") {
                         if (vm.homeFeaturedArticles.isNotEmpty()) {
                             SectionTitle("Featured Articles", "View more", { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/featured")) })
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                vm.homeFeaturedArticles.forEach { article ->
-                                    DetailFeaturedArticleCard(article) { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(article.url)) }
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                                itemsIndexed(vm.homeFeaturedArticles, key = { _, it -> it.url }) { i, article ->
+                                    StaggeredItem(i) { HomeFeaturedArticleCard(article) { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(article.url)) } }
                                 }
                             }
                         } else if (vm.homeFeaturedArticlesLoading) {
                             SectionTitle("Featured Articles", "View more", { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/featured")) })
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                repeat(3) { DetailFeaturedArticleCardSkeleton() }
-                            }
+                            HomeFeaturedArticleRowSkeleton()
                         }
                     }
                     if (vm.authChecked && !vm.signedIn && !vm.loading) {
@@ -467,6 +468,50 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 maxLines = 3, overflow = TextOverflow.Ellipsis,
                 style = LocalTextStyle.current.copy(shadow = Shadow(color = Color.Black.copy(alpha = .8f), offset = Offset(0f, 1f), blurRadius = 4f)),
             )
+        }
+    }
+}
+
+// Interest-Stacks-style card for a home featured article — cover banner on
+// top, then title/author below, with a views pill echoing the restack pill
+// on Interest Stacks cards (see StackStatsRow in StacksScreen.kt).
+@Composable fun HomeFeaturedArticleCard(article: FeaturedArticleEntry, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    Card(
+        onClick = onClick,
+        interactionSource = interactionSource,
+        shape = RoundedCornerShape(kikoCorner(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
+        modifier = Modifier.width(210.dp).pressScale(interactionSource),
+    ) {
+        Column {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp)))
+                    .background(c.surfaceContainerHigh),
+            ) {
+                if (article.image.isNotBlank()) {
+                    AsyncImage(model = article.image, contentDescription = article.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                } else {
+                    Text(article.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 26.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                }
+            }
+            Column(Modifier.padding(13.dp)) {
+                Text(article.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 18.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (article.author.isNotBlank()) Text("by ${article.author}", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 5.dp))
+                if (article.views.isNotBlank()) {
+                    Row(
+                        Modifier.padding(top = 8.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.Visibility, null, tint = c.accent, modifier = Modifier.size(11.dp))
+                        Text(article.views, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                    }
+                }
+            }
         }
     }
 }

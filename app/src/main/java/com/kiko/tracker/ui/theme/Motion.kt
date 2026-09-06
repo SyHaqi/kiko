@@ -274,6 +274,34 @@ fun DetailFeaturedArticleCardSkeleton(modifier: Modifier = Modifier) {
     }
 }
 
+/** Stand-in for [HomeFeaturedArticleCard]: the Interest-Stacks-style */
+@Composable
+fun HomeFeaturedArticleCardSkeleton(modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    Column(
+        modifier
+            .width(210.dp)
+            .clip(RoundedCornerShape(kikoCorner(20.dp)))
+            .background(c.surfaceContainer),
+    ) {
+        SkeletonBlock(Modifier.fillMaxWidth().height(120.dp), shape = RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp)))
+        Column(Modifier.padding(13.dp)) {
+            SkeletonBlock(Modifier.fillMaxWidth(0.9f).height(13.dp))
+            SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.6f).height(13.dp))
+            SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.4f).height(11.dp))
+            SkeletonBlock(Modifier.padding(top = 10.dp).width(60.dp).height(18.dp), shape = RoundedCornerShape(50))
+        }
+    }
+}
+
+/** A horizontally-scrolling row of */
+@Composable
+fun HomeFeaturedArticleRowSkeleton() {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+        items(3) { i -> StaggeredItem(i) { HomeFeaturedArticleCardSkeleton() } }
+    }
+}
+
 /** Stand-in for [SnapshotsGrid]'s Pinterest-style */
 @Composable
 fun SnapshotsGridSkeleton() {
