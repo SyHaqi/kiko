@@ -11,6 +11,7 @@ import com.kiko.tracker.data.model.CompanyNews
 import com.kiko.tracker.data.model.FeaturedArticleEntry
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.RelatedEntry
+import com.kiko.tracker.data.model.ReviewEntry
 import com.kiko.tracker.data.model.ScoreStats
 import com.kiko.tracker.data.model.VoiceActorEntry
 
@@ -198,6 +199,140 @@ class MalDetailScrapeApi {
         if (slugged != null && slugged.total > 0) return@withContext slugged
         runCatching { parseScoreStats(client.fetchMalDocument("$MAL/$kind/$id/stats")) }.getOrDefault(slugged ?: ScoreStats())
     }
+
+    // Reviews, scraped in place
+    // of the old Tenrai/Jikan
+    // proxy (which had started
+    // coming back empty). "spoiler=on"
+    // matches unchecking MAL's own
+    // "Spoiler" filter toggle, which
+    // otherwise hides spoiler reviews
+    // by default — same
+    // slug requirement as the
+    // other subpages above.
+    suspend fun fetchReviews(id: Int, type: MediaType, title: String): List<ReviewEntry> = withContext(Dispatchers.IO) {
+        val kind = if (type == MediaType.Anime) "anime" else "manga"
+        val slugged = runCatching { parseReviews(client.fetchMalDocument("$MAL/$kind/$id/${malSlug(title)}/reviews?spoiler=on")) }
+        if ((slugged.getOrNull()?.size ?: 0) > 0) return@withContext slugged.getOrThrow()
+        val fallback = runCatching { parseReviews(client.fetchMalDocument("$MAL/$kind/$id/reviews?spoiler=on")) }
+        fallback.getOrNull() ?: slugged.getOrDefault(emptyList())
+    }
+
+    // Verdict tags ("Recommended", "Mixed
+    // Feelings", "Not Recommended") and
+    // category tags ("Funny", "Well-written",
+    // etc) print as plain
+    // visible text on each
+    // ".tag" div, so text()
+    // already matches what the
+    // old Jikan "tags" array
+    // gave us. "Preliminary" carries
+    // an episode-count span inside
+    // the same div. "Spoiler"
+    // is pulled out into
+    // ReviewEntry.isSpoiler instead of staying
+    // a tag, matching the
+    // dedicated field the UI
+    // already reads.
+    private fun parseReviewTags(tagsDiv: Element?): Pair<List<String>, Boolean> {
+        val divs = tagsDiv?.select("div.tag").orEmpty()
+        val spoiler = divs.any { it.hasClass("spoiler") }
+        val tags = divs.filterNot { it.hasClass("spoiler") }.mapNotNull { it.text().trim().takeIf { t -> t.isNotBlank() } }
+        return tags to spoiler
+    }
+
+    // Rebuilds the review body
+    // from "div.text": MAL renders
+    // paragraph breaks as <br>
+    // rather than separate <p>
+    // tags, and tucks the
+    // rest of a long
+    // review inside a display:none
+    // "js-hidden" span (still real
+    // text to Jsoup, just
+    // hidden behind a "Read
+    // more" toggle in the
+    // browser) — so a
+    // plain .text() call would
+    // both flatten every paragraph
+    // onto one line and
+    // pull in the "..."
+    // ellipsis marker that sits
+    // between the visible and
+    // hidden portions. Walk the
+    // node tree instead: turn
+    // <br> into "\n", drop
+    // the ellipsis span, and
+    // collapse only the incidental
+    // whitespace from the source
+    // HTML's own indentation.
+    private fun textWithLineBreaks(el: Element): String {
+        val sb = StringBuilder()
+        fun walk(node: org.jsoup.nodes.Node) {
+            when (node) {
+                is TextNode -> sb.append(node.text())
+                is Element -> when {
+                    node.tagName() == "br" -> sb.append("\n")
+                    node.hasClass("js-visible") -> {}
+                    else -> node.childNodes().forEach(::walk)
+                }
+                else -> {}
+            }
+        }
+        el.childNodes().forEach(::walk)
+        return sb.toString()
+            .replace(Regex("[ \\t]+"), " ")
+            .replace(Regex(" *\\n *"), "\n")
+            .replace(Regex("\\n{3,}"), "\n\n")
+            .trim()
+    }
+
+    // mapIndexedNotNull rather than mapNotNull:
+    // the index feeds a
+    // fallback id when a
+    // review's permalink is missing
+    // or unparseable, so malId
+    // never silently collapses to
+    // the same value (0)
+    // across multiple reviews. LazyColumn/LazyRow
+    // use malId as key= for
+    // smooth scrolling — a
+    // duplicate key there breaks
+    // item identity across recomposition, which
+    // is the opposite of
+    // what key= is for.
+    // Real MAL ids are
+    // always positive, so a
+    // negative, index-derived fallback can
+    // never collide with a
+    // genuine one.
+    private fun parseReviews(doc: Document): List<ReviewEntry> =
+        doc.select("div.review-element").mapIndexedNotNull { index, el ->
+            val textDiv = el.selectFirst("div.text") ?: return@mapIndexedNotNull null
+            val text = textWithLineBreaks(textDiv)
+            if (text.isBlank()) return@mapIndexedNotNull null
+            val profileLink = el.selectFirst("div.thumb a")?.attr("href").orEmpty()
+            val username = el.selectFirst("div.username a")?.text()?.trim()?.takeIf { it.isNotBlank() }
+                ?: profileLink.trim('/').substringAfterLast("/").takeIf { it.isNotBlank() }
+                ?: "Anonymous"
+            val avatarImg = el.selectFirst("div.thumb img")
+            val userImage = avatarImg?.attr("data-src")?.takeIf { it.isNotBlank() } ?: avatarImg?.attr("src").orEmpty()
+            val score = el.selectFirst("div.rating span.num")?.text()?.trim()?.toIntOrNull() ?: 0
+            val (tags, spoiler) = parseReviewTags(el.selectFirst("div.tags"))
+            val url = el.selectFirst("div.open a")?.attr("href").orEmpty()
+            val reactionScore = Regex("\"num\":(\\d+)").find(el.attr("data-reactions"))?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            ReviewEntry(
+                malId = url.substringAfterLast("id=").toIntOrNull() ?: -(index + 1),
+                username = username,
+                userImage = userImage,
+                review = text,
+                score = score,
+                tags = tags,
+                reactionScore = reactionScore,
+                isSpoiler = spoiler,
+                url = url,
+            )
+        }
 
     // MAL's own slug convention:
     // collapsed to a single

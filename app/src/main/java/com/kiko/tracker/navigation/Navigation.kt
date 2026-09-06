@@ -80,6 +80,7 @@ import com.kiko.tracker.ui.screens.PersonDetailScreen
 import com.kiko.tracker.ui.screens.ProfileStatsScreen
 import com.kiko.tracker.ui.screens.RankingScreen
 import com.kiko.tracker.ui.screens.RecommendationsScreen
+import com.kiko.tracker.ui.screens.ReviewListSheet
 import com.kiko.tracker.ui.screens.ReviewScreen
 import com.kiko.tracker.ui.screens.ScheduleScreen
 import com.kiko.tracker.ui.screens.ScoreFilterScreen
@@ -476,6 +477,13 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // more" on Status distribution
     // somewhere you navigate/browse (same
     var scoreStatsOpen by remember { mutableStateOf<MediaItem?>(null) }
+    // "See more" on Detail's
+    // Reviews row — same
+    // sheet-over-current-screen shape as scoreStatsOpen
+    // above, re-running the same
+    // cached onLoadReviews rather than
+    // fetching separately.
+    var reviewListOpen by remember { mutableStateOf<MediaItem?>(null) }
     // Jump from a detail
     // Clears every other overlay
     // page can be reached
@@ -673,11 +681,12 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onLoadCharacters = { forItem, onFound, onDone, onError -> vm.loadCharacters(forItem, onFound, onDone, onError) },
                                     onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) },
                                     onOpenReview = { rev -> reviewOpen = rev to screen.item.title },
-                                    onOpenReviewList = { url, _ -> CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) },
+                                    onOpenReviewList = { reviewListOpen = it },
                                     onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, screen.item.type, index, offset) },
                                     onLeaveRelatedScroll = { index, offset -> vm.saveRelatedRowScroll(screen.item.id, screen.item.type, index, offset) },
                                     onLeaveRecommendedScroll = { index, offset -> vm.saveRecommendedRowScroll(screen.item.id, screen.item.type, index, offset) },
                                     onLeaveCharactersScroll = { index, offset -> vm.saveCharactersRowScroll(screen.item.id, screen.item.type, index, offset) },
+                                    onLeaveReviewsScroll = { index, offset -> vm.saveReviewsRowScroll(screen.item.id, screen.item.type, index, offset) },
                                     onGenreClick = { genre ->
                                         jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
                                     },
@@ -695,6 +704,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 initialRelatedScroll = vm.getRelatedRowScroll(screen.item.id, screen.item.type),
                                 initialRecommendedScroll = vm.getRecommendedRowScroll(screen.item.id, screen.item.type),
                                 initialCharactersScroll = vm.getCharactersRowScroll(screen.item.id, screen.item.type),
+                                initialReviewsScroll = vm.getReviewsRowScroll(screen.item.id, screen.item.type),
                                 cachedSnapshot = vm.peekDetailCache(screen.item.id, screen.item.type),
                                 myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
                                 airingInfo = vm.getCachedAiring(screen.item.id),
@@ -822,6 +832,29 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
             // Keep sheets inside theme
             editorItem?.let { EditSheet(it, onDismiss = { editor = null }, onSave = { vm.saveLive(context, it); editor = null }, onDelete = { vm.deleteLive(context, it); editor = null; if (selectedItem?.id == it.id && selectedItem?.type == it.type) { vm.clearDetailCache(); selectedItem = null; detailStack = emptyList() } }) }
             scoreStatsOpen?.let { item -> ScoreStatsSheet(item = item, onDismiss = { scoreStatsOpen = null }, onLoad = { onFound, onDone -> vm.loadScoreStats(item, onFound, onDone) }) }
+            // Only render while no review is
+            // open on top of it (reviewOpen ==
+            // null) — reviewListOpen itself stays set the
+            // whole time a review is open, so this
+            // condition flips back to true and the sheet
+            // reappears once that review's onBack fires, instead
+            // of the sheet having been dismissed outright.
+            // initialReviews/initialScroll/onLeaveScroll (backed by the ViewModel, not
+            // Compose state) are what let it come back
+            // showing the same reviews at the same scroll
+            // position rather than a fresh "loading" sheet.
+            if (reviewListOpen != null && reviewOpen == null) {
+                val item = reviewListOpen!!
+                ReviewListSheet(
+                    item = item,
+                    onDismiss = { reviewListOpen = null },
+                    onLoad = { onFound, onDone -> vm.loadReviews(item, onFound, onDone) },
+                    onOpenReview = { rev -> reviewOpen = rev to item.title },
+                    initialReviews = vm.peekDetailCache(item.id, item.type)?.reviews.orEmpty(),
+                    initialScroll = vm.getReviewListScroll(item.id, item.type),
+                    onLeaveScroll = { index, offset -> vm.saveReviewListScroll(item.id, item.type, index, offset) },
+                )
+            }
             if (themeOpen) ThemeSheet(vm.themeMode, onDismiss = { themeOpen = false }, onSelect = { vm.setTheme(context, it); themeOpen = false })
             if (colorSourceOpen) ColorSourceSheet(vm.colorSource, vm.customColorHex, onDismiss = { colorSourceOpen = false }, onSelect = { vm.setColorSource(context, it) }, onCustomHexChange = { vm.setCustomColor(context, it) })
             if (paletteStyleOpen) PaletteStyleSheet(vm.paletteStyle, onDismiss = { paletteStyleOpen = false }, onSelect = { vm.setPaletteStyle(context, it); paletteStyleOpen = false })

@@ -137,7 +137,16 @@ data class DetailScreenActions(
     val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit, () -> Unit) -> Unit = { _, _, onDone, _ -> onDone() },
     val onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenReview: (ReviewEntry) -> Unit = {},
-    val onOpenReviewList: (String, String) -> Unit = { _, _ -> },
+    // Opens the "See more"
+    // reviews sheet. Takes the
+    // item (rather than a
+    // URL) since the sheet
+    // re-runs onLoadReviews, which just
+    // returns the same cached
+    // list the row already
+    // fetched instead of hitting
+    // the network again.
+    val onOpenReviewList: (MediaItem) -> Unit = {},
     val onGenreClick: (String) -> Unit = {},
     val onCreatorClick: (String) -> Unit = {},
     // Opens a Characters-row entry's
@@ -153,6 +162,14 @@ data class DetailScreenActions(
     val onLeaveRelatedScroll: (Int, Int) -> Unit = { _, _ -> },
     val onLeaveRecommendedScroll: (Int, Int) -> Unit = { _, _ -> },
     val onLeaveCharactersScroll: (Int, Int) -> Unit = { _, _ -> },
+    // Reviews row's own scroll
+    // position — same reasoning
+    // as onLeaveCharactersScroll above: without
+    // this, opening one of
+    // the row's reviews and
+    // coming back snaps it
+    // to the first item.
+    val onLeaveReviewsScroll: (Int, Int) -> Unit = { _, _ -> },
     // Kicks off the best-effort
     // time (see LibraryViewModel.loadAiringEpisode) —
     // airingInfo param below, same
@@ -198,7 +215,7 @@ data class DetailScreenActions(
     }
 }
 
-@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, castLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, initialCharactersScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null, airingInfo: AiringInfo? = null) {
+@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, castLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, initialCharactersScroll: Pair<Int, Int> = 0 to 0, initialReviewsScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null, airingInfo: AiringInfo? = null) {
     LaunchedEffect(item.id) { actions.onLoadAiringEpisode(item) }
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
@@ -303,6 +320,9 @@ data class DetailScreenActions(
     // cache-seeded state here, opening
     // snapped the Characters row
     val charactersListState = remember(item.id) { LazyListState(initialCharactersScroll.first, initialCharactersScroll.second) }
+    // Same idea for the
+    // Reviews row.
+    val reviewsListState = remember(item.id) { LazyListState(initialReviewsScroll.first, initialReviewsScroll.second) }
     // Save spot on leave
     DisposableEffect(item.id) {
         onDispose {
@@ -310,6 +330,7 @@ data class DetailScreenActions(
             actions.onLeaveRelatedScroll(relatedListState.firstVisibleItemIndex, relatedListState.firstVisibleItemScrollOffset)
             actions.onLeaveRecommendedScroll(recommendedListState.firstVisibleItemIndex, recommendedListState.firstVisibleItemScrollOffset)
             actions.onLeaveCharactersScroll(charactersListState.firstVisibleItemIndex, charactersListState.firstVisibleItemScrollOffset)
+            actions.onLeaveReviewsScroll(reviewsListState.firstVisibleItemIndex, reviewsListState.firstVisibleItemScrollOffset)
         }
     }
     // Share single decoded painter.
@@ -675,9 +696,10 @@ data class DetailScreenActions(
 
                     key("reviews") {
                         if (reviews.isNotEmpty()) {
-                            SectionTitle("Reviews", "See more", { actions.onOpenReviewList(malReviewsUrl(item), itemDisplayTitle) })
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                itemsIndexed(reviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i, reviewsSeen) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
+                            val previewReviews = reviews.take(3)
+                            SectionTitle("Reviews", if (reviews.size > 3) "See more" else "", { actions.onOpenReviewList(item) })
+                            LazyRow(state = reviewsListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(previewReviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i, reviewsSeen) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
                             }
                         }
                     }

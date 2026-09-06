@@ -272,6 +272,15 @@ class LibraryViewModel : ViewModel() {
         var relatedScroll: Pair<Int, Int> = 0 to 0,
         var recommendedScroll: Pair<Int, Int> = 0 to 0,
         var charactersScroll: Pair<Int, Int> = 0 to 0,
+        var reviewsRowScroll: Pair<Int, Int> = 0 to 0,
+        // Separate from reviewsRowScroll above:
+        // this is the vertical
+        // list inside the "See
+        // more" sheet, a different
+        // LazyList entirely from the
+        // horizontal row on the
+        // page itself.
+        var reviewListScroll: Pair<Int, Int> = 0 to 0,
     )
     private val detailCaches = mutableMapOf<Pair<String, MediaType>, DetailCache>()
     private fun detailCache(id: String, type: MediaType) = detailCaches.getOrPut(id to type) { DetailCache() }
@@ -327,6 +336,26 @@ class LibraryViewModel : ViewModel() {
     // recommended hops above.
     fun getCharactersRowScroll(id: String, type: MediaType) = detailCache(id, type).charactersScroll
     fun saveCharactersRowScroll(id: String, type: MediaType, index: Int, offset: Int) { detailCache(id, type).charactersScroll = index to offset }
+    // Same idea for the
+    // Reviews row on the
+    // page itself.
+    fun getReviewsRowScroll(id: String, type: MediaType) = detailCache(id, type).reviewsRowScroll
+    fun saveReviewsRowScroll(id: String, type: MediaType, index: Int, offset: Int) { detailCache(id, type).reviewsRowScroll = index to offset }
+    // The vertical list inside
+    // the "See more" reviews
+    // sheet — kept separate
+    // from the row above
+    // (different LazyList) and read
+    // back even after the
+    // sheet is torn down
+    // by opening a single
+    // review's full page on
+    // top of it, so
+    // backing out of that
+    // restores the sheet exactly
+    // where the user left it.
+    fun getReviewListScroll(id: String, type: MediaType) = detailCache(id, type).reviewListScroll
+    fun saveReviewListScroll(id: String, type: MediaType, index: Int, offset: Int) { detailCache(id, type).reviewListScroll = index to offset }
     // Same idea for a
     // coming back from an
     private val stackDetailScrollPositions = mutableMapOf<Int, Pair<Int, Int>>()
@@ -1983,15 +2012,22 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
-    // Load reviews row
+    // Load reviews (row shows
+    // the first 3, the
+    // "See more" sheet shows
+    // the rest of this
+    // same cached list) —
+    // scraped straight from MAL
+    // (see MalDetailScrapeApi.fetchReviews) since Tenrai/Jikan's
+    // reviews endpoint had started
+    // coming back empty.
     fun loadReviews(item: MediaItem, onFound: (List<ReviewEntry>) -> Unit, onDone: () -> Unit = {}) {
         val cache = detailCache(item.id, item.type)
         cache.reviews?.let { onFound(it); onDone(); return }
         val intId = item.id.toIntOrNull()
         if (intId == null) { onDone(); return }
-        val kind = if (item.type == MediaType.Anime) "anime" else "manga"
         viewModelScope.launch {
-            runCatching { TenraiApi().fetchReviews(kind, intId) }
+            runCatching { MalDetailScrapeApi().fetchReviews(intId, item.type, item.title) }
                 .onSuccess { cache.reviews = it; if (it.isNotEmpty()) onFound(it) }
             onDone()
         }
