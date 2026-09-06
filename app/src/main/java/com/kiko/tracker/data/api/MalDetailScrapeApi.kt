@@ -6,8 +6,10 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
 import java.io.IOException
+import com.kiko.tracker.data.model.ArticleBlock
 import com.kiko.tracker.data.model.CharacterEntry
 import com.kiko.tracker.data.model.CompanyNews
+import com.kiko.tracker.data.model.FeaturedArticleContent
 import com.kiko.tracker.data.model.FeaturedArticleEntry
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.RelatedEntry
@@ -594,7 +596,8 @@ class MalDetailScrapeApi {
             val snippet = unit.selectFirst("div.text")?.text()?.trim().orEmpty()
             val author = unit.selectFirst("p.info a")?.text()?.trim().orEmpty()
             val views = unit.selectFirst("div.information b")?.text()?.trim().orEmpty()
-            FeaturedArticleEntry(url = url, title = title, image = image, snippet = snippet, author = author, views = views)
+            val tag = unit.selectFirst("div.tags .tag")?.text()?.trim().orEmpty()
+            FeaturedArticleEntry(url = url, title = title, image = image, snippet = snippet, author = author, views = views, tag = tag)
         }
 
     // Home page's own "Featured
@@ -607,5 +610,86 @@ class MalDetailScrapeApi {
         val doc = client.fetchMalDocument(MAL)
         val container = doc.selectFirst("div.widget.featured div.news-list") ?: return@withContext emptyList()
         parseFeaturedArticleUnits(container.select("div.news-unit"), limit)
+    }
+
+    data class FeaturedArticlesPage(val articles: List<FeaturedArticleEntry>, val hasMore: Boolean)
+
+    // Full "myanimelist.net/featured?p=N" browse list — 20 news-unit
+    // entries per page (matches the site's own "1 - 20"/"21 - 40"
+    // pager labels). Deliberately skips the page-1-only "featured-pickup"
+    // editorial pinning strip so every page parses the exact same
+    // shape, rather than special-casing page 1 for four extra cards.
+    suspend fun fetchFeaturedArticlesPage(page: Int): FeaturedArticlesPage = withContext(Dispatchers.IO) {
+        val doc = client.fetchMalDocument("$MAL/featured?p=$page")
+        val units = doc.select("div.news-list div.news-unit")
+        val articles = parseFeaturedArticleUnits(units, units.size)
+        val maxPage = doc.select("div.pagination a.link").mapNotNull { a ->
+            Regex("[?&]p=(\\d+)").find(a.attr("href"))?.groupValues?.get(1)?.toIntOrNull()
+        }.maxOrNull() ?: page
+        FeaturedArticlesPage(articles, hasMore = page < maxPage)
+    }
+
+    // Single "/featured/{id}/{slug}" article page — the actual reader,
+    // as opposed to parseFeaturedArticleUnits above which only ever
+    // scrapes list-row summaries. No official API for this (same
+    // situation as forum topics before MalApi.forumTopic existed),
+    // so the whole article body is flattened into plain ArticleBlocks
+    // here rather than carried as raw HTML into the ui.screens layer.
+    suspend fun fetchFeaturedArticle(url: String): FeaturedArticleContent = withContext(Dispatchers.IO) {
+        val doc = client.fetchMalDocument(url)
+        val container = doc.selectFirst("div.news-container") ?: throw IOException("Article not found")
+        val title = container.selectFirst("h1.title")?.text()?.trim().orEmpty()
+        val infoBlock = container.selectFirst("div.news-info-block div.information")
+        val author = infoBlock?.selectFirst("a")?.text()?.trim().orEmpty()
+        val views = infoBlock?.selectFirst("b")?.text()?.trim().orEmpty()
+        // Date sits as a bare text node between the byline's <br>
+        // and the "| N views" segment — no class to select on it.
+        val date = infoBlock?.html()?.substringAfter("<br>", "")?.substringBefore("|")
+            ?.let { org.jsoup.Jsoup.parse(it).text().trim() }.orEmpty()
+        val tags = container.select("div.tags .tag").map { it.text().trim() }.filter { it.isNotBlank() }
+        val bodyEl = container.selectFirst("div.featured-article-body")
+        val blocks = bodyEl?.let(::parseFeaturedArticleBody).orEmpty()
+        FeaturedArticleContent(title = title, author = author, date = date, views = views, tags = tags, blocks = blocks)
+    }
+
+    // Flattens an article body's top-level elements into ArticleBlocks.
+    // MAL articles wrap standalone images in their own <p> (or plain
+    // <a href="..."><img></a> banner links), so those are pulled out
+    // as ArticleBlock.Image rather than rendered as empty paragraphs.
+    private fun parseFeaturedArticleBody(body: Element): List<ArticleBlock> {
+        fun imageSrc(img: Element) = img.attr("abs:src").ifBlank { img.attr("abs:data-src") }
+        val blocks = mutableListOf<ArticleBlock>()
+        for (node in body.children()) {
+            when (node.tagName().lowercase()) {
+                "p" -> {
+                    val img = node.selectFirst("img")
+                    if (img != null && node.text().isBlank()) {
+                        imageSrc(img).takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Image(fullResMalImage(it)) }
+                    } else {
+                        node.text().trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Paragraph(it) }
+                    }
+                }
+                "h1", "h2", "h3", "h4", "h5", "h6" -> node.text().trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Heading(it) }
+                "hr" -> if (blocks.lastOrNull() != ArticleBlock.Divider) blocks += ArticleBlock.Divider
+                "ul", "ol" -> {
+                    val items = node.children().filter { it.tagName().equals("li", ignoreCase = true) }.map { it.text().trim() }.filter { it.isNotBlank() }
+                    if (items.isNotEmpty()) blocks += ArticleBlock.ListBlock(items, ordered = node.tagName().equals("ol", ignoreCase = true))
+                }
+                "img" -> imageSrc(node).takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Image(fullResMalImage(it)) }
+                "a" -> {
+                    val img = node.selectFirst("img")
+                    if (img != null) {
+                        imageSrc(img).takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Image(fullResMalImage(it)) }
+                    } else {
+                        node.text().trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Paragraph(it) }
+                    }
+                }
+                "br", "iframe", "script", "style" -> {}
+                else -> node.text().trim().takeIf { it.isNotBlank() }?.let { blocks += ArticleBlock.Paragraph(it) }
+            }
+        }
+        while (blocks.firstOrNull() == ArticleBlock.Divider) blocks.removeAt(0)
+        while (blocks.lastOrNull() == ArticleBlock.Divider) blocks.removeAt(blocks.lastIndex)
+        return blocks
     }
 }

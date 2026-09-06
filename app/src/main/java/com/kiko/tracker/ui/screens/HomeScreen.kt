@@ -2,8 +2,6 @@
 
 package com.kiko.tracker.ui.screens
 
-import android.net.Uri
-import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -94,7 +92,7 @@ import com.kiko.tracker.ui.theme.pressScale
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
 import com.kiko.tracker.viewmodel.LibraryViewModel
 
-@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onLocateInList: (MediaItem) -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
+@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onLocateInList: (MediaItem) -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null, onSeeFeaturedArticles: () -> Unit = {}, onOpenFeaturedArticle: (String, String) -> Unit = { _, _ -> }) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context) }
@@ -204,18 +202,19 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     // Top 3 MAL homepage
                     // (DetailFeaturedArticleCard) and "by <author>
                     // DetailScreen's own "Recent Featured
-                    // same way: no in-app
-                    // externally via a custom
+                    // "View more" opens the full FeaturedArticlesScreen
+                    // grid in-app (see Navigation.kt's featuredArticlesOpen);
+                    // tapping a card opens FeaturedArticleScreen directly.
                     key("featuredArticles") {
                         if (vm.homeFeaturedArticles.isNotEmpty()) {
-                            SectionTitle("Featured Articles", "View more", { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/featured")) })
+                            SectionTitle("Featured Articles", "View more", onSeeFeaturedArticles)
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                                 itemsIndexed(vm.homeFeaturedArticles, key = { _, it -> it.url }) { i, article ->
-                                    StaggeredItem(i) { HomeFeaturedArticleCard(article) { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(article.url)) } }
+                                    StaggeredItem(i) { HomeFeaturedArticleCard(article) { onOpenFeaturedArticle(article.url, article.title) } }
                                 }
                             }
                         } else if (vm.homeFeaturedArticlesLoading) {
-                            SectionTitle("Featured Articles", "View more", { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/featured")) })
+                            SectionTitle("Featured Articles", "View more", onSeeFeaturedArticles)
                             HomeFeaturedArticleRowSkeleton()
                         }
                     }

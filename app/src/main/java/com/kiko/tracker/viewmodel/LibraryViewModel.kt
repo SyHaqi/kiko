@@ -1636,6 +1636,45 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    // Full "Featured Articles" browse grid — opened from Home's "View
+    // more". Same page/hasMore/loadingMore/scroll-restore shape as the
+    // forum topics list above, just backed by MalDetailScrapeApi's
+    // scraped pagination instead of a signed-in JSON API, so it works
+    // whether or not the person is signed in.
+    var featuredArticles by mutableStateOf<List<FeaturedArticleEntry>>(emptyList()); private set
+    var featuredArticlesLoading by mutableStateOf(false); private set
+    var featuredArticlesLoadingMore by mutableStateOf(false); private set
+    var featuredArticlesHasMore by mutableStateOf(false); private set
+    var featuredArticlesError by mutableStateOf<String?>(null); private set
+    private var featuredArticlesPage = 1
+    private var featuredArticlesLoaded = false
+    var featuredArticlesScrollIndex by mutableStateOf(0); private set
+    var featuredArticlesScrollOffset by mutableStateOf(0); private set
+    fun saveFeaturedArticlesScroll(index: Int, offset: Int) { featuredArticlesScrollIndex = index; featuredArticlesScrollOffset = offset }
+    fun loadFeaturedArticlesGrid(force: Boolean = false) {
+        if (featuredArticlesLoaded && !force) return
+        featuredArticlesLoaded = true
+        featuredArticlesPage = 1
+        featuredArticlesLoading = true
+        viewModelScope.launch {
+            runCatching { MalDetailScrapeApi().fetchFeaturedArticlesPage(1) }
+                .onSuccess { featuredArticles = it.articles; featuredArticlesHasMore = it.hasMore; featuredArticlesError = null }
+                .onFailure { featuredArticlesLoaded = false; featuredArticlesError = it.message ?: "Could not load articles" }
+            featuredArticlesLoading = false
+        }
+    }
+    fun loadMoreFeaturedArticlesGrid() {
+        if (featuredArticlesLoading || featuredArticlesLoadingMore || !featuredArticlesHasMore) return
+        val nextPage = featuredArticlesPage + 1
+        featuredArticlesLoadingMore = true
+        viewModelScope.launch {
+            runCatching { MalDetailScrapeApi().fetchFeaturedArticlesPage(nextPage) }
+                .onSuccess { featuredArticlesPage = nextPage; featuredArticles = featuredArticles + it.articles; featuredArticlesHasMore = it.hasMore }
+                .onFailure { featuredArticlesHasMore = false }
+            featuredArticlesLoadingMore = false
+        }
+    }
+
     // ForumTopic.createdAt format ("yyyy-MM-dd'T'HH:mm:ssXXX") —
     // (ForumsScreen.kt) already parses —
     var relatedLoadingId by mutableStateOf<Int?>(null); private set

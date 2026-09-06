@@ -133,7 +133,7 @@ data class DetailScreenActions(
     val onLoadFeaturedArticles: (MediaItem, (List<FeaturedArticleEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onLoadLinks: (MediaItem, (List<Pair<String, String>>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenTopic: (Int, String) -> Unit = { _, _ -> },
-    val onOpenFeaturedArticle: (String) -> Unit = {},
+    val onOpenFeaturedArticle: (String, String) -> Unit = { _, _ -> },
     val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit, () -> Unit) -> Unit = { _, _, onDone, _ -> onDone() },
     val onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenReview: (ReviewEntry) -> Unit = {},
@@ -798,13 +798,14 @@ data class DetailScreenActions(
                     }
 
                     // Recent Featured Articles —
-                    // MalDetailScrapeApi.parseFeaturedArticles's own limit). No
-                    // for these, so tapping
+                    // MalDetailScrapeApi.parseFeaturedArticles's own limit).
+                    // Tapping opens FeaturedArticleScreen in-app (see
+                    // Navigation.kt's featuredArticleOpen).
                     key("detailFeaturedArticles") {
                         if (featuredArticles.isNotEmpty()) {
                             SectionTitle("Recent Featured Articles", "", {})
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                featuredArticles.forEach { article -> DetailFeaturedArticleCard(article) { actions.onOpenFeaturedArticle(article.url) } }
+                                featuredArticles.forEach { article -> DetailFeaturedArticleCard(article) { actions.onOpenFeaturedArticle(article.url, article.title) } }
                             }
                         }
                     }
