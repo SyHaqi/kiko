@@ -114,6 +114,14 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             ?: items.firstOrNull { it.status == WatchStatus.Watching || it.status == WatchStatus.Reading }
             ?: items.firstOrNull()
     }
+    // "Last Updated List" — combined anime+manga activity feed, mirroring
+    // MAL's "My Last List Updates" home widget. Pure client-side sort/take
+    // over `items`, which Home already loads for every other section above
+    // (Continue, ranking chips, etc.) — no extra network call is made here,
+    // so this can't gate or slow down the page.
+    val lastUpdated = remember(items) {
+        items.filter { it.updatedAt.isNotBlank() }.sortedByDescending { it.updatedAt }.take(5)
+    }
     val today = java.time.LocalDate.now().dayOfWeek
     // Airing-next row pool —
     // re-filtering, re-parsing dates on,
@@ -219,6 +227,31 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         } else if (vm.homeFeaturedArticlesLoading) {
                             SectionTitle("Featured Articles", "View more", onSeeFeaturedArticles)
                             HomeFeaturedArticleRowSkeleton()
+                        }
+                    }
+                    // Last 5 anime/manga list activities (add/status change/
+                    // progress bump), newest first — combined the same way
+                    // MAL's own widget combines both list types. Rendered
+                    // with the shared ListRow (same look as the List screen,
+                    // divider included) and no onIncrement, so the "+1"
+                    // button is omitted.
+                    key("lastUpdated") {
+                        if (lastUpdated.isNotEmpty()) {
+                            SectionTitle("Last Updated List", "See list", onList)
+                            Column {
+                                // item.id alone is just the numeric MAL id, and anime
+                                // and manga ids aren't in the same namespace — an anime
+                                // and a manga can share the same id. Since this section
+                                // (unlike single-type screens elsewhere) mixes both
+                                // types, key on type+id so every row key is guaranteed
+                                // unique and recomposition/scroll stays smooth.
+                                lastUpdated.forEachIndexed { index, item ->
+                                    key(item.type, item.id) {
+                                        ListRow(item, trackedOpenDetail, vm = vm)
+                                        if (index < lastUpdated.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                                    }
+                                }
+                            }
                         }
                     }
                     if (vm.authChecked && !vm.signedIn && !vm.loading) {
