@@ -1615,6 +1615,26 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    // Home's "MAL Announcement" card — replaces "Continue" in the same
+    // slot (see HomeScreen's showContinueCard). Same signed-in gate as
+    // newsSnapshots since it goes through the same official forum API.
+    var homeAnnouncement by mutableStateOf<ForumTopic?>(null); private set
+    var homeAnnouncementLoading by mutableStateOf(false); private set
+    private var homeAnnouncementLoaded = false
+    fun loadHomeAnnouncement(context: Context, force: Boolean = false) {
+        val api = MalApi(context)
+        if ((homeAnnouncementLoaded && !force) || !api.signedIn) return
+        homeAnnouncementLoaded = true
+        homeAnnouncementLoading = true
+        viewModelScope.launch {
+            runCatching { api.homeAnnouncement() }
+                .onSuccess { homeAnnouncement = it }
+                // Fail silently, no banner
+                .onFailure { homeAnnouncementLoaded = false }
+            homeAnnouncementLoading = false
+        }
+    }
+
     // Home "Featured Articles" row,
     // homepage widget (see MalDetailScrapeApi.fetchHomeFeaturedArticles),
     // same DetailFeaturedArticleCard DetailScreen's "Recent

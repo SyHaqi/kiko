@@ -323,7 +323,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // Single article reader — fetches MalDetailScrapeApi.fetchFeaturedArticle
 // directly in a LaunchedEffect, same "no ViewModel round-trip for content,
 // just local screen state" shape ForumTopicScreen uses for forum posts.
-@Composable fun FeaturedArticleScreen(vm: LibraryViewModel, url: String, title: String, onBack: () -> Unit) {
+@Composable fun FeaturedArticleScreen(vm: LibraryViewModel, url: String, title: String, onBack: () -> Unit, onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {}) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -337,6 +337,17 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .onSuccess { content = it }
             .onFailure { error = it.message ?: "Could not load article" }
         loading = false
+    }
+    // A tapped body link that resolves to a MAL character/person/company
+    // page (parseMalProfileLink) opens that page in-app instead of the
+    // browser — same dispatch shape ForumTopicScreen's onOpenProfileLink
+    // uses for forum-post links.
+    val onOpenProfileLink: (MalProfileLink) -> Unit = { link ->
+        when (link) {
+            is MalProfileLink.Character -> onOpenCharacter(link.malId)
+            is MalProfileLink.Person -> onOpenPerson(link.malId)
+            is MalProfileLink.Company -> onOpenCompany(link.malId)
+        }
     }
     BackHandler(onBack = onBack)
     var fullscreenImage by remember { mutableStateOf<String?>(null) }
@@ -405,7 +416,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                 }
                 Column(Modifier.fillMaxWidth().padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    data.blocks.forEach { block -> ArticleBlockView(block, c) { fullscreenImage = it } }
+                    data.blocks.forEach { block -> ArticleBlockView(block, c, onOpenProfileLink = onOpenProfileLink) { fullscreenImage = it } }
                 }
                 if (data.blocks.isEmpty() && !loading && error == null) {
                     Text("Couldn't read this article's content — tap the browser icon above to view it on myanimelist.net.", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 20.dp))
@@ -420,16 +431,16 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
 }
 
-@Composable fun ArticleBlockView(block: ArticleBlock, c: com.kiko.tracker.ui.theme.KikoColors, onImageTap: (String) -> Unit) {
+@Composable fun ArticleBlockView(block: ArticleBlock, c: com.kiko.tracker.ui.theme.KikoColors, onOpenProfileLink: (MalProfileLink) -> Unit = {}, onImageTap: (String) -> Unit) {
     when (block) {
-        is ArticleBlock.Heading -> LinkifiedText(block.text, fontWeight = FontWeight.Bold, fontSize = 17.sp, lineHeight = 22.sp, color = c.ink, modifier = Modifier.padding(top = 6.dp))
-        is ArticleBlock.Paragraph -> LinkifiedText(block.text, fontSize = 14.sp, lineHeight = 21.sp, color = c.ink)
+        is ArticleBlock.Heading -> LinkifiedText(block.text, fontWeight = FontWeight.Bold, fontSize = 17.sp, lineHeight = 22.sp, color = c.ink, modifier = Modifier.padding(top = 6.dp), onOpenProfileLink = onOpenProfileLink)
+        is ArticleBlock.Paragraph -> LinkifiedText(block.text, fontSize = 14.sp, lineHeight = 21.sp, color = c.ink, onOpenProfileLink = onOpenProfileLink)
         is ArticleBlock.Image -> ForumImage(block.url, c, onImageTap)
         is ArticleBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             block.items.forEachIndexed { index, item ->
                 Row {
                     Text(if (block.ordered) "${index + 1}." else "•", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(end = 8.dp).width(18.dp))
-                    LinkifiedText(item, color = c.ink, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.weight(1f))
+                    LinkifiedText(item, color = c.ink, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.weight(1f), onOpenProfileLink = onOpenProfileLink)
                 }
             }
         }

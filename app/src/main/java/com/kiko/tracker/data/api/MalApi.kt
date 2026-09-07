@@ -171,6 +171,10 @@ class MalApi(private val context: Context) {
         // pull-to-refresh) just to look
         // full round trip off
         @Volatile private var newsBoardIdCache: Int? = null
+        // Same caching shape as newsBoardIdCache, for the "Updates &
+        // Announcements" board (id 5 per ForumsScreen's forumBoardIcon, but
+        // looked up by title here rather than hardcoded).
+        @Volatile private var announcementsBoardIdCache: Int? = null
     }
 
     // MAL's official anime/manga search
@@ -468,6 +472,21 @@ class MalApi(private val context: Context) {
             .filterNot { it.isLocked }
             .mapNotNull { topic -> topic.imageUrl?.let { NewsSnapshot(topicId = topic.id, title = topic.title, imageUrl = it) } }
             .take(limit)
+    }
+
+    // Home's "MAL Announcement" card — the most recently *created* topic in
+    // the "Updates & Announcements" board. forumTopics' own sort=recent
+    // order is by last reply, and announcement threads keep collecting
+    // replies long after they're posted, so this pulls a page and re-sorts
+    // by created_at itself instead of trusting that ordering.
+    suspend fun homeAnnouncement(): ForumTopic? = withContext(Dispatchers.IO) {
+        val boardId = announcementsBoardIdCache ?: forumBoards()
+            .flatMap { it.boards }
+            .firstOrNull { it.title.equals("Updates & Announcements", ignoreCase = true) }
+            ?.id?.also { announcementsBoardIdCache = it }
+        ?: return@withContext null
+        forumTopics(boardId = boardId, limit = 15, withThumbnails = true).items
+            .maxByOrNull { runCatching { java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US).parse(it.createdAt)?.time }.getOrNull() ?: 0L }
     }
 
     suspend fun update(item: MediaItem): Unit = withContext(Dispatchers.IO) {

@@ -785,11 +785,15 @@ private fun linkify(text: String, linkColor: Color): AnnotatedString = buildAnno
 // Drop-in replacement for `Text(text, ...)` on any free-text surface that
 // might contain a bare URL (Featured Article body, Company "About", media
 // synopsis/background) — same look as Text when there's nothing to link,
-// but linkifies + makes URLs tappable when there is. Tapping a link opens it
-// through LocalUriHandler, i.e. a plain ACTION_VIEW browser intent, never
-// in-app; tapping elsewhere in the text runs `onClick` (e.g. an
-// expand/collapse toggle) when one is supplied, same as the plain
-// Modifier.clickable these Text calls used to carry.
+// but linkifies + makes URLs tappable when there is. A tapped link that
+// resolves to a MAL character/person/company page (parseMalProfileLink) is
+// dispatched to `onOpenProfileLink` instead, same in-app-instead-of-browser
+// treatment ForumBody/ForumBlockView already give BBCode links — callers
+// that don't pass it (Company "About", media synopsis/background) keep the
+// old plain ACTION_VIEW browser-intent behavior via LocalUriHandler.
+// Tapping elsewhere in the text runs `onClick` (e.g. an expand/collapse
+// toggle) when one is supplied, same as the plain Modifier.clickable these
+// Text calls used to carry.
 @Composable fun LinkifiedText(
     text: String,
     color: Color,
@@ -800,6 +804,7 @@ private fun linkify(text: String, linkColor: Color): AnnotatedString = buildAnno
     overflow: TextOverflow = TextOverflow.Clip,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    onOpenProfileLink: ((com.kiko.tracker.ui.screens.MalProfileLink) -> Unit)? = null,
 ) {
     val c = LocalKikoColors.current
     val uriHandler = LocalUriHandler.current
@@ -812,7 +817,10 @@ private fun linkify(text: String, linkColor: Color): AnnotatedString = buildAnno
         modifier = modifier,
         onClick = { offset ->
             val link = annotated.getStringAnnotations("URL", offset, offset).firstOrNull()
-            if (link != null) runCatching { uriHandler.openUri(link.item) } else onClick?.invoke()
+            if (link != null) {
+                val profileLink = onOpenProfileLink?.let { com.kiko.tracker.ui.screens.parseMalProfileLink(link.item) }
+                if (profileLink != null) onOpenProfileLink(profileLink) else runCatching { uriHandler.openUri(link.item) }
+            } else onClick?.invoke()
         },
     )
 }
