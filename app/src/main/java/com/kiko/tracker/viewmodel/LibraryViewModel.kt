@@ -158,19 +158,6 @@ class LibraryViewModel : ViewModel() {
     var listScrollIndex by mutableStateOf(0); private set
     var listScrollOffset by mutableStateOf(0); private set
     fun saveListScroll(index: Int, offset: Int) { listScrollIndex = index; listScrollOffset = offset }
-    // Jump My List to
-    // tapping it lands on
-    // Switches to the item's
-    // surfaces items in that
-    // order to scroll to.
-    fun locateInList(context: Context, item: MediaItem) {
-        selectListTypeTab(context, item.type)
-        setListFilter(context, normalizeFilterForType("Watching", item.type))
-        val ordered = visibleItems.filter { it.type == item.type && it.status.label == normalizeFilterForType("Watching", item.type) }.sortedWithListSort(listSort, titleLanguage)
-        val idx = ordered.indexOfFirst { it.id == item.id && it.type == item.type }
-        listScrollIndex = if (idx >= 0) idx else 0
-        listScrollOffset = 0
-    }
     // Discover results scroll
     var discoverScrollIndex by mutableStateOf(0); private set
     var discoverScrollOffset by mutableStateOf(0); private set
@@ -1615,9 +1602,8 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
-    // Home's "MAL Announcement" card — replaces "Continue" in the same
-    // slot (see HomeScreen's showContinueCard). Same signed-in gate as
-    // newsSnapshots since it goes through the same official forum API.
+    // Home's "MAL Announcement" card. Same signed-in gate as newsSnapshots
+    // since it goes through the same official forum API.
     var homeAnnouncement by mutableStateOf<ForumTopic?>(null); private set
     var homeAnnouncementLoading by mutableStateOf(false); private set
     private var homeAnnouncementLoaded = false

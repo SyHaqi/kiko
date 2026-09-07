@@ -199,20 +199,6 @@ fun TopicRowSkeletonGroup(count: Int = 6) {
     }
 }
 
-/** Stand-in for the Home */
-@Composable
-fun ContinueCardSkeleton(modifier: Modifier = Modifier) {
-    val c = LocalKikoColors.current
-    Box(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(kikoCorner(22.dp)))
-            .background(c.surfaceContainer),
-    ) {
-        ListRowSkeleton(Modifier.padding(horizontal = 14.dp))
-    }
-}
-
 /** Stand-in for a single */
 @Composable
 fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
