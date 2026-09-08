@@ -157,6 +157,20 @@ data class MalProfile(
     val animeOnHold: Int = 0,
     val animeDropped: Int = 0,
     val animePlanToWatch: Int = 0,
+    // Not in MAL's official API at all (no manga_statistics field exists) —
+    // populated by MalProfileScrapeApi.applyMangaStats() scraping the profile
+    // page instead. Zero/default until a cookie session has been established.
+    val mangaDaysRead: Double = 0.0,
+    val mangaMeanScore: Double = 0.0,
+    val mangaChaptersRead: Int = 0,
+    val mangaVolumesRead: Int = 0,
+    val mangaReread: Int = 0,
+    val mangaTotalEntries: Int = 0,
+    val mangaReading: Int = 0,
+    val mangaCompleted: Int = 0,
+    val mangaOnHold: Int = 0,
+    val mangaDropped: Int = 0,
+    val mangaPlanToRead: Int = 0,
 )
 
 class MalApi(private val context: Context) {
@@ -229,8 +243,9 @@ class MalApi(private val context: Context) {
         val body = authorized { get("$API/users/@me?fields=name,picture,gender,birthday,location,joined_at,anime_statistics") }
         val j = JSONObject(body)
         val stats = j.optJSONObject("anime_statistics") ?: JSONObject()
-        MalProfile(
-            name = j.optString("name"),
+        val username = j.optString("name")
+        val base = MalProfile(
+            name = username,
             picture = j.optString("picture"),
             gender = j.optString("gender").takeIf { it.isNotBlank() }?.let(::prettify) ?: "",
             location = j.optString("location"),
@@ -246,6 +261,12 @@ class MalApi(private val context: Context) {
             animeDropped = stats.optInt("num_items_dropped", 0),
             animePlanToWatch = stats.optInt("num_items_plan_to_watch", 0),
         )
+        // Manga stats aren't in MAL's official API at all — scraped from the
+        // profile page instead (see MalProfileScrapeApi). Falls back to the
+        // un-scraped profile if there's no cookie session yet or the scrape
+        // fails for any reason, so a stale/missing cookie never breaks the
+        // anime stats that already work.
+        runCatching { MalProfileScrapeApi(context).applyMangaStats(base, username) }.getOrDefault(base)
     }
 
     // Search anime and manga

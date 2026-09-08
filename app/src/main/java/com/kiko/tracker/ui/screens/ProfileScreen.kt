@@ -79,6 +79,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> }, onFormatClick: (MediaType, String) -> Unit = { _, _ -> },
     onGenreClick: (MediaType, String) -> Unit = { _, _ -> },
     onSignOut: () -> Unit = {}, refreshing: Boolean = false, onRefresh: () -> Unit = {},
+    onOpenFriendsFavorites: () -> Unit = {},
 ) {
     val c = LocalKikoColors.current
     // Leaving the Profile page
@@ -114,7 +115,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 }
             }
             Box(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
-                ProfileStatsSection(connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange, onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) }, onYearClick = { type, year -> onSaveScroll(scrollState.value); onYearClick(type, year) }, onFormatClick = onFormatClick, onGenreClick = { type, genre -> onSaveScroll(scrollState.value); onGenreClick(type, genre) })
+                ProfileStatsSection(connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange, onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) }, onYearClick = { type, year -> onSaveScroll(scrollState.value); onYearClick(type, year) }, onFormatClick = onFormatClick, onGenreClick = { type, genre -> onSaveScroll(scrollState.value); onGenreClick(type, genre) }, onOpenFriendsFavorites = { onSaveScroll(scrollState.value); onOpenFriendsFavorites() })
             }
         }
     }
@@ -149,7 +150,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 // Profile header card +
 // expandable "avatar + name"
-@Composable fun ProfileStatsSection(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> }, onFormatClick: (MediaType, String) -> Unit = { _, _ -> }, onGenreClick: (MediaType, String) -> Unit = { _, _ -> }) {    val c = LocalKikoColors.current
+@Composable fun ProfileStatsSection(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> }, onFormatClick: (MediaType, String) -> Unit = { _, _ -> }, onGenreClick: (MediaType, String) -> Unit = { _, _ -> }, onOpenFriendsFavorites: () -> Unit = {}) {    val c = LocalKikoColors.current
     val context = LocalContext.current
     Column {
         // Profile header with stats
@@ -187,6 +188,19 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                 }
             }
+            // Friends/favorites aren't in MAL's official API — this
+            // opens FriendsFavoritesScreen, which handles the
+            // embedded-login flow itself if there's no cookie session yet.
+            Card(
+                shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).kikoClickable { onOpenFriendsFavorites() },
+            ) {
+                Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.People, null, tint = c.primary, modifier = Modifier.size(22.dp))
+                    Text("Friends & Favorites", color = c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp).weight(1f))
+                    Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(20.dp))
+                }
+            }
         }
 
         // Tabbed anime/manga stats card
@@ -200,16 +214,33 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         val ratedManga = remember(mangaItems) { mangaItems.filter { it.myRating > 0 } }
         val mangaMeanScore = if (ratedManga.isNotEmpty()) ratedManga.map { it.myRating }.average() else 0.0
         val animeDaysWatched = profile?.animeDaysWatched ?: 0.0
-        // MAL: 8 min/chapter
+        // MAL: 8 min/chapter — fallback estimate, only used until a cookie
+        // session lets MalProfileScrapeApi pull the real manga stats
         val mangaDaysReadEst = mangaChaptersRead * 8.0 / 60.0 / 24.0
+        // Manga stats aren't in MAL's official API at all — profile?.manga*
+        // comes from MalProfileScrapeApi scraping the profile page (requires
+        // a logged-in cookie session, see MalSessionCookie/MalLoginWebView).
+        // Fall back to the local estimate/count from the synced list until
+        // that session exists.
+        val hasScrapedMangaStats = (profile?.mangaTotalEntries ?: 0) > 0
+        val mangaDaysDisplay = if (hasScrapedMangaStats) profile!!.mangaDaysRead else mangaDaysReadEst
+        val mangaMeanScoreDisplay = if (hasScrapedMangaStats) profile!!.mangaMeanScore else mangaMeanScore
+        val mangaReadingCount = if (hasScrapedMangaStats) profile!!.mangaReading else mangaItems.count { it.status == WatchStatus.Reading }
+        val mangaCompletedCount = if (hasScrapedMangaStats) profile!!.mangaCompleted else mangaItems.count { it.status == WatchStatus.Completed }
+        val mangaOnHoldCount = if (hasScrapedMangaStats) profile!!.mangaOnHold else mangaItems.count { it.status == WatchStatus.OnHold }
+        val mangaDroppedCount = if (hasScrapedMangaStats) profile!!.mangaDropped else mangaItems.count { it.status == WatchStatus.Dropped }
+        val mangaPlanCount = if (hasScrapedMangaStats) profile!!.mangaPlanToRead else mangaItems.count { it.status == WatchStatus.Plan }
+        val mangaTotalDisplay = if (hasScrapedMangaStats) profile!!.mangaTotalEntries else mangaTotal
+        val mangaRereadDisplay = if (hasScrapedMangaStats) profile!!.mangaReread else mangaItems.sumOf { it.timesRewatched }
+        val mangaChaptersDisplay = if (hasScrapedMangaStats) profile!!.mangaChaptersRead else mangaChaptersRead
         if (connected && ((profile?.animeTotalEntries ?: 0) > 0 || mangaItems.isNotEmpty())) {
-            if (animeDaysWatched > 0 || mangaDaysReadEst > 0) {
+            if (animeDaysWatched > 0 || mangaDaysDisplay > 0) {
                 Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
                     Column(Modifier.padding(22.dp)) {
                         Text("TIME WATCHED VS READ", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             HeroStat(Modifier.weight(1f), Icons.Default.PlayCircle, "Days watched", animeDaysWatched.oneDecimal(), c.lavender, c.primary)
-                            HeroStat(Modifier.weight(1f), Icons.Default.MenuBook, "Days read (est.)", mangaDaysReadEst.oneDecimal(), c.primaryContainer, c.onPrimaryContainer)
+                            HeroStat(Modifier.weight(1f), Icons.Default.MenuBook, if (hasScrapedMangaStats) "Days read" else "Days read (est.)", mangaDaysDisplay.oneDecimal(), c.primaryContainer, c.onPrimaryContainer)
                         }
                     }
                 }
@@ -271,30 +302,30 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 }
                             } else {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    LabeledStat("Days:", mangaDaysReadEst.oneDecimal() + " (est.)", c)
-                                    LabeledStat("Mean Score:", if (mangaMeanScore > 0) mangaMeanScore.twoDecimals() else "—", c)
+                                    LabeledStat("Days:", mangaDaysDisplay.oneDecimal() + if (hasScrapedMangaStats) "" else " (est.)", c)
+                                    LabeledStat("Mean Score:", if (mangaMeanScoreDisplay > 0) mangaMeanScoreDisplay.twoDecimals() else "—", c)
                                 }
                                 Spacer(Modifier.height(12.dp))
                                 SegmentedStatBar(listOf(
-                                    mangaItems.count { it.status == WatchStatus.Reading } to statusColor("Reading"),
-                                    mangaItems.count { it.status == WatchStatus.Completed } to statusColor("Completed"),
-                                    mangaItems.count { it.status == WatchStatus.OnHold } to statusColor("On hold"),
-                                    mangaItems.count { it.status == WatchStatus.Dropped } to statusColor("Dropped"),
-                                    mangaItems.count { it.status == WatchStatus.Plan } to statusColor("Plan to read"),
+                                    mangaReadingCount to statusColor("Reading"),
+                                    mangaCompletedCount to statusColor("Completed"),
+                                    mangaOnHoldCount to statusColor("On hold"),
+                                    mangaDroppedCount to statusColor("Dropped"),
+                                    mangaPlanCount to statusColor("Plan to read"),
                                 ), c)
                                 Spacer(Modifier.height(20.dp))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                                     Column(Modifier.weight(1f)) {
-                                        StatusLegendRow("Reading", mangaItems.count { it.status == WatchStatus.Reading }, statusColor("Reading"), c)
-                                        StatusLegendRow("Completed", mangaItems.count { it.status == WatchStatus.Completed }, statusColor("Completed"), c)
-                                        StatusLegendRow("On-Hold", mangaItems.count { it.status == WatchStatus.OnHold }, statusColor("On hold"), c)
-                                        StatusLegendRow("Dropped", mangaItems.count { it.status == WatchStatus.Dropped }, statusColor("Dropped"), c)
-                                        StatusLegendRow("Plan to Read", mangaItems.count { it.status == WatchStatus.Plan }, statusColor("Plan to read"), c)
+                                        StatusLegendRow("Reading", mangaReadingCount, statusColor("Reading"), c)
+                                        StatusLegendRow("Completed", mangaCompletedCount, statusColor("Completed"), c)
+                                        StatusLegendRow("On-Hold", mangaOnHoldCount, statusColor("On hold"), c)
+                                        StatusLegendRow("Dropped", mangaDroppedCount, statusColor("Dropped"), c)
+                                        StatusLegendRow("Plan to Read", mangaPlanCount, statusColor("Plan to read"), c)
                                     }
                                     Column(Modifier.weight(1f)) {
-                                        SummaryRow("Total Entries", formatExact(mangaTotal), c)
-                                        SummaryRow("Reread", formatExact(mangaItems.sumOf { it.timesRewatched }), c)
-                                        SummaryRow("Chapters", formatExact(mangaChaptersRead), c)
+                                        SummaryRow("Total Entries", formatExact(mangaTotalDisplay), c)
+                                        SummaryRow("Reread", formatExact(mangaRereadDisplay), c)
+                                        SummaryRow("Chapters", formatExact(mangaChaptersDisplay), c)
                                     }
                                 }
                                 if (mangaItems.isNotEmpty()) {
