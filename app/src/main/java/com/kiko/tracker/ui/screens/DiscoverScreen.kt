@@ -68,6 +68,7 @@ import com.kiko.tracker.data.model.CommonThemes
 import com.kiko.tracker.data.model.CompanySummary
 import com.kiko.tracker.data.model.DiscoverFilters
 import com.kiko.tracker.data.model.DiscoverMode
+import com.kiko.tracker.data.model.ListViewMode
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.PersonSummary
@@ -358,6 +359,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         }
     }
     BackHandler(onBack = onExitResults)
+    // Grid only makes sense for Anime/Manga (the only types with poster-shaped
+    // covers) — Characters/People/Companies always render as rows regardless
+    // of the saved preference.
+    val isGrid = vm.discoverViewMode == ListViewMode.Grid && (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga")
     val staggerSeen = rememberStaggerMemory()
     // Restore results scroll position
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.discoverScrollIndex, initialFirstVisibleItemScrollOffset = vm.discoverScrollOffset)
@@ -458,7 +463,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 Row(Modifier.fillMaxWidth().padding(top = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     DiscoverTypeDropdown(current = vm.discoverTypeFilter, onSelect = { picked -> vm.selectDiscoverType(context, picked, query) })
                     if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
-                        DiscoverSortMenu(current = vm.discoverSort, onSelect = { vm.selectDiscoverSort(context, it) }, modifier = Modifier.padding(start = 8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            ListViewModeToggle(vm.discoverViewMode) { vm.setDiscoverViewMode(context, it) }
+                            DiscoverSortMenu(current = vm.discoverSort, onSelect = { vm.selectDiscoverSort(context, it) })
+                        }
                     }
                 }
                 when (vm.discoverTypeFilter) {
@@ -551,7 +559,40 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     // ("Key ... was already
                     val resultsForList = vm.visibleDiscoverResults
                     if (vm.discoverSearching && resultsForList.isEmpty()) {
-                        item { ListRowSkeletonGroup(6) }
+                        if (isGrid) {
+                            repeat(3) { rowIndex ->
+                                item(key = "discover_skeleton_row_$rowIndex") {
+                                    Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                                        repeat(3) { Box(Modifier.weight(1f)) { ListGridCardSkeleton() } }
+                                    }
+                                }
+                            }
+                        } else {
+                            item { ListRowSkeletonGroup(6) }
+                        }
+                    } else if (isGrid) {
+                        // LazyColumn (not LazyVerticalGrid) throughout this screen so the
+                        // header/filters/type-branches above stay single-column — grid mode
+                        // just chunks results into 3-wide rows instead of switching containers.
+                        val rows = resultsForList.chunked(3)
+                        itemsIndexed(rows, key = { rowIndex, row -> "discover_row_${row.firstOrNull()?.let { "${it.id}_${it.type}" } ?: rowIndex}" }) { rowIndex, rowItems ->
+                            StaggeredItem(rowIndex, staggerSeen) {
+                                Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                                    rowItems.forEach { result ->
+                                        Box(Modifier.weight(1f)) {
+                                            RecommendationGridCard(
+                                                result, onOpenDetail = openResult,
+                                                myStatus = result.id.toIntOrNull()?.let { myListStatus[it to result.type] },
+                                                onLongPress = editResult,
+                                                isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type,
+                                            )
+                                        }
+                                    }
+                                    // Keep the last, possibly-partial row's cards from stretching wide
+                                    repeat(3 - rowItems.size) { Box(Modifier.weight(1f)) }
+                                }
+                            }
+                        }
                     } else {
                         itemsIndexed(resultsForList, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
                             StaggeredItem(index, staggerSeen) {

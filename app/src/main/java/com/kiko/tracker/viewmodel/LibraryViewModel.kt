@@ -497,6 +497,10 @@ class LibraryViewModel : ViewModel() {
     var genreFilterViewMode by mutableStateOf(ListViewMode.List); private set
     fun setGenreFilterViewMode(context: Context, mode: ListViewMode) { genreFilterViewMode = mode; settingsPrefs(context).edit().putString("genre_filter_view_mode", mode.name).apply() }
     fun loadGenreFilterViewMode(context: Context) { genreFilterViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("genre_filter_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
+    // Search & Discover results — Anime/Manga only (Characters/People/Companies stay list-only)
+    var discoverViewMode by mutableStateOf(ListViewMode.List); private set
+    fun setDiscoverViewMode(context: Context, mode: ListViewMode) { discoverViewMode = mode; settingsPrefs(context).edit().putString("discover_view_mode", mode.name).apply() }
+    fun loadDiscoverViewMode(context: Context) { discoverViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("discover_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
     var genreFilterSort by mutableStateOf(ListSort.Title); private set
     fun setGenreFilterSort(context: Context, sort: ListSort) { genreFilterSort = sort; settingsPrefs(context).edit().putString("genre_filter_sort", sort.name).apply() }
     fun loadGenreFilterSort(context: Context) { genreFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("genre_filter_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
