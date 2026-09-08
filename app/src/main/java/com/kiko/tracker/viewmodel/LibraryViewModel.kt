@@ -192,6 +192,15 @@ class LibraryViewModel : ViewModel() {
     var discoverSearchFocusConsumedTick by mutableStateOf(0); private set
     fun requestDiscoverSearchFocus() { discoverSearchFocusTick++ }
     fun consumeDiscoverSearchFocus() { discoverSearchFocusConsumedTick = discoverSearchFocusTick }
+    // Same tick/consumed-tick shape as discoverSearchFocusTick above, but
+    // for jumping straight into the Advanced filters sheet with its Genre
+    // section pre-expanded — used by Home's "Top Genres" -> "Discover"
+    // link, which wants Search & Discover open on the filter sheet rather
+    // than a blank results list.
+    var discoverFilterSheetTick by mutableStateOf(0); private set
+    var discoverFilterSheetConsumedTick by mutableStateOf(0); private set
+    fun requestDiscoverFilterSheet() { discoverFilterSheetTick++ }
+    fun consumeDiscoverFilterSheet() { discoverFilterSheetConsumedTick = discoverFilterSheetTick }
     // Jumps to the search-results
     // the Discover landing page,
     // starts a new blank
@@ -393,6 +402,39 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             stackCoverCache[stackId] = runCatching { StacksApi().topCovers(stackId) }.getOrElse { emptyList() }
             stackCoverInFlight -= stackId
+        }
+    }
+    // Top anime result per genre for Home's "Top Genres" cards — same
+    // guard-against-duplicate-fetch shape as stackCoverCache above, just
+    // keyed by genre name instead of stack id. Hand-picked, recognizable
+    // titles for the common genres below (resolved by exact title search,
+    // not a genre-filtered listing); anything not in that map falls back
+    // to the old "most-popular title with this genre tag" scrape.
+    private val genreTopItemOverrides = mapOf(
+        "romance" to "Horimiya",
+        "fantasy" to "Sousou no Frieren",
+        "comedy" to "Tanaka-kun wa Itsumo Kedaruge",
+        "school" to "Kaguya-sama wa Kokurasetai: Tensai-tachi no Renai Zunousen",
+        "action" to "Shingeki no Kyojin",
+    )
+    private val genreTopItemCache = mutableStateMapOf<String, MediaItem?>()
+    private val genreTopItemInFlight = mutableSetOf<String>()
+    fun getCachedGenreTopItem(genre: String): MediaItem? = genreTopItemCache[genre]
+    fun loadGenreTopItem(context: Context, genre: String) {
+        if (genreTopItemCache.containsKey(genre) || genre in genreTopItemInFlight) return
+        genreTopItemInFlight += genre
+        viewModelScope.launch {
+            genreTopItemCache[genre] = runCatching {
+                val override = genreTopItemOverrides[genre.lowercase()]
+                if (override != null) {
+                    val api = MalApi(context)
+                    if (api.signedIn) api.search(override, MediaType.Anime).items.firstOrNull() else null
+                } else {
+                    val ids = MalGenreLookup().resolveGenreIds("anime", setOf(genre))
+                    if (ids.isEmpty()) null else MalGenreApi().search("anime", ids, type = null, status = null, page = 1, includeAdult = nsfwEnabled, sort = DiscoverSort.Members).items.firstOrNull()
+                }
+            }.getOrNull()
+            genreTopItemInFlight -= genre
         }
     }
     // AniList's confirmed nextAiringEpisode for

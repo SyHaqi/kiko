@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -48,6 +49,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -94,7 +98,7 @@ import com.kiko.tracker.ui.theme.pressScale
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
 import com.kiko.tracker.viewmodel.LibraryViewModel
 
-@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onSeeFeaturedArticles: () -> Unit = {}, onOpenFeaturedArticle: (String, String) -> Unit = { _, _ -> }) {
+@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onList: () -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onSeeFeaturedArticles: () -> Unit = {}, onOpenFeaturedArticle: (String, String) -> Unit = { _, _ -> }, onOpenGenre: (String) -> Unit = {}) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context) }
@@ -111,6 +115,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // can't gate or slow down the page.
     val lastUpdated = remember(items) {
         items.filter { it.updatedAt.isNotBlank() }.sortedByDescending { it.updatedAt }.take(5)
+    }
+    // Top 5 genres across the whole list, by how many items carry each
+    // genre tag — same `items` source as everything else above, so this
+    // is a pure client-side tally with no extra network call.
+    val topGenres = remember(items) {
+        items.asSequence().flatMap { it.genres.asSequence() }.filter { it.isNotBlank() }
+            .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(5).map { it.key }
     }
     val today = java.time.LocalDate.now().dayOfWeek
     // Airing-next row pool —
@@ -232,6 +243,20 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             }
                         }
                     }
+                    // Top 5 genres by item count, rank-badged spotlight-style
+                    // cards (same cover-banner-on-top language as
+                    // StackSpotlightCard) in a horizontal row. Tapping a card
+                    // jumps to Discover pre-filtered by that genre.
+                    key("topGenres") {
+                        if (topGenres.isNotEmpty()) {
+                            SectionTitle("Top Genres", "Discover", onDiscover)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                itemsIndexed(topGenres, key = { _, genre -> genre }) { index, genre ->
+                                    GenreCard(index + 1, genre, vm) { onOpenGenre(genre) }
+                                }
+                            }
+                        }
+                    }
                     if (vm.authChecked && !vm.signedIn && !vm.loading) {
                         Column(Modifier.fillMaxWidth().padding(top = 50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("Please sign in with your MyAnimeList account", color = c.muted, fontSize = 14.sp, textAlign = TextAlign.Center)
@@ -317,6 +342,91 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         }
     }
 }
+// Rank-badged genre card for the Home "Top Genres" row — same
+// cover-banner-over-text language as StackSpotlightCard (StacksScreen.kt):
+// a top image banner, then title below. The banner shows the top MAL
+// search result for that genre (fetched/cached via
+// vm.loadGenreTopItem/getCachedGenreTopItem), falling back to a plain
+// genre icon tile while it loads or if nothing came back. Rank badge sits
+// over the banner, top-end.
+@Composable fun GenreCard(rank: Int, genre: String, vm: LibraryViewModel, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    LaunchedEffect(genre) { vm.loadGenreTopItem(context, genre) }
+    val topItem = vm.getCachedGenreTopItem(genre)
+    Column(
+        modifier
+            .width(130.dp)
+            .clip(RoundedCornerShape(kikoCorner(18.dp)))
+            .background(c.surfaceContainer)
+            .kikoClickable(onClick = onClick),
+    ) {
+        Box(Modifier.fillMaxWidth().height(96.dp)) {
+            if (topItem?.cover?.isNotBlank() == true) {
+                AsyncImage(model = topItem.cover, contentDescription = null, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = kikoCorner(18.dp), topEnd = kikoCorner(18.dp))), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            } else {
+                Box(Modifier.fillMaxSize().background(c.primaryContainer), contentAlignment = Alignment.Center) {
+                    Icon(genreIcon(genre), null, tint = c.onPrimaryContainer, modifier = Modifier.size(26.dp))
+                }
+            }
+            Box(
+                Modifier
+                    .padding(8.dp)
+                    .align(Alignment.TopEnd)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(if (rank == 1) c.primaryContainer else c.surfaceLow),
+                contentAlignment = Alignment.Center,
+            ) {
+                // Plain Text() here left the digit visibly off-center inside
+                // the circle — default font padding pads its layout box
+                // asymmetrically (extra space below the glyph for
+                // descenders), which throws off Box's center alignment even
+                // though the Box itself is centering correctly. Trimming
+                // that padding and pinning lineHeight to fontSize (both
+                // below) is the standard fix for a single glyph in a small
+                // badge like this.
+                Text(
+                    rank.toString(),
+                    color = if (rank == 1) c.onPrimaryContainer else c.muted,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    textAlign = TextAlign.Center,
+                    style = TextStyle(
+                        lineHeight = 10.sp,
+                        lineHeightStyle = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.Both),
+                        platformStyle = PlatformTextStyle(includeFontPadding = false),
+                    ),
+                )
+            }
+        }
+        // Icon sits left-aligned above the genre name, below the banner —
+        // no need to center it against anything else on this line.
+        Icon(genreIcon(genre), null, tint = c.muted, modifier = Modifier.padding(start = 12.dp, top = 10.dp).size(18.dp))
+        Text(genre, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 12.dp))
+    }
+}
+
+// Best-effort icon per genre name, purely decorative — falls back to a
+// generic tag icon for anything not in the map.
+private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
+    "action" -> Icons.Default.Bolt
+    "adventure" -> Icons.Default.Explore
+    "comedy" -> Icons.Default.EmojiEmotions
+    "drama" -> Icons.Default.TheaterComedy
+    "fantasy", "supernatural" -> Icons.Default.AutoAwesome
+    "romance" -> Icons.Default.Favorite
+    "sci-fi" -> Icons.Default.Public
+    "horror" -> Icons.Default.DarkMode
+    "mystery", "psychological" -> Icons.Default.Psychology
+    "slice of life" -> Icons.Default.Groups
+    "sports" -> Icons.Default.SportsSoccer
+    "thriller" -> Icons.Default.Whatshot
+    "mecha" -> Icons.Default.Build
+    "music" -> Icons.Default.MusicNote
+    else -> Icons.Default.Category
+}
+
 // Reusable rounded pill button
 
 @Composable fun HomeActionButton(modifier: Modifier = Modifier, label: String, icon: ImageVector, onClick: () -> Unit) {

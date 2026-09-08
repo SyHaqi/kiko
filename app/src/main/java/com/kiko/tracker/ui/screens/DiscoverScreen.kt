@@ -344,6 +344,19 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf(vm.discoverQuery) }
     var filterSheetOpen by remember { mutableStateOf(false) }
+    // Genre section only pre-expands the first time the sheet is opened
+    // via requestDiscoverFilterSheet() below — reset once consumed so a
+    // later manual tap on the filter icon behaves normally (expanded only
+    // when a genre's already selected, same as before).
+    var forceExpandGenre by remember { mutableStateOf(false) }
+    LaunchedEffect(vm.discoverFilterSheetTick) {
+        if (vm.discoverFilterSheetTick > vm.discoverFilterSheetConsumedTick) {
+            filterSheetOpen = true
+            forceExpandGenre = true
+            vm.prewarmGenreLookup()
+            vm.consumeDiscoverFilterSheet()
+        }
+    }
     BackHandler(onBack = onExitResults)
     val staggerSeen = rememberStaggerMemory()
     // Restore results scroll position
@@ -440,7 +453,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                 }
                 // Fixes type/format mismatch
-                if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false }, onApply = { filterSheetOpen = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) })
+                if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false; forceExpandGenre = false }, onApply = { filterSheetOpen = false; forceExpandGenre = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) }, forceExpandGenre = forceExpandGenre)
 
                 Row(Modifier.fillMaxWidth().padding(top = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     DiscoverTypeDropdown(current = vm.discoverTypeFilter, onSelect = { picked -> vm.selectDiscoverType(context, picked, query) })
@@ -586,9 +599,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 }
 // Collapsible multi-select facet
 
-@Composable fun ExpandableFilterSection(title: String, options: List<String>, selected: Set<String>, onToggle: (String) -> Unit) {
+@Composable fun ExpandableFilterSection(title: String, options: List<String>, selected: Set<String>, onToggle: (String) -> Unit, initiallyExpanded: Boolean = selected.isNotEmpty()) {
     val c = LocalKikoColors.current
-    var expanded by remember(title) { mutableStateOf(selected.isNotEmpty()) }
+    var expanded by remember(title) { mutableStateOf(initiallyExpanded) }
     Column(Modifier.fillMaxWidth().padding(top = 18.dp).animateContentSize()) {
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(12.dp))).clickable { expanded = !expanded }.padding(vertical = 8.dp),
@@ -613,7 +626,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 }
 // Discover advanced filters sheet
 
-@Composable fun AdvancedFilterSheet(current: DiscoverFilters, type: String, onDismiss: () -> Unit, onApply: (DiscoverFilters) -> Unit) {
+@Composable fun AdvancedFilterSheet(current: DiscoverFilters, type: String, onDismiss: () -> Unit, onApply: (DiscoverFilters) -> Unit, forceExpandGenre: Boolean = false) {
     val c = LocalKikoColors.current
     // Split combined genre facets
     var genres by remember { mutableStateOf(current.genres.filter { it !in CommonExplicitGenres }.toSet()) }
@@ -641,7 +654,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             Text("Discover", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Advanced filters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 4.dp))
 
-            ExpandableFilterSection("Genre", CommonGenres, genres, onToggle = { g -> genres = if (g in genres) genres - g else genres + g })
+            ExpandableFilterSection("Genre", CommonGenres, genres, onToggle = { g -> genres = if (g in genres) genres - g else genres + g }, initiallyExpanded = genres.isNotEmpty() || forceExpandGenre)
             // Separate explicit genre section
             ExpandableFilterSection("Explicit genre", CommonExplicitGenres, explicitGenres, onToggle = { g -> explicitGenres = if (g in explicitGenres) explicitGenres - g else explicitGenres + g })
             // Separate themes section
