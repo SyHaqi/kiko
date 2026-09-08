@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,7 +47,11 @@ import androidx.compose.ui.unit.sp
 import androidx.browser.customtabs.CustomTabsIntent
 import coil.compose.AsyncImage
 import com.kiko.tracker.BuildConfig
+import com.kiko.tracker.data.api.MalFavoriteEntry
+import com.kiko.tracker.data.api.MalFavorites
+import com.kiko.tracker.data.api.MalFriend
 import com.kiko.tracker.data.api.MalProfile
+import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.data.model.ColorSource
 import com.kiko.tracker.data.model.ListViewMode
 import com.kiko.tracker.data.model.MediaItem
@@ -62,6 +67,7 @@ import com.kiko.tracker.ui.components.TypeToggle
 import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.components.statusColor
+import com.kiko.tracker.ui.theme.KikoColors
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.kikoCircleShape
@@ -80,6 +86,20 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     onGenreClick: (MediaType, String) -> Unit = { _, _ -> },
     onSignOut: () -> Unit = {}, refreshing: Boolean = false, onRefresh: () -> Unit = {},
     onOpenFriendsFavorites: () -> Unit = {},
+    // Favorites (anime/manga/characters/people/companies) open in-app, same
+    // as everywhere else in Kiko. Row scroll positions and the loading id
+    // are hoisted up to the ViewModel (via Navigation) since Profile is torn
+    // down while a detail page is on top, same reasoning as scrollOffset above.
+    onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {},
+    onOpenFavoriteTitle: (Int, MediaType) -> Unit = { _, _ -> }, favoriteLoadingId: Int? = null,
+    friendsRowScroll: Pair<Int, Int> = 0 to 0, onSaveFriendsRowScroll: (Int, Int) -> Unit = { _, _ -> },
+    getFavoritesRowScroll: (String) -> Pair<Int, Int> = { 0 to 0 }, onSaveFavoritesRowScroll: (String, Int, Int) -> Unit = { _, _, _ -> },
+    // Friends/favorites cache lives in the ViewModel (see LibraryViewModel)
+    // so it survives Profile being torn down and rebuilt while a favorite's
+    // detail page is on top — cachedFriends/cachedFavorites are null until
+    // onLoadFriendsFavorites has fetched them at least once.
+    cachedFriends: List<MalFriend>? = null, cachedFavorites: MalFavorites? = null,
+    onLoadFriendsFavorites: (String) -> Unit = {},
 ) {
     val c = LocalKikoColors.current
     // Leaving the Profile page
@@ -115,7 +135,22 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 }
             }
             Box(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
-                ProfileStatsSection(connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange, onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) }, onYearClick = { type, year -> onSaveScroll(scrollState.value); onYearClick(type, year) }, onFormatClick = onFormatClick, onGenreClick = { type, genre -> onSaveScroll(scrollState.value); onGenreClick(type, genre) }, onOpenFriendsFavorites = { onSaveScroll(scrollState.value); onOpenFriendsFavorites() })
+                ProfileStatsSection(
+                    connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange,
+                    onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) },
+                    onYearClick = { type, year -> onSaveScroll(scrollState.value); onYearClick(type, year) },
+                    onFormatClick = onFormatClick,
+                    onGenreClick = { type, genre -> onSaveScroll(scrollState.value); onGenreClick(type, genre) },
+                    onOpenFriendsFavorites = { onSaveScroll(scrollState.value); onOpenFriendsFavorites() },
+                    onOpenCharacter = { malId -> onSaveScroll(scrollState.value); onOpenCharacter(malId) },
+                    onOpenPerson = { malId -> onSaveScroll(scrollState.value); onOpenPerson(malId) },
+                    onOpenCompany = { malId -> onSaveScroll(scrollState.value); onOpenCompany(malId) },
+                    onOpenFavoriteTitle = { malId, type -> onSaveScroll(scrollState.value); onOpenFavoriteTitle(malId, type) },
+                    favoriteLoadingId = favoriteLoadingId,
+                    friendsRowScroll = friendsRowScroll, onSaveFriendsRowScroll = onSaveFriendsRowScroll,
+                    getFavoritesRowScroll = getFavoritesRowScroll, onSaveFavoritesRowScroll = onSaveFavoritesRowScroll,
+                    cachedFriends = cachedFriends, cachedFavorites = cachedFavorites, onLoadFriendsFavorites = onLoadFriendsFavorites,
+                )
             }
         }
     }
@@ -150,8 +185,35 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 // Profile header card +
 // expandable "avatar + name"
-@Composable fun ProfileStatsSection(connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {}, onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> }, onFormatClick: (MediaType, String) -> Unit = { _, _ -> }, onGenreClick: (MediaType, String) -> Unit = { _, _ -> }, onOpenFriendsFavorites: () -> Unit = {}) {    val c = LocalKikoColors.current
+@Composable fun ProfileStatsSection(
+    connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, statsTab: MediaType = MediaType.Anime, onStatsTabChange: (MediaType) -> Unit = {},
+    onScoreClick: (MediaType, Int) -> Unit = { _, _ -> }, onYearClick: (MediaType, Int) -> Unit = { _, _ -> }, onFormatClick: (MediaType, String) -> Unit = { _, _ -> }, onGenreClick: (MediaType, String) -> Unit = { _, _ -> }, onOpenFriendsFavorites: () -> Unit = {},
+    onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {},
+    onOpenFavoriteTitle: (Int, MediaType) -> Unit = { _, _ -> }, favoriteLoadingId: Int? = null,
+    friendsRowScroll: Pair<Int, Int> = 0 to 0, onSaveFriendsRowScroll: (Int, Int) -> Unit = { _, _ -> },
+    getFavoritesRowScroll: (String) -> Pair<Int, Int> = { 0 to 0 }, onSaveFavoritesRowScroll: (String, Int, Int) -> Unit = { _, _, _ -> },
+    // Friends/favorites cache lives in the ViewModel (see LibraryViewModel)
+    // so it survives Profile being torn down and rebuilt while a favorite's
+    // detail page is on top — cachedFriends/cachedFavorites are null until
+    // onLoadFriendsFavorites has fetched them at least once.
+    cachedFriends: List<MalFriend>? = null, cachedFavorites: MalFavorites? = null,
+    onLoadFriendsFavorites: (String) -> Unit = {},
+) {    val c = LocalKikoColors.current
     val context = LocalContext.current
+    // Friends/favorites aren't in MAL's official API — scraped off the
+    // profile page, which needs the separate logged-in cookie session
+    // (MalSessionCookie/MalLoginWebView) that FriendsFavoritesScreen sets
+    // up. The actual fetch + cache lives in the ViewModel (cachedFriends/
+    // cachedFavorites/onLoadFriendsFavorites) so it survives this composable
+    // being torn down and rebuilt; hasFfSession just decides what to render
+    // here (the rows once loaded, or the fallback "Friends & Favorites"
+    // card that opens the full screen and its login flow if there's no
+    // session yet).
+    val hasFfSession = remember { MalSessionCookie(context).has() }
+    LaunchedEffect(connected, profile?.name, hasFfSession) {
+        val username = profile?.name.orEmpty()
+        if (connected && hasFfSession && username.isNotBlank()) onLoadFriendsFavorites(username)
+    }
     Column {
         // Profile header with stats
         if (connected && profile != null) {
@@ -188,17 +250,25 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                 }
             }
-            // Friends/favorites aren't in MAL's official API — this
-            // opens FriendsFavoritesScreen, which handles the
-            // embedded-login flow itself if there's no cookie session yet.
-            Card(
-                shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).kikoClickable { onOpenFriendsFavorites() },
-            ) {
-                Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.People, null, tint = c.primary, modifier = Modifier.size(22.dp))
-                    Text("Friends & Favorites", color = c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp).weight(1f))
-                    Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(20.dp))
+            if (hasFfSession) {
+                cachedFriends?.takeIf { it.isNotEmpty() }?.let { friends ->
+                    FriendsRow(
+                        friends, c, onSeeAll = onOpenFriendsFavorites,
+                        initialScroll = friendsRowScroll, onScrollChange = onSaveFriendsRowScroll,
+                    )
+                }
+            } else {
+                // No scrape session yet — this card opens FriendsFavoritesScreen,
+                // which handles the embedded-login flow itself.
+                Card(
+                    shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp).kikoClickable { onOpenFriendsFavorites() },
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.People, null, tint = c.primary, modifier = Modifier.size(22.dp))
+                        Text("Friends & Favorites", color = c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp).weight(1f))
+                        Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
         }
@@ -349,6 +419,19 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             }
         }
 
+        // Favorites, split by anime/manga/etc., right below the year
+        // distribution charts above.
+        if (connected && hasFfSession) {
+            cachedFavorites?.let {
+                FavoritesRowsSection(
+                    it, c, onSeeAll = onOpenFriendsFavorites,
+                    onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
+                    onOpenFavoriteTitle = onOpenFavoriteTitle, loadingId = favoriteLoadingId,
+                    getRowScroll = getFavoritesRowScroll, onSaveRowScroll = onSaveFavoritesRowScroll,
+                )
+            }
+        }
+
         // Only shown when signed-out
         if (!connected) {
             Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.lavender), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
@@ -357,6 +440,150 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     Text("Sign in with your MyAnimeList account to bring in your real list.", color = c.muted, modifier = Modifier.padding(top = 8.dp, bottom = 15.dp))
                     Button(onClick = onConnect, colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) { Text("Sign in with MyAnimeList") }
                 }
+            }
+        }
+    }
+}
+
+// Pulls the numeric MAL id out of an anime/manga URL — favorites entries
+// don't carry a parsed id, just the scraped title/url/cover (see
+// MalFavoriteEntry), so this (and parseMalProfileLink for
+// character/person/company) is how taps get routed in-app.
+fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathSegments.getOrNull(1)?.toIntOrNull() }.getOrNull()
+
+// Scrollable row of friends, right under the avatar/name card on Profile,
+// in its own section container to match Favorites below. Each friend shows
+// their cover (avatar) with their name underneath; tapping one opens their
+// MAL profile (Kiko has no in-app page for other users). "See all" opens
+// the full FriendsFavoritesScreen. The row's own scroll position is hoisted
+// out via initialScroll/onScrollChange — Profile itself gets torn down
+// while a favorite's detail page is on top, so without this the row would
+// reset to the start every time the user comes back.
+@Composable fun FriendsRow(
+    friends: List<MalFriend>, c: KikoColors, onSeeAll: () -> Unit,
+    initialScroll: Pair<Int, Int> = 0 to 0, onScrollChange: (Int, Int) -> Unit = { _, _ -> },
+) {
+    val uriHandler = LocalUriHandler.current
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialScroll.first, initialFirstVisibleItemScrollOffset = initialScroll.second)
+    DisposableEffect(Unit) { onDispose { onScrollChange(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) } }
+    Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Column(Modifier.padding(22.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("FRIENDS", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
+                Text("See all", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.kikoClickable(onClick = onSeeAll))
+            }
+            Spacer(Modifier.height(14.dp))
+            LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                items(friends, key = { it.profileUrl }) { friend ->
+                    Column(Modifier.width(70.dp).kikoClickable { uriHandler.openUri(friend.profileUrl) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (!friend.avatarUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = friend.avatarUrl, contentDescription = friend.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh),
+                            )
+                        } else {
+                            Box(Modifier.size(64.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                                Text(friend.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = c.ink)
+                            }
+                        }
+                        Text(
+                            friend.username, color = c.ink, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+// Favorites card below the year distribution charts, split into rows per
+// category (anime/manga/characters/people/companies) — each its own
+// horizontally-scrollable row of covers. Anime/manga open their in-app
+// detail page (fetched by id via onOpenFavoriteTitle); characters/people/
+// companies open via parseMalProfileLink same as everywhere else in Kiko
+// that renders MAL links (forum posts, clubs, stacks). "See all" opens the
+// full FriendsFavoritesScreen.
+@Composable fun FavoritesRowsSection(
+    favorites: MalFavorites, c: KikoColors, onSeeAll: () -> Unit,
+    onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {},
+    onOpenFavoriteTitle: (Int, MediaType) -> Unit = { _, _ -> }, loadingId: Int? = null,
+    getRowScroll: (String) -> Pair<Int, Int> = { 0 to 0 }, onSaveRowScroll: (String, Int, Int) -> Unit = { _, _, _ -> },
+) {
+    val sections = listOfNotNull(
+        favorites.anime.takeIf { it.isNotEmpty() }?.let { "Anime" to it },
+        favorites.manga.takeIf { it.isNotEmpty() }?.let { "Manga" to it },
+        favorites.characters.takeIf { it.isNotEmpty() }?.let { "Characters" to it },
+        favorites.people.takeIf { it.isNotEmpty() }?.let { "People" to it },
+        favorites.companies.takeIf { it.isNotEmpty() }?.let { "Companies" to it },
+    )
+    if (sections.isEmpty()) return
+    Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+        Column(Modifier.padding(22.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("FAVORITES", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
+                Text("See all", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.kikoClickable(onClick = onSeeAll))
+            }
+            sections.forEachIndexed { index, (label, entries) ->
+                Spacer(Modifier.height(if (index == 0) 16.dp else 24.dp))
+                Text(label.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
+                key(label) {
+                    FavoritesCategoryRow(
+                        label, entries, c,
+                        initialScroll = getRowScroll(label), onScrollChange = { i, o -> onSaveRowScroll(label, i, o) },
+                        onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
+                        onOpenFavoriteTitle = onOpenFavoriteTitle, loadingId = loadingId,
+                    )
+                }
+            }
+        }
+    }
+}
+// One category's row inside FavoritesRowsSection — own LazyListState so
+// each category's scroll position is tracked (and restored) independently.
+@Composable private fun FavoritesCategoryRow(
+    label: String, entries: List<MalFavoriteEntry>, c: KikoColors,
+    initialScroll: Pair<Int, Int>, onScrollChange: (Int, Int) -> Unit,
+    onOpenCharacter: (Int) -> Unit, onOpenPerson: (Int) -> Unit, onOpenCompany: (Int) -> Unit,
+    onOpenFavoriteTitle: (Int, MediaType) -> Unit, loadingId: Int?,
+) {
+    val uriHandler = LocalUriHandler.current
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialScroll.first, initialFirstVisibleItemScrollOffset = initialScroll.second)
+    DisposableEffect(Unit) { onDispose { onScrollChange(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) } }
+    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+        items(entries, key = { it.url }) { entry: MalFavoriteEntry ->
+            // Anime/manga wait on a fetch before navigating (see
+            // onOpenFavoriteTitle/openMalTitleDetail), so show a spinner on
+            // the tapped cover while it loads — character/person/company
+            // navigate immediately to a page that shows its own skeleton.
+            val titleMalId = remember(entry.url, label) { if (label == "Anime" || label == "Manga") malIdFromFavoriteUrl(entry.url) else null }
+            val isLoading = titleMalId != null && titleMalId == loadingId
+            Column(
+                Modifier.width(96.dp).kikoClickable(enabled = !isLoading) {
+                    when (label) {
+                        "Anime" -> titleMalId?.let { onOpenFavoriteTitle(it, MediaType.Anime) } ?: uriHandler.openUri(entry.url)
+                        "Manga" -> titleMalId?.let { onOpenFavoriteTitle(it, MediaType.Manga) } ?: uriHandler.openUri(entry.url)
+                        else -> when (val link = parseMalProfileLink(entry.url)) {
+                            is MalProfileLink.Character -> onOpenCharacter(link.malId)
+                            is MalProfileLink.Person -> onOpenPerson(link.malId)
+                            is MalProfileLink.Company -> onOpenCompany(link.malId)
+                            null -> uriHandler.openUri(entry.url)
+                        }
+                    }
+                },
+            ) {
+                Box {
+                    AsyncImage(
+                        model = entry.imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh),
+                    )
+                    if (isLoading) {
+                        Box(Modifier.matchParentSize().clip(RoundedCornerShape(kikoCorner(12.dp))).background(Color.Black.copy(alpha = .35f)), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+                Text(entry.title, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                entry.subtitle?.let { Text(it, color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
         }
     }

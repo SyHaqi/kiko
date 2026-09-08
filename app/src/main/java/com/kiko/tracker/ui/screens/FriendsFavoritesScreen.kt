@@ -42,7 +42,11 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
 // scraped off the profile page (MalProfileScrapeApi) since neither is in
 // MAL's official API — that needs a logged-in session cookie, so this screen
 // shows the embedded MalLoginWebView first if there isn't one yet.
-@Composable fun FriendsFavoritesScreen(username: String, onBack: () -> Unit) {
+@Composable fun FriendsFavoritesScreen(
+    username: String, onBack: () -> Unit,
+    onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {},
+    onOpenFavoriteTitle: (Int, com.kiko.tracker.data.model.MediaType) -> Unit = { _, _ -> },
+) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     BackHandler(onBack = onBack)
@@ -149,7 +153,7 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
                 TextButton(onClick = { load() }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
             }
             tab == FriendsFavoritesTab.Friends -> FriendsList(friends.orEmpty(), c)
-            else -> FavoritesSections(favorites, c)
+            else -> FavoritesSections(favorites, c, onOpenCharacter, onOpenPerson, onOpenCompany, onOpenFavoriteTitle)
         }
     }
 }
@@ -178,7 +182,11 @@ private fun FriendsList(friends: List<MalFriend>, c: KikoColors) {
 }
 
 @Composable
-private fun FavoritesSections(favorites: MalFavorites?, c: KikoColors) {
+private fun FavoritesSections(
+    favorites: MalFavorites?, c: KikoColors,
+    onOpenCharacter: (Int) -> Unit, onOpenPerson: (Int) -> Unit, onOpenCompany: (Int) -> Unit,
+    onOpenFavoriteTitle: (Int, com.kiko.tracker.data.model.MediaType) -> Unit,
+) {
     val sections = listOfNotNull(
         favorites?.anime?.takeIf { it.isNotEmpty() }?.let { "Anime" to it },
         favorites?.manga?.takeIf { it.isNotEmpty() }?.let { "Manga" to it },
@@ -196,7 +204,24 @@ private fun FavoritesSections(favorites: MalFavorites?, c: KikoColors) {
             Text(label.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 entries.forEach { entry: MalFavoriteEntry ->
-                    Column(Modifier.width(96.dp).kikoClickable { uriHandler.openUri(entry.url) }) {
+                    // Anime/manga/characters/people/companies all open their
+                    // in-app detail page (same routing as Profile's inline
+                    // Favorites rows) — falls back to the browser only if a
+                    // url doesn't parse as a recognized MAL link.
+                    Column(
+                        Modifier.width(96.dp).kikoClickable {
+                            when (label) {
+                                "Anime" -> malIdFromFavoriteUrl(entry.url)?.let { onOpenFavoriteTitle(it, com.kiko.tracker.data.model.MediaType.Anime) } ?: uriHandler.openUri(entry.url)
+                                "Manga" -> malIdFromFavoriteUrl(entry.url)?.let { onOpenFavoriteTitle(it, com.kiko.tracker.data.model.MediaType.Manga) } ?: uriHandler.openUri(entry.url)
+                                else -> when (val link = parseMalProfileLink(entry.url)) {
+                                    is MalProfileLink.Character -> onOpenCharacter(link.malId)
+                                    is MalProfileLink.Person -> onOpenPerson(link.malId)
+                                    is MalProfileLink.Company -> onOpenCompany(link.malId)
+                                    null -> uriHandler.openUri(entry.url)
+                                }
+                            }
+                        },
+                    ) {
                         AsyncImage(
                             model = entry.imageUrl, contentDescription = null,
                             modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh),

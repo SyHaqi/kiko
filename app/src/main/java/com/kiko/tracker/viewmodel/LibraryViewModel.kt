@@ -36,10 +36,15 @@ import com.kiko.tracker.data.api.MalCharacterApi
 import com.kiko.tracker.data.api.MalClub
 import com.kiko.tracker.data.api.MalCompanyApi
 import com.kiko.tracker.data.api.MalDetailScrapeApi
+import com.kiko.tracker.data.api.MalFavorites
+import com.kiko.tracker.data.api.MalFriend
 import com.kiko.tracker.data.api.MalGenreApi
 import com.kiko.tracker.data.api.MalGenreLookup
 import com.kiko.tracker.data.api.MalPeopleApi
 import com.kiko.tracker.data.api.MalProfile
+import com.kiko.tracker.data.api.MalProfileScrapeApi
+import com.kiko.tracker.data.api.MalSessionCookie
+import com.kiko.tracker.data.api.MalSessionExpired
 import com.kiko.tracker.data.api.NewsSnapshot
 import com.kiko.tracker.data.api.RecommendedEntry
 import com.kiko.tracker.data.api.StackBrowseKind
@@ -513,6 +518,67 @@ class LibraryViewModel : ViewModel() {
     // Only resets to Anime
     var profileStatsTab by mutableStateOf(MediaType.Anime); private set
     fun selectProfileStatsTab(type: MediaType) { profileStatsTab = type }
+    // Profile's Friends row and per-category Favorites rows are horizontal
+    // LazyRows that get torn down (along with the rest of Profile) whenever
+    // a favorite is opened in-app and rebuilt on the way back — persisted
+    // here so each row lands back where the user left it, same idea as
+    // profileScrollOffset above for the page's own vertical scroll.
+    var profileFriendsRowScroll: Pair<Int, Int> = 0 to 0; private set
+    fun saveProfileFriendsRowScroll(index: Int, offset: Int) { profileFriendsRowScroll = index to offset }
+    private val profileFavoritesRowScroll = mutableMapOf<String, Pair<Int, Int>>()
+    fun getProfileFavoritesRowScroll(category: String) = profileFavoritesRowScroll[category] ?: (0 to 0)
+    fun saveProfileFavoritesRowScroll(category: String, index: Int, offset: Int) { profileFavoritesRowScroll[category] = index to offset }
+    // Loading state for a favorite anime/manga tapped from Profile's
+    // Favorites rows — fetched by id/type the same way any other title is.
+    var profileFavoriteLoadingId by mutableStateOf<Int?>(null); private set
+    fun openMalTitleDetail(context: Context, malId: Int, type: MediaType, onLoaded: (MediaItem) -> Unit) {
+        profileFavoriteLoadingId = malId
+        viewModelScope.launch {
+            runCatching { MalApi(context).detail(malId, type) }
+                .onSuccess { onLoaded(it) }
+                .onFailure { error = it.message ?: "Could not load title" }
+            profileFavoriteLoadingId = null
+        }
+    }
+    // Friends/favorites aren't in MAL's official API — scraped off the
+    // profile page, which needs its own logged-in cookie session (see
+    // MalSessionCookie/MalLoginWebView). Cached here (not just remembered
+    // inside the composable) so navigating to a favorite's detail page and
+    // back doesn't re-scrape the profile page every time — this cache lives
+    // for as long as the app process does. null means "not loaded yet";
+    // an empty list/MalFavorites means "loaded, has none". Cleared and
+    // re-fetched only on an explicit Profile pull-to-refresh (or sign-out).
+    var profileFriends by mutableStateOf<List<MalFriend>?>(null); private set
+    var profileFavorites by mutableStateOf<MalFavorites?>(null); private set
+    var profileFriendsFavoritesLoading by mutableStateOf(false); private set
+    private var profileFriendsFavoritesUsername: String? = null
+    fun loadProfileFriendsFavorites(context: Context, username: String, force: Boolean = false) {
+        if (username.isBlank() || profileFriendsFavoritesLoading) return
+        if (!MalSessionCookie(context).has()) return
+        if (!force && profileFriendsFavoritesUsername == username && profileFavorites != null) return
+        profileFriendsFavoritesUsername = username
+        profileFriendsFavoritesLoading = true
+        viewModelScope.launch {
+            val api = MalProfileScrapeApi(context)
+            runCatching {
+                val f = api.friends(username)
+                val fav = api.favorites(username)
+                profileFriends = f
+                profileFavorites = fav
+            }.onFailure { e -> if (e is MalSessionExpired) MalSessionCookie(context).clear() }
+            profileFriendsFavoritesLoading = false
+        }
+    }
+    fun refreshProfileFriendsFavorites(context: Context, username: String) {
+        profileFriends = null
+        profileFavorites = null
+        loadProfileFriendsFavorites(context, username, force = true)
+    }
+    fun clearProfileFriendsFavoritesCache() {
+        profileFriends = null
+        profileFavorites = null
+        profileFriendsFavoritesUsername = null
+    }
     // NSFW off by default
     var nsfwEnabled by mutableStateOf(false); private set
     var amoledDark by mutableStateOf(false); private set
@@ -1113,7 +1179,7 @@ class LibraryViewModel : ViewModel() {
         delete(item.id, item.type)
         if (signedIn) viewModelScope.launch { runCatching { MalApi(context).deleteEntry(item) }.onFailure { error = "MAL sync failed: ${it.message ?: "unknown error"}" } }
     }
-    fun signOut(context: Context) { MalApi(context).signOut(); signedIn = false; items = emptyList(); malProfile = null; libraryThemesBackfilled = false }
+    fun signOut(context: Context) { MalApi(context).signOut(); signedIn = false; items = emptyList(); malProfile = null; libraryThemesBackfilled = false; clearProfileFriendsFavoritesCache() }
 
     // Load home browse rows
     fun loadDiscoverBrowse(context: Context) {
