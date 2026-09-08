@@ -668,7 +668,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     // remember(...) pattern ScoreFilterScreen/YearFilterScreen already
     val filtered = remember(vm.items, vm.nsfwEnabled, typeTab, effectiveFilter, submittedQuery, vm.listSort, vm.titleLanguage) {
         vm.visibleItems
-            .filter { it.type == typeTab && (effectiveFilter == "All" || it.status.displayLabel(typeTab) == effectiveFilter) && it.title.contains(submittedQuery, true) }
+            .filter { it.type == typeTab && (effectiveFilter == "All" || it.status.displayLabel(typeTab) == effectiveFilter) && (it.title.contains(submittedQuery, true) || it.titleEnglish.contains(submittedQuery, true)) }
             .sortedWithListSort(vm.listSort, vm.titleLanguage)
     }
     // Status filter now lives
