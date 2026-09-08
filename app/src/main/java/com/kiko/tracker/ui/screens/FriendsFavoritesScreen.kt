@@ -46,6 +46,9 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
     username: String, onBack: () -> Unit,
     onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {},
     onOpenFavoriteTitle: (Int, com.kiko.tracker.data.model.MediaType) -> Unit = { _, _ -> },
+    // Tapping a friend on the Friends tab — opens an in-app
+    // FriendProfileScreen for them instead of falling back to the browser.
+    onOpenFriend: (MalFriend) -> Unit = {},
 ) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
@@ -152,23 +155,22 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
                 Text(error!!, color = c.muted, fontSize = 13.sp)
                 TextButton(onClick = { load() }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
             }
-            tab == FriendsFavoritesTab.Friends -> FriendsList(friends.orEmpty(), c)
+            tab == FriendsFavoritesTab.Friends -> FriendsList(friends.orEmpty(), c, onOpenFriend)
             else -> FavoritesSections(favorites, c, onOpenCharacter, onOpenPerson, onOpenCompany, onOpenFavoriteTitle)
         }
     }
 }
 
 @Composable
-private fun FriendsList(friends: List<MalFriend>, c: KikoColors) {
+private fun FriendsList(friends: List<MalFriend>, c: KikoColors, onOpenFriend: (MalFriend) -> Unit = {}) {
     if (friends.isEmpty()) {
         Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text("No friends listed on this profile.", color = c.muted, fontSize = 13.sp) }
         return
     }
-    val uriHandler = LocalUriHandler.current
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 16.dp)) {
         friends.forEach { friend ->
             Row(
-                Modifier.fillMaxWidth().kikoClickable { uriHandler.openUri(friend.profileUrl) }.padding(vertical = 10.dp),
+                Modifier.fillMaxWidth().kikoClickable { onOpenFriend(friend) }.padding(vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AsyncImage(

@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
 import java.io.IOException
 
 /** Thrown when there's no stored cookie, or MAL bounced the request back to its login form. */
@@ -32,6 +33,28 @@ data class MalFavorites(
     val people: List<MalFavoriteEntry>,
     val companies: List<MalFavoriteEntry>
 )
+
+// The handful of "About" fields MAL prints as plain text next to a friend's
+// avatar (ul.user-status on the profile page) rather than as part of any
+// stats block. Kept as raw scraped strings — e.g. joined = "Aug 7, 2024" —
+// rather than trying to force them into MalProfile.joinedAt's ISO shape
+// (that field is only ever ISO when it comes from the official API for the
+// signed-in user; formatFullDate's `.take(10)` assumption would mangle a
+// human-readable string like this one).
+data class MalProfileHeader(
+    val username: String,
+    val avatarUrl: String? = null,
+    val lastOnline: String? = null,
+    val gender: String? = null,
+    val birthday: String? = null,
+    val joined: String? = null,
+)
+
+// Everything FriendProfileScreen needs for a given username in one scrape:
+// header info + both anime and manga stats blocks. friends()/favorites()
+// stay separate calls (see below) since FriendsFavoritesScreen already
+// loads those lazily/independently, same as it does for the signed-in user.
+data class MalFriendProfile(val header: MalProfileHeader, val stats: MalProfile)
 
 /**
  * Scrapes myanimelist.net/profile/{username} for the handful of things the
@@ -107,6 +130,89 @@ class MalProfileScrapeApi(context: Context) {
             )
         }
 
+    /**
+     * One-shot scrape of everything FriendProfileScreen needs for [username]:
+     * avatar/last-online/gender/birthday/joined plus both anime and manga
+     * stats blocks — none of which are reachable through the official API
+     * for anyone but the signed-in user (MalApi.profile() only ever hits
+     * /users/@me). Same status-block shape as applyMangaStats above, just
+     * also pulling the anime side and the header line.
+     */
+    suspend fun fullProfile(username: String): MalFriendProfile = withContext(Dispatchers.IO) {
+        val doc = fetchProfileDocument(username)
+
+        val avatarUrl = doc.selectFirst("div.user-image img")?.attr("data-src")?.ifBlank { null }
+        val aboutFields = doc.select("ul.user-status.border-top.pb8.mb4 li.clearfix").associate { li ->
+            li.selectFirst("span.user-status-title")?.text().orEmpty() to li.selectFirst("span.user-status-data")?.text().orEmpty()
+        }
+        val header = MalProfileHeader(
+            username = username,
+            avatarUrl = avatarUrl,
+            lastOnline = aboutFields["Last Online"]?.ifBlank { null },
+            gender = aboutFields["Gender"]?.ifBlank { null },
+            birthday = aboutFields["Birthday"]?.ifBlank { null },
+            joined = aboutFields["Joined"]?.ifBlank { null },
+        )
+
+        // Same shape as applyMangaStats' mangaBlock parsing above, just
+        // generalized over the selector so it can pull either stats.anime
+        // or stats.manga off the same document without a second fetch.
+        fun statusAndDataCounts(block: Element): Pair<Map<String, Int>, Map<String, Int>> {
+            val statusCounts = block.select("ul.stats-status li").associate { li ->
+                val label = li.selectFirst("a")?.text().orEmpty()
+                val count = li.selectFirst("span.di-ib.fl-r")?.text()?.replace(",", "")?.toIntOrNull() ?: 0
+                label to count
+            }
+            val dataCounts = block.select("ul.stats-data li").associate { li ->
+                val spans = li.select("span")
+                val label = spans.getOrNull(0)?.text().orEmpty()
+                val value = spans.getOrNull(1)?.text()?.replace(",", "")?.toIntOrNull() ?: 0
+                label to value
+            }
+            return statusCounts to dataCounts
+        }
+        fun days(block: Element) = block.selectFirst("div.stat-score .di-tc.al")?.text()?.substringAfter("Days:")?.trim()?.toDoubleOrNull() ?: 0.0
+        fun meanScore(block: Element) = block.selectFirst("div.stat-score .score-label")?.text()?.toDoubleOrNull() ?: 0.0
+
+        val animeBlock = doc.selectFirst("div.stats.anime")
+        val (animeStatus, animeData) = animeBlock?.let(::statusAndDataCounts) ?: (emptyMap<String, Int>() to emptyMap())
+        val mangaBlock = doc.selectFirst("div.stats.manga")
+        val (mangaStatus, mangaData) = mangaBlock?.let(::statusAndDataCounts) ?: (emptyMap<String, Int>() to emptyMap())
+
+        val stats = MalProfile(
+            name = username,
+            picture = avatarUrl.orEmpty(),
+            gender = header.gender.orEmpty(),
+            animeDaysWatched = animeBlock?.let(::days) ?: 0.0,
+            animeMeanScore = animeBlock?.let(::meanScore) ?: 0.0,
+            animeEpisodesWatched = animeData["Episodes"] ?: 0,
+            animeTotalEntries = animeData["Total Entries"] ?: 0,
+            animeWatching = animeStatus["Watching"] ?: 0,
+            animeCompleted = animeStatus["Completed"] ?: 0,
+            animeOnHold = animeStatus["On-Hold"] ?: 0,
+            animeDropped = animeStatus["Dropped"] ?: 0,
+            animePlanToWatch = animeStatus["Plan to Watch"] ?: 0,
+            mangaDaysRead = mangaBlock?.let(::days) ?: 0.0,
+            mangaMeanScore = mangaBlock?.let(::meanScore) ?: 0.0,
+            mangaChaptersRead = mangaData["Chapters"] ?: 0,
+            mangaVolumesRead = mangaData["Volumes"] ?: 0,
+            mangaReread = mangaData["Reread"] ?: 0,
+            mangaTotalEntries = mangaData["Total Entries"] ?: 0,
+            mangaReading = mangaStatus["Reading"] ?: 0,
+            mangaCompleted = mangaStatus["Completed"] ?: 0,
+            mangaOnHold = mangaStatus["On-Hold"] ?: 0,
+            mangaDropped = mangaStatus["Dropped"] ?: 0,
+            mangaPlanToRead = mangaStatus["Plan to Read"] ?: 0,
+            // joinedAt intentionally left blank — see MalProfileHeader's doc
+            // comment above; the human-readable "Joined" string lives on
+            // header instead, so ProfileStatsSection's ISO-only `.take(10)`
+            // formatting (built for the official API's date shape) never
+            // sees a value it would mangle.
+        )
+
+        MalFriendProfile(header, stats)
+    }
+
     suspend fun friends(username: String): List<MalFriend> = withContext(Dispatchers.IO) {
         val doc = fetchProfileDocument(username)
         doc.select("div.user-friends a.icon-friend").map { a ->
@@ -129,7 +235,11 @@ class MalProfileScrapeApi(context: Context) {
                     title = li.attr("title").ifBlank { a?.selectFirst("span.title")?.text().orEmpty() },
                     url = a?.attr("abs:href").orEmpty(),
                     subtitle = a?.selectFirst("span.users")?.text()?.ifBlank { null },
-                    imageUrl = a?.selectFirst("img")?.attr("data-src")?.ifBlank { null }
+                    // Same resize-proxy/company-logo-size fixup used by every
+                    // other MAL scrape (see fullResMalImage) — the raw
+                    // data-src here is the small carousel thumbnail, not the
+                    // full-size cover/logo.
+                    imageUrl = a?.selectFirst("img")?.attr("data-src")?.ifBlank { null }?.let(::fullResMalImage)
                 )
             }
         }

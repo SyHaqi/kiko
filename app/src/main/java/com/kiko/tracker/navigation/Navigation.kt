@@ -37,6 +37,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kiko.tracker.data.api.MalApi
 import com.kiko.tracker.data.api.MalClub
+import com.kiko.tracker.data.api.MalFriend
 import com.kiko.tracker.data.api.StackBrowseKind
 import com.kiko.tracker.data.api.StackDetail
 import com.kiko.tracker.data.model.CharacterDetail
@@ -79,6 +80,7 @@ import com.kiko.tracker.ui.screens.HomeScreen
 import com.kiko.tracker.ui.screens.ListScreen
 import com.kiko.tracker.ui.screens.MediaStacksScreen
 import com.kiko.tracker.ui.screens.PersonDetailScreen
+import com.kiko.tracker.ui.screens.FriendProfileScreen
 import com.kiko.tracker.ui.screens.FriendsFavoritesScreen
 import com.kiko.tracker.ui.screens.ProfileStatsScreen
 import com.kiko.tracker.ui.screens.RankingScreen
@@ -171,6 +173,18 @@ sealed class TopScreen {
     // Full pages opened from
     object ProfileStats : TopScreen()
     object MalFriendsFavorites : TopScreen()
+    // A friend/other MAL user's own profile — opened by tapping a friend
+    // in FriendsRow (Profile) or FriendsList (Friends & Favorites). Mirrors
+    // ProfileStats but scraped for someone else's username (see
+    // FriendProfileScreen/MalProfileScrapeApi.fullProfile). avatarUrl is
+    // just the thumbnail already on hand from the row that was tapped, so
+    // FriendProfileScreen has something to show before its own scrape
+    // finishes.
+    data class FriendProfile(val username: String, val avatarUrl: String?) : TopScreen()
+    // A friend's own Friends & Favorites tab — same screen as
+    // MalFriendsFavorites, just for that friend's username instead of the
+    // signed-in user's, opened from within FriendProfile.
+    data class FriendFriendsFavorites(val username: String) : TopScreen()
     object SettingsPage : TopScreen()
     // Titles at one score,
     data class ScoreFilter(val type: MediaType, val score: Int) : TopScreen()
@@ -226,6 +240,8 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.ClubDetail -> "clubDetail:${club.id}"
     TopScreen.ProfileStats -> "profileStats"
     TopScreen.MalFriendsFavorites -> "malFriendsFavorites"
+    is TopScreen.FriendProfile -> "friendProfile:$username"
+    is TopScreen.FriendFriendsFavorites -> "friendFriendsFavorites:$username"
     TopScreen.SettingsPage -> "settingsPage"
     is TopScreen.ScoreFilter -> "scoreFilter:$type:$score"
     is TopScreen.YearFilter -> "yearFilter:$type:$year"
@@ -239,7 +255,7 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.Tab -> "tab:$destination"
 }
 
-fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.MediaStacks || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.MalFriendsFavorites || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage || this is TopScreen.CompanyPage || this is TopScreen.FeaturedArticles || this is TopScreen.FeaturedArticle
+fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.MediaStacks || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.MalFriendsFavorites || this is TopScreen.FriendProfile || this is TopScreen.FriendFriendsFavorites || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage || this is TopScreen.CompanyPage || this is TopScreen.FeaturedArticles || this is TopScreen.FeaturedArticle
 
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}) {
@@ -488,6 +504,17 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Friends & Favorites full page, opened from Profile — same
     // shape as profileStatsOpen above
     var malFriendsFavoritesOpen by remember { mutableStateOf(false) }
+    // A friend/other MAL user's own profile, opened by tapping them in
+    // FriendsRow/FriendsList — see TopScreen.FriendProfile's doc comment.
+    // A plain nullable var (not a real stack) same as everything else
+    // here: tapping a friend-of-a-friend just swaps this to the new
+    // username rather than pushing a second level, so back from there
+    // returns straight to the original FriendProfile screen, same
+    // shallow-nav tradeoff the rest of this file already makes elsewhere.
+    var friendProfileOpen by remember { mutableStateOf<TopScreen.FriendProfile?>(null) }
+    // That friend's own Friends & Favorites tab, opened from within
+    // FriendProfile — same shape as malFriendsFavoritesOpen above.
+    var friendFriendsFavoritesOpen by remember { mutableStateOf<String?>(null) }
     var settingsPageOpen by remember { mutableStateOf(false) }
     // Score distribution drill-down, opened
     var scoreFilterOpen by remember { mutableStateOf<Pair<MediaType, Int>?>(null) }
@@ -550,7 +577,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         rankingOpen = false; recommendationsOpen = false; scheduleOpen = false
         featuredArticlesOpen = false; featuredArticleOpen = null
         forumTopicOpen = null; aboutOpen = false; reviewOpen = null
-        profileStatsOpen = false; malFriendsFavoritesOpen = false; settingsPageOpen = false; scoreFilterOpen = null; yearFilterOpen = null; formatFilterOpen = null
+        profileStatsOpen = false; malFriendsFavoritesOpen = false; friendProfileOpen = null; friendFriendsFavoritesOpen = null; settingsPageOpen = false; scoreFilterOpen = null; yearFilterOpen = null; formatFilterOpen = null
         genreFilterOpen = null
         vm.destination = Destination.Discover
         vm.runDiscoverSearch(context, "", type, filters)
@@ -562,7 +589,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Prefer live item copy
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && (vm.destination != Destination.Home || discoverReturnItem != null)) {
+    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileOpen == null && friendFriendsFavoritesOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && (vm.destination != Destination.Home || discoverReturnItem != null)) {
         val returnItem = discoverReturnItem
         if (returnItem != null && vm.destination == Destination.Discover) {
             discoverReturnItem = null
@@ -600,7 +627,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         ) {
             Scaffold(
                 containerColor = c.background,
-                bottomBar = { if (detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null) BottomBar(vm.destination, onDoubleTapDiscover = { vm.openDiscoverSearch(context) }) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
+                bottomBar = { if (detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileOpen == null && friendFriendsFavoritesOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null) BottomBar(vm.destination, onDoubleTapDiscover = { vm.openDiscoverSearch(context) }) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val topScreen = when {
@@ -667,6 +694,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                         yearFilterOpen != null -> TopScreen.YearFilter(yearFilterOpen!!.first, yearFilterOpen!!.second)
                         formatFilterOpen != null -> TopScreen.FormatFilter(formatFilterOpen!!.first, formatFilterOpen!!.second)
                         genreFilterOpen != null -> TopScreen.GenreFilter(genreFilterOpen!!.first, genreFilterOpen!!.second)
+                        friendFriendsFavoritesOpen != null -> TopScreen.FriendFriendsFavorites(friendFriendsFavoritesOpen!!)
+                        friendProfileOpen != null -> friendProfileOpen!!
                         malFriendsFavoritesOpen -> TopScreen.MalFriendsFavorites
                         profileStatsOpen -> TopScreen.ProfileStats
                         settingsPageOpen -> TopScreen.SettingsPage
@@ -820,8 +849,35 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             is TopScreen.StackDetail -> StackDetailScreen(vm, screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), initialScroll = vm.getStackDetailScroll(screen.stackId), onLeaveScroll = { index, offset -> vm.saveStackDetailScroll(screen.stackId, index, offset) }, onBack = { stackDetailOpen = null; if (!stacksHomeOpen && stacksBrowseKind == null && mediaStacksOpen == null) vm.clearStackDetailCache() }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } }, onEditEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> editor = fetched } }, selectedItem = editor, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
                             is TopScreen.MediaStacks -> MediaStacksScreen(vm = vm, item = screen.item, onBack = { mediaStacksOpen = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
                             is TopScreen.ClubDetail -> ClubDetailScreen(screen.club, onBack = { clubDetailOpen = null }, onOpenCharacter = { malId -> openCharacter(malId) }, onOpenPerson = { malId -> openPerson(malId) }, onOpenCompany = { malId -> openCompany(malId) })
-                            TopScreen.ProfileStats -> ProfileStatsScreen(vm.signedIn, vm.malProfile, vm.items, onConnect = onSignIn, onBack = { profileStatsOpen = false }, scrollOffset = vm.profileScrollOffset, onSaveScroll = vm::saveProfileScroll, statsTab = vm.profileStatsTab, onStatsTabChange = vm::selectProfileStatsTab, onScoreClick = { type, score -> scoreFilterOpen = type to score }, onYearClick = { type, year -> yearFilterOpen = type to year }, onFormatClick = { type, format -> formatFilterOpen = type to format }, onGenreClick = { type, genre -> genreFilterOpen = type to genre }, onSignOut = { profileStatsOpen = false; onSignOut() }, refreshing = vm.loading || vm.profileLoading, onRefresh = { vm.load(context); vm.malProfile?.name?.takeIf { it.isNotBlank() }?.let { vm.refreshProfileFriendsFavorites(context, it) } }, onOpenFriendsFavorites = { malFriendsFavoritesOpen = true }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) }, onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) }, favoriteLoadingId = vm.profileFavoriteLoadingId, friendsRowScroll = vm.profileFriendsRowScroll, onSaveFriendsRowScroll = vm::saveProfileFriendsRowScroll, getFavoritesRowScroll = vm::getProfileFavoritesRowScroll, onSaveFavoritesRowScroll = vm::saveProfileFavoritesRowScroll, cachedFriends = vm.profileFriends, cachedFavorites = vm.profileFavorites, onLoadFriendsFavorites = { username -> vm.loadProfileFriendsFavorites(context, username) })
-                            TopScreen.MalFriendsFavorites -> FriendsFavoritesScreen(username = vm.malProfile?.name.orEmpty(), onBack = { malFriendsFavoritesOpen = false }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) }, onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) })
+                            TopScreen.ProfileStats -> ProfileStatsScreen(vm.signedIn, vm.malProfile, vm.items, onConnect = onSignIn, onBack = { profileStatsOpen = false }, scrollOffset = vm.profileScrollOffset, onSaveScroll = vm::saveProfileScroll, statsTab = vm.profileStatsTab, onStatsTabChange = vm::selectProfileStatsTab, onScoreClick = { type, score -> scoreFilterOpen = type to score }, onYearClick = { type, year -> yearFilterOpen = type to year }, onFormatClick = { type, format -> formatFilterOpen = type to format }, onGenreClick = { type, genre -> genreFilterOpen = type to genre }, onSignOut = { profileStatsOpen = false; onSignOut() }, refreshing = vm.loading || vm.profileLoading, onRefresh = { vm.load(context); vm.malProfile?.name?.takeIf { it.isNotBlank() }?.let { vm.refreshProfileFriendsFavorites(context, it) } }, onOpenFriendsFavorites = { malFriendsFavoritesOpen = true }, onOpenFriend = { friend -> friendProfileOpen = TopScreen.FriendProfile(friend.username, friend.avatarUrl) }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) }, onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) }, favoriteLoadingId = vm.profileFavoriteLoadingId, friendsRowScroll = vm.profileFriendsRowScroll, onSaveFriendsRowScroll = vm::saveProfileFriendsRowScroll, getFavoritesRowScroll = vm::getProfileFavoritesRowScroll, onSaveFavoritesRowScroll = vm::saveProfileFavoritesRowScroll, cachedFriends = vm.profileFriends, cachedFavorites = vm.profileFavorites, onLoadFriendsFavorites = { username -> vm.loadProfileFriendsFavorites(context, username) }, friendsFavoritesLoading = vm.profileFriendsFavoritesLoading)
+                            TopScreen.MalFriendsFavorites -> FriendsFavoritesScreen(username = vm.malProfile?.name.orEmpty(), onBack = { malFriendsFavoritesOpen = false }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) }, onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) }, onOpenFriend = { friend -> friendProfileOpen = TopScreen.FriendProfile(friend.username, friend.avatarUrl) })
+                            is TopScreen.FriendProfile -> FriendProfileScreen(
+                                username = screen.username, avatarHint = screen.avatarUrl,
+                                onBack = { friendProfileOpen = null },
+                                // Tapping a friend-of-a-friend swaps this
+                                // same slot to the new username (see
+                                // friendProfileOpen's doc comment above) —
+                                // back from there returns to Profile, not
+                                // to the friend in between.
+                                onOpenFriend = { friend -> friendProfileOpen = TopScreen.FriendProfile(friend.username, friend.avatarUrl) },
+                                onOpenFriendsFavorites = { username -> friendFriendsFavoritesOpen = username },
+                                onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) },
+                                onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
+                                onOpenCompany = { malId -> openCompany(malId, castOnTop = true) },
+                                onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) },
+                            )
+                            is TopScreen.FriendFriendsFavorites -> FriendsFavoritesScreen(
+                                username = screen.username, onBack = { friendFriendsFavoritesOpen = null },
+                                onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) },
+                                onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
+                                onOpenCompany = { malId -> openCompany(malId, castOnTop = true) },
+                                onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) },
+                                // Chains further: tapping a friend inside a
+                                // friend's own Friends & Favorites list
+                                // swaps friendProfileOpen the same way and
+                                // this list stays put underneath it.
+                                onOpenFriend = { friend -> friendProfileOpen = TopScreen.FriendProfile(friend.username, friend.avatarUrl) },
+                            )
                             is TopScreen.ScoreFilter -> ScoreFilterScreen(vm = vm, type = screen.type, initialScore = screen.score, onBack = { scoreFilterOpen = null }, onOpenDetail = ::openDetail)
                             is TopScreen.YearFilter -> YearFilterScreen(vm = vm, type = screen.type, initialYear = screen.year, onBack = { yearFilterOpen = null }, onOpenDetail = ::openDetail)
                             is TopScreen.FormatFilter -> FormatFilterScreen(vm = vm, type = screen.type, initialFormat = screen.format, onBack = { formatFilterOpen = null }, onOpenDetail = ::openDetail)

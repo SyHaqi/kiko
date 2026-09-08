@@ -36,6 +36,7 @@ import com.kiko.tracker.data.api.MalCharacterApi
 import com.kiko.tracker.data.api.MalClub
 import com.kiko.tracker.data.api.MalCompanyApi
 import com.kiko.tracker.data.api.MalDetailScrapeApi
+import com.kiko.tracker.data.api.MalFavoriteEntry
 import com.kiko.tracker.data.api.MalFavorites
 import com.kiko.tracker.data.api.MalFriend
 import com.kiko.tracker.data.api.MalGenreApi
@@ -92,6 +93,7 @@ import com.kiko.tracker.data.model.matches
 import com.kiko.tracker.data.model.nowIso
 import com.kiko.tracker.data.model.nsfwFiltered
 import com.kiko.tracker.data.model.sortedForDiscover
+import com.kiko.tracker.ui.screens.malIdFromFavoriteUrl
 import com.kiko.tracker.ui.screens.normalizeFilterForType
 import com.kiko.tracker.ui.screens.sortedWithListSort
 import com.kiko.tracker.ui.theme.parseHexColor
@@ -562,12 +564,42 @@ class LibraryViewModel : ViewModel() {
             val api = MalProfileScrapeApi(context)
             runCatching {
                 val f = api.friends(username)
-                val fav = api.favorites(username)
+                val fav = resolveFavoritesEnglishTitles(context, api.favorites(username))
                 profileFriends = f
                 profileFavorites = fav
             }.onFailure { e -> if (e is MalSessionExpired) MalSessionCookie(context).clear() }
             profileFriendsFavoritesLoading = false
         }
+    }
+    // Favorites are scraped straight off MAL's profile page, which only
+    // gives us whatever title MAL's own site renders there (usually
+    // romaji) — unlike the official API, there's no separate English field
+    // to fall back to. So when Kiko's Title Language is set to English,
+    // look each anime/manga favorite's id up (parsed from its url, same as
+    // the tap handler in FavoritesCategoryRow) through the same id-keyed,
+    // cached englishTitles() lookup resolveEnglishTitles() above uses for
+    // lists/rankings, and swap in the English title wherever MAL has one.
+    // Characters/people/companies don't carry a title to translate, so
+    // those sections are left as-is.
+    private suspend fun resolveFavoritesEnglishTitles(context: Context, favorites: MalFavorites): MalFavorites {
+        if (titleLanguage != TitleLanguage.English) return favorites
+        suspend fun resolve(kind: String, entries: List<MalFavoriteEntry>): List<MalFavoriteEntry> {
+            if (entries.isEmpty()) return entries
+            val idByEntry = entries.associateWith { malIdFromFavoriteUrl(it.url) }
+            val ids = idByEntry.values.filterNotNull()
+            if (ids.isEmpty()) return entries
+            val englishTitles = runCatching { MalApi(context).englishTitles(kind, ids) }.getOrDefault(emptyMap())
+            return entries.map { entry ->
+                val english = idByEntry[entry]?.let { englishTitles[it] }
+                if (!english.isNullOrBlank()) entry.copy(title = english) else entry
+            }
+        }
+        val (anime, manga) = coroutineScope {
+            val animeDeferred = async { resolve("anime", favorites.anime) }
+            val mangaDeferred = async { resolve("manga", favorites.manga) }
+            animeDeferred.await() to mangaDeferred.await()
+        }
+        return favorites.copy(anime = anime, manga = manga)
     }
     fun refreshProfileFriendsFavorites(context: Context, username: String) {
         profileFriends = null
