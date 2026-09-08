@@ -50,6 +50,7 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
     val session = remember { MalSessionCookie(context) }
     var connected by remember { mutableStateOf(session.has()) }
     var showLogin by remember { mutableStateOf(false) }
+    var verifyingLogin by remember { mutableStateOf(false) }
 
     var tab by remember { mutableStateOf(FriendsFavoritesTab.Friends) }
     var friends by remember { mutableStateOf<List<MalFriend>?>(null) }
@@ -81,11 +82,29 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
     LaunchedEffect(connected) { if (connected) load() }
 
     if (showLogin) {
-        MalLoginWebView(
-            session = session,
-            onLoginSuccess = { showLogin = false; connected = true },
-            modifier = Modifier.fillMaxSize(),
-        )
+        Box(Modifier.fillMaxSize()) {
+            MalLoginWebView(
+                session = session,
+                onLoginSuccess = { showLogin = false; connected = true },
+                onVerifyingChange = { verifyingLogin = it },
+                modifier = Modifier.fillMaxSize(),
+            )
+            // The check happens on a page the user never asked to see —
+            // an extra full page load between "looks logged in" and MAL
+            // actually confirming it. Cover it so it reads as progress
+            // instead of the webview stalling.
+            if (verifyingLogin) {
+                Box(
+                    Modifier.fillMaxSize().background(c.surface.copy(alpha = 0.92f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = c.primary)
+                        Text("Confirming your MAL login…", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
+                    }
+                }
+            }
+        }
         return
     }
 

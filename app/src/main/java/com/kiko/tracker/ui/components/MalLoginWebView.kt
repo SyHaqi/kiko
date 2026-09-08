@@ -32,6 +32,7 @@ private const val MAL_HOST = "myanimelist.net"
 fun MalLoginWebView(
     session: MalSessionCookie,
     onLoginSuccess: () -> Unit,
+    onVerifyingChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     AndroidView(
@@ -40,7 +41,7 @@ fun MalLoginWebView(
             WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true // MAL's login form needs this
-                webViewClient = MalLoginWebViewClient(session, onLoginSuccess)
+                webViewClient = MalLoginWebViewClient(session, onLoginSuccess, onVerifyingChange)
                 loadUrl(LOGIN_URL)
             }
         }
@@ -54,10 +55,18 @@ fun MalLoginWebView(
  */
 private class MalLoginWebViewClient(
     private val session: MalSessionCookie,
-    private val onLoginSuccess: () -> Unit
+    private val onLoginSuccess: () -> Unit,
+    private val onVerifyingChange: (Boolean) -> Unit
 ) : WebViewClient() {
 
+    // Setter reports every transition so the host screen can show a spinner
+    // for the (real, unavoidable — it's an extra page load) gap between
+    // "looks logged in" and onLoginSuccess actually firing.
     private var verifying = false
+        set(value) {
+            field = value
+            onVerifyingChange(value)
+        }
 
     override fun onPageFinished(view: WebView, url: String?) {
         super.onPageFinished(view, url)
