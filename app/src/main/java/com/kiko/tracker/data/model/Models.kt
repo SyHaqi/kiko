@@ -56,6 +56,8 @@ data class MediaItem(
     val comments: String = "",
     // Rewatch tracking fields
     val isRewatching: Boolean = false, val timesRewatched: Int = 0,
+    // Rewatch value (0=None..5=Very High) and list priority (0=Low..2=High)
+    val rewatchValue: Int = 0, val priority: Int = 0,
     val genre: String = "", val genres: List<String> = emptyList(),
     // Theme and demographic tags
     val contentThemes: List<String> = emptyList(), val demographics: List<String> = emptyList(),

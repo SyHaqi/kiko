@@ -1149,6 +1149,8 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
     var endDate by remember { mutableStateOf(item.watchEndDate) }
     var rewatching by remember { mutableStateOf(item.isRewatching) }
     var timesRewatched by remember { mutableStateOf(item.timesRewatched) }
+    var rewatchValue by remember { mutableStateOf(item.rewatchValue) }
+    var priority by remember { mutableStateOf(item.priority) }
     var notes by remember { mutableStateOf(item.notes) }
     var comments by remember { mutableStateOf(item.comments) }
     val rewatchWord = if (item.type == MediaType.Anime) "Rewatch" else "Reread"
@@ -1196,7 +1198,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 22.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { confirmDelete = true }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Delete") }
                 Button(
-                    onClick = { onSave(item.copy(status = status, progress = progress, myRating = rating, watchStartDate = startDate, watchEndDate = endDate, isRewatching = rewatching, timesRewatched = timesRewatched, notes = notes, comments = comments)) },
+                    onClick = { onSave(item.copy(status = status, progress = progress, myRating = rating, watchStartDate = startDate, watchEndDate = endDate, isRewatching = rewatching, timesRewatched = timesRewatched, rewatchValue = rewatchValue, priority = priority, notes = notes, comments = comments)) },
                     colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
                 ) { Text("Save change") }
             }
@@ -1279,6 +1281,34 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                 IconButton(onClick = { if (timesRewatched > 0) timesRewatched-- }) { Icon(Icons.Default.Remove, "Decrease", tint = c.primary) }
                 Text("Times $rewatchedWord: $timesRewatched", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink)
                 IconButton(onClick = { timesRewatched++ }) { Icon(Icons.Default.Add, "Increase", tint = c.primary) }
+            }
+
+            Text("$rewatchWord value", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
+            val rewatchValueLabels = remember { listOf("None", "Very Low", "Low", "Medium", "High", "Very High") }
+            val rewatchValueListState = rememberLazyListState()
+            val rewatchValueScope = rememberCoroutineScope()
+            LazyRow(state = rewatchValueListState, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 9.dp)) {
+                itemsIndexed(rewatchValueLabels) { index, label ->
+                    FilterChip(
+                        selected = rewatchValue == index,
+                        onClick = { rewatchValue = index; rewatchValueScope.centerChip(rewatchValueListState, index) },
+                        label = { Text(label) },
+                        colors = kikoFilterChipColors(),
+                    )
+                }
+            }
+
+            Text("Priority", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
+            val priorityLabels = remember { listOf("Low", "Medium", "High") }
+            Row(Modifier.padding(top = 9.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                priorityLabels.forEachIndexed { index, label ->
+                    FilterChip(
+                        selected = priority == index,
+                        onClick = { priority = index },
+                        label = { Text(label) },
+                        colors = kikoFilterChipColors(),
+                    )
+                }
             }
 
             Text("Tags", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))

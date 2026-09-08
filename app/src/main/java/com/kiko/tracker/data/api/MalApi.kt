@@ -501,6 +501,7 @@ class MalApi(private val context: Context) {
         // Rewatch tracking by type
         val rewatchingField = if (item.type == MediaType.Anime) "is_rewatching" else "is_rereading"
         val timesRewatchedField = if (item.type == MediaType.Anime) "num_times_rewatched" else "num_times_reread"
+        val rewatchValueField = if (item.type == MediaType.Anime) "rewatch_value" else "reread_value"
         val fields = buildMap {
             put("status", status)
             put(progressField, item.progress.toString())
@@ -511,6 +512,8 @@ class MalApi(private val context: Context) {
             put("finish_date", item.watchEndDate)
             put(rewatchingField, item.isRewatching.toString())
             put(timesRewatchedField, item.timesRewatched.toString())
+            put(rewatchValueField, item.rewatchValue.toString())
+            put("priority", item.priority.toString())
             // MAL accepts tags as
             // website's own tag field
             put("tags", item.notes)
@@ -534,9 +537,9 @@ class MalApi(private val context: Context) {
         // start/finish dates were being
         // MAL's per-entry tags field;
         val listStatus = if (kind == "anime") {
-            "list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched,updated_at,start_date,finish_date,tags,comments}"
+            "list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched,rewatch_value,priority,updated_at,start_date,finish_date,tags,comments}"
         } else {
-            "list_status{status,score,num_chapters_read,num_volumes_read,is_rereading,num_times_reread,updated_at,start_date,finish_date,tags,comments}"
+            "list_status{status,score,num_chapters_read,num_volumes_read,is_rereading,num_times_reread,reread_value,priority,updated_at,start_date,finish_date,tags,comments}"
         }
         // Related and theme fields
         val common = "$listStatus,genres,explicit_genres,themes,demographics,main_picture,synopsis,background,mean,rank,popularity,num_list_users," +
@@ -720,6 +723,8 @@ class MalApi(private val context: Context) {
             comments = s.optString("comments"),
             isRewatching = if (kind == "anime") s.optBoolean("is_rewatching") else s.optBoolean("is_rereading"),
             timesRewatched = if (kind == "anime") s.optInt("num_times_rewatched") else s.optInt("num_times_reread"),
+            rewatchValue = if (kind == "anime") s.optInt("rewatch_value") else s.optInt("reread_value"),
+            priority = s.optInt("priority"),
             updatedAt = s.optString("updated_at"),
             broadcastDay = broadcastDay,
             broadcastTime = broadcastTime,
