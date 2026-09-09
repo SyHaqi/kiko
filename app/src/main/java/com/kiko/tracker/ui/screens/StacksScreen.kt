@@ -41,8 +41,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -106,7 +104,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // screen (via "See all"
 
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
@@ -167,7 +165,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
@@ -216,16 +214,16 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
-        Column(Modifier.padding(horizontal = 20.dp)) {
+        Column(Modifier.padding(horizontal = 14.dp)) {
             SearchField(value = vm.stacksBrowseQuery, change = { vm.updateStacksBrowseQuery(it) }, hint = "Search stacks", onSearch = { vm.searchStacksBrowse() })
         }
         val kindListState = rememberLazyListState(initialFirstVisibleItemIndex = StackBrowseKind.entries.indexOf(activeKind).coerceAtLeast(0))
         LaunchedEffect(Unit) { centerChip(kindListState, StackBrowseKind.entries.indexOf(activeKind).coerceAtLeast(0)) }
-        LazyRow(state = kindListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)) {
+        LazyRow(state = kindListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
             itemsIndexed(StackBrowseKind.entries.toList()) { index, k ->
                 FilterChip(
                     selected = activeKind == k,
@@ -236,7 +234,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             }
         }
         Box(Modifier.fillMaxSize()) {
-            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
                 if (vm.stacksBrowseResults.isEmpty() && !vm.stacksBrowseLoading) {
                     item { Text("No stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
                 }
@@ -259,7 +257,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             GoToTopButton(
                 visible = showGoToTop,
                 onClick = { scope.launch { listState.animateScrollToItem(0) } },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
             )
         }
     }
@@ -453,7 +451,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             }
     }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Column(Modifier.padding(start = 12.dp)) {
                 Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink)
@@ -461,7 +459,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             }
         }
         Box(Modifier.fillMaxSize()) {
-            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
                 if (vm.mediaStacksResults.isEmpty() && !vm.mediaStacksLoading) {
                     item { Text("No interest stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
                 }
@@ -484,7 +482,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             GoToTopButton(
                 visible = showGoToTop,
                 onClick = { scope.launch { listState.animateScrollToItem(0) } },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
             )
         }
     }
@@ -567,7 +565,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             state = gridState,
             columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
             horizontalArrangement = Arrangement.spacedBy(11.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
@@ -624,7 +622,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { gridState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
@@ -705,7 +703,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 @Composable fun StackEntryGridCard(number: Int, entry: StackTitleEntry, loading: Boolean, myStatus: WatchStatus?, onClick: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
-    val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "stackEntrySelectBg")
     val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "stackEntrySelectPad")
     Column(
@@ -716,7 +713,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .kikoCombinedClickable(
                 enabled = !loading,
                 onClick = onClick,
-                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit() } },
+                onLongClick = onLongPress?.let { edit -> { edit() } },
             )
             // animateDpAsState on `pad` above
             // value frame-by-frame, so the

@@ -40,8 +40,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.SeasonName
 import com.kiko.tracker.data.model.SeasonalSort
@@ -94,7 +92,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             state = gridState,
             columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 100.dp),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 100.dp),
             horizontalArrangement = Arrangement.spacedBy(11.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -133,7 +131,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { gridState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 20.dp),
         )
         ExtendedFloatingActionButton(
             onClick = { browseOpen = true },
@@ -159,7 +157,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // re-filters and re-sorts on
     val dayItems = remember(byDay, selectedDay) { byDay.filter { it.second == selectedDay }.sortedBy { it.third } }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Release Schedule", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
@@ -168,7 +166,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         // Opens pre-selected to "today"
         // it immediately rather than
         LaunchedEffect(Unit) { centerChip(dayListState, java.time.DayOfWeek.values().indexOf(initialDay)) }
-        LazyRow(state = dayListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 15.dp)) {
+        LazyRow(state = dayListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 15.dp)) {
             itemsIndexed(java.time.DayOfWeek.values().toList()) { index, day ->
                 val label = day.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
                 FilterChip(
@@ -179,7 +177,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 )
             }
         }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
             if (dayItems.isEmpty()) {
                 item { Text("No releases on this day.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             }
@@ -316,7 +314,6 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
 
 @Composable fun SeasonalGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null) {
     val c = LocalKikoColors.current
-    val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "seasonalGridSelectBg")
     val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "seasonalGridSelectPad")
     Column(
@@ -326,7 +323,7 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
             .background(bg)
             .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
-                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
+                onLongClick = onLongPress?.let { edit -> { edit(item) } },
             )
             // animateDpAsState on `pad` above
             // value frame-by-frame, so the

@@ -115,7 +115,7 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
         return
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Friends & Favorites", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))

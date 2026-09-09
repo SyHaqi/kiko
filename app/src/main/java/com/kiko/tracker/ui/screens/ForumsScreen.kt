@@ -145,7 +145,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     PullToRefreshBox(isRefreshing = vm.forumBoardsLoading, onRefresh = { vm.loadForumBoards(context, force = true) }, modifier = Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 ExpandableSearchHeader(
                     current = vm.communityTab,
@@ -192,7 +192,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
@@ -281,7 +281,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
             .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 6) vm.loadMoreForumTopics(context) }
     }
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = vm::exitForumTopics, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back to Forums", tint = c.ink) }
@@ -319,7 +319,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
@@ -451,7 +451,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
             }
     }
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = goBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
@@ -503,7 +503,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
@@ -517,7 +517,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { scrollState.value > 600 } }
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 20.dp).padding(bottom = if (showGoToTop) 90.dp else 24.dp)) {
+        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 14.dp).padding(bottom = if (showGoToTop) 90.dp else 24.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                 Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
@@ -567,7 +567,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { scrollState.animateScrollTo(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }

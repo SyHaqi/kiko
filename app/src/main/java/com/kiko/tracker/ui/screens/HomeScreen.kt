@@ -42,8 +42,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -156,7 +154,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 AppHeader("kiko") { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
-                Column(Modifier.padding(horizontal = 20.dp)) {
+                Column(Modifier.padding(horizontal = 14.dp)) {
                     // Use device current date
                     Text(
                         java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d", java.util.Locale.getDefault())).uppercase(java.util.Locale.getDefault()),
@@ -270,7 +268,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
@@ -737,7 +735,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     state = gridState,
                     columns = GridCells.Fixed(3),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = bottomInset),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = bottomInset),
                     horizontalArrangement = Arrangement.spacedBy(11.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
@@ -750,7 +748,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = bottomInset)) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = bottomInset)) {
                     item { header() }
                     if (vm.loading && filtered.isEmpty()) {
                         item { ListRowSkeletonGroup(6) }
@@ -786,12 +784,12 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { if (isGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 20.dp),
         )
         StatusFilterFab(
             effectiveFilter, { vm.setListFilter(context, it) }, typeTab,
             expanded = filterMenuOpen, onExpandedChange = { filterMenuOpen = it },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
@@ -819,7 +817,6 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
 
 @Composable fun ListGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
-    val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "gridSelectBg")
     val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "gridSelectPad")
     Column(
@@ -829,7 +826,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             .background(bg)
             .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
-                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
+                onLongClick = onLongPress?.let { edit -> { edit(item) } },
             )
             // animateDpAsState on `pad` above
             // value frame-by-frame, so the
@@ -935,7 +932,6 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
 // screens that don't pass
 @Composable fun ListRow(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, showType: Boolean = true, modifier: Modifier = Modifier, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, showChevron: Boolean = false, vm: LibraryViewModel? = null) {
     val c = LocalKikoColors.current
-    val haptic = LocalHapticFeedback.current
     if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
     val confirmed = vm?.getCachedAiring(item.id)
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "rowSelectBg")
@@ -947,7 +943,7 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
             .background(bg)
             .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
-                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
+                onLongClick = onLongPress?.let { edit -> { edit(item) } },
             )
             .padding(horizontal = hPad, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,

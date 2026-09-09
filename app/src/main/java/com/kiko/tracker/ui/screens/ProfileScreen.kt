@@ -211,7 +211,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
 ) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Settings", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
@@ -915,7 +915,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(11.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -924,7 +924,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
             if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles at this score yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
         }
     } else {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
             item { header() }
             itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                 StaggeredItem(index, staggerSeen) {
@@ -1012,7 +1012,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 96.dp),
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
                 horizontalArrangement = Arrangement.spacedBy(11.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
@@ -1021,7 +1021,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
                 if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
             }
         } else {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 96.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp)) {
                 item { header() }
                 itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                     StaggeredItem(index, staggerSeen) {
@@ -1034,7 +1034,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
                 if (filtered.isEmpty()) item { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
             }
         }
-        YearFilterFab(year, onClick = { yearSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp))
+        YearFilterFab(year, onClick = { yearSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp))
     }
     if (yearSheetOpen) YearFilterSheet(years, year, onDismiss = { yearSheetOpen = false }) { year = it; yearSheetOpen = false }
 }
@@ -1109,7 +1109,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(11.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -1118,7 +1118,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
             if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles of this format yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
         }
     } else {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
             item { header() }
             itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                 StaggeredItem(index, staggerSeen) {
@@ -1187,7 +1187,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 96.dp),
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
                 horizontalArrangement = Arrangement.spacedBy(11.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
@@ -1196,7 +1196,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
                 if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
             }
         } else {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 96.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp)) {
                 item { header() }
                 itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                     StaggeredItem(index, staggerSeen) {
@@ -1209,7 +1209,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
                 if (filtered.isEmpty()) item { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
             }
         }
-        GenreFilterFab(genre, onClick = { genreSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp))
+        GenreFilterFab(genre, onClick = { genreSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp))
     }
     if (genreSheetOpen) GenreFilterSheet(genreCounts, typeItems.size, genre, onDismiss = { genreSheetOpen = false }) { genre = it; genreSheetOpen = false }
 }

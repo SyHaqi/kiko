@@ -86,10 +86,10 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     val c = LocalKikoColors.current
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             }
-            Column(Modifier.padding(horizontal = 20.dp)) {
+            Column(Modifier.padding(horizontal = 14.dp)) {
                 SkeletonBlock(Modifier.size(110.dp), shape = RoundedCornerShape(kikoCorner(24.dp)))
                 SkeletonBlock(Modifier.padding(top = 18.dp).width(96.dp).height(12.dp))
                 SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.6f).height(26.dp))
@@ -160,7 +160,7 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
             item {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Spacer(Modifier.weight(1f))
                     IconButton(
@@ -168,7 +168,7 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
                         modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh),
                     ) { Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.ink) }
                 }
-                Column(Modifier.padding(horizontal = 20.dp)) {
+                Column(Modifier.padding(horizontal = 14.dp)) {
                     // Square logo, not a
                     // are actually shaped, unlike
                     val logoInteraction = remember { MutableInteractionSource() }

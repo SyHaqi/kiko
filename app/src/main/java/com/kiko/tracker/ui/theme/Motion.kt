@@ -18,9 +18,11 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -34,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.kiko.tracker.ui.components.SkeletonBlock
 
@@ -91,7 +94,9 @@ fun Modifier.kikoClickable(scale: Float = 0.96f, enabled: Boolean = true, onClic
         .clickable(interactionSource = interactionSource, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
 }
 
-/** Drop-in replacement for `.combinedClickable(...)` */
+/** Drop-in replacement for `.combinedClickable(...)` — implemented with manual
+ *  gesture detection (rather than Foundation's `combinedClickable`) so a long
+ *  press never triggers the platform's automatic long-press haptic buzz. */
 @Composable
 fun Modifier.kikoCombinedClickable(
     scale: Float = 0.97f,
@@ -102,7 +107,25 @@ fun Modifier.kikoCombinedClickable(
     val interactionSource = remember { MutableInteractionSource() }
     return this
         .pressScale(interactionSource, scale)
-        .combinedClickable(interactionSource = interactionSource, indication = LocalIndication.current, enabled = enabled, onClick = onClick, onLongClick = onLongClick)
+        .indication(interactionSource, LocalIndication.current)
+        .then(
+            if (enabled) {
+                Modifier.pointerInput(onClick, onLongClick) {
+                    detectTapGestures(
+                        onPress = { offset ->
+                            val press = PressInteraction.Press(offset)
+                            interactionSource.emit(press)
+                            val released = tryAwaitRelease()
+                            interactionSource.emit(if (released) PressInteraction.Release(press) else PressInteraction.Cancel(press))
+                        },
+                        onTap = { onClick() },
+                        onLongPress = onLongClick?.let { click -> { _: androidx.compose.ui.geometry.Offset -> click() } },
+                    )
+                }
+            } else {
+                Modifier
+            },
+        )
 }
 
 // ---------------------------------------------------------------------------

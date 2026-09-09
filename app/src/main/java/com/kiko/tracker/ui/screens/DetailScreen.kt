@@ -193,11 +193,11 @@ data class DetailScreenActions(
                         modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .32f)),
                     ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
                 }
-                Box(Modifier.padding(start = 20.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f).shadow(10.dp, RoundedCornerShape(kikoCorner(16.dp)))) {
+                Box(Modifier.padding(start = 14.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f).shadow(10.dp, RoundedCornerShape(kikoCorner(16.dp)))) {
                     SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(kikoCorner(16.dp)))
                 }
             }
-            Column(Modifier.padding(horizontal = 20.dp)) {
+            Column(Modifier.padding(horizontal = 14.dp)) {
                 SkeletonBlock(Modifier.padding(top = 18.dp).width(96.dp).height(12.dp))
                 SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.75f).height(26.dp))
                 SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.4f).height(14.dp))
@@ -415,7 +415,7 @@ data class DetailScreenActions(
                     // Poster position below button
                     val posterInteraction = remember { MutableInteractionSource() }
                     Box(
-                        Modifier.padding(start = 20.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f)
+                        Modifier.padding(start = 14.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f)
                             .shadow(10.dp, RoundedCornerShape(kikoCorner(16.dp))).clip(RoundedCornerShape(kikoCorner(16.dp))).background(Color(item.color))
                             .pressScale(posterInteraction, scale = 0.94f)
                             .clickable(indication = null, interactionSource = posterInteraction) { showFullCover = true },
@@ -467,7 +467,7 @@ data class DetailScreenActions(
                         }
                     }
                 }
-                Column(Modifier.padding(horizontal = 20.dp)) {
+                Column(Modifier.padding(horizontal = 14.dp)) {
                     val itemDisplayTitle = item.displayTitle()
                     val aired = seasonYear(item.season, item.startDate)
                     Text(

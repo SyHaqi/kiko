@@ -84,10 +84,10 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     val c = LocalKikoColors.current
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             }
-            Column(Modifier.padding(horizontal = 20.dp)) {
+            Column(Modifier.padding(horizontal = 14.dp)) {
                 SkeletonBlock(Modifier.width(128.dp).aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(16.dp)))
                 SkeletonBlock(Modifier.padding(top = 18.dp).width(84.dp).height(12.dp))
                 SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.6f).height(26.dp))
@@ -153,7 +153,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
             item {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Spacer(Modifier.weight(1f))
                     IconButton(
@@ -161,7 +161,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                         modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh),
                     ) { Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.ink) }
                 }
-                Column(Modifier.padding(horizontal = 20.dp)) {
+                Column(Modifier.padding(horizontal = 14.dp)) {
                     // No backdrop banner —
                     // with, so this is
                     // treatment as every other

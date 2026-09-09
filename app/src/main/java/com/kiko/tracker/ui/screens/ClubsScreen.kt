@@ -115,7 +115,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
 
     PullToRefreshBox(isRefreshing = loading, onRefresh = { runSearch(vm.clubsQuery) }, modifier = Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 ExpandableSearchHeader(
                     current = vm.communityTab,
@@ -174,7 +174,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
@@ -259,10 +259,10 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                     }
                     Text(
                         full.name.ifBlank { "Club" }, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, bottom = 16.dp, end = 20.dp),
+                        modifier = Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 16.dp, end = 14.dp),
                     )
                 }
-                Column(Modifier.padding(horizontal = 20.dp)) {
+                Column(Modifier.padding(horizontal = 14.dp)) {
                     if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), color = c.primary, trackColor = c.surfaceLow)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 16.dp)) {
                         Pill("${formatExact(full.members)} members", c.surfaceLow, c.muted)
@@ -282,7 +282,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                 }
             }
             item {
-                AnimatedContent(tab, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "club-tab", modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) { t ->
+                AnimatedContent(tab, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "club-tab", modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp)) { t ->
                     when (t) {
                         ClubTab.Couch -> ClubCouchSection(club.id, full, onOpenBrowser = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(full.url)) }, onOpenProfileLink = onOpenProfileLink)
                         ClubTab.Cabinet -> ClubCabinetSection(full, loading, onOpenBrowser = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(it)) })

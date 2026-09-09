@@ -41,8 +41,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
@@ -168,7 +166,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
 
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+        LazyColumn(state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 // Search now lives on
                 // DiscoverResultsScreen) instead of an
@@ -301,7 +299,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
@@ -433,7 +431,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 1) vm.loadMoreDiscoverSearch(context) }
     }
     Box(Modifier.fillMaxSize().onGloballyPositioned { containerBounds = it.boundsInRoot() }) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onExitResults, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink) }
@@ -612,7 +610,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
         // Floating title suggestions as
         // run that search; tapping
@@ -773,7 +771,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 @Composable fun BrowseCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, subtitle: String? = null, myStatus: WatchStatus? = null, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
-    val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "browseCardSelectBg")
     val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "browseCardSelectPad")
     Column(
@@ -783,7 +780,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .background(bg)
             .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
-                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
+                onLongClick = onLongPress?.let { edit -> { edit(item) } },
             )
             // animateDpAsState on `pad` above
             // value frame-by-frame, so the
@@ -804,7 +801,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 @Composable fun SearchResultRow(item: MediaItem, loading: Boolean, onTap: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null) {
     val c = LocalKikoColors.current
-    val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "searchResultSelectBg")
     val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "searchResultSelectPad")
     Row(
@@ -815,7 +811,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .kikoCombinedClickable(
                 enabled = !loading,
                 onClick = onTap,
-                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit() } },
+                onLongClick = onLongPress?.let { edit -> { edit() } },
             )
             .padding(horizontal = hPad, vertical = 14.dp),
         verticalAlignment = Alignment.Top,
@@ -1009,7 +1005,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
             state = gridState,
             columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
             horizontalArrangement = Arrangement.spacedBy(11.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -1037,7 +1033,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { gridState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
@@ -1045,7 +1041,6 @@ fun formatExact(n: Int): String = "%,d".format(n)
 
 @Composable fun RecommendationGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
-    val haptic = LocalHapticFeedback.current
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "recommendationSelectBg")
     val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "recommendationSelectPad")
     Column(
@@ -1055,7 +1050,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
             .background(bg)
             .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },
-                onLongClick = onLongPress?.let { edit -> { haptic.performHapticFeedback(HapticFeedbackType.LongPress); edit(item) } },
+                onLongClick = onLongPress?.let { edit -> { edit(item) } },
             )
             // animateDpAsState on `pad` above
             // value frame-by-frame, so the
