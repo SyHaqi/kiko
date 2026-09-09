@@ -653,7 +653,16 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
                         Column {
                             ForumPostCard(
                                 post, isOriginalPost = post.number == 1, onOpenProfileLink = onOpenProfileLink,
-                                canReply = connected, onReply = { target -> replyingTo = target },
+                                canReply = connected,
+                                onReply = { target ->
+                                    replyingTo = target
+                                    // Prefill the compose box with "@name " so the reply is
+                                    // addressed to whoever's being replied to, same as tapping
+                                    // Reply implies on the website. Only auto-insert into an
+                                    // empty box — never clobber text the user already typed.
+                                    val name = target.author.name.trim()
+                                    if (draftText.isBlank() && name.isNotBlank()) draftText = "@$name "
+                                },
                             )
                             if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.outlineVariant)
                         }
@@ -678,7 +687,15 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
             draftText = draftText,
             onDraftChange = { draftText = it },
             replyingTo = replyingTo,
-            onCancelReply = { replyingTo = null },
+            onCancelReply = {
+                // Strip the "@name " prefix back out if it's still exactly what was
+                // auto-inserted when Reply was tapped — leaves anything the user typed
+                // themselves (before, after, or instead of it) completely alone.
+                replyingTo?.author?.name?.trim()?.takeIf { it.isNotBlank() }?.let { name ->
+                    if (draftText == "@$name ") draftText = ""
+                }
+                replyingTo = null
+            },
             posting = posting,
             error = postError,
             onConnect = { showLogin = true },

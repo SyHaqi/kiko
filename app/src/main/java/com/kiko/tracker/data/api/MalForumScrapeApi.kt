@@ -152,7 +152,7 @@ class MalForumScrapeApi {
                         tag == "u" -> {
                             sb.append("[u]"); node.childNodes().forEach(::visit); sb.append("[/u]")
                         }
-                        tag == "s" || tag == "strike" || tag == "del" -> {
+                        tag == "s" || tag == "strike" || tag == "del" || style.contains("text-decoration:line-through") -> {
                             sb.append("[s]"); node.childNodes().forEach(::visit); sb.append("[/s]")
                         }
                         tag == "blockquote" || node.hasClass("quotetext") -> {

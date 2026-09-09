@@ -838,7 +838,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         // this row's old fixed
         // Crop was cutting off
         Cover(item, Modifier.fillMaxWidth().aspectRatio(84f / 118f), showStatus = true, overrideStatus = myStatus, selected = isSelected)
-        Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
+        Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 16.sp, modifier = Modifier.padding(top = 7.dp))
         Text(subtitle ?: (if (item.score > 0) "★ ${item.score.oneDecimal()}" else item.genre), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
