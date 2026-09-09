@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.sp
 import androidx.browser.customtabs.CustomTabsIntent
 import coil.compose.AsyncImage
 import com.kiko.tracker.BuildConfig
+import com.kiko.tracker.data.api.MalAboutMe
+import com.kiko.tracker.data.api.MalAboutMeItem
 import com.kiko.tracker.data.api.MalFavoriteEntry
 import com.kiko.tracker.data.api.MalFavorites
 import com.kiko.tracker.data.api.MalFriend
@@ -75,6 +77,7 @@ import com.kiko.tracker.ui.theme.kikoCircleShape
 import com.kiko.tracker.ui.theme.kikoClickable
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.ui.theme.kikoPillShape
+import com.kiko.tracker.ui.theme.parseHexColor
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
 import com.kiko.tracker.util.AppUpdateInfo
 import com.kiko.tracker.viewmodel.LibraryViewModel
@@ -104,6 +107,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     cachedFriends: List<MalFriend>? = null, cachedFavorites: MalFavorites? = null,
     onLoadFriendsFavorites: (String) -> Unit = {},
     friendsFavoritesLoading: Boolean = false,
+    cachedAboutMe: MalAboutMe? = null,
 ) {
     val c = LocalKikoColors.current
     // Leaving the Profile page
@@ -159,6 +163,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     getFavoritesRowScroll = getFavoritesRowScroll, onSaveFavoritesRowScroll = onSaveFavoritesRowScroll,
                     cachedFriends = cachedFriends, cachedFavorites = cachedFavorites, onLoadFriendsFavorites = onLoadFriendsFavorites,
                     friendsFavoritesLoading = friendsFavoritesLoading,
+                    cachedAboutMe = cachedAboutMe,
                 )
             }
         }
@@ -220,6 +225,11 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // instead of duplicating them in a separate row above this card.
     // Null (the default) keeps Profile's own location+gender behavior.
     detailsPills: List<String>? = null,
+    // MAL's free-form "About Me" widget (banner/name/intro + auto-generated
+    // rows) — scraped alongside friends/favorites (same cookie session, see
+    // hasFfSession below), so it's null until that scrape has run once and
+    // MalAboutMe.isEmpty when the user hasn't set one up on MAL at all.
+    cachedAboutMe: MalAboutMe? = null,
 ) {    val c = LocalKikoColors.current
     val context = LocalContext.current
     // Friends/favorites aren't in MAL's official API — scraped off the
@@ -278,6 +288,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                 }
             }
+            // Right under the avatar card — MAL's own mobile webview puts
+            // About Me directly below the avatar/name block too, above
+            // Friends/Favorites, so this mirrors that order.
+            cachedAboutMe?.let { AboutMeCard(it, onOpenTitle = onOpenFavoriteTitle) }
             if (hasFfSession) {
                 if (cachedFriends == null && friendsFavoritesLoading) {
                     FriendsRowSkeleton()
@@ -486,6 +500,78 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // MalFavoriteEntry), so this (and parseMalProfileLink for
 // character/person/company) is how taps get routed in-app.
 fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathSegments.getOrNull(1)?.toIntOrNull() }.getOrNull()
+
+// MAL's free-form "About Me" widget, right under the avatar/name card —
+// same slot FriendsRow/FavoritesRowsSection use below it. Unlike those,
+// this card keeps the user's own about-me theme (the three --about-me-
+// color-* values they picked in MAL's editor, parsed off by
+// MalProfileScrapeApi.aboutMe()) as its background/text colors instead of
+// Kiko's usual surfaceContainer/ink — that's the "don't change the about
+// me design" part. What *does* follow Kiko's own design language: the card
+// shape/radius (kikoCorner(28.dp), matching every other card on this
+// page), the uppercase muted section labels, and collapsing MAL's desktop
+// 2-column row layout down to single-column stacked LazyRows — the same
+// single-column shape MAL's own mobile webview uses for this widget,
+// rather than reproducing the desktop grid.
+@Composable fun AboutMeCard(aboutMe: MalAboutMe, onOpenTitle: (Int, MediaType) -> Unit = { _, _ -> }, modifier: Modifier = Modifier) {
+    if (aboutMe.isEmpty) return
+    val c = LocalKikoColors.current
+    // Falls back to Kiko's own card colors if a user's about-me somehow has
+    // no theme color set (e.g. content but no <style> block) — never a
+    // fully unstyled/invisible card.
+    val bg = aboutMe.backgroundColor?.let(::parseHexColor) ?: c.surfaceContainer
+    val body = aboutMe.bodyTextColor?.let(::parseHexColor) ?: c.ink
+    val header = aboutMe.headerTextColor?.let(::parseHexColor) ?: c.primary
+    val muted = body.copy(alpha = 0.62f)
+    val hasIntro = !aboutMe.displayName.isNullOrBlank() || !aboutMe.introText.isNullOrBlank()
+
+    Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = bg), modifier = modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Column {
+            // Banner spans the card edge-to-edge, same treatment MAL's
+            // mobile webview gives it (full-bleed, above any padding),
+            // rather than inset like the poster rows below.
+            aboutMe.mainVisualUrl?.let { url ->
+                AsyncImage(
+                    model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(21f / 9f)
+                        .clip(RoundedCornerShape(topStart = kikoCorner(28.dp), topEnd = kikoCorner(28.dp)))
+                        .background(bg),
+                )
+            }
+            Column(Modifier.padding(22.dp)) {
+                Text("ABOUT ME", color = muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
+                if (hasIntro) {
+                    aboutMe.displayName?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, style = MaterialTheme.typography.titleLarge, color = header, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
+                    }
+                    aboutMe.introText?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, color = body, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 6.dp))
+                    }
+                }
+                aboutMe.sections.forEachIndexed { index, section ->
+                    Spacer(Modifier.height(if (index == 0 && !hasIntro) 4.dp else 20.dp))
+                    Text(section.heading.uppercase(), color = muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                        items(section.items, key = { it.url }) { entry: MalAboutMeItem ->
+                            Column(
+                                Modifier.width(96.dp).kikoClickable {
+                                    val id = malIdFromFavoriteUrl(entry.url)
+                                    if (id != null && entry.type != null) onOpenTitle(id, entry.type)
+                                },
+                            ) {
+                                AsyncImage(
+                                    model = entry.imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(body.copy(alpha = 0.08f)),
+                                )
+                                Text(entry.title, color = body, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 // Scrollable row of friends, right under the avatar/name card on Profile,
 // in its own section container to match Favorites below. Each friend shows

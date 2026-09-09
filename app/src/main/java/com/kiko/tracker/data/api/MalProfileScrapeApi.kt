@@ -1,6 +1,7 @@
 package com.kiko.tracker.data.api
 
 import android.content.Context
+import com.kiko.tracker.data.model.MediaType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
@@ -55,6 +56,38 @@ data class MalProfileHeader(
 // stay separate calls (see below) since FriendsFavoritesScreen already
 // loads those lazily/independently, same as it does for the signed-in user.
 data class MalFriendProfile(val header: MalProfileHeader, val stats: MalProfile)
+
+// One cover in an About Me row ("Last completed anime", "Publishing manga",
+// etc.) — MAL's about-me editor auto-generates these from the user's list,
+// so there's no scraped title text to lean on (unlike MalFavoriteEntry,
+// where the desktop markup does print one); [title] is instead recovered
+// from the title's URL slug. [type] drives which tap handler fires — see
+// AboutMeCard/malIdFromFavoriteUrl in ProfileScreen.kt, same id-from-url
+// trick the Favorites rows already use.
+data class MalAboutMeItem(val title: String, val url: String, val imageUrl: String?, val type: MediaType?)
+
+// One row in the About Me widget, in on-page order.
+data class MalAboutMeSection(val heading: String, val items: List<MalAboutMeItem>)
+
+// MAL's free-form "About Me" profile widget: an optional banner image, a
+// display name/title, a short intro blurb, and up to a handful of
+// auto-generated rows (currently watching/reading, last completed, etc.).
+// Entirely opt-in on MAL's side — a user who hasn't touched the about-me
+// editor has none of this, hence [isEmpty]. The three *Color fields are the
+// one part of the user's own about-me theme worth carrying into Kiko (see
+// AboutMeCard) — everything else about that theme (fonts, background
+// patterns) is left alone rather than reconstructed.
+data class MalAboutMe(
+    val mainVisualUrl: String? = null,
+    val displayName: String? = null,
+    val introText: String? = null,
+    val headerTextColor: String? = null,
+    val bodyTextColor: String? = null,
+    val backgroundColor: String? = null,
+    val sections: List<MalAboutMeSection> = emptyList(),
+) {
+    val isEmpty: Boolean get() = mainVisualUrl == null && displayName.isNullOrBlank() && introText.isNullOrBlank() && sections.isEmpty()
+}
 
 /**
  * Scrapes myanimelist.net/profile/{username} for the handful of things the
@@ -211,6 +244,61 @@ class MalProfileScrapeApi(context: Context) {
         )
 
         MalFriendProfile(header, stats)
+    }
+
+    /**
+     * Scrapes the free-form "About Me" widget off [username]'s profile page
+     * (div#modern-about-me-inner) — banner, display name, intro blurb, and
+     * whichever auto-generated rows (currently watching/reading, last
+     * completed, publishing) that user's about-me editor has turned on.
+     * Returns [MalAboutMe.isEmpty] when the user hasn't set one up at all.
+     */
+    suspend fun aboutMe(username: String): MalAboutMe = withContext(Dispatchers.IO) {
+        val doc = fetchProfileDocument(username)
+        val root = doc.selectFirst("div#modern-about-me-inner") ?: return@withContext MalAboutMe()
+
+        // The three theme colors a user picks in MAL's about-me editor are
+        // written as CSS custom properties in a <style> block just above
+        // #modern-about-me — pulled out with a regex since Jsoup doesn't
+        // resolve CSS vars for us.
+        val styleText = doc.select("style").joinToString("\n") { it.data() }
+        fun cssVar(name: String) = Regex("--$name:\\s*(#[0-9a-fA-F]{3,8})").find(styleText)?.groupValues?.getOrNull(1)
+
+        val mainVisualUrl = root.selectFirst(".l-mainvisual img")?.attr("abs:src")?.ifBlank { null }
+        val displayName = root.selectFirst(".l-intro-ttl h2 span")?.text()?.ifBlank { null }
+        val introText = root.selectFirst(".c-intro-description .c-aboutme-text")?.text()?.ifBlank { null }
+
+        // Both "N_M items per row" layouts (l-listitem-5_5_items,
+        // l-listitem-3_2_items) share the same inner ul.l-listitem-list
+        // shape — a 10-item block just splits it across two row1/row2
+        // <ul>s, which this selector picks up together in document order.
+        val sections = root.select(".l-listitem-5_5_items, .l-listitem-3_2_items").mapNotNull { block ->
+            val heading = block.selectFirst("h3.c-aboutme-ttl-lv2 span")?.text()?.ifBlank { null } ?: return@mapNotNull null
+            val items = block.select("ul.l-listitem-list li.l-listitem-list-item a").mapNotNull { a ->
+                val src = a.selectFirst("img")?.attr("abs:src")?.ifBlank { null } ?: return@mapNotNull null
+                val href = a.attr("href")
+                val type = when {
+                    href.startsWith("/anime/") -> MediaType.Anime
+                    href.startsWith("/manga/") -> MediaType.Manga
+                    else -> null
+                }
+                // No title text in this widget's markup (unlike Favorites,
+                // which prints one) — recovered from the url slug instead.
+                val title = href.trimEnd('/').substringAfterLast('/').replace('_', ' ').ifBlank { "Untitled" }
+                MalAboutMeItem(title = title, url = a.attr("abs:href"), imageUrl = src, type = type)
+            }
+            if (items.isEmpty()) null else MalAboutMeSection(heading, items)
+        }
+
+        MalAboutMe(
+            mainVisualUrl = mainVisualUrl,
+            displayName = displayName,
+            introText = introText,
+            headerTextColor = cssVar("about-me-color-header-text"),
+            bodyTextColor = cssVar("about-me-color-body-text"),
+            backgroundColor = cssVar("about-me-color-background"),
+            sections = sections,
+        )
     }
 
     suspend fun friends(username: String): List<MalFriend> = withContext(Dispatchers.IO) {

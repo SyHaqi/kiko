@@ -31,6 +31,7 @@ import com.kiko.tracker.data.api.ForumBoard
 import com.kiko.tracker.data.api.ForumCategory
 import com.kiko.tracker.data.api.ForumSubboard
 import com.kiko.tracker.data.api.ForumTopic
+import com.kiko.tracker.data.api.MalAboutMe
 import com.kiko.tracker.data.api.MalApi
 import com.kiko.tracker.data.api.MalCharacterApi
 import com.kiko.tracker.data.api.MalClub
@@ -553,6 +554,12 @@ class LibraryViewModel : ViewModel() {
     // re-fetched only on an explicit Profile pull-to-refresh (or sign-out).
     var profileFriends by mutableStateOf<List<MalFriend>?>(null); private set
     var profileFavorites by mutableStateOf<MalFavorites?>(null); private set
+    // MAL's "About Me" widget — scraped in the same round-trip as
+    // friends/favorites below (same cookie session, same profile-page
+    // document), so it shares that pair's loading flag rather than having
+    // its own. Null until that scrape has run once; MalAboutMe.isEmpty
+    // once it has, if the signed-in user hasn't set one up on MAL at all.
+    var profileAboutMe by mutableStateOf<MalAboutMe?>(null); private set
     var profileFriendsFavoritesLoading by mutableStateOf(false); private set
     private var profileFriendsFavoritesUsername: String? = null
     fun loadProfileFriendsFavorites(context: Context, username: String, force: Boolean = false) {
@@ -566,8 +573,10 @@ class LibraryViewModel : ViewModel() {
             runCatching {
                 val f = api.friends(username)
                 val fav = resolveFavoritesEnglishTitles(context, api.favorites(username))
+                val about = api.aboutMe(username)
                 profileFriends = f
                 profileFavorites = fav
+                profileAboutMe = about
             }.onFailure { e -> if (e is MalSessionExpired) MalSessionCookie(context).clear() }
             profileFriendsFavoritesLoading = false
         }
@@ -605,11 +614,13 @@ class LibraryViewModel : ViewModel() {
     fun refreshProfileFriendsFavorites(context: Context, username: String) {
         profileFriends = null
         profileFavorites = null
+        profileAboutMe = null
         loadProfileFriendsFavorites(context, username, force = true)
     }
     fun clearProfileFriendsFavoritesCache() {
         profileFriends = null
         profileFavorites = null
+        profileAboutMe = null
         profileFriendsFavoritesUsername = null
     }
     // Friend profile pages (FriendProfileScreen) — header+stats scrape,
