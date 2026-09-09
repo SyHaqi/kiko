@@ -487,10 +487,15 @@ class MalApi(private val context: Context) {
             .firstOrNull { it.title.equals("News Discussion", ignoreCase = true) }
             ?.id?.also { newsBoardIdCache = it }
         ?: return@withContext emptyList()
-        // Reuses forumTopics' own (now
-        // running a second, separate
+        // forumTopics' own sort=recent order is by last reply (see homeAnnouncement's doc
+        // comment below), so a news topic still collecting replies days later would outrank
+        // news that was actually posted more recently but hasn't picked up replies yet. Re-sort
+        // by created_at ourselves, same fix already used for homeAnnouncement, so this row
+        // always reflects what MAL's News board most recently posted, not what's most recently
+        // been talked about.
         forumTopics(boardId = newsBoardId, limit = limit + 6, withThumbnails = true).items
             .filterNot { it.isLocked }
+            .sortedByDescending { runCatching { java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US).parse(it.createdAt)?.time }.getOrNull() ?: 0L }
             .mapNotNull { topic -> topic.imageUrl?.let { NewsSnapshot(topicId = topic.id, title = topic.title, imageUrl = it) } }
             .take(limit)
     }
