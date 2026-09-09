@@ -915,6 +915,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onSeasonal = { vm.destination = Destination.Seasonal },
                                     onStacks = ::openStacks,
                                     onRecommendations = { recommendationsOpen = true },
+                                    onSchedule = ::openSchedule,
                                     onExitResults = {
                                         val returnItem = discoverReturnItem
                                         if (returnItem != null) { discoverReturnItem = null; selectedItem = returnItem }

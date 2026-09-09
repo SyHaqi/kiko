@@ -76,6 +76,7 @@ import com.kiko.tracker.data.model.UserSearchFilters
 import com.kiko.tracker.data.model.UserSummary
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayTitle
+import com.kiko.tracker.data.model.localBroadcast
 import com.kiko.tracker.data.model.oneDecimal
 import com.kiko.tracker.data.model.resolvedDiscoverType
 import com.kiko.tracker.data.model.twoDecimals
@@ -110,6 +111,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     onSeasonal: () -> Unit,
     onStacks: () -> Unit,
     onRecommendations: () -> Unit,
+    onSchedule: (java.time.DayOfWeek) -> Unit = {},
     onExitResults: () -> Unit = vm::exitDiscoverSearch,
     onEdit: (MediaItem) -> Unit = {},
     selectedItem: MediaItem? = null,
@@ -131,7 +133,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         label = "discover-mode",
     ) { mode ->
         if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults, onEdit, selectedItem, onOpenCharacter, onOpenPerson, onOpenCompany, onOpenUser)
-        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks, onRecommendations, onEdit, selectedItem)
+        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks, onRecommendations, onSchedule, onEdit, selectedItem)
     }
 }
 // Discover landing page
@@ -144,6 +146,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     onSeasonal: () -> Unit,
     onStacks: () -> Unit,
     onRecommendations: () -> Unit,
+    onSchedule: (java.time.DayOfWeek) -> Unit = {},
     onEdit: (MediaItem) -> Unit = {},
     selectedItem: MediaItem? = null
 ) {
@@ -166,6 +169,14 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val curSeason = remember { currentSeasonName() }
     val newSeasonPremieres = remember(vm.visibleDiscoverNewSeason, curYear, curSeason) {
         vm.visibleDiscoverNewSeason.filter { it.startDate == curYear && it.season.equals(curSeason.label, ignoreCase = true) }
+    }
+    // Everything airing today, regardless of premiere date — same
+    // localBroadcast() day-bucketing ScheduleScreen uses, just filtered
+    // down to today's day-of-week and sorted by local time (not shown).
+    val today = remember { java.time.LocalDate.now().dayOfWeek }
+    val todayReleases = remember(vm.visibleDiscoverNewSeason, today) {
+        vm.visibleDiscoverNewSeason.mapNotNull { item -> item.localBroadcast()?.let { (day, time) -> if (day == today) item to time else null } }
+            .sortedBy { it.second }.map { it.first }
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -235,6 +246,20 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             // Cap row at 7
                             itemsIndexed(newSeason, key = { _, it -> it.id }) { index, item ->
+                                StaggeredItem(index) { BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
+                            }
+                        }
+                    }
+                }
+
+                // Today row — everything releasing today, no time shown,
+                // just a scrollable list. "See more" jumps into the full
+                // Release Schedule pre-selected on today.
+                if (todayReleases.isNotEmpty()) {
+                    item {
+                        SectionTitle("Today", "See more", { onSchedule(today) })
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                            itemsIndexed(todayReleases, key = { _, it -> it.id }) { index, item ->
                                 StaggeredItem(index) { BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
                             }
                         }
