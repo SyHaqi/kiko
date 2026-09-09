@@ -837,7 +837,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     ) {
         // Height matches ListGridCardSkeleton's cover
         // real card don't jump
-        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, selected = isSelected)
+        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, showRating = true, selected = isSelected)
         // Fixed to 2 lines
         Text(
             item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, color = c.ink,
@@ -850,7 +850,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         // yet) intentionally shows no
         // distracting, so the "2
         Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp)) {
-            if (onIncrement != null && item.total > 0) {
+            if (item.total > 0) {
                 LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))), color = statusColor(item.status), trackColor = c.surfaceLow)
             }
         }
