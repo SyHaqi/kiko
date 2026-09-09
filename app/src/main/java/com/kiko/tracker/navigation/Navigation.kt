@@ -516,6 +516,12 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // and dropped once it empties back out to Profile (below).
     var friendProfileStack by remember { mutableStateOf<List<TopScreen.FriendProfile>>(emptyList()) }
     fun openFriendProfile(friend: MalFriend) { friendProfileStack = friendProfileStack + TopScreen.FriendProfile(friend.username, friend.avatarUrl) }
+    // Same push as openFriendProfile above, just for a username/avatar
+    // pair coming straight off a Discover Users search result instead
+    // of a MalFriend (that search has no separate "friend" concept —
+    // it's any MAL user, so this reuses the exact same profile stack
+    // and screen rather than inventing a parallel one).
+    fun openUserProfile(username: String, avatarUrl: String?) { friendProfileStack = friendProfileStack + TopScreen.FriendProfile(username, avatarUrl) }
     fun backFriendProfile() {
         friendProfileStack = friendProfileStack.dropLast(1)
         if (friendProfileStack.isEmpty()) vm.clearFriendProfileCache()
@@ -925,6 +931,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     onOpenCharacter = { malId -> openCharacter(malId) },
                                     onOpenPerson = { malId -> openPerson(malId) },
                                     onOpenCompany = { malId -> openCompany(malId) },
+                                    onOpenUser = { username, avatarUrl -> openUserProfile(username, avatarUrl) },
                                 )
                                 Destination.Seasonal -> SeasonalScreen(vm, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
                                 Destination.Community -> CommunityScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onOpenClub = { clubDetailOpen = it })

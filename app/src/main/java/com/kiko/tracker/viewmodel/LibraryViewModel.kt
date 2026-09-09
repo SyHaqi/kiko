@@ -48,6 +48,7 @@ import com.kiko.tracker.data.api.MalProfile
 import com.kiko.tracker.data.api.MalProfileScrapeApi
 import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.data.api.MalSessionExpired
+import com.kiko.tracker.data.api.MalUserApi
 import com.kiko.tracker.data.api.NewsSnapshot
 import com.kiko.tracker.data.api.RecommendedEntry
 import com.kiko.tracker.data.api.StackBrowseKind
@@ -87,6 +88,8 @@ import com.kiko.tracker.data.model.SeasonalSort
 import com.kiko.tracker.data.model.StatusDistribution
 import com.kiko.tracker.data.model.ThemeMode
 import com.kiko.tracker.data.model.TitleLanguage
+import com.kiko.tracker.data.model.UserSearchFilters
+import com.kiko.tracker.data.model.UserSummary
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.currentSeasonName
 import com.kiko.tracker.data.model.malStatusCode
@@ -1040,6 +1043,70 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    // Discover's Users tab — a MAL user isn't a MediaItem either, same
+    // reasoning as Character/People/Companies above. Unlike those three
+    // this one both paginates (MAL's own show=N offset) and carries its
+    // own advanced filters (location/age range/gender), so it needs a
+    // little more state than a plain results list.
+    private val malUserApi by lazy { MalUserApi() }
+    var userResults by mutableStateOf<List<UserSummary>>(emptyList()); private set
+    var userSearching by mutableStateOf(false); private set
+    var userError by mutableStateOf<String?>(null); private set
+    var userHasMore by mutableStateOf(false); private set
+    var userLoadingMore by mutableStateOf(false); private set
+    var userFilters by mutableStateOf(UserSearchFilters()); private set
+    private var userSearchJob: kotlinx.coroutines.Job? = null
+    private var userLoadMoreJob: kotlinx.coroutines.Job? = null
+    // 0-indexed page, mirrors MalUserApi.Page's own paging — bumped by
+    // loadMoreUserSearch and reset whenever a fresh search runs.
+    private var userSearchPage = 0
+
+    // Run a user search — query and/or advanced filters, either is
+    // enough on its own (MAL's users.php accepts a bare filter search
+    // with no q). No MAL-side minimum query length here, unlike
+    // Character/People/Company search, since users.php doesn't enforce
+    // one on its own advanced-search form.
+    fun runUserSearch(query: String, filters: UserSearchFilters = userFilters) {
+        discoverQuery = query; discoverTypeFilter = "Users"; userFilters = filters; discoverMode = DiscoverMode.Results
+        discoverScrollIndex = 0; discoverScrollOffset = 0
+        userSearchJob?.cancel(); userLoadMoreJob?.cancel()
+        userSearchPage = 0
+        if (query.isBlank() && !filters.isActive()) {
+            userResults = emptyList(); userSearching = false; userError = null; userHasMore = false; return
+        }
+        userSearchJob = viewModelScope.launch {
+            userSearching = true
+            runCatching { malUserApi.search(query, filters, page = 0) }
+                .onSuccess { userResults = it.users; userError = null; userHasMore = it.hasMore }
+                .onFailure {
+                    // Same cancellation-isn't-a-failure reasoning as
+                    // runCompanySearch/runPersonSearch — switching the
+                    // type dropdown or re-filtering cancels the
+                    // in-flight job via userSearchJob?.cancel() above.
+                    if (it is kotlinx.coroutines.CancellationException) throw it
+                    userError = it.message ?: "Search failed"; userHasMore = false
+                }
+            userSearching = false
+        }
+    }
+
+    // Next show=N page for the current query+filters — mirrors
+    // loadMoreDiscoverSearch's shape but against MalUserApi directly
+    // since Users has just the one real paginated source, not
+    // DiscoverPaginationSource's title-search/genre-filtered split.
+    fun loadMoreUserSearch() {
+        if (userSearching || userLoadingMore || !userHasMore) return
+        userLoadMoreJob?.cancel()
+        val nextPage = userSearchPage + 1
+        userLoadMoreJob = viewModelScope.launch {
+            userLoadingMore = true
+            runCatching { malUserApi.search(discoverQuery, userFilters, page = nextPage) }
+                .onSuccess { userResults = userResults + it.users; userHasMore = it.hasMore; userSearchPage = nextPage }
+                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; userHasMore = false }
+            userLoadingMore = false
+        }
+    }
+
     // Fetch a tapped row's
     // shape openCharacterDetail/openPersonDetail document above
     // CompanyDetailScreenSkeleton right away, this
@@ -1118,12 +1185,13 @@ class LibraryViewModel : ViewModel() {
             "Characters" -> runCharacterSearch(query)
             "People" -> runPersonSearch(query)
             "Companies" -> runCompanySearch(query)
+            "Users" -> runUserSearch(query)
             else -> {
                 discoverQuery = query; discoverTypeFilter = type; discoverMode = DiscoverMode.Results
-                discoverSearchJob?.cancel(); discoverLoadMoreJob?.cancel(); characterSearchJob?.cancel(); personSearchJob?.cancel(); companySearchJob?.cancel()
-                discoverResults = emptyList(); characterResults = emptyList(); personResults = emptyList(); companyResults = emptyList()
-                discoverSearching = false; characterSearching = false; personSearching = false; companySearching = false
-                discoverError = null; characterError = null; personError = null; companyError = null; discoverHasMore = false
+                discoverSearchJob?.cancel(); discoverLoadMoreJob?.cancel(); characterSearchJob?.cancel(); personSearchJob?.cancel(); companySearchJob?.cancel(); userSearchJob?.cancel(); userLoadMoreJob?.cancel()
+                discoverResults = emptyList(); characterResults = emptyList(); personResults = emptyList(); companyResults = emptyList(); userResults = emptyList()
+                discoverSearching = false; characterSearching = false; personSearching = false; companySearching = false; userSearching = false; userLoadingMore = false
+                discoverError = null; characterError = null; personError = null; companyError = null; userError = null; discoverHasMore = false; userHasMore = false
                 discoverPaginationSource = DiscoverPaginationSource.None
             }
         }
@@ -1696,6 +1764,7 @@ class LibraryViewModel : ViewModel() {
         characterSearchJob?.cancel(); characterResults = emptyList(); characterError = null; characterSearching = false
         personSearchJob?.cancel(); personResults = emptyList(); personError = null; personSearching = false
         companySearchJob?.cancel(); companyResults = emptyList(); companyError = null; companySearching = false
+        userSearchJob?.cancel(); userLoadMoreJob?.cancel(); userResults = emptyList(); userError = null; userSearching = false; userLoadingMore = false; userHasMore = false; userFilters = UserSearchFilters(); userSearchPage = 0
         // Drop the raw studio/author
         // whole process — it
         // page didn't re-scrape MAL.
