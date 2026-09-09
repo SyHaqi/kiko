@@ -214,6 +214,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // flight — used below to show a skeleton in place of the friends/
     // favorites rows instead of them just silently popping in once loaded.
     friendsFavoritesLoading: Boolean = false,
+    // Overrides the default location/gender pill row under the avatar+name
+    // with a caller-supplied one, in caller order — used by
+    // FriendProfileScreen to show Online/Gender/Birthday/Joined here
+    // instead of duplicating them in a separate row above this card.
+    // Null (the default) keeps Profile's own location+gender behavior.
+    detailsPills: List<String>? = null,
 ) {    val c = LocalKikoColors.current
     val context = LocalContext.current
     // Friends/favorites aren't in MAL's official API — scraped off the
@@ -245,8 +251,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         }
                         Column(Modifier.weight(1f).padding(start = 14.dp)) {
                             Text(profile.name.ifBlank { "MyAnimeList" }, style = MaterialTheme.typography.titleLarge, color = c.ink)
-                            val joined = profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { formatFullDate(it) }
-                            if (joined != null) Text("Joined $joined", color = c.muted, fontSize = 13.sp)
                         }
                         // Open MAL profile page
                         if (profile.name.isNotBlank()) {
@@ -255,9 +259,17 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             }
                         }
                     }
-                    val details = listOfNotNull(
+                    val details = detailsPills ?: listOfNotNull(
                         profile.location.takeIf { it.isNotBlank() },
                         profile.gender.takeIf { it.isNotBlank() },
+                        profile.birthday.take(10).takeIf { it.length == 10 }?.let { "Born ${formatFullDate(it)}" },
+                        // Was a plain "Joined ..." line next to the name
+                        // above — moved down here as a pill (same ISO-date
+                        // formatting via formatFullDate) so it matches
+                        // FriendProfileScreen's Online/Gender/Born/Joined
+                        // pill row instead of looking like a different
+                        // pattern on your own profile.
+                        profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { "Joined ${formatFullDate(it)}" },
                     )
                     if (details.isNotEmpty()) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 14.dp)) {

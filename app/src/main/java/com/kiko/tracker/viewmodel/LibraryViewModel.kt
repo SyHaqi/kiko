@@ -39,6 +39,7 @@ import com.kiko.tracker.data.api.MalDetailScrapeApi
 import com.kiko.tracker.data.api.MalFavoriteEntry
 import com.kiko.tracker.data.api.MalFavorites
 import com.kiko.tracker.data.api.MalFriend
+import com.kiko.tracker.data.api.MalFriendProfile
 import com.kiko.tracker.data.api.MalGenreApi
 import com.kiko.tracker.data.api.MalGenreLookup
 import com.kiko.tracker.data.api.MalPeopleApi
@@ -611,6 +612,73 @@ class LibraryViewModel : ViewModel() {
         profileFavorites = null
         profileFriendsFavoritesUsername = null
     }
+    // Friend profile pages (FriendProfileScreen) — header+stats scrape,
+    // friends, and favorites, one cache entry per username visited via
+    // Navigation's friendProfileStack. Lets paging through a whole chain
+    // in one excursion (own Profile -> friend -> friend-of-friend -> back
+    // -> back) reuse each page it's already scraped instead of re-fetching
+    // on every hop, while still starting fresh the next time that chain is
+    // entered — see clearFriendProfileCache, called once friendProfileStack
+    // empties back out to Profile. Same map-of-immutable-snapshots shape as
+    // stackDetailCache elsewhere in this file, just multi-field per key so
+    // FriendProfileScreen can observe profile/friends/favorites/loading
+    // together as one state object instead of four separate lookups.
+    data class FriendProfileState(
+        val profile: MalFriendProfile? = null,
+        val friends: List<MalFriend>? = null,
+        val favorites: MalFavorites? = null,
+        val loading: Boolean = false,
+        val friendsFavoritesLoading: Boolean = false,
+        val error: String? = null,
+    )
+    private val friendProfileStates = mutableStateMapOf<String, FriendProfileState>()
+    fun getFriendProfileState(username: String): FriendProfileState = friendProfileStates[username] ?: FriendProfileState()
+    fun loadFriendProfile(context: Context, username: String, force: Boolean = false) {
+        if (username.isBlank()) return
+        val current = friendProfileStates[username]
+        if (current?.loading == true) return
+        if (!force && current?.profile != null) return
+        friendProfileStates[username] = (current ?: FriendProfileState()).copy(loading = true, error = null)
+        viewModelScope.launch {
+            val api = MalProfileScrapeApi(context)
+            runCatching { api.fullProfile(username) }
+                .onSuccess { fp -> friendProfileStates[username] = (friendProfileStates[username] ?: FriendProfileState()).copy(profile = fp, loading = false, error = null) }
+                .onFailure { e ->
+                    if (e is MalSessionExpired) MalSessionCookie(context).clear()
+                    friendProfileStates[username] = (friendProfileStates[username] ?: FriendProfileState()).copy(loading = false, error = "Couldn't load this profile — try again.")
+                }
+        }
+    }
+    fun loadFriendProfileFriendsFavorites(context: Context, username: String, force: Boolean = false) {
+        if (username.isBlank()) return
+        val current = friendProfileStates[username]
+        if (current?.friendsFavoritesLoading == true) return
+        if (!force && current?.favorites != null) return
+        friendProfileStates[username] = (current ?: FriendProfileState()).copy(friendsFavoritesLoading = true)
+        viewModelScope.launch {
+            val api = MalProfileScrapeApi(context)
+            runCatching {
+                val f = api.friends(username)
+                val fav = resolveFavoritesEnglishTitles(context, api.favorites(username))
+                friendProfileStates[username] = (friendProfileStates[username] ?: FriendProfileState()).copy(friends = f, favorites = fav, friendsFavoritesLoading = false)
+            }.onFailure { e ->
+                if (e is MalSessionExpired) MalSessionCookie(context).clear()
+                friendProfileStates[username] = (friendProfileStates[username] ?: FriendProfileState()).copy(friendsFavoritesLoading = false)
+            }
+        }
+    }
+    // Pull-to-refresh on a friend's page — re-scrapes both the profile and
+    // the friends/favorites for just that username, same force-refetch
+    // shape as refreshProfileFriendsFavorites above.
+    fun refreshFriendProfile(context: Context, username: String) {
+        loadFriendProfile(context, username, force = true)
+        loadFriendProfileFriendsFavorites(context, username, force = true)
+    }
+    // Drops every cached friend page — called once friendProfileStack
+    // (Navigation.kt) empties back out to Profile, so the next excursion
+    // into a friend's page starts from a clean scrape rather than showing
+    // whatever was cached from a previous visit.
+    fun clearFriendProfileCache() { friendProfileStates.clear() }
     // NSFW off by default
     var nsfwEnabled by mutableStateOf(false); private set
     var amoledDark by mutableStateOf(false); private set
@@ -1211,7 +1279,7 @@ class LibraryViewModel : ViewModel() {
         delete(item.id, item.type)
         if (signedIn) viewModelScope.launch { runCatching { MalApi(context).deleteEntry(item) }.onFailure { error = "MAL sync failed: ${it.message ?: "unknown error"}" } }
     }
-    fun signOut(context: Context) { MalApi(context).signOut(); signedIn = false; items = emptyList(); malProfile = null; libraryThemesBackfilled = false; clearProfileFriendsFavoritesCache() }
+    fun signOut(context: Context) { MalApi(context).signOut(); signedIn = false; items = emptyList(); malProfile = null; libraryThemesBackfilled = false; clearProfileFriendsFavoritesCache(); clearFriendProfileCache() }
 
     // Load home browse rows
     fun loadDiscoverBrowse(context: Context) {
