@@ -695,9 +695,15 @@ fun statusColor(label: String): Color = when {
 
 // Detail section
 
-@Composable fun Pill(text: String, container: Color, content: Color) {
+@Composable fun Pill(text: String, container: Color, content: Color, icon: androidx.compose.ui.graphics.vector.ImageVector? = null) {
     Box(Modifier.clip(kikoPillShape()).background(container).padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Text(text, color = content, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(icon, null, tint = content, modifier = Modifier.size(12.dp))
+                Spacer(Modifier.width(5.dp))
+            }
+            Text(text, color = content, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
     }
 }
 // Outline style genre chip

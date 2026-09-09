@@ -82,6 +82,12 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
 import com.kiko.tracker.util.AppUpdateInfo
 import com.kiko.tracker.viewmodel.LibraryViewModel
 
+// Small (icon, label) pair for the location/gender/birthday/joined pill
+// row under the avatar+name — the icon exists mainly so birthday and
+// joined-date (both just look like "Month D, YYYY") are distinguishable
+// at a glance instead of reading identically.
+data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector, val text: String)
+
 // Full page for the
 @Composable fun ProfileStatsScreen(
     connected: Boolean, profile: MalProfile?, items: List<MediaItem>, onConnect: () -> Unit, onBack: () -> Unit,
@@ -110,6 +116,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     cachedAboutMe: MalAboutMe? = null,
 ) {
     val c = LocalKikoColors.current
+    val context = LocalContext.current
     // Leaving the Profile page
     // remembered scroll offset, so
     // (Drilling into the score
@@ -132,16 +139,40 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // Restore scroll position on
     val scrollState = rememberScrollState(initial = scrollOffset)
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 20.dp)) {
+        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 14.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = exitProfile, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                 // Always just "Profile" — the avatar card right below already
                 // shows the username next to the avatar, so repeating it up
                 // here in the header was redundant.
                 Text("Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp).weight(1f))
+                // 3-dot overflow menu — replaces the separate "open in
+                // browser" button that used to live on the avatar card, and
+                // the standalone sign-out icon that used to sit here. Only
+                // shown once connected, since both items need a MAL session.
                 if (connected) {
-                    IconButton(onClick = { confirmSignOut = true }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, "Sign out", tint = c.danger, modifier = Modifier.size(18.dp))
+                    var moreOpen by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { moreOpen = true }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
+                            Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(18.dp))
+                        }
+                        DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
+                            if (profile?.name?.isNotBlank() == true) {
+                                DropdownMenuItem(
+                                    text = { Text("Open in browser") },
+                                    leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                                    onClick = {
+                                        moreOpen = false
+                                        CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/profile/${profile.name}"))
+                                    },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Sign out") },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, null, tint = c.danger) },
+                                onClick = { moreOpen = false; confirmSignOut = true },
+                            )
+                        }
                     }
                 }
             }
@@ -224,7 +255,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // FriendProfileScreen to show Online/Gender/Birthday/Joined here
     // instead of duplicating them in a separate row above this card.
     // Null (the default) keeps Profile's own location+gender behavior.
-    detailsPills: List<String>? = null,
+    detailsPills: List<DetailPill>? = null,
     // MAL's free-form "About Me" widget (banner/name/intro + auto-generated
     // rows) — scraped alongside friends/favorites (same cookie session, see
     // hasFfSession below), so it's null until that scrape has run once and
@@ -262,28 +293,27 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         Column(Modifier.weight(1f).padding(start = 14.dp)) {
                             Text(profile.name.ifBlank { "MyAnimeList" }, style = MaterialTheme.typography.titleLarge, color = c.ink)
                         }
-                        // Open MAL profile page
-                        if (profile.name.isNotBlank()) {
-                            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/profile/${profile.name}")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
-                                Icon(Icons.Default.OpenInNew, "Open profile in browser", tint = c.primary, modifier = Modifier.size(18.dp))
-                            }
-                        }
+                        // "Open in browser" moved to the 3-dot menu in the
+                        // Profile header (ProfileStatsScreen) alongside sign
+                        // out, instead of living here on the avatar card.
                     }
                     val details = detailsPills ?: listOfNotNull(
-                        profile.location.takeIf { it.isNotBlank() },
-                        profile.gender.takeIf { it.isNotBlank() },
-                        profile.birthday.take(10).takeIf { it.length == 10 }?.let { formatFullDate(it) },
+                        profile.location.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.LocationOn, it) },
+                        profile.gender.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.Person, it) },
+                        profile.birthday.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Cake, formatFullDate(it)) },
                         // Was a plain "Joined ..." line next to the name
                         // above — moved down here as a pill (same ISO-date
                         // formatting via formatFullDate) so it matches
                         // FriendProfileScreen's Online/Gender/Born/Joined
                         // pill row instead of looking like a different
-                        // pattern on your own profile.
-                        profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { formatFullDate(it) },
+                        // pattern on your own profile. Own icon (Event,
+                        // vs. birthday's Cake) so the two dates read
+                        // differently at a glance.
+                        profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Event, formatFullDate(it)) },
                     )
                     if (details.isNotEmpty()) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 14.dp)) {
-                            details.forEach { Pill(it, c.surfaceLow, c.muted) }
+                            details.forEach { Pill(it.text, c.surfaceLow, c.muted, icon = it.icon) }
                         }
                     }
                 }

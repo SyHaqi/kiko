@@ -3,6 +3,7 @@
 package com.kiko.tracker.ui.screens
 
 import androidx.activity.compose.BackHandler
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,7 +11,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Cake
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.browser.customtabs.CustomTabsIntent
 import coil.compose.AsyncImage
 import com.kiko.tracker.data.api.MalFriend
 import com.kiko.tracker.data.api.MalSessionCookie
@@ -128,13 +136,32 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // below) doesn't show two loading indicators at once.
     val refreshing = (state.loading && state.profile != null) || (state.friendsFavoritesLoading && state.favorites != null)
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refreshFriendProfile(context, username) }, modifier = Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                 // Same "Profile" title as Kiko's own Profile page — the avatar
                 // card below already shows this user's name next to their
                 // avatar, so this stays generic rather than repeating it.
                 Text("Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp).weight(1f))
+                // 3-dot overflow menu — mirrors Kiko's own Profile header,
+                // just with "Open in browser" only (no sign out, since this
+                // isn't the signed-in user's account).
+                var moreOpen by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { moreOpen = true }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
+                        Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(18.dp))
+                    }
+                    DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
+                        DropdownMenuItem(
+                            text = { Text("Open in browser") },
+                            leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                            onClick = {
+                                moreOpen = false
+                                CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/profile/$username"))
+                            },
+                        )
+                    }
+                }
             }
 
             when {
@@ -164,10 +191,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     // otherwise also render it from friendProfile.stats.gender,
                     // which MalProfileScrapeApi copies from the same header).
                     val aboutPills = listOfNotNull(
-                        header.lastOnline,
-                        header.gender,
-                        header.birthday,
-                        header.joined,
+                        header.lastOnline?.let { DetailPill(Icons.Default.Schedule, it) },
+                        header.gender?.let { DetailPill(Icons.Default.Person, it) },
+                        header.birthday?.let { DetailPill(Icons.Default.Cake, it) },
+                        header.joined?.let { DetailPill(Icons.Default.Event, it) },
                     )
                     Box(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
                         ProfileStatsSection(
