@@ -33,6 +33,8 @@ import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -74,6 +76,9 @@ import com.kiko.tracker.data.api.ForumPost
 import com.kiko.tracker.data.api.ForumTopic
 import com.kiko.tracker.data.api.MalApi
 import com.kiko.tracker.data.api.MalClub
+import com.kiko.tracker.data.api.MalForumReplyApi
+import com.kiko.tracker.data.api.MalSessionCookie
+import com.kiko.tracker.data.api.MalSessionExpired
 import com.kiko.tracker.data.model.CommunityTab
 import com.kiko.tracker.data.model.ForumMode
 import com.kiko.tracker.data.model.ReviewEntry
@@ -86,6 +91,7 @@ import com.kiko.tracker.navigation.PushEnter
 import com.kiko.tracker.navigation.PushExit
 import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.ExpandableSearchHeader
+import com.kiko.tracker.ui.components.MalLoginWebView
 import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.components.parseBBCode
@@ -395,6 +401,49 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     var loadingMore by remember(topicId) { mutableStateOf(false) }
     var hasMore by remember(topicId) { mutableStateOf(false) }
     var error by remember(topicId) { mutableStateOf<String?>(null) }
+    // Replying needs the website session cookie (MalSessionCookie) — the
+    // official API this screen otherwise reads from is GET-only for forums,
+    // see MalForumReplyApi's doc comment. Same connect-then-retry shape as
+    // FriendsFavoritesScreen.
+    val session = remember { MalSessionCookie(context) }
+    var connected by remember { mutableStateOf(session.has()) }
+    var showLogin by remember { mutableStateOf(false) }
+    var verifyingLogin by remember { mutableStateOf(false) }
+    var draftText by remember(topicId) { mutableStateOf("") }
+    var replyingTo by remember(topicId) { mutableStateOf<ForumPost?>(null) }
+    var posting by remember(topicId) { mutableStateOf(false) }
+    var postError by remember(topicId) { mutableStateOf<String?>(null) }
+    // After posting, the read API can momentarily still return the pre-reply post count/list —
+    // same lag the initial-load effect below already works around for brand-new topics. Retry
+    // once, checking specifically whether the count grew, since an empty *or* unchanged result
+    // both mean "hasn't caught up yet" (unlike initial load, we know a post should now exist).
+    fun refreshTopic(expectMorePostsThan: Int) {
+        scope.launch {
+            var result = runCatching { MalApi(context).forumTopic(topicId) }
+            if (result.isSuccess && (result.getOrNull()?.posts?.size ?: 0) <= expectMorePostsThan) {
+                kotlinx.coroutines.delay(1500)
+                result = runCatching { MalApi(context).forumTopic(topicId) }
+            }
+            result.onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore }
+        }
+    }
+    fun sendReply() {
+        val text = draftText.trim()
+        if (text.isBlank() || posting) return
+        posting = true
+        postError = null
+        val parentId = replyingTo?.id ?: 0
+        val postsBeforeReply = posts.size
+        scope.launch {
+            runCatching { MalForumReplyApi(context).postReply(topicId, text, parentId) }
+                .onSuccess { draftText = ""; replyingTo = null; refreshTopic(postsBeforeReply) }
+                .onFailure { e ->
+                    if (e is MalSessionExpired) { connected = false; session.clear() }
+                    else postError = e.message ?: "Could not post reply"
+                }
+            posting = false
+        }
+    }
     // Brand-new topics (posted within
     // "posts" array for a
     // read-API appears to lag
@@ -421,6 +470,25 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex, initialFirstVisibleItemScrollOffset = initialOffset)
     val goBack = { vm.saveForumTopicScroll(topicId, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onBack() }
     BackHandler(onBack = goBack)
+    if (showLogin) {
+        Box(Modifier.fillMaxSize()) {
+            MalLoginWebView(
+                session = session,
+                onLoginSuccess = { showLogin = false; connected = true },
+                onVerifyingChange = { verifyingLogin = it },
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (verifyingLogin) {
+                Box(Modifier.fillMaxSize().background(c.surface.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = c.primary)
+                        Text("Confirming your MAL login…", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
+                    }
+                }
+            }
+        }
+        return
+    }
     // Dispatches a tapped character/person/company
     // post's body to this
     // equivalent row elsewhere in
@@ -450,61 +518,139 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
                 }
             }
     }
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
-            item {
-                Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = goBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-                    Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                    // Open topic in browser
-                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/forum/?topicid=$topicId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
-                        Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
-                    }
-                }
-                if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-                error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
-                // Distinguishes "still loading" from
-                // topic's posts yet" —
-                // is especially confusing right
-                if (!loading && error == null && posts.isEmpty()) {
-                    Column(Modifier.fillMaxWidth().padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.HourglassEmpty, null, tint = c.muted, modifier = Modifier.size(28.dp))
-                        Text("This topic hasn't finished loading on MAL's end yet", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp))
-                        Text("This can happen for very recently posted topics — try again in a bit.", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
-                        TextButton(onClick = {
-                            scope.launch {
-                                loading = true
-                                runCatching { MalApi(context).forumTopic(topicId) }
-                                    .onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore; error = null }
-                                    .onFailure { error = it.message ?: "Could not load topic" }
-                                loading = false
-                            }
-                        }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
-                    }
-                }
-                poll?.let { ForumPollCard(it, Modifier.padding(top = 6.dp, bottom = 6.dp)) }
-            }
-            itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
-                StaggeredItem(index) {
-                    Column {
-                        ForumPostCard(post, isOriginalPost = post.number == 1, onOpenProfileLink = onOpenProfileLink)
-                        if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.outlineVariant)
-                    }
-                }
-            }
-            if (loadingMore) {
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f)) {
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
                 item {
-                    Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                    Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = goBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                        Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                        // Open topic in browser
+                        IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/forum/?topicid=$topicId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
+                            Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                    error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                    // Distinguishes "still loading" from
+                    // topic's posts yet" —
+                    // is especially confusing right
+                    if (!loading && error == null && posts.isEmpty()) {
+                        Column(Modifier.fillMaxWidth().padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.HourglassEmpty, null, tint = c.muted, modifier = Modifier.size(28.dp))
+                            Text("This topic hasn't finished loading on MAL's end yet", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp))
+                            Text("This can happen for very recently posted topics — try again in a bit.", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                            TextButton(onClick = {
+                                scope.launch {
+                                    loading = true
+                                    runCatching { MalApi(context).forumTopic(topicId) }
+                                        .onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore; error = null }
+                                        .onFailure { error = it.message ?: "Could not load topic" }
+                                    loading = false
+                                }
+                            }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
+                        }
+                    }
+                    poll?.let { ForumPollCard(it, Modifier.padding(top = 6.dp, bottom = 6.dp)) }
+                }
+                itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
+                    StaggeredItem(index) {
+                        Column {
+                            ForumPostCard(
+                                post, isOriginalPost = post.number == 1, onOpenProfileLink = onOpenProfileLink,
+                                canReply = connected, onReply = { target -> replyingTo = target },
+                            )
+                            if (index < posts.lastIndex) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = c.outlineVariant)
+                        }
+                    }
+                }
+                if (loadingMore) {
+                    item {
+                        Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                        }
+                    }
+                }
+            }
+            GoToTopButton(
+                visible = showGoToTop,
+                onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+            )
+        }
+        ForumReplyBar(
+            connected = connected,
+            draftText = draftText,
+            onDraftChange = { draftText = it },
+            replyingTo = replyingTo,
+            onCancelReply = { replyingTo = null },
+            posting = posting,
+            error = postError,
+            onConnect = { showLogin = true },
+            onSend = ::sendReply,
+        )
+    }
+}
+// Bottom-pinned compose bar for posting to a topic — mirrors
+// FriendsFavoritesScreen's connect-then-retry shape when there's no session
+// cookie yet, otherwise a plain text field + send button, with an optional
+// "replying to X" chip above it when a specific post was targeted.
+@Composable fun ForumReplyBar(
+    connected: Boolean,
+    draftText: String,
+    onDraftChange: (String) -> Unit,
+    replyingTo: ForumPost?,
+    onCancelReply: () -> Unit,
+    posting: Boolean,
+    error: String?,
+    onConnect: () -> Unit,
+    onSend: () -> Unit,
+) {
+    val c = LocalKikoColors.current
+    Surface(color = c.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+        if (!connected) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Forum, null, tint = c.muted, modifier = Modifier.size(18.dp))
+                Text("Connect your MAL account to reply", color = c.muted, fontSize = 13.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
+                TextButton(onClick = onConnect) { Text("Connect") }
+            }
+            return@Surface
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+            replyingTo?.let { target ->
+                Row(
+                    Modifier.padding(bottom = 8.dp).clip(kikoPillShape()).background(c.surfaceLow).padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Replying to ${target.author.name.ifBlank { "Unknown" }}", color = c.muted, fontSize = 12.sp)
+                    IconButton(onClick = onCancelReply, modifier = Modifier.padding(start = 4.dp).size(20.dp)) {
+                        Icon(Icons.Default.Close, "Cancel reply", tint = c.muted, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+            error?.let { Text(it, color = c.danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp)) }
+            Row(verticalAlignment = Alignment.Bottom) {
+                OutlinedTextField(
+                    value = draftText, onValueChange = onDraftChange,
+                    placeholder = { Text(if (replyingTo != null) "Write a reply…" else "Write a new post…", color = c.muted) },
+                    modifier = Modifier.weight(1f), maxLines = 5,
+                    shape = RoundedCornerShape(kikoCorner(18.dp)),
+                    enabled = !posting,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outlineVariant),
+                )
+                IconButton(
+                    onClick = onSend, enabled = !posting && draftText.isNotBlank(),
+                    modifier = Modifier.padding(start = 8.dp).size(44.dp).clip(kikoCircleShape())
+                        .background(if (draftText.isNotBlank() && !posting) c.primary else c.surfaceLow),
+                ) {
+                    if (posting) {
+                        CircularProgressIndicator(color = c.onPrimary, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    } else {
+                        Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = if (draftText.isNotBlank()) c.onPrimary else c.muted, modifier = Modifier.size(18.dp))
                     }
                 }
             }
         }
-        GoToTopButton(
-            visible = showGoToTop,
-            onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-        )
     }
 }
 // Full review readout page
@@ -822,7 +968,7 @@ private fun openForumLink(url: String, uriHandler: androidx.compose.ui.platform.
 }
 // Single topic reply row
 
-@Composable fun ForumPostCard(post: ForumPost, isOriginalPost: Boolean = false, onOpenProfileLink: (MalProfileLink) -> Unit = {}) {
+@Composable fun ForumPostCard(post: ForumPost, isOriginalPost: Boolean = false, onOpenProfileLink: (MalProfileLink) -> Unit = {}, canReply: Boolean = false, onReply: (ForumPost) -> Unit = {}) {
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
         if (post.author.avatar.isNotBlank()) {
@@ -845,6 +991,15 @@ private fun openForumLink(url: String, uriHandler: androidx.compose.ui.platform.
             }
             Text(formatForumDate(post.createdAt), color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 1.dp))
             ForumBody(post.body, Modifier.padding(top = 8.dp), onOpenProfileLink = onOpenProfileLink)
+            if (canReply) {
+                Row(
+                    Modifier.padding(top = 8.dp).clip(kikoPillShape()).kikoClickable { onReply(post) }.padding(vertical = 4.dp, horizontal = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Reply, null, tint = c.muted, modifier = Modifier.size(14.dp))
+                    Text("Reply", color = c.muted, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+                }
+            }
         }
     }
 }
