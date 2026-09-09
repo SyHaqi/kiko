@@ -290,8 +290,14 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             }
             // Right under the avatar card — MAL's own mobile webview puts
             // About Me directly below the avatar/name block too, above
-            // Friends/Favorites, so this mirrors that order.
-            cachedAboutMe?.let { AboutMeCard(it, onOpenTitle = onOpenFavoriteTitle) }
+            // Friends/Favorites, so this mirrors that order. Shares
+            // friendsFavoritesLoading with Friends/Favorites below since
+            // it's scraped in the same round-trip (see loadProfileFriendsFavorites).
+            if (cachedAboutMe == null && friendsFavoritesLoading) {
+                AboutMeCardSkeleton()
+            } else {
+                cachedAboutMe?.let { AboutMeCard(it, onOpenTitle = onOpenFavoriteTitle) }
+            }
             if (hasFfSession) {
                 if (cachedFriends == null && friendsFavoritesLoading) {
                     FriendsRowSkeleton()
@@ -534,9 +540,21 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
             // mobile webview gives it (full-bleed, above any padding),
             // rather than inset like the poster rows below.
             aboutMe.mainVisualUrl?.let { url ->
+                // Sized to the banner's own aspect ratio once it's loaded
+                // (MAL lets users upload any size/shape image here) rather
+                // than forcing every banner into the same fixed crop.
+                // Starts at the same 21:9 fallback AboutMeCardSkeleton uses
+                // so there's no layout jump before the real size is known;
+                // Crop still applies during that brief window, but has
+                // nothing to crop once bannerAspect matches the image.
+                var bannerAspect by remember(url) { mutableFloatStateOf(21f / 9f) }
                 AsyncImage(
                     model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(21f / 9f)
+                    onSuccess = { state ->
+                        val d = state.result.drawable
+                        if (d.intrinsicWidth > 0 && d.intrinsicHeight > 0) bannerAspect = d.intrinsicWidth.toFloat() / d.intrinsicHeight.toFloat()
+                    },
+                    modifier = Modifier.fillMaxWidth().aspectRatio(bannerAspect)
                         .clip(RoundedCornerShape(topStart = kikoCorner(28.dp), topEnd = kikoCorner(28.dp)))
                         .background(bg),
                 )
@@ -568,6 +586,30 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+// Loading placeholder for AboutMeCard — same card shape/padding, a mock
+// banner + a couple of text-line blocks for the intro, and one row of
+// 96.dp poster-shaped blocks (matching AboutMeCard's own entry width),
+// shown while loadProfileFriendsFavorites is still fetching, same
+// friendsFavoritesLoading gate FriendsRowSkeleton/FavoritesRowsSectionSkeleton use.
+@Composable fun AboutMeCardSkeleton() {
+    val c = LocalKikoColors.current
+    Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Column {
+            SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(21f / 9f), shape = RoundedCornerShape(topStart = kikoCorner(28.dp), topEnd = kikoCorner(28.dp)))
+            Column(Modifier.padding(22.dp)) {
+                Text("ABOUT ME", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
+                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.5f).height(18.dp))
+                SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth().height(13.dp))
+                SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.7f).height(13.dp))
+                Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(3) {
+                        SkeletonBlock(Modifier.width(96.dp).aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(12.dp)))
                     }
                 }
             }
@@ -882,7 +924,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
     LaunchedEffect(Unit) { centerChip(listState, initialIndex) }
     LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
         item { FilterChip(selected = current == 0, onClick = { set(0); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
-        itemsIndexed(scores) { index, s ->
+        itemsIndexed(scores, key = { _, s -> s }) { index, s ->
             FilterChip(
                 selected = current == s,
                 onClick = { set(s); scope.centerChip(listState, index + 1) },
@@ -1072,7 +1114,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
     LaunchedEffect(Unit) { centerChip(listState, initialIndex) }
     LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
         item { FilterChip(selected = current.isBlank(), onClick = { set(""); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
-        itemsIndexed(formats) { index, f -> FilterChip(selected = current == f, onClick = { set(f); scope.centerChip(listState, index + 1) }, label = { Text(f) }, colors = colors) }
+        itemsIndexed(formats, key = { _, f -> f }) { index, f -> FilterChip(selected = current == f, onClick = { set(f); scope.centerChip(listState, index + 1) }, label = { Text(f) }, colors = colors) }
     }
 }
 // Opened by tapping a
