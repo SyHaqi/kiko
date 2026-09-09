@@ -9,8 +9,14 @@ import org.json.JSONObject
 import org.jsoup.Jsoup
 import java.io.IOException
 
-/** Result of a successful reply post — the new message's own id, in case a caller wants to
- * jump to it or optimistically insert it before the next official-API refetch. */
+/** Result of a successful reply post — the new message's own id. Deliberately does NOT try to
+ * parse the "html" field the ajax endpoint also returns into a ForumPost here: that markup has
+ * only ever been seen as one raw devtools capture, not verified against a range of real replies
+ * (formatting, quoted replies, avatars-off users, etc.), and a scraper built off a single sample
+ * is exactly the kind of thing that silently mis-parses later. Callers that want to show the
+ * post immediately (rather than wait on forumTopic()'s read-after-write lag) should build a
+ * ForumPost from data they already trust client-side — the signed-in user's own profile info,
+ * the messageText that was submitted, and this messageId — not from scraping this response. */
 data class MalForumReplyResult(val messageId: Int)
 
 /**

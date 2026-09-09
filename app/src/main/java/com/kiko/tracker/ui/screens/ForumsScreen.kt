@@ -74,9 +74,12 @@ import com.kiko.tracker.data.api.ForumBoard
 import com.kiko.tracker.data.api.ForumPoll
 import com.kiko.tracker.data.api.ForumPost
 import com.kiko.tracker.data.api.ForumTopic
+import com.kiko.tracker.data.api.ForumTopicDetail
+import com.kiko.tracker.data.api.ForumUser
 import com.kiko.tracker.data.api.MalApi
 import com.kiko.tracker.data.api.MalClub
 import com.kiko.tracker.data.api.MalForumReplyApi
+import com.kiko.tracker.data.api.MalForumScrapeApi
 import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.data.api.MalSessionExpired
 import com.kiko.tracker.data.model.CommunityTab
@@ -413,18 +416,64 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     var replyingTo by remember(topicId) { mutableStateOf<ForumPost?>(null) }
     var posting by remember(topicId) { mutableStateOf(false) }
     var postError by remember(topicId) { mutableStateOf<String?>(null) }
-    // After posting, the read API can momentarily still return the pre-reply post count/list —
-    // same lag the initial-load effect below already works around for brand-new topics. Retry
-    // once, checking specifically whether the count grew, since an empty *or* unchanged result
-    // both mean "hasn't caught up yet" (unlike initial load, we know a post should now exist).
-    fun refreshTopic(expectMorePostsThan: Int) {
+    // listState is declared further down (it needs initialIndex/initialOffset computed after
+    // this point); sendReply() below wants to scroll to the newly-inserted post once it lands,
+    // so it just raises this flag rather than referencing listState directly — a LaunchedEffect
+    // near listState's own declaration consumes it.
+    var pendingScrollToNewest by remember(topicId) { mutableStateOf(false) }
+    // Reads the topic's first page from the website directly rather than MalApi.forumTopic (the
+    // official REST API) — see MalForumScrapeApi's doc comment for why: that REST endpoint has
+    // shown real staleness on cold loads independent of anything this app does. Falls back to the
+    // REST API if the scrape comes back empty (parse/markup mismatch) or throws, so a change to
+    // MAL's page markup degrades to the old, reliable behavior rather than breaking the screen.
+    suspend fun freshFirstPage(): Result<ForumTopicDetail> {
+        val scraped = runCatching { MalForumScrapeApi().topic(topicId) }
+        if (scraped.isSuccess && scraped.getOrNull()?.posts?.isNotEmpty() == true) return scraped
+        return runCatching { MalApi(context).forumTopic(topicId) }
+    }
+    // Background reconciliation only, run after the optimistic insert in sendReply() below —
+    // NOT what makes the user's own reply appear (that's instant, from client-known data). This
+    // exists purely to pick up: (a) MAL's own canonical formatting/id for the post we just
+    // optimistically inserted, in case it differs from our guess, and (b) anyone else's replies
+    // that landed around the same time. Targets the offset our new post actually lands on
+    // (the old last page) rather than offset 0 — a reply is appended to the END of the thread,
+    // so refetching page 1 would never contain it once a topic has more than one page, no matter
+    // how long we wait. Merges additively and never shrinks/replaces the list: if the read API
+    // is still lagged, or errors, the optimistic post (already showing) is left exactly alone.
+    fun reconcileAfterReply(myMessageId: Int, postsBeforeReply: Int) {
         scope.launch {
-            var result = runCatching { MalApi(context).forumTopic(topicId) }
-            if (result.isSuccess && (result.getOrNull()?.posts?.size ?: 0) <= expectMorePostsThan) {
-                kotlinx.coroutines.delay(1500)
-                result = runCatching { MalApi(context).forumTopic(topicId) }
+            val targetOffset = (postsBeforeReply - (postsBeforeReply % 30)).coerceAtLeast(0)
+            var attempt = 0
+            var delayMs = 1000L
+            while (attempt < 3) {
+                // The scraper only reads page 0 (see MalForumScrapeApi's doc comment) — beyond
+                // that, stick with the REST API's own offset paging, already correct.
+                val result = if (targetOffset == 0) freshFirstPage()
+                else runCatching { MalApi(context).forumTopic(topicId, offset = targetOffset) }
+                val fetched = result.getOrNull()
+                if (fetched != null) {
+                    // Exclude our own optimistic post from "known" on purpose: that's what makes
+                    // its real/canonical counterpart always count as "new" the moment MAL actually
+                    // has it, rather than being silently skipped because an id already existed
+                    // locally. Anything else already on screen (including other users' posts we
+                    // picked up on a previous reconcile pass) stays excluded as normal.
+                    val known = posts.filterNot { it.id == myMessageId }.map { it.id }.toSet()
+                    val newFromServer = fetched.posts.filter { it.id !in known }
+                    if (newFromServer.isNotEmpty()) {
+                        // Only drop existing entries whose id is about to be replaced by an
+                        // incoming one — that's our stand-in once (and only once) its canonical
+                        // twin has actually arrived. If it hasn't arrived yet, myMessageId simply
+                        // isn't in incomingIds, so the stand-in is left alone, not deleted.
+                        val incomingIds = newFromServer.map { it.id }.toSet()
+                        posts = posts.filterNot { it.id in incomingIds } + newFromServer
+                        poll = fetched.poll
+                        return@launch
+                    }
+                }
+                attempt++
+                if (attempt < 3) { kotlinx.coroutines.delay(delayMs); delayMs *= 2 }
             }
-            result.onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore }
+            // Gave up reconciling — the optimistic post the user already sees stays put either way.
         }
     }
     fun sendReply() {
@@ -436,7 +485,25 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
         val postsBeforeReply = posts.size
         scope.launch {
             runCatching { MalForumReplyApi(context).postReply(topicId, text, parentId) }
-                .onSuccess { draftText = ""; replyingTo = null; refreshTopic(postsBeforeReply) }
+                .onSuccess { result ->
+                    draftText = ""
+                    replyingTo = null
+                    // Show the user's own reply immediately rather than waiting on a refetch —
+                    // built entirely from data already trusted client-side (own profile, the
+                    // text just submitted, the id MAL's write response confirmed), not from
+                    // guessing at forumTopic()'s read-after-write timing or which page it lands on.
+                    val me = vm.malProfile
+                    val optimistic = ForumPost(
+                        id = result.messageId,
+                        number = (posts.lastOrNull()?.number ?: 0) + 1,
+                        createdAt = "Just now",
+                        author = ForumUser(name = me?.name.orEmpty(), avatar = me?.picture.orEmpty()),
+                        body = text,
+                    )
+                    posts = posts + optimistic
+                    pendingScrollToNewest = true
+                    reconcileAfterReply(result.messageId, postsBeforeReply)
+                }
                 .onFailure { e ->
                     if (e is MalSessionExpired) { connected = false; session.clear() }
                     else postError = e.message ?: "Could not post reply"
@@ -454,12 +521,12 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     LaunchedEffect(topicId) {
         loading = true
         error = null
-        var result = runCatching { MalApi(context).forumTopic(topicId) }
+        var result = freshFirstPage()
         // Empty (but successful) response
         // after a short pause
         if (result.isSuccess && result.getOrNull()?.posts?.isEmpty() == true) {
             kotlinx.coroutines.delay(1500)
-            result = runCatching { MalApi(context).forumTopic(topicId) }
+            result = freshFirstPage()
         }
         result.onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore; error = null }
             .onFailure { error = it.message ?: "Could not load topic" }
@@ -468,6 +535,15 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     // Restore per-topic scroll position
     val (initialIndex, initialOffset) = remember(topicId) { vm.forumTopicScrollFor(topicId) }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex, initialFirstVisibleItemScrollOffset = initialOffset)
+    // Scrolls to the reply the user just sent, once it's actually in `posts` (see
+    // pendingScrollToNewest above) — separate effect since sendReply() is declared before
+    // listState exists.
+    LaunchedEffect(pendingScrollToNewest) {
+        if (pendingScrollToNewest) {
+            listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
+            pendingScrollToNewest = false
+        }
+    }
     val goBack = { vm.saveForumTopicScroll(topicId, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onBack() }
     BackHandler(onBack = goBack)
     if (showLogin) {
@@ -543,7 +619,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
                             TextButton(onClick = {
                                 scope.launch {
                                     loading = true
-                                    runCatching { MalApi(context).forumTopic(topicId) }
+                                    freshFirstPage()
                                         .onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore; error = null }
                                         .onFailure { error = it.message ?: "Could not load topic" }
                                     loading = false
