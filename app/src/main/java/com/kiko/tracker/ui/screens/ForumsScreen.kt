@@ -40,7 +40,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -595,27 +594,20 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
                 }
             }
     }
-    // Height of the floating back/open-in-browser bar below (20.dp top padding + 38.dp buttons +
-    // 14.dp bottom padding) — the list's own top content padding matches it so the title (now the
-    // first scrolling item, full-width beneath the bar instead of squeezed alongside it) starts
-    // right under the bar instead of hidden behind it.
-    val floatingTopBarHeight = 72.dp
-    // The floating bar starts fully transparent (just the two pill buttons visible) and fades in
-    // a plain surfaceContainerHigh backing — the same color as the buttons' own pills — over the
-    // first bit of scroll, so it reads as "transparent at the top, opaque once there's content
-    // sliding underneath it" rather than popping in abruptly.
-    val density = LocalDensity.current
-    val headerFadeDistancePx = with(density) { 60.dp.toPx() }
-    val headerBgAlpha by remember {
-        derivedStateOf {
-            if (listState.firstVisibleItemIndex > 0) 1f
-            else (listState.firstVisibleItemScrollOffset / headerFadeDistancePx).coerceIn(0f, 1f)
-        }
-    }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
-            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = floatingTopBarHeight, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
                 item {
+                    // Fixed back/open-in-browser row — same non-floating pattern as the other
+                    // detail screens (e.g. PersonDetailScreen): plain row at the top of the
+                    // scrolling content, no background fade, no overlay.
+                    Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = goBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/forum/?topicid=$topicId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
+                            Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
+                        }
+                    }
                     Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 18.dp))
                     if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
                     error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
@@ -657,27 +649,6 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
                             CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
                         }
                     }
-                }
-            }
-            // Floating back/open-in-browser buttons — transparent at the top of the topic, fading
-            // to a surfaceContainerHigh backing (headerBgAlpha, computed above) as the list scrolls
-            // underneath, so the bar itself never pops in — only the buttons are visible at rest.
-            // The title (same headerBgAlpha) fades in between them at the same time, standing in
-            // for the list's own title text once that's scrolled out of view above it.
-            Row(
-                Modifier.fillMaxWidth().align(Alignment.TopCenter).background(c.surfaceContainerHigh.copy(alpha = headerBgAlpha))
-                    .padding(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = goBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-                Text(
-                    title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = c.ink,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f).padding(horizontal = 10.dp).alpha(headerBgAlpha),
-                )
-                // Open topic in browser
-                IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/forum/?topicid=$topicId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
-                    Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
                 }
             }
             GoToTopButton(
