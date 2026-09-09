@@ -465,7 +465,17 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
                         // twin has actually arrived. If it hasn't arrived yet, myMessageId simply
                         // isn't in incomingIds, so the stand-in is left alone, not deleted.
                         val incomingIds = newFromServer.map { it.id }.toSet()
-                        posts = posts.filterNot { it.id in incomingIds } + newFromServer
+                        // Our own optimistic post already carries the "Reply to X" hint (built
+                        // client-side in sendReply()); the REST API's own posts never do (see
+                        // ForumPost's doc comment). Carry it over onto our canonical replacement
+                        // rather than let it silently disappear the moment reconciliation lands.
+                        val optimisticMine = posts.firstOrNull { it.id == myMessageId }
+                        val patchedFromServer = newFromServer.map { p ->
+                            if (p.id == myMessageId && p.replyToAuthor.isBlank() && optimisticMine?.replyToAuthor?.isNotBlank() == true)
+                                p.copy(replyToAuthor = optimisticMine.replyToAuthor, replyToBody = optimisticMine.replyToBody)
+                            else p
+                        }
+                        posts = posts.filterNot { it.id in incomingIds } + patchedFromServer
                         poll = fetched.poll
                         return@launch
                     }
@@ -481,7 +491,11 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
         if (text.isBlank() || posting) return
         posting = true
         postError = null
-        val parentId = replyingTo?.id ?: 0
+        // Captured before replyingTo is cleared on success below — sendReply() needs it after
+        // the reply lands to stamp the optimistic post with the same "Reply to X" hint MAL itself
+        // will render for anyone reading the topic on the website.
+        val target = replyingTo
+        val parentId = target?.id ?: 0
         val postsBeforeReply = posts.size
         scope.launch {
             runCatching { MalForumReplyApi(context).postReply(topicId, text, parentId) }
@@ -499,6 +513,8 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
                         createdAt = "Just now",
                         author = ForumUser(name = me?.name.orEmpty(), avatar = me?.picture.orEmpty()),
                         body = text,
+                        replyToAuthor = target?.author?.name.orEmpty(),
+                        replyToBody = target?.let { plainBodyPreview(it.body) }.orEmpty(),
                     )
                     posts = posts + optimistic
                     pendingScrollToNewest = true
@@ -1070,6 +1086,26 @@ private fun openForumLink(url: String, uriHandler: androidx.compose.ui.platform.
                 }
             }
             Text(formatForumDate(post.createdAt), color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 1.dp))
+            // "Reply to X" hint — same bordered/backed treatment as a quoted BBCode block
+            // (ForumBlockView's ForumBlock.Quote case below) so it reads as one visual language,
+            // just for MAL's own parent-post reference rather than an inline [quote] tag.
+            if (post.replyToAuthor.isNotBlank()) {
+                Column(
+                    Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.surfaceContainerHigh)
+                        .border(BorderStroke(3.dp, c.muted.copy(alpha = .35f)), RoundedCornerShape(kikoCorner(10.dp))).padding(10.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.AutoMirrored.Filled.Reply, null, tint = c.muted, modifier = Modifier.size(12.dp))
+                        Text("Reply to ${post.replyToAuthor}", color = c.muted, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                    }
+                    if (post.replyToBody.isNotBlank()) {
+                        Text(
+                            post.replyToBody, color = c.muted, fontSize = 13.sp, lineHeight = 19.sp, fontStyle = FontStyle.Italic,
+                            maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
+            }
             ForumBody(post.body, Modifier.padding(top = 8.dp), onOpenProfileLink = onOpenProfileLink)
             if (canReply) {
                 Row(
@@ -1107,6 +1143,15 @@ private fun openForumLink(url: String, uriHandler: androidx.compose.ui.platform.
             if (poll.closed) Text("Poll closed", color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
         }
     }
+}
+// Strips a post's BBCode source down to a short plain-text preview, for the "Reply to X" hint
+// stamped onto our own just-sent optimistic post in sendReply() — the target post's real body is
+// still bracket-tag BBCode (see MalForumScrapeApi's doc comment) at that point, not the rendered
+// text ForumBody would show, so this is a plain best-effort strip rather than real BBCode parsing:
+// good enough for a one-line muted quote preview, not meant to survive round-tripping.
+private fun plainBodyPreview(bbBody: String, maxLen: Int = 140): String {
+    val plain = bbBody.replace(Regex("\\[/?[^\\]]*\\]"), " ").replace(Regex("\\s+"), " ").trim()
+    return if (plain.length > maxLen) plain.take(maxLen).trimEnd() + "…" else plain
 }
 // Parse forum ISO timestamp
 

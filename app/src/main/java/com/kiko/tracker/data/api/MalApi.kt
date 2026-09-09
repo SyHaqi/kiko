@@ -128,8 +128,12 @@ data class ForumTopic(
 // One topic listing page
 data class ForumTopicsPage(val items: List<ForumTopic>, val hasMore: Boolean)
 
-// Single topic reply
-data class ForumPost(val id: Int, val number: Int, val createdAt: String, val author: ForumUser, val body: String, val signature: String = "")
+// Single topic reply. replyToAuthor/replyToBody carry MAL's "Reply to X" quoted-preview block —
+// only populated when the data source can see it (currently MalForumScrapeApi and this app's own
+// optimistic just-sent post; the official REST API — MalApi.forumTopic below — has no parent-post
+// field in its JSON, so REST-sourced posts always leave these blank, same as signature/poll gaps
+// already documented on MalForumScrapeApi).
+data class ForumPost(val id: Int, val number: Int, val createdAt: String, val author: ForumUser, val body: String, val signature: String = "", val replyToAuthor: String = "", val replyToBody: String = "")
 
 data class ForumPollOption(val text: String, val votes: Int)
 data class ForumPoll(val question: String, val closed: Boolean, val options: List<ForumPollOption>)

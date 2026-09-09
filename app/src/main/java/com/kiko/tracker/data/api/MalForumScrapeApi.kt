@@ -83,9 +83,17 @@ class MalForumScrapeApi {
         val body = el.selectFirst("div.content table.body td")?.let(::htmlToBb).orEmpty()
         val signature = el.selectFirst("div.sig-container table.sig td")?.let(::htmlToBb).orEmpty()
         if (body.isBlank()) return null
+        // "Reply to X" block MAL renders above a post that has a parent — sits alongside (not
+        // inside) the message table above, so it doesn't interfere with the body select above.
+        // js-replyto-target's text is literally "Reply to <name>"; strip that prefix down to
+        // just the name so callers don't have to know MAL's exact phrasing.
+        val repliedEl = el.selectFirst("div.replied")
+        val replyToAuthor = repliedEl?.selectFirst(".js-replyto-target")?.text()?.removePrefix("Reply to")?.trim().orEmpty()
+        val replyToBody = repliedEl?.selectFirst(".replied-body")?.text()?.trim().orEmpty()
         return ForumPost(
             id = id, number = number, createdAt = createdAt,
             author = ForumUser(name = authorName, avatar = avatar), body = body, signature = signature,
+            replyToAuthor = replyToAuthor, replyToBody = replyToBody,
         )
     }
 
