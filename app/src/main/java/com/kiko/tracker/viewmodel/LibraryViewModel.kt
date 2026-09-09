@@ -638,6 +638,10 @@ class LibraryViewModel : ViewModel() {
         val profile: MalFriendProfile? = null,
         val friends: List<MalFriend>? = null,
         val favorites: MalFavorites? = null,
+        // Same "About Me" widget as profileAboutMe above, just scoped to
+        // this friend's username instead of the signed-in user's — fetched
+        // in the same round-trip as friends/favorites below.
+        val aboutMe: MalAboutMe? = null,
         val loading: Boolean = false,
         val friendsFavoritesLoading: Boolean = false,
         val error: String? = null,
@@ -671,7 +675,8 @@ class LibraryViewModel : ViewModel() {
             runCatching {
                 val f = api.friends(username)
                 val fav = resolveFavoritesEnglishTitles(context, api.favorites(username))
-                friendProfileStates[username] = (friendProfileStates[username] ?: FriendProfileState()).copy(friends = f, favorites = fav, friendsFavoritesLoading = false)
+                val about = api.aboutMe(username)
+                friendProfileStates[username] = (friendProfileStates[username] ?: FriendProfileState()).copy(friends = f, favorites = fav, aboutMe = about, friendsFavoritesLoading = false)
             }.onFailure { e ->
                 if (e is MalSessionExpired) MalSessionCookie(context).clear()
                 friendProfileStates[username] = (friendProfileStates[username] ?: FriendProfileState()).copy(friendsFavoritesLoading = false)

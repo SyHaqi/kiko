@@ -164,10 +164,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     // otherwise also render it from friendProfile.stats.gender,
                     // which MalProfileScrapeApi copies from the same header).
                     val aboutPills = listOfNotNull(
-                        header.lastOnline?.let { "Online $it" },
+                        header.lastOnline,
                         header.gender,
-                        header.birthday?.let { "Born $it" },
-                        header.joined?.let { "Joined $it" },
+                        header.birthday,
+                        header.joined,
                     )
                     Box(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
                         ProfileStatsSection(
@@ -181,6 +181,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             onLoadFriendsFavorites = { forUsername -> vm.loadFriendProfileFriendsFavorites(context, forUsername) },
                             friendsFavoritesLoading = state.friendsFavoritesLoading,
                             detailsPills = aboutPills,
+                            cachedAboutMe = state.aboutMe,
                         )
                     }
                 }

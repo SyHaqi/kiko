@@ -272,14 +272,14 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     val details = detailsPills ?: listOfNotNull(
                         profile.location.takeIf { it.isNotBlank() },
                         profile.gender.takeIf { it.isNotBlank() },
-                        profile.birthday.take(10).takeIf { it.length == 10 }?.let { "Born ${formatFullDate(it)}" },
+                        profile.birthday.take(10).takeIf { it.length == 10 }?.let { formatFullDate(it) },
                         // Was a plain "Joined ..." line next to the name
                         // above — moved down here as a pill (same ISO-date
                         // formatting via formatFullDate) so it matches
                         // FriendProfileScreen's Online/Gender/Born/Joined
                         // pill row instead of looking like a different
                         // pattern on your own profile.
-                        profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { "Joined ${formatFullDate(it)}" },
+                        profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { formatFullDate(it) },
                     )
                     if (details.isNotEmpty()) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 14.dp)) {
@@ -512,7 +512,10 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
 // page), the uppercase muted section labels, and collapsing MAL's desktop
 // 2-column row layout down to single-column stacked LazyRows — the same
 // single-column shape MAL's own mobile webview uses for this widget,
-// rather than reproducing the desktop grid.
+// rather than reproducing the desktop grid. Each entry's title is left
+// off the poster — it's reconstructed from a URL slug rather than
+// scraped page text (see MalAboutMeItem), so it's often not the title's
+// actual name; the poster art alone reads better than a wrong label.
 @Composable fun AboutMeCard(aboutMe: MalAboutMe, onOpenTitle: (Int, MediaType) -> Unit = { _, _ -> }, modifier: Modifier = Modifier) {
     if (aboutMe.isEmpty) return
     val c = LocalKikoColors.current
@@ -563,7 +566,6 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
                                     model = entry.imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                     modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(body.copy(alpha = 0.08f)),
                                 )
-                                Text(entry.title, color = body, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                             }
                         }
                     }
