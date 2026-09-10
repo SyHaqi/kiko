@@ -43,6 +43,8 @@ import com.kiko.tracker.data.api.MalFriend
 import com.kiko.tracker.data.api.MalFriendProfile
 import com.kiko.tracker.data.api.MalGenreApi
 import com.kiko.tracker.data.api.MalGenreLookup
+import com.kiko.tracker.data.api.MalHistoryEntry
+import com.kiko.tracker.data.api.MalHistoryScrapeApi
 import com.kiko.tracker.data.api.MalPeopleApi
 import com.kiko.tracker.data.api.MalProfile
 import com.kiko.tracker.data.api.MalProfileScrapeApi
@@ -1896,6 +1898,30 @@ class LibraryViewModel : ViewModel() {
                 // Fail silently, no banner
                 .onFailure { newsSnapshotsLoaded = false }
             newsSnapshotsLoading = false
+        }
+    }
+
+    // Home's compact "Last Updated List" + the full History screen reached
+    // via "See more" — scraped from myanimelist.net/history/{username},
+    // episode/chapter-level activity not exposed by the official API or
+    // Jikan at all. Needs the logged-in session cookie (same as
+    // loadProfileFriendsFavorites), not just the signed-in check
+    // newsSnapshots/homeAnnouncement use above.
+    var history by mutableStateOf<List<MalHistoryEntry>>(emptyList()); private set
+    var historyLoading by mutableStateOf(false); private set
+    private var historyLoadedUsername: String? = null
+    fun loadHistory(context: Context, username: String, force: Boolean = false) {
+        if (username.isBlank() || historyLoading) return
+        if (!MalSessionCookie(context).has()) return
+        if (!force && historyLoadedUsername == username && history.isNotEmpty()) return
+        historyLoadedUsername = username
+        historyLoading = true
+        viewModelScope.launch {
+            runCatching { MalHistoryScrapeApi(context).history(username) }
+                .onSuccess { history = it }
+                // Fail silently, no banner — same as newsSnapshots below
+                .onFailure { e -> if (e is MalSessionExpired) MalSessionCookie(context).clear(); historyLoadedUsername = null }
+            historyLoading = false
         }
     }
 
