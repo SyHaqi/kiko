@@ -418,37 +418,76 @@ class LibraryViewModel : ViewModel() {
             stackCoverInFlight -= stackId
         }
     }
-    // Top anime result per genre for Home's "Top Genres" cards — same
-    // guard-against-duplicate-fetch shape as stackCoverCache above, just
-    // keyed by genre name instead of stack id. Hand-picked, recognizable
-    // titles for the common genres below (resolved by exact title search,
-    // not a genre-filtered listing); anything not in that map falls back
-    // to the old "most-popular title with this genre tag" scrape.
-    private val genreTopItemOverrides = mapOf(
-        "romance" to "Horimiya",
-        "fantasy" to "Sousou no Frieren",
-        "comedy" to "Tanaka-kun wa Itsumo Kedaruge",
-        "school" to "Kaguya-sama wa Kokurasetai: Tensai-tachi no Renai Zunousen",
-        "action" to "Shingeki no Kyojin",
-    )
+    // Home's "Top Genres" row — MAL's own top 10 "Genres" facet names
+    // globally (by the site-wide anime count on each tag, scraped via
+    // MalGenreLookup.topGenreNames), not a per-user library tally. Cached
+    // to disk for a month (genre popularity ordering barely moves week to
+    // week, and this scrape plus the 10 per-genre searches below are the
+    // heaviest thing Home loads) — only re-fetched once the cache is
+    // missing or older than homeTopGenresMaxAgeMs.
+    private val homeTopGenresMaxAgeMs = 30L * 24 * 60 * 60 * 1000
+    var homeTopGenres by mutableStateOf<List<String>>(emptyList()); private set
+    private var homeTopGenresLoading = false
+    fun loadHomeTopGenres(context: Context) {
+        if (homeTopGenres.isNotEmpty() || homeTopGenresLoading) return
+        val prefs = settingsPrefs(context)
+        val cachedAt = prefs.getLong("home_top_genres_cached_at", 0L)
+        val cached = prefs.getString("home_top_genres", null)?.split("\u0001")?.filter { it.isNotBlank() }.orEmpty()
+        if (cached.isNotEmpty() && System.currentTimeMillis() - cachedAt < homeTopGenresMaxAgeMs) {
+            homeTopGenres = cached
+            // Restore each genre's cached cover too, so a cache hit here
+            // skips the 10 per-genre MAL searches below entirely, not
+            // just the facet scrape.
+            cached.forEach { genre ->
+                val cover = prefs.getString("home_top_genre_cover_${genre.lowercase()}", null)
+                if (!cover.isNullOrBlank()) genreTopItemCache[genre] = MediaItem(title = "", type = MediaType.Anime, status = WatchStatus.Plan, cover = cover)
+            }
+            return
+        }
+        homeTopGenresLoading = true
+        viewModelScope.launch {
+            val genres = runCatching { MalGenreLookup().topGenreNames("anime", 10) }.getOrDefault(emptyList())
+            homeTopGenres = genres
+            homeTopGenresLoading = false
+            if (genres.isNotEmpty()) prefs.edit().putString("home_top_genres", genres.joinToString("\u0001")).putLong("home_top_genres_cached_at", System.currentTimeMillis()).apply()
+        }
+    }
+    // Top-by-members anime per genre for Home's "Top Genres" cards, keyed
+    // by genre name — same guard-against-duplicate-fetch shape as
+    // stackCoverCache above. Loaded together as one batch (not
+    // independently per card) so covers can be de-duplicated across the
+    // whole row: MAL's #1-by-members result for two different genres is
+    // often the very same blockbuster (e.g. Shingeki no Kyojin tops both
+    // Action and Drama), and a cover repeated across "different" genre
+    // cards would look broken. Falls through each genre's result page
+    // (not just its #1) until it finds a cover no earlier genre in this
+    // batch has already claimed. Each cover is also cached to disk (see
+    // loadHomeTopGenres above) alongside the genre-name list.
     private val genreTopItemCache = mutableStateMapOf<String, MediaItem?>()
     private val genreTopItemInFlight = mutableSetOf<String>()
     fun getCachedGenreTopItem(genre: String): MediaItem? = genreTopItemCache[genre]
-    fun loadGenreTopItem(context: Context, genre: String) {
-        if (genreTopItemCache.containsKey(genre) || genre in genreTopItemInFlight) return
-        genreTopItemInFlight += genre
+    fun loadHomeTopGenreItems(context: Context, genres: List<String>) {
+        val pending = genres.filter { it !in genreTopItemCache && it !in genreTopItemInFlight }
+        if (pending.isEmpty()) return
+        genreTopItemInFlight += pending
         viewModelScope.launch {
-            genreTopItemCache[genre] = runCatching {
-                val override = genreTopItemOverrides[genre.lowercase()]
-                if (override != null) {
-                    val api = MalApi(context)
-                    if (api.signedIn) api.search(override, MediaType.Anime).items.firstOrNull() else null
-                } else {
+            val prefs = settingsPrefs(context)
+            val usedCovers = genreTopItemCache.values.mapNotNull { it?.cover }.filterTo(mutableSetOf()) { it.isNotBlank() }
+            for (genre in pending) {
+                val item = runCatching {
                     val ids = MalGenreLookup().resolveGenreIds("anime", setOf(genre))
-                    if (ids.isEmpty()) null else MalGenreApi().search("anime", ids, type = null, status = null, page = 1, includeAdult = nsfwEnabled, sort = DiscoverSort.Members).items.firstOrNull()
+                    if (ids.isEmpty()) null else {
+                        val results = MalGenreApi().search("anime", ids, type = null, status = null, page = 1, includeAdult = nsfwEnabled, sort = DiscoverSort.Members).items
+                        results.firstOrNull { it.cover.isNotBlank() && it.cover !in usedCovers } ?: results.firstOrNull()
+                    }
+                }.getOrNull()
+                if (item?.cover?.isNotBlank() == true) {
+                    usedCovers += item.cover
+                    prefs.edit().putString("home_top_genre_cover_${genre.lowercase()}", item.cover).apply()
                 }
-            }.getOrNull()
-            genreTopItemInFlight -= genre
+                genreTopItemCache[genre] = item
+                genreTopItemInFlight -= genre
+            }
         }
     }
     // AniList's confirmed nextAiringEpisode for

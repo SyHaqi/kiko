@@ -229,6 +229,12 @@ data class GenreFacets(
     val explicitGenres: Map<String, Int>,
     val themes: Map<String, Int>,
     val demographics: Map<String, Int>,
+    // Display-cased "Genres" name -> MAL's own count of anime/manga
+    // carrying that tag, scraped from the same checkbox labels (e.g.
+    // "Action (5,017)") the id maps above are built from. Excludes
+    // Explicit Genres/Themes/Demographics — only used to rank the plain
+    // "Genres" facet for Home's "Top Genres" row.
+    val genreCounts: Map<String, Int> = emptyMap(),
 )
 
 private object GenreFacetCache {
@@ -241,7 +247,7 @@ private object GenreFacetCache {
 // Every checkbox label on
 // "Action (5,017)" — stripped
 // CommonDemographics (Models.kt) and the
-private val genreLabelCountSuffix = Regex("\\s*\\([\\d,]+\\)\\s*$")
+private val genreLabelCountSuffix = Regex("\\s*\\(([\\d,]+)\\)\\s*$")
 
 class MalGenreLookup {
     private val client = NetworkClient.shared
@@ -254,6 +260,17 @@ class MalGenreLookup {
     // Same "fail the whole
     // old TenraiApi.resolveGenreIds had: LibraryViewModel
     // when this comes back
+    // Top N "Genres" facet names (Action, Romance, ...) by MAL's own
+    // global anime/manga count for that tag — same facets() scrape
+    // resolveGenreIds already relies on, just ranked by genreCounts
+    // instead of resolved to ids. Used by Home's "Top Genres" row so the
+    // row reflects MAL's own site-wide genre popularity instead of a
+    // per-user library tally.
+    suspend fun topGenreNames(kind: String, limit: Int = 10): List<String> {
+        val f = runCatching { facets(kind) }.getOrNull() ?: return emptyList()
+        return f.genreCounts.entries.sortedByDescending { it.value }.take(limit).map { it.key }
+    }
+
     suspend fun resolveGenreIds(kind: String, genres: Set<String>, themes: Set<String> = emptySet(), demographics: Set<String> = emptySet()): List<Int> {
         if (genres.isEmpty() && themes.isEmpty() && demographics.isEmpty()) return emptyList()
         val f = runCatching { facets(kind) }.getOrNull() ?: return emptyList()
@@ -289,6 +306,10 @@ class MalGenreLookup {
         val url = if (kind == "anime") "https://myanimelist.net/anime.php" else "https://myanimelist.net/manga.php"
         val doc = client.fetchMalDocument(url)
         val byCategory = mutableMapOf<String, MutableMap<String, Int>>()
+        // Keeps the display-cased name (not lowercased, unlike the id
+        // maps above which are looked up case-insensitively) since this
+        // is surfaced directly in the Home "Top Genres" row.
+        val genreCounts = mutableMapOf<String, Int>()
         doc.select("div.category-wrapper").forEach { wrapper ->
             val category = wrapper.selectFirst("div.category-type")?.text()?.trim() ?: return@forEach
             val map = byCategory.getOrPut(category) { mutableMapOf() }
@@ -296,7 +317,13 @@ class MalGenreLookup {
                 val id = input.attr("value").toIntOrNull() ?: return@forEach
                 val label = input.nextElementSibling()?.takeIf { it.tagName() == "p" }?.text()?.trim() ?: return@forEach
                 val name = label.replace(genreLabelCountSuffix, "").trim()
-                if (name.isNotBlank()) map[name.lowercase()] = id
+                if (name.isNotBlank()) {
+                    map[name.lowercase()] = id
+                    if (category == "Genres") {
+                        val count = genreLabelCountSuffix.find(label)?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull() ?: 0
+                        genreCounts[name] = count
+                    }
+                }
             }
         }
         return GenreFacets(
@@ -304,6 +331,7 @@ class MalGenreLookup {
             explicitGenres = byCategory["Explicit Genres"].orEmpty(),
             themes = byCategory["Themes"].orEmpty(),
             demographics = byCategory["Demographics"].orEmpty(),
+            genreCounts = genreCounts,
         )
     }
 }

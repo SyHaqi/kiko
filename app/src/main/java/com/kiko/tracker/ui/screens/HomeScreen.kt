@@ -121,13 +121,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val lastUpdated = remember(vm.history, items) {
         vm.history.take(5).map { entry -> entry to historyCoverColor(entry, items) }
     }
-    // Top 5 genres across the whole list, by how many items carry each
-    // genre tag — same `items` source as everything else above, so this
-    // is a pure client-side tally with no extra network call.
-    val topGenres = remember(items) {
-        items.asSequence().flatMap { it.genres.asSequence() }.filter { it.isNotBlank() }
-            .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(5).map { it.key }
-    }
+    // Top 10 genres, MAL-wide (not a per-user library tally) — fetched
+    // once via vm.loadHomeTopGenres(), then each genre's top-by-members
+    // cover is loaded together as a batch so covers can be de-duplicated
+    // across the row (see loadHomeTopGenreItems).
+    LaunchedEffect(Unit) { vm.loadHomeTopGenres(context) }
+    val topGenres = vm.homeTopGenres
+    LaunchedEffect(topGenres) { if (topGenres.isNotEmpty()) vm.loadHomeTopGenreItems(context, topGenres) }
     val today = java.time.LocalDate.now().dayOfWeek
     // Airing-next row pool —
     // re-filtering, re-parsing dates on,
@@ -245,7 +245,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             }
                         }
                     }
-                    // Top 5 genres by item count, rank-badged spotlight-style
+                    // Top 10 genres MAL-wide, rank-badged spotlight-style
                     // cards (same cover-banner-on-top language as
                     // StackSpotlightCard) in a horizontal row. Tapping a card
                     // jumps to Discover pre-filtered by that genre.
@@ -254,7 +254,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             SectionTitle("Top Genres", "Discover", onDiscover)
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 itemsIndexed(topGenres, key = { _, genre -> genre }) { index, genre ->
-                                    GenreCard(index + 1, genre, vm) { onOpenGenre(genre) }
+                                    GenreCard(index + 1, genre, vm.getCachedGenreTopItem(genre)) { onOpenGenre(genre) }
                                 }
                             }
                         }
@@ -345,29 +345,30 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
 }
 // Rank-badged genre card for the Home "Top Genres" row — same
-// cover-banner-over-text language as StackSpotlightCard (StacksScreen.kt):
-// a top image banner, then title below. The banner shows the top MAL
-// search result for that genre (fetched/cached via
-// vm.loadGenreTopItem/getCachedGenreTopItem), falling back to a plain
-// genre icon tile while it loads or if nothing came back. Rank badge sits
-// over the banner, top-end.
-@Composable fun GenreCard(rank: Int, genre: String, vm: LibraryViewModel, modifier: Modifier = Modifier, onClick: () -> Unit) {
+// cover-then-label-below language as MiniCard (CommonComponents.kt): a
+// plain image tile, then icon + genre name outside/below it, not
+// overlaid on the art. Cover shape matches HistoryCover ("Last Updated
+// List" rows below) — a plain RoundedCornerShape(kikoCorner(12.dp)) tile,
+// not the bigger card-corner radius used elsewhere on Home. The cover
+// shows the top-by-members MAL result for that genre (batch fetched/
+// cached via vm.loadHomeTopGenreItems/getCachedGenreTopItem in
+// HomeScreen), falling back to a plain genre icon tile while it loads or
+// if nothing came back. Rank badge sits over the cover, top-end.
+@Composable fun GenreCard(rank: Int, genre: String, topItem: MediaItem?, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    val context = LocalContext.current
-    LaunchedEffect(genre) { vm.loadGenreTopItem(context, genre) }
-    val topItem = vm.getCachedGenreTopItem(genre)
-    Column(
-        modifier
-            .width(130.dp)
-            .clip(RoundedCornerShape(kikoCorner(18.dp)))
-            .background(c.surfaceContainer)
-            .kikoClickable(onClick = onClick),
-    ) {
-        Box(Modifier.fillMaxWidth().height(96.dp)) {
-            if (topItem?.cover?.isNotBlank() == true) {
-                AsyncImage(model = topItem.cover, contentDescription = null, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = kikoCorner(18.dp), topEnd = kikoCorner(18.dp))), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+    val hasCover = topItem?.cover?.isNotBlank() == true
+    Column(modifier.width(136.dp).kikoClickable(onClick = onClick)) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+                .clip(RoundedCornerShape(kikoCorner(12.dp)))
+                .background(c.primaryContainer),
+        ) {
+            if (hasCover) {
+                AsyncImage(model = topItem!!.cover, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
-                Box(Modifier.fillMaxSize().background(c.primaryContainer), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Icon(genreIcon(genre), null, tint = c.onPrimaryContainer, modifier = Modifier.size(26.dp))
                 }
             }
@@ -402,10 +403,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 )
             }
         }
-        // Icon sits left-aligned above the genre name, below the banner —
-        // no need to center it against anything else on this line.
-        Icon(genreIcon(genre), null, tint = c.muted, modifier = Modifier.padding(start = 12.dp, top = 10.dp).size(18.dp))
-        Text(genre, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 12.dp))
+        // Icon above the genre name, outside/below the cover.
+        Icon(genreIcon(genre), null, tint = c.muted, modifier = Modifier.padding(top = 8.dp).size(18.dp))
+        Text(genre, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
     }
 }
 
