@@ -1056,7 +1056,8 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
 }
 
 @Composable fun RelatedCard(entry: RelatedEntry, loading: Boolean = false, myStatus: WatchStatus? = null, onClick: () -> Unit) {
-    DetailRowCard(imageUrl = entry.cover, fallbackLetter = entry.title.take(1), title = entry.title, label = entry.relation, loading = loading, myStatus = myStatus, onClick = onClick)
+    val title = entry.displayTitle()
+    DetailRowCard(imageUrl = entry.cover, fallbackLetter = title.take(1), title = title, label = entry.relation, loading = loading, myStatus = myStatus, onClick = onClick)
 }
 
 // Recommended card same style
@@ -1070,7 +1071,8 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
         entry.votes > 0 -> "${entry.votes} recommend${if (entry.votes == 1) "s" else ""}"
         else -> "Recommended"
     }
-    DetailRowCard(imageUrl = entry.cover, fallbackLetter = entry.title.take(1), title = entry.title, subtitle = subtitle, loading = loading, myStatus = myStatus, onClick = onClick)
+    val title = entry.displayTitle()
+    DetailRowCard(imageUrl = entry.cover, fallbackLetter = title.take(1), title = title, subtitle = subtitle, loading = loading, myStatus = myStatus, onClick = onClick)
 }
 // Compact card for characters/voice-actor
 

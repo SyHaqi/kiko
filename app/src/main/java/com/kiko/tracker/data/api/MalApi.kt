@@ -100,7 +100,13 @@ internal fun firstImageUrl(body: String): String? =
 // algorithmically-generated pick the website
 // user-submitted recommendations for titles
 // entries have no real
-data class RecommendedEntry(val malId: Int, val title: String, val cover: String, val votes: Int, val malType: String = "anime", val isAuto: Boolean = false)
+// titleEnglish is populated for free when this entry comes from the
+// official API's recommendations field (alternative_titles{en} is
+// requested on the same node — see fields() below); scraped entries
+// leave it blank and are patched from the API's copy where malId
+// matches, in LibraryViewModel.ensureDetailFetched, again at no extra
+// network cost.
+data class RecommendedEntry(val malId: Int, val title: String, val cover: String, val votes: Int, val malType: String = "anime", val isAuto: Boolean = false, val titleEnglish: String = "")
 
 // One season chart page
 data class SeasonalPage(val items: List<MediaItem>, val hasMore: Boolean)
@@ -574,8 +580,13 @@ class MalApi(private val context: Context) {
         // Related and theme fields
         val common = "$listStatus,genres,explicit_genres,themes,demographics,main_picture,synopsis,background,mean,rank,popularity,num_list_users," +
                 "start_date,end_date,media_type,status,alternative_titles,nsfw," +
-                "related_anime{node{id,title,main_picture},relation_type},related_manga{node{id,title,main_picture},relation_type}," +
-                "recommendations{node{id,title,main_picture},num_recommendations}"
+                // alternative_titles{en} requested on these nested nodes too
+                // (not just the top-level media) so Related/Recommended rows
+                // get an English title in the same round trip as everything
+                // else, instead of needing a slow per-id backfill later.
+                "related_anime{node{id,title,main_picture,alternative_titles{en}},relation_type}," +
+                "related_manga{node{id,title,main_picture,alternative_titles{en}},relation_type}," +
+                "recommendations{node{id,title,main_picture,alternative_titles{en}},num_recommendations}"
         val kindSpecific = if (kind == "anime") {
             "num_episodes,studios,source,rating,start_season,opening_themes,ending_themes,broadcast"
         } else {
@@ -664,6 +675,7 @@ class MalApi(private val context: Context) {
                     malId = node.optInt("id", 0),
                     malType = malType,
                     cover = nodePicture?.optString("large")?.takeIf { it.isNotBlank() } ?: nodePicture?.optString("medium") ?: "",
+                    titleEnglish = node.optJSONObject("alternative_titles")?.safeTitle("en") ?: "",
                 )
             }
         } ?: emptyList()
@@ -701,6 +713,7 @@ class MalApi(private val context: Context) {
                     cover = nodePicture?.optString("large")?.takeIf { it.isNotBlank() } ?: nodePicture?.optString("medium") ?: "",
                     votes = r.optInt("num_recommendations", 0),
                     malType = kind,
+                    titleEnglish = node.optJSONObject("alternative_titles")?.safeTitle("en") ?: "",
                 )
             }.sortedByDescending { it.votes }
         } ?: emptyList()

@@ -124,7 +124,25 @@ fun Double.twoDecimals(): String = decimalString(2)
 
 fun List<MediaItem>.nsfwFiltered(allowAdult: Boolean) = if (allowAdult) this else filterNot { it.isAdultContent() }
 
-data class RelatedEntry(val relation: String, val title: String, val malId: Int = 0, val malType: String = "anime", val cover: String = "")
+// titleEnglish comes along for free whenever this entry was resolved via
+// the official API's related_anime/related_manga/recommendations fields
+// (see MalApi.fields), since alternative_titles{en} is requested on the
+// same node — no extra per-id network round trip needed. Entries sourced
+// purely from MAL's scraped detail page (MalDetailScrapeApi) leave it
+// blank and just fall back to the romaji title in displayTitle() below.
+data class RelatedEntry(val relation: String, val title: String, val malId: Int = 0, val malType: String = "anime", val cover: String = "", val titleEnglish: String = "")
+
+@Composable
+fun RelatedEntry.displayTitle(): String {
+    val pref = LocalTitleLanguage.current
+    return if (pref == TitleLanguage.English && titleEnglish.isNotBlank()) titleEnglish else title
+}
+
+@Composable
+fun RecommendedEntry.displayTitle(): String {
+    val pref = LocalTitleLanguage.current
+    return if (pref == TitleLanguage.English && titleEnglish.isNotBlank()) titleEnglish else title
+}
 
 // One entry off a
 // MAL's own article page

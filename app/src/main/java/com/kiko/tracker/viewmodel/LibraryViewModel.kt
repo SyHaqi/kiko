@@ -2314,7 +2314,20 @@ class LibraryViewModel : ViewModel() {
                 // forcing a fresh network
                 val apiRelated = fresh?.related ?: emptyList()
                 val scrapedRelated = scraped?.related ?: emptyList()
-                cache.related = (scrapedRelated + apiRelated).distinctBy { if (it.malId > 0) "id:${it.malType}:${it.malId}" else "title:${it.malType}:${it.title}" }
+                // The scraped list usually wins the dedup below (it has
+                // better malId coverage), but it has no titleEnglish of its
+                // own. fresh?.related came from the very same detail() call
+                // and already carries alternative_titles{en} on each node
+                // (see MalApi.fields), so patch it in here for free instead
+                // of ever needing a per-id englishTitles() lookup for these.
+                val apiTitleEnglishByRelatedId = apiRelated.filter { it.malId > 0 && it.titleEnglish.isNotBlank() }
+                    .associate { it.malId to it.titleEnglish }
+                val patchedScrapedRelated = scrapedRelated.map { r ->
+                    if (r.titleEnglish.isBlank() && r.malId > 0) {
+                        apiTitleEnglishByRelatedId[r.malId]?.let { r.copy(titleEnglish = it) } ?: r
+                    } else r
+                }
+                cache.related = (patchedScrapedRelated + apiRelated).distinctBy { if (it.malId > 0) "id:${it.malType}:${it.malId}" else "title:${it.malType}:${it.title}" }
                 // Recommended: real user recs
                 // votes, never AutoRec —
                 // detail page's Recommendations slider
@@ -2329,8 +2342,20 @@ class LibraryViewModel : ViewModel() {
                 // source wins whenever both
                 // own recommendations field only
                 // when empty, same reasoning
-                val realRecs = userRecs ?: emptyList()
-                val sliderRecs = scraped?.recommended ?: emptyList()
+                // Same free-lunch patch as related above: fresh?.recommended
+                // is from the same detail() call and already carries
+                // alternative_titles{en} per node, so lend it to the
+                // scrape-sourced rows (which have the real vote counts but
+                // no English title of their own) instead of ever hitting
+                // MalApi.englishTitles() for these.
+                val apiRecs = fresh?.recommended ?: emptyList()
+                val apiTitleEnglishByRecId = apiRecs.filter { it.malId > 0 && it.titleEnglish.isNotBlank() }
+                    .associate { it.malId to it.titleEnglish }
+                fun RecommendedEntry.withApiEnglishTitle() =
+                    if (titleEnglish.isBlank() && malId > 0) apiTitleEnglishByRecId[malId]?.let { copy(titleEnglish = it) } ?: this
+                    else this
+                val realRecs = (userRecs ?: emptyList()).map { it.withApiEnglishTitle() }
+                val sliderRecs = (scraped?.recommended ?: emptyList()).map { it.withApiEnglishTitle() }
                 val sliderByKey = sliderRecs.associateBy { it.malId to it.malType }
                 val merged = realRecs.map { real ->
                     val sliderCover = sliderByKey[real.malId to real.malType]?.cover
@@ -2338,7 +2363,7 @@ class LibraryViewModel : ViewModel() {
                 }
                 val mergedKeys = merged.map { it.malId to it.malType }.toSet()
                 cache.recommended = (merged + sliderRecs.filterNot { (it.malId to it.malType) in mergedKeys })
-                    .ifEmpty { fresh?.recommended ?: emptyList() }
+                    .ifEmpty { apiRecs }
                 // Recent News / Recent
                 // cached when the scrape
                 // there's no separate API
