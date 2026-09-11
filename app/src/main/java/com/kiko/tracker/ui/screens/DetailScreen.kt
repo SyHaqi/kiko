@@ -45,6 +45,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -1019,31 +1021,36 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
     label: String? = null, subtitle: String? = null,
     loading: Boolean = false, onClick: (() -> Unit)? = null,
     myStatus: WatchStatus? = null,
+    cardWidth: Dp = 108.dp, cornerRadius: Dp = 14.dp, textBlockHeight: Dp = 88.dp,
+    fallbackFontSize: TextUnit = 22.sp, spinnerSize: Dp = 16.dp,
+    labelFontSize: TextUnit = 9.sp, labelLineHeight: TextUnit = 11.sp,
+    titleFontSize: TextUnit = 11.sp, titleLineHeight: TextUnit = 13.sp, titleMinLines: Int = 2, titleMaxLines: Int = 2,
+    subtitleFontSize: TextUnit = 9.sp,
 ) {
     val c = LocalKikoColors.current
     Column(
-        Modifier.width(140.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh)
+        Modifier.width(cardWidth).clip(RoundedCornerShape(kikoCorner(cornerRadius))).background(c.surfaceContainerHigh)
             .let { m -> onClick?.let { m.kikoClickable(enabled = !loading, onClick = it) } ?: m },
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(topStart = kikoCorner(18.dp), topEnd = kikoCorner(18.dp))).background(c.surfaceLow)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(topStart = kikoCorner(cornerRadius), topEnd = kikoCorner(cornerRadius))).background(c.surfaceLow)) {
             if (imageUrl.isNotBlank()) {
                 AsyncImage(model = imageUrl, contentDescription = title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
-                Text(fallbackLetter, fontWeight = FontWeight.Bold, fontSize = 30.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                Text(fallbackLetter, fontWeight = FontWeight.Bold, fontSize = fallbackFontSize, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }
             if (loading) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .45f)), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(spinnerSize))
                 }
             }
             // Own tracking mark
             myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopStart).padding(6.dp)) }
         }
         // Fixed height text block
-        Column(Modifier.fillMaxWidth().height(112.dp).padding(10.dp)) {
-            if (label != null) Text(label.uppercase(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 10.sp, lineHeight = 13.sp, letterSpacing = 1.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(title, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 15.sp, minLines = 3, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = if (label != null) 4.dp else 0.dp))
-            if (subtitle != null) Text(subtitle, color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+        Column(Modifier.fillMaxWidth().height(textBlockHeight).padding(10.dp)) {
+            if (label != null) Text(label.uppercase(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = labelFontSize, lineHeight = labelLineHeight, letterSpacing = 1.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(title, color = c.ink, fontWeight = FontWeight.Bold, fontSize = titleFontSize, lineHeight = titleLineHeight, minLines = titleMinLines, maxLines = titleMaxLines, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = if (label != null) 4.dp else 0.dp))
+            if (subtitle != null) Text(subtitle, color = c.muted, fontSize = subtitleFontSize, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
         }
     }
 }
