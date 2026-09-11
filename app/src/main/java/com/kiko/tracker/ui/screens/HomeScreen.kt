@@ -33,6 +33,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.carousel.CarouselItemScope
+import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
+import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -251,17 +254,26 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             }
                         }
                     }
-                    // Top 10 genres MAL-wide, rank-badged spotlight-style
-                    // cards (same cover-banner-on-top language as
-                    // StackSpotlightCard) in a horizontal row. Tapping a card
-                    // jumps to Discover pre-filtered by that genre.
+                    // Top 10 genres MAL-wide, rank-badged cards in a Material3
+                    // multi-browse carousel (large item + a peek of the next
+                    // one, per developer.android.com/.../components/carousel)
+                    // instead of a plain LazyRow — same tap-through to
+                    // Discover pre-filtered by that genre.
                     key("topGenres") {
                         if (topGenres.isNotEmpty()) {
                             SectionTitle("Top Genres", "Discover", onDiscover)
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                itemsIndexed(topGenres, key = { _, genre -> genre }) { index, genre ->
-                                    GenreCard(index + 1, genre, vm.getCachedGenreTopItem(genre)) { onOpenGenre(genre) }
-                                }
+                            // itemCount is read lazily by the state on each
+                            // layout pass, so this stays correct if topGenres
+                            // grows/shrinks after the carousel is first shown.
+                            val carouselState = rememberCarouselState { topGenres.size }
+                            HorizontalMultiBrowseCarousel(
+                                state = carouselState,
+                                preferredItemWidth = 140.dp,
+                                itemSpacing = 10.dp,
+                                modifier = Modifier.fillMaxWidth().height(190.dp),
+                            ) { index ->
+                                val genre = topGenres[index]
+                                GenreCard(index + 1, genre, vm.getCachedGenreTopItem(genre)) { onOpenGenre(genre) }
                             }
                         }
                     }
@@ -350,68 +362,98 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         }
     }
 }
-// Rank-badged genre card for the Home "Top Genres" row — same
-// cover-then-label-below language as MiniCard (CommonComponents.kt): a
-// plain image tile, then icon + genre name outside/below it, not
-// overlaid on the art. Cover shape matches HistoryCover ("Last Updated
-// List" rows below) — a plain RoundedCornerShape(kikoCorner(12.dp)) tile,
-// not the bigger card-corner radius used elsewhere on Home. The cover
-// shows the top-by-members MAL result for that genre (batch fetched/
-// cached via vm.loadHomeTopGenreItems/getCachedGenreTopItem in
+// Rank-badged genre card for the Home "Top Genres" carousel — full-bleed
+// cover with the icon + genre name overlaid at the bottom instead of
+// living below the art, on a scrim so the label stays legible over any
+// cover. `maskClip` (rather than a plain .clip()) is what gives the card
+// the carousel's signature shrink/expand-while-scrolling look — it clips
+// to the item's live mask size each frame, not just its final size, so it
+// only compiles as a CarouselItemScope extension (this card is only ever
+// built inside HorizontalMultiBrowseCarousel's content lambda above).
+// Cover is requested at Size.ORIGINAL/high filter quality (same recipe as
+// the other full-bleed art on Home/Detail/FeaturedArticles) since the
+// card is noticeably larger here than the old below-label tile was.
+// The cover shows the top-by-members MAL result for that genre (batch
+// fetched/cached via vm.loadHomeTopGenreItems/getCachedGenreTopItem in
 // HomeScreen), falling back to a plain genre icon tile while it loads or
 // if nothing came back. Rank badge sits over the cover, top-end.
-@Composable fun GenreCard(rank: Int, genre: String, topItem: MediaItem?, modifier: Modifier = Modifier, onClick: () -> Unit) {
+@Composable fun CarouselItemScope.GenreCard(rank: Int, genre: String, topItem: MediaItem?, onClick: () -> Unit) {
     val c = LocalKikoColors.current
+    val context = LocalContext.current
     val hasCover = topItem?.cover?.isNotBlank() == true
-    Column(modifier.width(136.dp).kikoClickable(onClick = onClick)) {
+    Box(
+        Modifier
+            .fillMaxHeight()
+            .maskClip(RoundedCornerShape(kikoCorner(16.dp)))
+            .background(c.primaryContainer)
+            .kikoClickable(onClick = onClick),
+    ) {
+        if (hasCover) {
+            AsyncImage(
+                model = ImageRequest.Builder(context).data(topItem!!.cover).size(Size.ORIGINAL).allowHardware(true).build(),
+                contentDescription = genre,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                filterQuality = FilterQuality.High,
+            )
+        } else {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(genreIcon(genre), null, tint = c.onPrimaryContainer, modifier = Modifier.size(28.dp))
+            }
+        }
+        // Bottom scrim — plain dark gradient rather than a tint of the
+        // card's own color, so the white label/icon below reads reliably
+        // regardless of what the cover's dominant color happens to be.
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(150.dp)
-                .clip(RoundedCornerShape(kikoCorner(12.dp)))
-                .background(c.primaryContainer),
+                .height(84.dp)
+                .align(Alignment.BottomStart)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .75f)))),
+        )
+        Box(
+            Modifier
+                .padding(8.dp)
+                .align(Alignment.TopEnd)
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(if (rank == 1) c.primaryContainer else Color.Black.copy(alpha = .45f)),
+            contentAlignment = Alignment.Center,
         ) {
-            if (hasCover) {
-                AsyncImage(model = topItem!!.cover, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-            } else {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(genreIcon(genre), null, tint = c.onPrimaryContainer, modifier = Modifier.size(26.dp))
-                }
-            }
-            Box(
-                Modifier
-                    .padding(8.dp)
-                    .align(Alignment.TopEnd)
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(if (rank == 1) c.primaryContainer else c.surfaceLow),
-                contentAlignment = Alignment.Center,
-            ) {
-                // Plain Text() here left the digit visibly off-center inside
-                // the circle — default font padding pads its layout box
-                // asymmetrically (extra space below the glyph for
-                // descenders), which throws off Box's center alignment even
-                // though the Box itself is centering correctly. Trimming
-                // that padding and pinning lineHeight to fontSize (both
-                // below) is the standard fix for a single glyph in a small
-                // badge like this.
-                Text(
-                    rank.toString(),
-                    color = if (rank == 1) c.onPrimaryContainer else c.muted,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp,
-                    textAlign = TextAlign.Center,
-                    style = TextStyle(
-                        lineHeight = 10.sp,
-                        lineHeightStyle = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.Both),
-                        platformStyle = PlatformTextStyle(includeFontPadding = false),
-                    ),
-                )
-            }
+            // Plain Text() here left the digit visibly off-center inside
+            // the circle — default font padding pads its layout box
+            // asymmetrically (extra space below the glyph for
+            // descenders), which throws off Box's center alignment even
+            // though the Box itself is centering correctly. Trimming
+            // that padding and pinning lineHeight to fontSize (both
+            // below) is the standard fix for a single glyph in a small
+            // badge like this.
+            Text(
+                rank.toString(),
+                color = if (rank == 1) c.onPrimaryContainer else Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                textAlign = TextAlign.Center,
+                style = TextStyle(
+                    lineHeight = 10.sp,
+                    lineHeightStyle = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.Both),
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                ),
+            )
         }
-        // Icon above the genre name, outside/below the cover.
-        Icon(genreIcon(genre), null, tint = c.muted, modifier = Modifier.padding(top = 8.dp).size(18.dp))
-        Text(genre, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+        // Icon above the genre name, overlaid bottom-start on the scrim above.
+        Column(Modifier.align(Alignment.BottomStart).padding(12.dp), horizontalAlignment = Alignment.Start) {
+            Icon(genreIcon(genre), null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Text(
+                genre,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
     }
 }
 
@@ -719,13 +761,13 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             expanded = searchExpanded,
             onExpandedChange = { expanded -> searchExpanded = expanded; if (!expanded) { query = ""; submittedQuery = "" } },
             hint = "Search your list",
-            horizontalPadding = 0.dp,
+            horizontalPadding = 14.dp,
             switchDescription = "Switch between Anime and Manga",
         ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
         // Status switcher — Material3 scrollable tabs
         // (replaces the old bottom-right filter FAB)
-        StatusFilterTabs(typeTab, pagerState, modifier = Modifier.padding(bottom = 4.dp)) { label ->
+        StatusFilterTabs(typeTab, pagerState, modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) { label ->
             vm.setListFilter(context, label)
             scope.launch { pagerState.animateScrollToPage(labels.indexOf(label).coerceAtLeast(0)) }
         }

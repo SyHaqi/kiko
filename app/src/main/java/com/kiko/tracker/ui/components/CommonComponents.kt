@@ -726,9 +726,9 @@ fun statusColor(label: String): Color = when {
     val tapMod = if (onClick != null) Modifier.kikoClickable { onClick(bounds) } else Modifier
     Box {
         if (picture.isNotBlank()) {
-            AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.warm).then(posMod).then(tapMod))
+            AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(kikoCircleShape()).background(c.warm).then(posMod).then(tapMod))
         } else {
-            Box(Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.warm).then(posMod).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink) }
+            Box(Modifier.size(43.dp).clip(kikoCircleShape()).background(c.warm).then(posMod).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink) }
         }
         // Small dot signaling an
         // app update is ready.
