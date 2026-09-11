@@ -384,7 +384,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                     .padding(start = 0.dp, top = 0.dp, end = 6.dp, bottom = 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(labelFor(current), style = MaterialTheme.typography.headlineLarge, letterSpacing = (-1).sp, color = c.ink)
+                Text(labelFor(current), style = MaterialTheme.typography.headlineMedium, letterSpacing = (-1).sp, color = c.ink)
                 Icon(Icons.Default.KeyboardArrowDown, contentDescription = switchDescription, tint = c.muted, modifier = Modifier.padding(start = 2.dp).size(28.dp).rotate(arrowRotation))
             }
             DropdownMenu(
@@ -726,9 +726,9 @@ fun statusColor(label: String): Color = when {
     val tapMod = if (onClick != null) Modifier.kikoClickable { onClick(bounds) } else Modifier
     Box {
         if (picture.isNotBlank()) {
-            AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(kikoCircleShape()).background(c.warm).then(posMod).then(tapMod))
+            AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.warm).then(posMod).then(tapMod))
         } else {
-            Box(Modifier.size(43.dp).clip(kikoCircleShape()).background(c.warm).then(posMod).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink) }
+            Box(Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.warm).then(posMod).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink) }
         }
         // Small dot signaling an
         // app update is ready.
