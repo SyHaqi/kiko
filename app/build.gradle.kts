@@ -9,7 +9,6 @@ val malClientId = localProperties.getProperty("MAL_CLIENT_ID", "")
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -23,11 +22,11 @@ val appVersionCode = appVersionName.split(".")
     .map { it.toIntOrNull() ?: 0 }
     .let { (maj, min, patch) -> maj * 10000 + min * 100 + patch }
 
-android { namespace = "com.kiko.tracker"; compileSdk = 35
+android { namespace = "com.kiko.tracker"; compileSdk = 37
     defaultConfig {
         applicationId = "com.kiko.tracker"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 37
         versionCode = appVersionCode
         versionName = appVersionName
         buildConfigField("String", "MAL_CLIENT_ID", "\"$malClientId\"")
@@ -58,17 +57,23 @@ android { namespace = "com.kiko.tracker"; compileSdk = 35
 kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2024.12.01"))
+    // BOM pins the last full monthly Compose release (Aug 12, 2026 = Compose
+    // 1.12.0). ui/foundation/material/animation/runtime shipped a 1.12.1
+    // patch and material3 shipped 1.4.0 on Sept 9, 2026 — both ahead of what
+    // this BOM alone resolves to — so they're pinned explicitly below. Each
+    // override bumps its whole AndroidX "atomic group" (e.g. all of
+    // androidx.compose.ui:*) together, same as the BOM would.
+    implementation(platform("androidx.compose:compose-bom:2026.08.00"))
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.10.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.ui:ui:1.12.1")
+    implementation("androidx.compose.ui:ui-tooling-preview:1.12.1")
+    implementation("androidx.compose.material3:material3:1.4.0")
+    implementation("androidx.compose.material:material-icons-extended:1.12.1")
+    implementation("androidx.compose.foundation:foundation:1.12.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
     // Adds animated GIF/WebP decoding to Coil — without this, AsyncImage silently only ever
     // decodes and shows a GIF's first frame instead of playing it (see MainActivity.onCreate,
@@ -78,7 +83,7 @@ dependencies {
     implementation("androidx.browser:browser:1.8.0")
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("org.jsoup:jsoup:1.17.2")
-    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-tooling:1.12.1")
     // Installs src/main/baseline-prof.txt (below) onto the device on first run of a
     // release build, on API levels where the OS doesn't already read baseline profiles
     // straight from the APK. Without this dependency, a hand-authored or generated

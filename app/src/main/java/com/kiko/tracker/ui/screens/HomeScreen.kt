@@ -3,14 +3,11 @@
 package com.kiko.tracker.ui.screens
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
@@ -673,9 +670,6 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             .filter { it.type == typeTab && (effectiveFilter == "All" || it.status.displayLabel(typeTab) == effectiveFilter) && (it.title.contains(submittedQuery, true) || it.titleEnglish.contains(submittedQuery, true)) }
             .sortedWithListSort(vm.listSort, vm.titleLanguage)
     }
-    // Status filter now lives
-    // old FilterRow chip row,
-    var filterMenuOpen by remember { mutableStateOf(false) }
     val isGrid = vm.listViewMode == ListViewMode.Grid
     // Shared between grid and
     // index that's already played
@@ -720,6 +714,9 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 SortMenu(vm.listSort) { vm.setListSort(context, it) }
             }
         }
+        // Status switcher — Material3 scrollable tabs
+        // (replaces the old bottom-right filter FAB)
+        StatusFilterTabs(effectiveFilter, typeTab, modifier = Modifier.padding(bottom = 4.dp)) { vm.setListFilter(context, it) }
     }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { if (isGrid) gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 else listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
@@ -770,30 +767,10 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 }
             }
         }
-        // Dim scrim behind the
-        // same interaction as Google
-        AnimatedVisibility(
-            visible = filterMenuOpen,
-            enter = fadeIn(tween(160)),
-            exit = fadeOut(tween(160)),
-            modifier = Modifier.matchParentSize(),
-        ) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = .32f))
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { filterMenuOpen = false }
-            )
-        }
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { if (isGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0) } },
             modifier = Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 20.dp),
-        )
-        StatusFilterFab(
-            effectiveFilter, { vm.setListFilter(context, it) }, typeTab,
-            expanded = filterMenuOpen, onExpandedChange = { filterMenuOpen = it },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
@@ -869,55 +846,41 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
 // old horizontal FilterChip row.
 // tap the FAB (or
 
-@Composable fun StatusFilterFab(current: String, set: (String) -> Unit, type: MediaType, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+// Status switcher — Material3 ScrollableTabRow (M3 "Tabs" component:
+// https://developer.android.com/develop/ui/compose/components/tabs).
+// Replaces the old expand-on-tap FAB + option list; scrollable because
+// six labels ("All"/"Watching"/"Plan to Watch"/"Completed"/"On Hold"/
+// "Dropped") don't reliably fit a fixed TabRow on narrower phones.
+
+@Composable fun StatusFilterTabs(current: String, type: MediaType, modifier: Modifier = Modifier, onSelect: (String) -> Unit) {
     val c = LocalKikoColors.current
     val progressLabel = if (type == MediaType.Anime) "Watching" else "Reading"
     val planLabel = if (type == MediaType.Anime) "Plan to Watch" else "Plan to Read"
-    val labels = listOf("All", progressLabel, planLabel, "Completed", "On Hold", "Dropped")
+    val labels = remember(type) { listOf("All", progressLabel, planLabel, "Completed", "On Hold", "Dropped") }
+    val selectedIndex = labels.indexOf(current).coerceAtLeast(0)
 
-    Column(modifier, horizontalAlignment = Alignment.End) {
-        AnimatedVisibility(
-            visible = expanded,
-            enter = fadeIn(tween(160)) + expandVertically(tween(200), expandFrom = Alignment.Bottom),
-            exit = fadeOut(tween(120)) + shrinkVertically(tween(160), shrinkTowards = Alignment.Bottom),
-        ) {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 14.dp)) {
-                // Reversed so the list
-                // since each new option
-                labels.reversed().forEach { label ->
-                    StatusFilterOption(label, filterLabelIcon(label), selected = current == label) { set(label); onExpandedChange(false) }
-                }
-            }
-        }
-        // Extended (icon + text)
-        // on the button itself
-        ExtendedFloatingActionButton(
-            onClick = { onExpandedChange(!expanded) },
-            containerColor = c.primary,
-            contentColor = c.onPrimary,
-            icon = { Icon(if (expanded) Icons.Default.Close else filterLabelIcon(current), contentDescription = null) },
-            text = { Text(if (expanded) "Close" else current) },
-        )
-    }
-}
-// One row of the
-// Google Keep's note-type FAB
-// Shaped as a squircle
-// and every other chip/card/button
-
-@Composable fun StatusFilterOption(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
-    val c = LocalKikoColors.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
-            .clip(RoundedCornerShape(kikoCorner(18.dp)))
-            .background(if (selected) c.primary else c.surfaceContainerHigh)
-            .kikoClickable(scale = 0.94f) { onClick() }
-            .padding(start = 18.dp, end = 20.dp, top = 10.dp, bottom = 10.dp),
+    ScrollableTabRow(
+        selectedTabIndex = selectedIndex,
+        modifier = modifier.clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
+        containerColor = Color.Transparent,
+        contentColor = c.primary,
+        edgePadding = 6.dp,
+        divider = {},
+        // Default indicator (a sliding underline sized to the selected
+        // tab's TabPosition) is used as-is — it already inherits
+        // contentColor above, so no custom indicator override is needed.
     ) {
-        Icon(icon, contentDescription = null, tint = if (selected) c.onPrimary else c.ink, modifier = Modifier.size(20.dp))
-        Text(label, color = if (selected) c.onPrimary else c.ink, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+        labels.forEach { label ->
+            val selected = label == current
+            Tab(
+                selected = selected,
+                onClick = { onSelect(label) },
+                selectedContentColor = c.primary,
+                unselectedContentColor = c.muted,
+                text = { Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1) },
+                icon = { Icon(filterLabelIcon(label), contentDescription = null, modifier = Modifier.size(16.dp)) },
+            )
+        }
     }
 }
 // Icon per status filter
