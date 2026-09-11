@@ -612,9 +612,15 @@ data class DetailScreenActions(
                     // one recompose scope, so
                     // the header, poster, and
                     // (often mid-scroll). Same reasoning
+                    //
+                    // Characters and their Japanese voice actors share one
+                    // "Characters & Voice Actors" header — a VA row is just
+                    // that same cast's dub credits, not a separate topic —
+                    // but stay two separate keyed blocks/LazyRows below it
+                    // since they load and fail independently.
                     key("characters") {
                         if (characters.isNotEmpty()) {
-                            SectionTitle("Characters", "", {})
+                            SectionTitle("Characters & Voice Actors", "", {})
                             LazyRow(state = charactersListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch ->
                                     StaggeredItem(i, charactersSeen) {
@@ -627,7 +633,7 @@ data class DetailScreenActions(
                             // listed) — surface it
                             // that's the difference between
                             // this" (e.g. a network-level
-                            SectionTitle("Characters", "", {})
+                            SectionTitle("Characters & Voice Actors", "", {})
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -647,7 +653,11 @@ data class DetailScreenActions(
                     key("voiceActors") {
                         val japaneseVoiceActors = characters.mapNotNull { ch -> ch.japaneseVoiceActor?.let { it to ch.name } }
                         if (japaneseVoiceActors.isNotEmpty()) {
-                            SectionTitle("Voice Actors", "", {})
+                            // Small gap under the characters row above,
+                            // rather than SectionTitle's full 32dp — this
+                            // row reads as a second group within the same
+                            // section, not a new section of its own.
+                            Spacer(Modifier.height(14.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 itemsIndexed(japaneseVoiceActors, key = { _, (va, charName) -> "${va.malId}-$charName" }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, onClick = { actions.onOpenPerson(va.malId) }) } }
                             }
