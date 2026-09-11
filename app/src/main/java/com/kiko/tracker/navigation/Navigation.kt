@@ -56,6 +56,7 @@ import com.kiko.tracker.data.model.ThemeMode
 import com.kiko.tracker.data.model.prev
 import com.kiko.tracker.ui.components.AvatarMenu
 import com.kiko.tracker.ui.components.BottomBar
+import com.kiko.tracker.ui.components.KikoNavigationRail
 import com.kiko.tracker.ui.components.ColorSourceSheet
 import com.kiko.tracker.ui.components.ErrorDialog
 import com.kiko.tracker.ui.components.PaletteStyleSheet
@@ -637,6 +638,16 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         }
         if (darkTheme && vm.amoledDark) amoledify(base) else base
     }
+    // Top-level destinations are only present at the root of the hierarchy.
+    // Calculating this once also lets the app switch between a navigation bar
+    // and rail without every detail route owning a slightly different shell.
+    val showNavigation = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen
+    val selectDestination: (Destination) -> Unit = {
+        discoverReturnItem = null
+        discoverReturnDestination = null
+        discoverReturnStack = null
+        vm.destination = it
+    }
     SyncSystemBars(darkTheme, c.background)
     CompositionLocalProvider(LocalKikoColors provides c, LocalTitleLanguage provides vm.titleLanguage) {
         MaterialTheme(
@@ -649,309 +660,333 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
             typography = KikoTypography,
             shapes = KikoShapes,
         ) {
-            Scaffold(
-                containerColor = c.background,
-                bottomBar = { if (detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen) BottomBar(vm.destination, onDoubleTapDiscover = { vm.openDiscoverSearch(context) }) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }
-            ) { padding ->
-                Box(Modifier.fillMaxSize().padding(padding)) {
-                    val topScreen = when {
-                        reviewOpen != null -> TopScreen.Review(reviewOpen!!.first, reviewOpen!!.second)
-                        // A character opened from
-                        // onOpenCharacter below) must show
-                        // detailItem is still set
-                        // explicit signal for that,
-                        // Detail is opened from
-                        // own Animeography/Mangaography row —
-                        // never lingers past the
-                        // A person opened from
-                        // voice-actor row — same
-                        // further out, so it
-                        castPersonOnTop && personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
-                        castCharacterOnTop && characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
-                        // Company/anime/manga links tapped inside
-                        // StackDetail screen — see
-                        // detailOnTopOfTopicOrStack's doc comments above
-                        // must be checked here,
-                        // just below, rather than
-                        // own plain checks further
-                        castCompanyOnTop && companyDetailOpenId != null -> TopScreen.CompanyPage(companyDetailOpenId!!, companyDetailOpen)
-                        detailOnTopOfTopicOrStack && detailItem != null -> TopScreen.Detail(detailItem)
-                        // Checked ahead of detailItem/mediaStacksOpen
-                        // from either (or from
-                        // shows on top rather
-                        // still underneath it —
-                        // companyDetailOpenId further down.
-                        stackDetailOpen != null -> TopScreen.StackDetail(stackDetailOpen!!.first, stackDetailOpen!!.second)
-                        // Opened from Detail's own
-                        // way castCharacterOnTop/castPersonOnTop do above,
-                        // a separate "on top"
-                        mediaStacksOpen != null -> TopScreen.MediaStacks(mediaStacksOpen!!)
-                        // A topic opened from
-                        // Discussion rows, or from
-                        // onOpenNews/onOpenTopic below), must show
-                        // though detailItem/companyDetailOpenId is still
-                        // reasoning as castCharacterOnTop/castPersonOnTop and
-                        // above. Checked before both
-                        // companyDetailOpenId, where it only
-                        // tap from Detail isn't
-                        // matching first; forumTopicOpen ==
-                        // branch is a no-op
-                        forumTopicOpen != null -> TopScreen.Topic(forumTopicOpen!!.first, forumTopicOpen!!.second)
-                        detailItem != null -> TopScreen.Detail(detailItem)
-                        characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
-                        personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
-                        companyDetailOpenId != null -> TopScreen.CompanyPage(companyDetailOpenId!!, companyDetailOpen)
-                        // Checked ahead of featuredArticlesOpen so
-                        // the reader shows on top whether it was
-                        // opened from the grid or from Detail's
-                        // own "Recent Featured Articles" row
-                        featuredArticleOpen != null -> TopScreen.FeaturedArticle(featuredArticleOpen!!.first, featuredArticleOpen!!.second)
-                        featuredArticlesOpen -> TopScreen.FeaturedArticles
-                        historyOpen -> TopScreen.History
-                        rankingOpen -> TopScreen.Ranking
-                        recommendationsOpen -> TopScreen.Recommendations
-                        scheduleOpen -> TopScreen.Schedule(scheduleInitialDay)
-                        stacksBrowseKind != null -> TopScreen.StacksBrowse(stacksBrowseKind!!)
-                        stacksHomeOpen -> TopScreen.StacksHome
-                        clubDetailOpen != null -> TopScreen.ClubDetail(clubDetailOpen!!)
-                        aboutOpen -> TopScreen.About
-                        scoreFilterOpen != null -> TopScreen.ScoreFilter(scoreFilterOpen!!.first, scoreFilterOpen!!.second)
-                        yearFilterOpen != null -> TopScreen.YearFilter(yearFilterOpen!!.first, yearFilterOpen!!.second)
-                        formatFilterOpen != null -> TopScreen.FormatFilter(formatFilterOpen!!.first, formatFilterOpen!!.second)
-                        genreFilterOpen != null -> TopScreen.GenreFilter(genreFilterOpen!!.first, genreFilterOpen!!.second)
-                        friendFriendsFavoritesOpen != null -> TopScreen.FriendFriendsFavorites(friendFriendsFavoritesOpen!!)
-                        friendProfileStack.isNotEmpty() -> friendProfileStack.last()
-                        malFriendsFavoritesOpen -> TopScreen.MalFriendsFavorites
-                        profileStatsOpen -> TopScreen.ProfileStats
-                        settingsPageOpen -> TopScreen.SettingsPage
-                        else -> TopScreen.Tab(vm.destination)
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                // 600dp is the canonical compact/medium breakpoint. A rail on
+                // tablets and foldables leaves content with far more usable
+                // vertical room, while phones retain the familiar bottom bar.
+                val useNavigationRail = showNavigation && maxWidth >= 600.dp
+                Row(Modifier.fillMaxSize()) {
+                    if (useNavigationRail) {
+                        KikoNavigationRail(
+                            selected = vm.destination,
+                            onDoubleTapDiscover = { vm.openDiscoverSearch(context) },
+                            select = selectDestination,
+                        )
                     }
-                    AnimatedContent(
-                        targetState = topScreen,
-                        contentKey = { it.navKey() },
-                        transitionSpec = {
-                            when {
-                                targetState.isFullPage() && !initialState.isFullPage() -> PushEnter togetherWith PushExit
-                                !targetState.isFullPage() && initialState.isFullPage() -> PopEnter togetherWith PopExit
-                                // Related/recommended hops: both sides
-                                // the two branches above
-                                // to a flat cross-fade
-                                // related title and then
-                                // abrupt "pop". Give it
-                                // back) motion the rest
-                                targetState is TopScreen.Detail && initialState is TopScreen.Detail ->
-                                    if (detailGoingBack) PopEnter togetherWith PopExit else PushEnter togetherWith PushExit
-                                else -> FadeEnter togetherWith FadeExit
+                    Scaffold(
+                        modifier = Modifier.weight(1f),
+                        containerColor = c.background,
+                        bottomBar = {
+                            if (showNavigation && !useNavigationRail) {
+                                BottomBar(
+                                    selected = vm.destination,
+                                    onDoubleTapDiscover = { vm.openDiscoverSearch(context) },
+                                    select = selectDestination,
+                                )
                             }
                         },
-                        label = "topScreen",
-                    ) { screen ->
-                        when (screen) {
-                            is TopScreen.Detail -> DetailScreen(
-                                screen.item,
-                                actions = DetailScreenActions(
-                                    onBack = ::backDetail,
-                                    onEdit = { editor = it },
-                                    onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } },
-                                    onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) },
-                                    onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) },
-                                    onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) },
-                                    onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) },
-                                    onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } },
-                                    onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) },
-                                    onOpenScoreStats = { scoreStatsOpen = it },
-                                    onLoadStacks = { forItem, onFound -> vm.loadMediaStacks(forItem, onFound) },
-                                    onOpenStacksList = { mediaStacksOpen = it },
-                                    onOpenStack = { id, title -> stackDetailOpen = id to title },
-                                    onLoadNews = { forItem, onFound, onDone -> vm.loadDetailNews(context, forItem, onFound, onDone) },
-                                    onLoadForumDiscussion = { forItem, onFound, onDone -> vm.loadDetailForumDiscussion(context, forItem, onFound, onDone) },
-                                    onLoadFeaturedArticles = { forItem, onFound, onDone -> vm.loadDetailFeaturedArticles(context, forItem, onFound, onDone) },
-                                    onLoadLinks = { forItem, onFound, onDone -> vm.loadDetailLinks(context, forItem, onFound, onDone) },
-                                    onOpenTopic = { id, title -> forumTopicOpen = id to title },
-                                    onOpenFeaturedArticle = { url, articleTitle -> featuredArticleOpen = url to articleTitle },
-                                    onLoadCharacters = { forItem, onFound, onDone, onError -> vm.loadCharacters(forItem, onFound, onDone, onError) },
-                                    onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) },
-                                    onOpenReview = { rev -> reviewOpen = rev to screen.item.title },
-                                    onOpenReviewList = { reviewListOpen = it },
-                                    onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, screen.item.type, index, offset) },
-                                    onLeaveRelatedScroll = { index, offset -> vm.saveRelatedRowScroll(screen.item.id, screen.item.type, index, offset) },
-                                    onLeaveRecommendedScroll = { index, offset -> vm.saveRecommendedRowScroll(screen.item.id, screen.item.type, index, offset) },
-                                    onLeaveCharactersScroll = { index, offset -> vm.saveCharactersRowScroll(screen.item.id, screen.item.type, index, offset) },
-                                    onLeaveReviewsScroll = { index, offset -> vm.saveReviewsRowScroll(screen.item.id, screen.item.type, index, offset) },
-                                    onGenreClick = { genre ->
-                                        jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
-                                    },
-                                    onCreatorClick = { creator ->
-                                        jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(creator = creator))
-                                    },
-                                    onLoadAiringEpisode = { forItem -> vm.loadAiringEpisode(forItem) },
-                                    onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) },
-                                    onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
-                                ),
-                                relatedLoadingId = vm.relatedLoadingId,
-                                recommendedLoadingId = vm.recommendedLoadingId,
-                                castLoadingId = vm.characterDetailLoadingId,
-                                initialScroll = vm.getDetailScroll(screen.item.id, screen.item.type),
-                                initialRelatedScroll = vm.getRelatedRowScroll(screen.item.id, screen.item.type),
-                                initialRecommendedScroll = vm.getRecommendedRowScroll(screen.item.id, screen.item.type),
-                                initialCharactersScroll = vm.getCharactersRowScroll(screen.item.id, screen.item.type),
-                                initialReviewsScroll = vm.getReviewsRowScroll(screen.item.id, screen.item.type),
-                                cachedSnapshot = vm.peekDetailCache(screen.item.id, screen.item.type),
-                                myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
-                                airingInfo = vm.getCachedAiring(screen.item.id),
-                            )
-                            is TopScreen.CharacterPage -> CharacterDetailScreen(
-                                screen.malId,
-                                screen.character,
-                                onBack = { characterDetailOpenId = null; characterDetailOpen = null; castCharacterOnTop = false; vm.forgetCharacterPage(screen.malId) },
-                                onOpenWork = { malId, type -> vm.openCharacterWork(context, malId, type, ::openDetail) },
-                                onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
-                                workLoadingId = vm.characterWorkLoadingId,
-                                myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
-                                initialScroll = vm.getCharacterScroll(screen.malId),
-                                initialAnimeScroll = vm.getCharacterAnimeScroll(screen.malId),
-                                initialMangaScroll = vm.getCharacterMangaScroll(screen.malId),
-                                onLeaveScroll = { index, offset -> vm.saveCharacterScroll(screen.malId, index, offset) },
-                                onLeaveAnimeScroll = { index, offset -> vm.saveCharacterAnimeScroll(screen.malId, index, offset) },
-                                onLeaveMangaScroll = { index, offset -> vm.saveCharacterMangaScroll(screen.malId, index, offset) },
-                            )
-                            is TopScreen.PersonPage -> PersonDetailScreen(
-                                screen.malId,
-                                screen.person,
-                                onBack = { personDetailOpenId = null; personDetailOpen = null; castPersonOnTop = false; vm.forgetPersonPage(screen.malId) },
-                                onOpenWork = { malId, type -> vm.openCharacterWork(context, malId, type, ::openDetail) },
-                                workLoadingId = vm.characterWorkLoadingId,
-                                myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
-                                initialScroll = vm.getPersonScroll(screen.malId),
-                                initialRolesScroll = vm.getPersonRolesScroll(screen.malId),
-                                initialStaffScroll = vm.getPersonStaffScroll(screen.malId),
-                                initialMangaScroll = vm.getPersonMangaScroll(screen.malId),
-                                onLeaveScroll = { index, offset -> vm.savePersonScroll(screen.malId, index, offset) },
-                                onLeaveRolesScroll = { index, offset -> vm.savePersonRolesScroll(screen.malId, index, offset) },
-                                onLeaveStaffScroll = { index, offset -> vm.savePersonStaffScroll(screen.malId, index, offset) },
-                                onLeaveMangaScroll = { index, offset -> vm.savePersonMangaScroll(screen.malId, index, offset) },
-                            )
-                            is TopScreen.CompanyPage -> CompanyDetailScreen(
-                                screen.malId,
-                                screen.company,
-                                onBack = { companyDetailOpenId = null; companyDetailOpen = null; castCompanyOnTop = false; vm.forgetCompanyPage(screen.malId) },
-                                // A company's anime grid
-                                // fetch-then-openDetail helper Character/PersonPage's own
-                                // work rows already share
-                                onOpenWork = { malId -> vm.openCharacterWork(context, malId, MediaType.Anime, ::openDetail) },
-                                // The one Recent News
-                                // HomeScreen's own News snapshots
-                                // news link already do.
-                                onOpenNews = { id, title -> forumTopicOpen = id to title },
-                                workLoadingId = vm.characterWorkLoadingId,
-                                myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.takeIf { li.type == MediaType.Anime }?.let { it to li.status } }.toMap(),
-                                initialScroll = vm.getCompanyScroll(screen.malId),
-                                onLeaveScroll = { index, offset -> vm.saveCompanyScroll(screen.malId, index, offset) },
-                            )
-                            TopScreen.FeaturedArticles -> FeaturedArticlesScreen(vm, onBack = { featuredArticlesOpen = false }, onOpenArticle = { url, articleTitle -> featuredArticleOpen = url to articleTitle })
-                            TopScreen.History -> HistoryScreen(vm, onBack = { historyOpen = false }, onOpenDetail = ::openDetail)
-                            is TopScreen.FeaturedArticle -> FeaturedArticleScreen(vm = vm, url = screen.url, title = screen.title, onBack = { featuredArticleOpen = null }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
-                            TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
-                            TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
-                            is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)
-                            is TopScreen.Topic -> ForumTopicScreen(vm, topicId = screen.topicId, title = screen.title, onBack = { forumTopicOpen = null }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
-                            TopScreen.About -> AboutScreen(
-                                onBack = { aboutOpen = false },
-                                updateInfo = vm.updateInfo, updateChecking = vm.updateChecking, updateUpToDate = vm.updateUpToDateMessage,
-                                onCheckForUpdate = { if (vm.updateInfo != null) vm.updateDialogOpen = true else vm.checkForUpdate(context, manual = true) },
-                            )
-                            is TopScreen.Review -> ReviewScreen(screen.review, screen.itemTitle, onBack = { reviewOpen = null })
-                            // Leaving Stacks Home always
-                            // section (it's the root
-                            // detail entries here rather
-                            // the process.
-                            TopScreen.StacksHome -> StacksHomeScreen(vm, onBack = { stacksHomeOpen = false; vm.clearStackDetailCache() }, onOpenBrowse = { kind -> openStacksBrowse(kind) }, onOpenStack = { id, title -> stackDetailOpen = id to title })
-                            is TopScreen.StacksBrowse -> StacksScreen(vm, initialKind = screen.initialKind, onBack = { stacksBrowseKind = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
-                            // Backing out of a
-                            // section when neither Stacks
-                            // (i.e. this stack was
-                            // otherwise the user is
-                            // the flow, and the
-                            is TopScreen.StackDetail -> StackDetailScreen(vm, screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), initialScroll = vm.getStackDetailScroll(screen.stackId), onLeaveScroll = { index, offset -> vm.saveStackDetailScroll(screen.stackId, index, offset) }, onBack = { stackDetailOpen = null; if (!stacksHomeOpen && stacksBrowseKind == null && mediaStacksOpen == null) vm.clearStackDetailCache() }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } }, onEditEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> editor = fetched } }, selectedItem = editor, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
-                            is TopScreen.MediaStacks -> MediaStacksScreen(vm = vm, item = screen.item, onBack = { mediaStacksOpen = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
-                            is TopScreen.ClubDetail -> ClubDetailScreen(screen.club, onBack = { clubDetailOpen = null }, onOpenCharacter = { malId -> openCharacter(malId) }, onOpenPerson = { malId -> openPerson(malId) }, onOpenCompany = { malId -> openCompany(malId) })
-                            TopScreen.ProfileStats -> ProfileStatsScreen(vm.signedIn, vm.malProfile, vm.items, onConnect = onSignIn, onBack = { profileStatsOpen = false }, scrollOffset = vm.profileScrollOffset, onSaveScroll = vm::saveProfileScroll, statsTab = vm.profileStatsTab, onStatsTabChange = vm::selectProfileStatsTab, onScoreClick = { type, score -> scoreFilterOpen = type to score }, onYearClick = { type, year -> yearFilterOpen = type to year }, onFormatClick = { type, format -> formatFilterOpen = type to format }, onGenreClick = { type, genre -> genreFilterOpen = type to genre }, onSignOut = { profileStatsOpen = false; onSignOut() }, refreshing = vm.loading || vm.profileLoading, onRefresh = { vm.load(context); vm.malProfile?.name?.takeIf { it.isNotBlank() }?.let { vm.refreshProfileFriendsFavorites(context, it) } }, onOpenFriendsFavorites = { malFriendsFavoritesOpen = true }, onOpenFriend = ::openFriendProfile, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) }, onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) }, favoriteLoadingId = vm.profileFavoriteLoadingId, friendsRowScroll = vm.profileFriendsRowScroll, onSaveFriendsRowScroll = vm::saveProfileFriendsRowScroll, getFavoritesRowScroll = vm::getProfileFavoritesRowScroll, onSaveFavoritesRowScroll = vm::saveProfileFavoritesRowScroll, cachedFriends = vm.profileFriends, cachedFavorites = vm.profileFavorites, onLoadFriendsFavorites = { username -> vm.loadProfileFriendsFavorites(context, username) }, friendsFavoritesLoading = vm.profileFriendsFavoritesLoading, cachedAboutMe = vm.profileAboutMe)
-                            TopScreen.MalFriendsFavorites -> FriendsFavoritesScreen(username = vm.malProfile?.name.orEmpty(), onBack = { malFriendsFavoritesOpen = false }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) }, onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) }, onOpenFriend = ::openFriendProfile)
-                            is TopScreen.FriendProfile -> FriendProfileScreen(
-                                vm = vm,
-                                username = screen.username, avatarHint = screen.avatarUrl,
-                                onBack = ::backFriendProfile,
-                                // Tapping a friend-of-a-friend pushes a new
-                                // level onto friendProfileStack (see its doc
-                                // comment above) — back from there pops back
-                                // to the friend in between, not straight to
-                                // Profile.
-                                onOpenFriend = ::openFriendProfile,
-                                onOpenFriendsFavorites = { username -> friendFriendsFavoritesOpen = username },
-                                onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) },
-                                onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
-                                onOpenCompany = { malId -> openCompany(malId, castOnTop = true) },
-                                onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) },
-                            )
-                            is TopScreen.FriendFriendsFavorites -> FriendsFavoritesScreen(
-                                username = screen.username, onBack = { friendFriendsFavoritesOpen = null },
-                                onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) },
-                                onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
-                                onOpenCompany = { malId -> openCompany(malId, castOnTop = true) },
-                                onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) },
-                                // Chains further: tapping a friend inside a
-                                // friend's own Friends & Favorites list
-                                // pushes onto friendProfileStack the same
-                                // way, and this list stays put underneath it.
-                                onOpenFriend = ::openFriendProfile,
-                            )
-                            is TopScreen.ScoreFilter -> ScoreFilterScreen(vm = vm, type = screen.type, initialScore = screen.score, onBack = { scoreFilterOpen = null }, onOpenDetail = ::openDetail)
-                            is TopScreen.YearFilter -> YearFilterScreen(vm = vm, type = screen.type, initialYear = screen.year, onBack = { yearFilterOpen = null }, onOpenDetail = ::openDetail)
-                            is TopScreen.FormatFilter -> FormatFilterScreen(vm = vm, type = screen.type, initialFormat = screen.format, onBack = { formatFilterOpen = null }, onOpenDetail = ::openDetail)
-                            is TopScreen.GenreFilter -> GenreFilterScreen(vm = vm, type = screen.type, initialGenre = screen.genre, onBack = { genreFilterOpen = null }, onOpenDetail = ::openDetail)
-                            TopScreen.SettingsPage -> SettingsScreen(
-                                connected = vm.signedIn, themeMode = vm.themeMode, colorSource = vm.colorSource, paletteStyle = vm.paletteStyle, titleLanguage = vm.titleLanguage,
-                                nsfwEnabled = vm.nsfwEnabled, onNsfwChange = { vm.setNsfw(context, it) },
-                                amoledDark = vm.amoledDark, onAmoledDarkChange = { vm.setAmoledDark(context, it) },
-                                onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true },
-                                updateInfo = vm.updateInfo, onAboutClick = { aboutOpen = true },
-                                onBack = { settingsPageOpen = false },
-                            )
-                            is TopScreen.Tab -> when (screen.destination) {
-                                Destination.Home -> HomeScreen(vm, onOpenDetail = ::openDetail, onSeeHistory = { historyOpen = true }, onDiscover = { vm.destination = Destination.Discover; vm.runDiscoverSearch(context, "", vm.discoverTypeFilter); vm.requestDiscoverFilterSheet() }, onRanking = { rankingOpen = true }, onSeasonal = { vm.destination = Destination.Seasonal }, onSchedule = ::openSchedule, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onSeeNews = { vm.destination = Destination.Community; vm.selectCommunityTab(context, CommunityTab.Forums); vm.openNewsBoard(context) }, onOpenStack = { id, title -> stackDetailOpen = id to title }, onOpenStacks = ::openStacks, onSignIn = onSignIn, onSeeFeaturedArticles = { featuredArticlesOpen = true }, onOpenFeaturedArticle = { url, title -> featuredArticleOpen = url to title }, onOpenGenre = { genre -> vm.destination = Destination.Discover; vm.runDiscoverSearch(context, "", "Anime", DiscoverFilters(genres = setOf(genre))) })
-                                Destination.List -> ListScreen(vm, onOpenDetail = ::openDetail, onIncrement = { vm.saveLive(context, it) }, onEdit = { editor = it }, selectedItem = editor)
-                                Destination.Discover -> DiscoverScreen(
-                                    vm,
-                                    onOpenDetail = ::openDetail,
-                                    onRanking = { rankingOpen = true },
-                                    onSeasonal = { vm.destination = Destination.Seasonal },
-                                    onStacks = ::openStacks,
-                                    onRecommendations = { recommendationsOpen = true },
-                                    onSchedule = ::openSchedule,
-                                    onExitResults = {
-                                        val returnItem = discoverReturnItem
-                                        if (returnItem != null) { discoverReturnItem = null; selectedItem = returnItem }
-                                        // Always reset the search
-                                        // way out — previously
-                                        // path (returnItem == null),
-                                        // genre-chip detour left the
-                                        // ViewModel; navigating to the
-                                        // that stale search instead
-                                        vm.exitDiscoverSearch()
-                                    },
-                                    onEdit = { editor = it },
-                                    selectedItem = editor,
-                                    onOpenCharacter = { malId -> openCharacter(malId) },
-                                    onOpenPerson = { malId -> openPerson(malId) },
-                                    onOpenCompany = { malId -> openCompany(malId) },
-                                    onOpenUser = { username, avatarUrl -> openUserProfile(username, avatarUrl) },
-                                )
-                                Destination.Seasonal -> SeasonalScreen(vm, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
-                                Destination.Community -> CommunityScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onOpenClub = { clubDetailOpen = it })
+                    ) { padding ->
+                        Box(Modifier.fillMaxSize().padding(padding)) {
+                            val topScreen = when {
+                                reviewOpen != null -> TopScreen.Review(reviewOpen!!.first, reviewOpen!!.second)
+                                // A character opened from
+                                // onOpenCharacter below) must show
+                                // detailItem is still set
+                                // explicit signal for that,
+                                // Detail is opened from
+                                // own Animeography/Mangaography row —
+                                // never lingers past the
+                                // A person opened from
+                                // voice-actor row — same
+                                // further out, so it
+                                castPersonOnTop && personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
+                                castCharacterOnTop && characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
+                                // Company/anime/manga links tapped inside
+                                // StackDetail screen — see
+                                // detailOnTopOfTopicOrStack's doc comments above
+                                // must be checked here,
+                                // just below, rather than
+                                // own plain checks further
+                                castCompanyOnTop && companyDetailOpenId != null -> TopScreen.CompanyPage(companyDetailOpenId!!, companyDetailOpen)
+                                detailOnTopOfTopicOrStack && detailItem != null -> TopScreen.Detail(detailItem)
+                                // Checked ahead of detailItem/mediaStacksOpen
+                                // from either (or from
+                                // shows on top rather
+                                // still underneath it —
+                                // companyDetailOpenId further down.
+                                stackDetailOpen != null -> TopScreen.StackDetail(stackDetailOpen!!.first, stackDetailOpen!!.second)
+                                // Opened from Detail's own
+                                // way castCharacterOnTop/castPersonOnTop do above,
+                                // a separate "on top"
+                                mediaStacksOpen != null -> TopScreen.MediaStacks(mediaStacksOpen!!)
+                                // A topic opened from
+                                // Discussion rows, or from
+                                // onOpenNews/onOpenTopic below), must show
+                                // though detailItem/companyDetailOpenId is still
+                                // reasoning as castCharacterOnTop/castPersonOnTop and
+                                // above. Checked before both
+                                // companyDetailOpenId, where it only
+                                // tap from Detail isn't
+                                // matching first; forumTopicOpen ==
+                                // branch is a no-op
+                                forumTopicOpen != null -> TopScreen.Topic(forumTopicOpen!!.first, forumTopicOpen!!.second)
+                                detailItem != null -> TopScreen.Detail(detailItem)
+                                characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
+                                personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
+                                companyDetailOpenId != null -> TopScreen.CompanyPage(companyDetailOpenId!!, companyDetailOpen)
+                                // Checked ahead of featuredArticlesOpen so
+                                // the reader shows on top whether it was
+                                // opened from the grid or from Detail's
+                                // own "Recent Featured Articles" row
+                                featuredArticleOpen != null -> TopScreen.FeaturedArticle(featuredArticleOpen!!.first, featuredArticleOpen!!.second)
+                                featuredArticlesOpen -> TopScreen.FeaturedArticles
+                                historyOpen -> TopScreen.History
+                                rankingOpen -> TopScreen.Ranking
+                                recommendationsOpen -> TopScreen.Recommendations
+                                scheduleOpen -> TopScreen.Schedule(scheduleInitialDay)
+                                stacksBrowseKind != null -> TopScreen.StacksBrowse(stacksBrowseKind!!)
+                                stacksHomeOpen -> TopScreen.StacksHome
+                                clubDetailOpen != null -> TopScreen.ClubDetail(clubDetailOpen!!)
+                                aboutOpen -> TopScreen.About
+                                scoreFilterOpen != null -> TopScreen.ScoreFilter(scoreFilterOpen!!.first, scoreFilterOpen!!.second)
+                                yearFilterOpen != null -> TopScreen.YearFilter(yearFilterOpen!!.first, yearFilterOpen!!.second)
+                                formatFilterOpen != null -> TopScreen.FormatFilter(formatFilterOpen!!.first, formatFilterOpen!!.second)
+                                genreFilterOpen != null -> TopScreen.GenreFilter(genreFilterOpen!!.first, genreFilterOpen!!.second)
+                                friendFriendsFavoritesOpen != null -> TopScreen.FriendFriendsFavorites(friendFriendsFavoritesOpen!!)
+                                friendProfileStack.isNotEmpty() -> friendProfileStack.last()
+                                malFriendsFavoritesOpen -> TopScreen.MalFriendsFavorites
+                                profileStatsOpen -> TopScreen.ProfileStats
+                                settingsPageOpen -> TopScreen.SettingsPage
+                                else -> TopScreen.Tab(vm.destination)
                             }
+                            AnimatedContent(
+                                targetState = topScreen,
+                                contentKey = { it.navKey() },
+                                transitionSpec = {
+                                    when {
+                                        targetState.isFullPage() && !initialState.isFullPage() -> PushEnter togetherWith PushExit
+                                        !targetState.isFullPage() && initialState.isFullPage() -> PopEnter togetherWith PopExit
+                                        // Related/recommended hops: both sides
+                                        // the two branches above
+                                        // to a flat cross-fade
+                                        // related title and then
+                                        // abrupt "pop". Give it
+                                        // back) motion the rest
+                                        targetState is TopScreen.Detail && initialState is TopScreen.Detail ->
+                                            if (detailGoingBack) PopEnter togetherWith PopExit else PushEnter togetherWith PushExit
+                                        else -> FadeEnter togetherWith FadeExit
+                                    }
+                                },
+                                label = "topScreen",
+                            ) { screen ->
+                                when (screen) {
+                                    is TopScreen.Detail -> DetailScreen(
+                                        screen.item,
+                                        actions = DetailScreenActions(
+                                            onBack = ::backDetail,
+                                            onEdit = { editor = it },
+                                            onOpenRelated = { rel -> vm.openRelated(context, rel) { fetched -> openRelatedDetail(screen.item, fetched) } },
+                                            onBackfillRelated = { id, type, onFound, onDone -> vm.backfillRelated(context, id, type, onFound, onDone) },
+                                            onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) },
+                                            onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) },
+                                            onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) },
+                                            onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } },
+                                            onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) },
+                                            onOpenScoreStats = { scoreStatsOpen = it },
+                                            onLoadStacks = { forItem, onFound -> vm.loadMediaStacks(forItem, onFound) },
+                                            onOpenStacksList = { mediaStacksOpen = it },
+                                            onOpenStack = { id, title -> stackDetailOpen = id to title },
+                                            onLoadNews = { forItem, onFound, onDone -> vm.loadDetailNews(context, forItem, onFound, onDone) },
+                                            onLoadForumDiscussion = { forItem, onFound, onDone -> vm.loadDetailForumDiscussion(context, forItem, onFound, onDone) },
+                                            onLoadFeaturedArticles = { forItem, onFound, onDone -> vm.loadDetailFeaturedArticles(context, forItem, onFound, onDone) },
+                                            onLoadLinks = { forItem, onFound, onDone -> vm.loadDetailLinks(context, forItem, onFound, onDone) },
+                                            onOpenTopic = { id, title -> forumTopicOpen = id to title },
+                                            onOpenFeaturedArticle = { url, articleTitle -> featuredArticleOpen = url to articleTitle },
+                                            onLoadCharacters = { forItem, onFound, onDone, onError -> vm.loadCharacters(forItem, onFound, onDone, onError) },
+                                            onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) },
+                                            onOpenReview = { rev -> reviewOpen = rev to screen.item.title },
+                                            onOpenReviewList = { reviewListOpen = it },
+                                            onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, screen.item.type, index, offset) },
+                                            onLeaveRelatedScroll = { index, offset -> vm.saveRelatedRowScroll(screen.item.id, screen.item.type, index, offset) },
+                                            onLeaveRecommendedScroll = { index, offset -> vm.saveRecommendedRowScroll(screen.item.id, screen.item.type, index, offset) },
+                                            onLeaveCharactersScroll = { index, offset -> vm.saveCharactersRowScroll(screen.item.id, screen.item.type, index, offset) },
+                                            onLeaveReviewsScroll = { index, offset -> vm.saveReviewsRowScroll(screen.item.id, screen.item.type, index, offset) },
+                                            onGenreClick = { genre ->
+                                                jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(genres = setOf(genre)))
+                                            },
+                                            onCreatorClick = { creator ->
+                                                jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(creator = creator))
+                                            },
+                                            onLoadAiringEpisode = { forItem -> vm.loadAiringEpisode(forItem) },
+                                            onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) },
+                                            onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
+                                        ),
+                                        relatedLoadingId = vm.relatedLoadingId,
+                                        recommendedLoadingId = vm.recommendedLoadingId,
+                                        castLoadingId = vm.characterDetailLoadingId,
+                                        initialScroll = vm.getDetailScroll(screen.item.id, screen.item.type),
+                                        initialRelatedScroll = vm.getRelatedRowScroll(screen.item.id, screen.item.type),
+                                        initialRecommendedScroll = vm.getRecommendedRowScroll(screen.item.id, screen.item.type),
+                                        initialCharactersScroll = vm.getCharactersRowScroll(screen.item.id, screen.item.type),
+                                        initialReviewsScroll = vm.getReviewsRowScroll(screen.item.id, screen.item.type),
+                                        cachedSnapshot = vm.peekDetailCache(screen.item.id, screen.item.type),
+                                        myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
+                                        airingInfo = vm.getCachedAiring(screen.item.id),
+                                    )
+                                    is TopScreen.CharacterPage -> CharacterDetailScreen(
+                                        screen.malId,
+                                        screen.character,
+                                        onBack = { characterDetailOpenId = null; characterDetailOpen = null; castCharacterOnTop = false; vm.forgetCharacterPage(screen.malId) },
+                                        onOpenWork = { malId, type -> vm.openCharacterWork(context, malId, type, ::openDetail) },
+                                        onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
+                                        workLoadingId = vm.characterWorkLoadingId,
+                                        myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
+                                        initialScroll = vm.getCharacterScroll(screen.malId),
+                                        initialAnimeScroll = vm.getCharacterAnimeScroll(screen.malId),
+                                        initialMangaScroll = vm.getCharacterMangaScroll(screen.malId),
+                                        onLeaveScroll = { index, offset -> vm.saveCharacterScroll(screen.malId, index, offset) },
+                                        onLeaveAnimeScroll = { index, offset -> vm.saveCharacterAnimeScroll(screen.malId, index, offset) },
+                                        onLeaveMangaScroll = { index, offset -> vm.saveCharacterMangaScroll(screen.malId, index, offset) },
+                                    )
+                                    is TopScreen.PersonPage -> PersonDetailScreen(
+                                        screen.malId,
+                                        screen.person,
+                                        onBack = { personDetailOpenId = null; personDetailOpen = null; castPersonOnTop = false; vm.forgetPersonPage(screen.malId) },
+                                        onOpenWork = { malId, type -> vm.openCharacterWork(context, malId, type, ::openDetail) },
+                                        workLoadingId = vm.characterWorkLoadingId,
+                                        myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
+                                        initialScroll = vm.getPersonScroll(screen.malId),
+                                        initialRolesScroll = vm.getPersonRolesScroll(screen.malId),
+                                        initialStaffScroll = vm.getPersonStaffScroll(screen.malId),
+                                        initialMangaScroll = vm.getPersonMangaScroll(screen.malId),
+                                        onLeaveScroll = { index, offset -> vm.savePersonScroll(screen.malId, index, offset) },
+                                        onLeaveRolesScroll = { index, offset -> vm.savePersonRolesScroll(screen.malId, index, offset) },
+                                        onLeaveStaffScroll = { index, offset -> vm.savePersonStaffScroll(screen.malId, index, offset) },
+                                        onLeaveMangaScroll = { index, offset -> vm.savePersonMangaScroll(screen.malId, index, offset) },
+                                    )
+                                    is TopScreen.CompanyPage -> CompanyDetailScreen(
+                                        screen.malId,
+                                        screen.company,
+                                        onBack = { companyDetailOpenId = null; companyDetailOpen = null; castCompanyOnTop = false; vm.forgetCompanyPage(screen.malId) },
+                                        // A company's anime grid
+                                        // fetch-then-openDetail helper Character/PersonPage's own
+                                        // work rows already share
+                                        onOpenWork = { malId -> vm.openCharacterWork(context, malId, MediaType.Anime, ::openDetail) },
+                                        // The one Recent News
+                                        // HomeScreen's own News snapshots
+                                        // news link already do.
+                                        onOpenNews = { id, title -> forumTopicOpen = id to title },
+                                        workLoadingId = vm.characterWorkLoadingId,
+                                        myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.takeIf { li.type == MediaType.Anime }?.let { it to li.status } }.toMap(),
+                                        initialScroll = vm.getCompanyScroll(screen.malId),
+                                        onLeaveScroll = { index, offset -> vm.saveCompanyScroll(screen.malId, index, offset) },
+                                    )
+                                    TopScreen.FeaturedArticles -> FeaturedArticlesScreen(vm, onBack = { featuredArticlesOpen = false }, onOpenArticle = { url, articleTitle -> featuredArticleOpen = url to articleTitle })
+                                    TopScreen.History -> HistoryScreen(vm, onBack = { historyOpen = false }, onOpenDetail = ::openDetail)
+                                    is TopScreen.FeaturedArticle -> FeaturedArticleScreen(vm = vm, url = screen.url, title = screen.title, onBack = { featuredArticleOpen = null }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
+                                    TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
+                                    TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
+                                    is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)
+                                    is TopScreen.Topic -> ForumTopicScreen(vm, topicId = screen.topicId, title = screen.title, onBack = { forumTopicOpen = null }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
+                                    TopScreen.About -> AboutScreen(
+                                        onBack = { aboutOpen = false },
+                                        updateInfo = vm.updateInfo, updateChecking = vm.updateChecking, updateUpToDate = vm.updateUpToDateMessage,
+                                        onCheckForUpdate = { if (vm.updateInfo != null) vm.updateDialogOpen = true else vm.checkForUpdate(context, manual = true) },
+                                    )
+                                    is TopScreen.Review -> ReviewScreen(screen.review, screen.itemTitle, onBack = { reviewOpen = null })
+                                    // Leaving Stacks Home always
+                                    // section (it's the root
+                                    // detail entries here rather
+                                    // the process.
+                                    TopScreen.StacksHome -> StacksHomeScreen(vm, onBack = { stacksHomeOpen = false; vm.clearStackDetailCache() }, onOpenBrowse = { kind -> openStacksBrowse(kind) }, onOpenStack = { id, title -> stackDetailOpen = id to title })
+                                    is TopScreen.StacksBrowse -> StacksScreen(vm, initialKind = screen.initialKind, onBack = { stacksBrowseKind = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
+                                    // Backing out of a
+                                    // section when neither Stacks
+                                    // (i.e. this stack was
+                                    // otherwise the user is
+                                    // the flow, and the
+                                    is TopScreen.StackDetail -> StackDetailScreen(vm, screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), initialScroll = vm.getStackDetailScroll(screen.stackId), onLeaveScroll = { index, offset -> vm.saveStackDetailScroll(screen.stackId, index, offset) }, onBack = { stackDetailOpen = null; if (!stacksHomeOpen && stacksBrowseKind == null && mediaStacksOpen == null) vm.clearStackDetailCache() }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched) } }, onEditEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> editor = fetched } }, selectedItem = editor, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
+                                    is TopScreen.MediaStacks -> MediaStacksScreen(vm = vm, item = screen.item, onBack = { mediaStacksOpen = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
+                                    is TopScreen.ClubDetail -> ClubDetailScreen(screen.club, onBack = { clubDetailOpen = null }, onOpenCharacter = { malId -> openCharacter(malId) }, onOpenPerson = { malId -> openPerson(malId) }, onOpenCompany = { malId -> openCompany(malId) })
+                                    TopScreen.ProfileStats -> ProfileStatsScreen(vm.signedIn, vm.malProfile, vm.items, onConnect = onSignIn, onBack = { profileStatsOpen = false }, scrollOffset = vm.profileScrollOffset, onSaveScroll = vm::saveProfileScroll, statsTab = vm.profileStatsTab, onStatsTabChange = vm::selectProfileStatsTab, onScoreClick = { type, score -> scoreFilterOpen = type to score }, onYearClick = { type, year -> yearFilterOpen = type to year }, onFormatClick = { type, format -> formatFilterOpen = type to format }, onGenreClick = { type, genre -> genreFilterOpen = type to genre }, onSignOut = { profileStatsOpen = false; onSignOut() }, refreshing = vm.loading || vm.profileLoading, onRefresh = { vm.load(context); vm.malProfile?.name?.takeIf { it.isNotBlank() }?.let { vm.refreshProfileFriendsFavorites(context, it) } }, onOpenFriendsFavorites = { malFriendsFavoritesOpen = true }, onOpenFriend = ::openFriendProfile, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) }, onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) }, favoriteLoadingId = vm.profileFavoriteLoadingId, friendsRowScroll = vm.profileFriendsRowScroll, onSaveFriendsRowScroll = vm::saveProfileFriendsRowScroll, getFavoritesRowScroll = vm::getProfileFavoritesRowScroll, onSaveFavoritesRowScroll = vm::saveProfileFavoritesRowScroll, cachedFriends = vm.profileFriends, cachedFavorites = vm.profileFavorites, onLoadFriendsFavorites = { username -> vm.loadProfileFriendsFavorites(context, username) }, friendsFavoritesLoading = vm.profileFriendsFavoritesLoading, cachedAboutMe = vm.profileAboutMe)
+                                    TopScreen.MalFriendsFavorites -> FriendsFavoritesScreen(username = vm.malProfile?.name.orEmpty(), onBack = { malFriendsFavoritesOpen = false }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) }, onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) }, onOpenFriend = ::openFriendProfile)
+                                    is TopScreen.FriendProfile -> FriendProfileScreen(
+                                        vm = vm,
+                                        username = screen.username, avatarHint = screen.avatarUrl,
+                                        onBack = ::backFriendProfile,
+                                        // Tapping a friend-of-a-friend pushes a new
+                                        // level onto friendProfileStack (see its doc
+                                        // comment above) — back from there pops back
+                                        // to the friend in between, not straight to
+                                        // Profile.
+                                        onOpenFriend = ::openFriendProfile,
+                                        onOpenFriendsFavorites = { username -> friendFriendsFavoritesOpen = username },
+                                        onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) },
+                                        onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
+                                        onOpenCompany = { malId -> openCompany(malId, castOnTop = true) },
+                                        onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) },
+                                    )
+                                    is TopScreen.FriendFriendsFavorites -> FriendsFavoritesScreen(
+                                        username = screen.username, onBack = { friendFriendsFavoritesOpen = null },
+                                        onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) },
+                                        onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
+                                        onOpenCompany = { malId -> openCompany(malId, castOnTop = true) },
+                                        onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) },
+                                        // Chains further: tapping a friend inside a
+                                        // friend's own Friends & Favorites list
+                                        // pushes onto friendProfileStack the same
+                                        // way, and this list stays put underneath it.
+                                        onOpenFriend = ::openFriendProfile,
+                                    )
+                                    is TopScreen.ScoreFilter -> ScoreFilterScreen(vm = vm, type = screen.type, initialScore = screen.score, onBack = { scoreFilterOpen = null }, onOpenDetail = ::openDetail)
+                                    is TopScreen.YearFilter -> YearFilterScreen(vm = vm, type = screen.type, initialYear = screen.year, onBack = { yearFilterOpen = null }, onOpenDetail = ::openDetail)
+                                    is TopScreen.FormatFilter -> FormatFilterScreen(vm = vm, type = screen.type, initialFormat = screen.format, onBack = { formatFilterOpen = null }, onOpenDetail = ::openDetail)
+                                    is TopScreen.GenreFilter -> GenreFilterScreen(vm = vm, type = screen.type, initialGenre = screen.genre, onBack = { genreFilterOpen = null }, onOpenDetail = ::openDetail)
+                                    TopScreen.SettingsPage -> SettingsScreen(
+                                        connected = vm.signedIn, themeMode = vm.themeMode, colorSource = vm.colorSource, paletteStyle = vm.paletteStyle, titleLanguage = vm.titleLanguage,
+                                        nsfwEnabled = vm.nsfwEnabled, onNsfwChange = { vm.setNsfw(context, it) },
+                                        amoledDark = vm.amoledDark, onAmoledDarkChange = { vm.setAmoledDark(context, it) },
+                                        onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true },
+                                        updateInfo = vm.updateInfo, onAboutClick = { aboutOpen = true },
+                                        onBack = { settingsPageOpen = false },
+                                    )
+                                    is TopScreen.Tab -> when (screen.destination) {
+                                        Destination.Home -> HomeScreen(vm, onOpenDetail = ::openDetail, onSeeHistory = { historyOpen = true }, onDiscover = { vm.destination = Destination.Discover; vm.runDiscoverSearch(context, "", vm.discoverTypeFilter); vm.requestDiscoverFilterSheet() }, onRanking = { rankingOpen = true }, onSeasonal = { vm.destination = Destination.Seasonal }, onSchedule = ::openSchedule, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onSeeNews = { vm.destination = Destination.Community; vm.selectCommunityTab(context, CommunityTab.Forums); vm.openNewsBoard(context) }, onOpenStack = { id, title -> stackDetailOpen = id to title }, onOpenStacks = ::openStacks, onSignIn = onSignIn, onSeeFeaturedArticles = { featuredArticlesOpen = true }, onOpenFeaturedArticle = { url, title -> featuredArticleOpen = url to title }, onOpenGenre = { genre -> vm.destination = Destination.Discover; vm.runDiscoverSearch(context, "", "Anime", DiscoverFilters(genres = setOf(genre))) })
+                                        Destination.List -> ListScreen(vm, onOpenDetail = ::openDetail, onIncrement = { vm.saveLive(context, it) }, onEdit = { editor = it }, selectedItem = editor)
+                                        Destination.Discover -> DiscoverScreen(
+                                            vm,
+                                            onOpenDetail = ::openDetail,
+                                            onRanking = { rankingOpen = true },
+                                            onSeasonal = { vm.destination = Destination.Seasonal },
+                                            onStacks = ::openStacks,
+                                            onRecommendations = { recommendationsOpen = true },
+                                            onSchedule = ::openSchedule,
+                                            onExitResults = {
+                                                val returnItem = discoverReturnItem
+                                                if (returnItem != null) { discoverReturnItem = null; selectedItem = returnItem }
+                                                // Always reset the search
+                                                // way out — previously
+                                                // path (returnItem == null),
+                                                // genre-chip detour left the
+                                                // ViewModel; navigating to the
+                                                // that stale search instead
+                                                vm.exitDiscoverSearch()
+                                            },
+                                            onEdit = { editor = it },
+                                            selectedItem = editor,
+                                            onOpenCharacter = { malId -> openCharacter(malId) },
+                                            onOpenPerson = { malId -> openPerson(malId) },
+                                            onOpenCompany = { malId -> openCompany(malId) },
+                                            onOpenUser = { username, avatarUrl -> openUserProfile(username, avatarUrl) },
+                                        )
+                                        Destination.Seasonal -> SeasonalScreen(vm, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
+                                        Destination.Community -> CommunityScreen(vm, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onOpenClub = { clubDetailOpen = it })
+                                    }
+                                }
+                            }
+                            vm.error?.let { msg -> ErrorDialog(msg, onDismiss = { vm.error = null }) }
                         }
                     }
-                    vm.error?.let { msg -> ErrorDialog(msg, onDismiss = { vm.error = null }) }
                 }
             }
             // Keep sheets inside theme

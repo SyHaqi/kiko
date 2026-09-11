@@ -96,11 +96,9 @@ import com.kiko.tracker.ui.theme.kikoClickable
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.ui.theme.kikoPillShape
 
-// Expressive nav bar: surfaceContainer
-// elevated layer per the
-// indicator (the M3 default
-// which this app reserves
-// selected icon/label rather than
+// The compact navigation bar and expanded navigation rail deliberately share
+// one item treatment.  This is the Material adaptive pattern: destinations
+// keep their order and affordance while their placement follows the window.
 @Composable fun BottomBar(selected: Destination, onDoubleTapDiscover: () -> Unit = {}, select: (Destination) -> Unit) {
     val c = LocalKikoColors.current
     // NavigationBarItem has no built-in
@@ -109,7 +107,11 @@ import com.kiko.tracker.ui.theme.kikoPillShape
     // always runs either way.
     var lastTapDestination by remember { mutableStateOf<Destination?>(null) }
     var lastTapTime by remember { mutableStateOf(0L) }
-    NavigationBar(containerColor = c.surfaceContainer, tonalElevation = 0.dp) {
+    NavigationBar(
+        containerColor = c.surfaceContainer,
+        contentColor = c.ink,
+        tonalElevation = 0.dp,
+    ) {
         Destination.entries.forEach { d ->
             NavigationBarItem(
                 selected = d == selected,
@@ -132,7 +134,63 @@ import com.kiko.tracker.ui.theme.kikoPillShape
     }
 }
 
-@Composable fun AppHeader(title: String, horizontalPadding: Dp = 20.dp, titleColor: Color = LocalKikoColors.current.ink, action: @Composable () -> Unit = {}) { Row(Modifier.fillMaxWidth().padding(horizontal = horizontalPadding, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) { Text(title, style = MaterialTheme.typography.headlineLarge, letterSpacing = (-1).sp, color = titleColor); action() } }
+/** Wide-window counterpart to [BottomBar]. Kept as a separate composable so
+ * the app shell can move navigation to the leading edge without changing any
+ * screen's content or state. */
+@Composable fun KikoNavigationRail(selected: Destination, onDoubleTapDiscover: () -> Unit = {}, select: (Destination) -> Unit) {
+    val c = LocalKikoColors.current
+    var lastTapDestination by remember { mutableStateOf<Destination?>(null) }
+    var lastTapTime by remember { mutableStateOf(0L) }
+    NavigationRail(
+        modifier = Modifier.fillMaxHeight(),
+        containerColor = c.surfaceContainer,
+        contentColor = c.ink,
+        header = {
+            // A quiet branded anchor makes the wide layout feel intentional,
+            // instead of like a phone navigation bar rotated on its side.
+            Text(
+                text = "k",
+                style = MaterialTheme.typography.headlineMedium,
+                color = c.primary,
+                modifier = Modifier.padding(top = 16.dp, bottom = 24.dp),
+            )
+        },
+    ) {
+        Destination.entries.forEach { d ->
+            NavigationRailItem(
+                selected = d == selected,
+                onClick = {
+                    val now = System.currentTimeMillis()
+                    if (d == Destination.Discover && lastTapDestination == d && now - lastTapTime < 300) onDoubleTapDiscover()
+                    lastTapDestination = d
+                    lastTapTime = now
+                    select(d)
+                },
+                icon = { Icon(d.icon, contentDescription = d.label) },
+                label = { Text(d.label, maxLines = 1) },
+                alwaysShowLabel = true,
+                colors = NavigationRailItemDefaults.colors(
+                    selectedIconColor = c.onSecondaryContainer,
+                    selectedTextColor = c.onSecondaryContainer,
+                    unselectedIconColor = c.muted,
+                    unselectedTextColor = c.muted,
+                    indicatorColor = c.secondaryContainer,
+                ),
+            )
+        }
+    }
+}
+
+@Composable fun AppHeader(title: String, horizontalPadding: Dp = 20.dp, titleColor: Color = LocalKikoColors.current.ink, action: @Composable () -> Unit = {}) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = horizontalPadding, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(title, style = MaterialTheme.typography.headlineMedium, color = titleColor)
+        action()
+    }
+}
 
 // Unused params kept intentionally
 
