@@ -40,6 +40,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.geometry.Offset
@@ -707,6 +710,9 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             switchDescription = "Switch between Anime and Manga",
         ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
+        // Status switcher — Material3 scrollable tabs
+        // (replaces the old bottom-right filter FAB)
+        StatusFilterTabs(effectiveFilter, typeTab, modifier = Modifier.padding(bottom = 4.dp)) { vm.setListFilter(context, it) }
         Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -714,9 +720,6 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 SortMenu(vm.listSort) { vm.setListSort(context, it) }
             }
         }
-        // Status switcher — Material3 scrollable tabs
-        // (replaces the old bottom-right filter FAB)
-        StatusFilterTabs(effectiveFilter, typeTab, modifier = Modifier.padding(bottom = 4.dp)) { vm.setListFilter(context, it) }
     }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { if (isGrid) gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 else listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
@@ -854,10 +857,15 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
 
 @Composable fun StatusFilterTabs(current: String, type: MediaType, modifier: Modifier = Modifier, onSelect: (String) -> Unit) {
     val c = LocalKikoColors.current
+    val density = LocalDensity.current
     val progressLabel = if (type == MediaType.Anime) "Watching" else "Reading"
     val planLabel = if (type == MediaType.Anime) "Plan to Watch" else "Plan to Read"
     val labels = remember(type) { listOf("All", progressLabel, planLabel, "Completed", "On Hold", "Dropped") }
     val selectedIndex = labels.indexOf(current).coerceAtLeast(0)
+
+    // Measured width of each tab's text, keyed by index — lets the
+    // indicator shrink to the label itself instead of the full tab.
+    val textWidths = remember(type) { mutableStateMapOf<Int, Dp>() }
 
     ScrollableTabRow(
         selectedTabIndex = selectedIndex,
@@ -866,19 +874,50 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         contentColor = c.primary,
         edgePadding = 6.dp,
         divider = {},
-        // Default indicator (a sliding underline sized to the selected
-        // tab's TabPosition) is used as-is — it already inherits
-        // contentColor above, so no custom indicator override is needed.
+        indicator = { tabPositions ->
+            if (selectedIndex < tabPositions.size) {
+                val tabPosition = tabPositions[selectedIndex]
+                val indicatorWidth = textWidths[selectedIndex] ?: tabPosition.width
+                val animatedWidth by animateDpAsState(indicatorWidth, label = "tabIndicatorWidth")
+                val animatedOffset by animateDpAsState(
+                    tabPosition.left + (tabPosition.width - indicatorWidth) / 2,
+                    label = "tabIndicatorOffset",
+                )
+                Box(
+                    Modifier
+                        // fillMaxWidth() + wrapContentSize(BottomStart) first: this
+                        // claims the row's own incoming constraints (which is what
+                        // was force-stretching a bare .height(3.dp) into the full
+                        // row height), then re-opens loose constraints so the
+                        // offset/width/height below size an inner node exactly,
+                        // anchored to the bottom-left — same trick the built-in
+                        // TabRowDefaults.tabIndicatorOffset uses.
+                        .fillMaxWidth()
+                        .wrapContentSize(Alignment.BottomStart)
+                        .offset(x = animatedOffset)
+                        .width(animatedWidth)
+                        .height(3.dp)
+                        .background(c.primary, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)),
+                )
+            }
+        },
     ) {
-        labels.forEach { label ->
+        labels.forEachIndexed { index, label ->
             val selected = label == current
             Tab(
                 selected = selected,
                 onClick = { onSelect(label) },
                 selectedContentColor = c.primary,
                 unselectedContentColor = c.muted,
-                text = { Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1) },
-                icon = { Icon(filterLabelIcon(label), contentDescription = null, modifier = Modifier.size(16.dp)) },
+                text = {
+                    Text(
+                        label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1,
+                        modifier = Modifier.onGloballyPositioned { coords ->
+                            val width = with(density) { coords.size.width.toDp() }
+                            if (textWidths[index] != width) textWidths[index] = width
+                        },
+                    )
+                },
             )
         }
     }

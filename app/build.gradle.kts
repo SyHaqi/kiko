@@ -72,7 +72,7 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.12.1")
     implementation("androidx.compose.ui:ui-tooling-preview:1.12.1")
     implementation("androidx.compose.material3:material3:1.4.0")
-    implementation("androidx.compose.material:material-icons-extended:1.12.1")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.foundation:foundation:1.12.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
     // Adds animated GIF/WebP decoding to Coil — without this, AsyncImage silently only ever
