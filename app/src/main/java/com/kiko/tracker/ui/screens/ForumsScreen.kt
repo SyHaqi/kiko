@@ -719,7 +719,9 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     onSend: () -> Unit,
 ) {
     val c = LocalKikoColors.current
-    Surface(color = c.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+    // c.background (not c.surfaceContainer) so this bar blends into the
+    // screen instead of reading as a separate panel.
+    Surface(color = c.background, modifier = Modifier.fillMaxWidth()) {
         if (!connected) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Forum, null, tint = c.muted, modifier = Modifier.size(18.dp))
@@ -746,8 +748,8 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
                     value = draftText, onValueChange = onDraftChange,
                     placeholder = { Text(if (replyingTo != null) "Write a reply…" else "Write a new post…", color = c.muted, fontSize = 13.sp) },
                     textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
-                    modifier = Modifier.weight(1f), minLines = 1, maxLines = 3,
-                    shape = RoundedCornerShape(kikoCorner(16.dp)),
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp), singleLine = true,
+                    shape = kikoPillShape(),
                     enabled = !posting,
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outlineVariant),
                 )
