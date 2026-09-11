@@ -25,6 +25,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -53,7 +56,10 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import kotlin.math.floor
+import kotlin.math.roundToInt
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Size
@@ -664,32 +670,39 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var searchExpanded by remember { mutableStateOf(false) }
     val typeTab = vm.listTypeTab
     val effectiveFilter = normalizeFilterForType(vm.listFilter, typeTab)
-    // Was recomputing filter+sort over
-    // ones triggered by unrelated
-    // — instead of only
-    // remember(...) pattern ScoreFilterScreen/YearFilterScreen already
-    val filtered = remember(vm.items, vm.nsfwEnabled, typeTab, effectiveFilter, submittedQuery, vm.listSort, vm.titleLanguage) {
-        vm.visibleItems
-            .filter { it.type == typeTab && (effectiveFilter == "All" || it.status.displayLabel(typeTab) == effectiveFilter) && (it.title.contains(submittedQuery, true) || it.titleEnglish.contains(submittedQuery, true)) }
-            .sortedWithListSort(vm.listSort, vm.titleLanguage)
+    val labels = remember(typeTab) { statusFilterLabels(typeTab) }
+    val selectedIndex = labels.indexOf(effectiveFilter).coerceAtLeast(0)
+    val scope = rememberCoroutineScope()
+
+    // Swipeable status pages — one per StatusFilterTabs label, in the
+    // same order, so a tab tap and a swipe always land on the same page.
+    val pagerState = rememberPagerState(initialPage = selectedIndex) { labels.size }
+
+    // Tapping a tab (or the filter changing elsewhere) scrolls the pager.
+    LaunchedEffect(selectedIndex) {
+        if (pagerState.currentPage != selectedIndex) pagerState.animateScrollToPage(selectedIndex)
     }
-    val isGrid = vm.listViewMode == ListViewMode.Grid
-    // Shared between grid and
-    // index that's already played
-    // switching to the other,
-    val staggerSeen = rememberStaggerMemory()
-    // Restore list scroll position
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.listScrollIndex, initialFirstVisibleItemScrollOffset = vm.listScrollOffset)
-    val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = vm.listScrollIndex, initialFirstVisibleItemScrollOffset = vm.listScrollOffset)
-    val openItem: (MediaItem) -> Unit = remember(onOpenDetail, isGrid) {
-        {
-                item ->
-            if (isGrid) vm.saveListScroll(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
-            else vm.saveListScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
-            onOpenDetail(item)
+    // Swiping the pager updates the filter, which keeps the tab indicator in sync.
+    // Reads vm.listFilter/vm.listTypeTab live on each page change rather than
+    // relying on the effectiveFilter/typeTab locals above — those are captured
+    // once when this coroutine launches and would otherwise go stale after the
+    // very first swipe, leaving the indicator stuck a tab behind.
+    //
+    // Watches settledPage, not currentPage: currentPage updates continuously
+    // mid-drag, so syncing off it fired vm.setListFilter while your finger was
+    // still moving — which flipped selectedIndex below and made the OTHER
+    // effect call animateScrollToPage() to fight the live gesture, causing the
+    // stutter. settledPage only changes once a swipe has actually finished.
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            val currentType = vm.listTypeTab
+            val label = statusFilterLabels(currentType).getOrNull(page) ?: return@collect
+            val current = normalizeFilterForType(vm.listFilter, currentType)
+            if (label != current) vm.setListFilter(context, label)
         }
     }
-    val header: @Composable () -> Unit = {
+
+    Column(Modifier.fillMaxSize()) {
         // Type switcher lives in
         // instead of a separate
         // search icon sits just
@@ -712,7 +725,84 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
         // Status switcher — Material3 scrollable tabs
         // (replaces the old bottom-right filter FAB)
-        StatusFilterTabs(effectiveFilter, typeTab, modifier = Modifier.padding(bottom = 4.dp)) { vm.setListFilter(context, it) }
+        StatusFilterTabs(typeTab, pagerState, modifier = Modifier.padding(bottom = 4.dp)) { label ->
+            vm.setListFilter(context, label)
+            scope.launch { pagerState.animateScrollToPage(labels.indexOf(label).coerceAtLeast(0)) }
+        }
+
+        // Everything below the tab row — title count, grid/sort controls,
+        // and the actual titles — swipes between statuses.
+        // beyondViewportPageCount = 1: pre-compose the pages on either side
+        // of the current one, so a swipe reveals an already-built page
+        // instead of building one mid-gesture (which was the other source
+        // of stutter alongside the settledPage fix above).
+        HorizontalPager(state = pagerState, modifier = Modifier.weight(1f).fillMaxWidth(), beyondViewportPageCount = 1) { page ->
+            val pageLabel = labels.getOrElse(page) { "All" }
+            StatusListPage(
+                vm = vm,
+                type = typeTab,
+                statusLabel = pageLabel,
+                submittedQuery = submittedQuery,
+                onOpenDetail = onOpenDetail,
+                onIncrement = onIncrement,
+                onEdit = onEdit,
+                selectedItem = selectedItem,
+                // Only restore the saved scroll position on the page matching
+                // the currently-active filter — swiped-to pages start fresh.
+                restoreScroll = pageLabel == effectiveFilter,
+            )
+        }
+    }
+}
+
+// One swipeable page of ListScreen — the titles count/toggle/sort row plus
+// the grid or list of titles for a single status filter.
+@Composable fun StatusListPage(
+    vm: LibraryViewModel,
+    type: MediaType,
+    statusLabel: String,
+    submittedQuery: String,
+    onOpenDetail: (MediaItem) -> Unit,
+    onIncrement: (MediaItem) -> Unit,
+    onEdit: (MediaItem) -> Unit,
+    selectedItem: MediaItem?,
+    restoreScroll: Boolean,
+) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    // Was recomputing filter+sort over
+    // ones triggered by unrelated
+    // — instead of only
+    // remember(...) pattern ScoreFilterScreen/YearFilterScreen already
+    val filtered = remember(vm.items, vm.nsfwEnabled, type, statusLabel, submittedQuery, vm.listSort, vm.titleLanguage) {
+        vm.visibleItems
+            .filter { it.type == type && (statusLabel == "All" || it.status.displayLabel(type) == statusLabel) && (it.title.contains(submittedQuery, true) || it.titleEnglish.contains(submittedQuery, true)) }
+            .sortedWithListSort(vm.listSort, vm.titleLanguage)
+    }
+    val isGrid = vm.listViewMode == ListViewMode.Grid
+    // Shared between grid and
+    // index that's already played
+    // switching to the other,
+    val staggerSeen = rememberStaggerMemory()
+    // Restore list scroll position — only on the page matching the
+    // currently-active filter; other pages start at the top.
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = if (restoreScroll) vm.listScrollIndex else 0,
+        initialFirstVisibleItemScrollOffset = if (restoreScroll) vm.listScrollOffset else 0,
+    )
+    val gridState = rememberLazyGridState(
+        initialFirstVisibleItemIndex = if (restoreScroll) vm.listScrollIndex else 0,
+        initialFirstVisibleItemScrollOffset = if (restoreScroll) vm.listScrollOffset else 0,
+    )
+    val openItem: (MediaItem) -> Unit = remember(onOpenDetail, isGrid) {
+        {
+                item ->
+            if (isGrid) vm.saveListScroll(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+            else vm.saveListScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+            onOpenDetail(item)
+        }
+    }
+    val countRow: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -743,7 +833,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     horizontalArrangement = Arrangement.spacedBy(11.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
+                    item(span = { GridItemSpan(maxLineSpan) }) { countRow() }
                     if (vm.loading && filtered.isEmpty()) {
                         items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
                     } else {
@@ -753,7 +843,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = bottomInset)) {
-                    item { header() }
+                    item { countRow() }
                     if (vm.loading && filtered.isEmpty()) {
                         item { ListRowSkeletonGroup(6) }
                     } else {
@@ -855,34 +945,79 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
 // six labels ("All"/"Watching"/"Plan to Watch"/"Completed"/"On Hold"/
 // "Dropped") don't reliably fit a fixed TabRow on narrower phones.
 
-@Composable fun StatusFilterTabs(current: String, type: MediaType, modifier: Modifier = Modifier, onSelect: (String) -> Unit) {
-    val c = LocalKikoColors.current
-    val density = LocalDensity.current
+// Shared status labels, in tab/page order — StatusFilterTabs and the
+// swipeable pager in ListScreen both index against this same list so
+// tapping a tab and swiping a page always agree on position.
+fun statusFilterLabels(type: MediaType): List<String> {
     val progressLabel = if (type == MediaType.Anime) "Watching" else "Reading"
     val planLabel = if (type == MediaType.Anime) "Plan to Watch" else "Plan to Read"
-    val labels = remember(type) { listOf("All", progressLabel, planLabel, "Completed", "On Hold", "Dropped") }
-    val selectedIndex = labels.indexOf(current).coerceAtLeast(0)
+    return listOf("All", progressLabel, planLabel, "Completed", "On Hold", "Dropped")
+}
+
+@Composable fun StatusFilterTabs(type: MediaType, pagerState: PagerState, modifier: Modifier = Modifier, onSelect: (String) -> Unit) {
+    val c = LocalKikoColors.current
+    val density = LocalDensity.current
+    val labels = remember(type) { statusFilterLabels(type) }
 
     // Measured width of each tab's text, keyed by index — lets the
     // indicator shrink to the label itself instead of the full tab.
     val textWidths = remember(type) { mutableStateMapOf<Int, Dp>() }
 
+    // Drive the highlighted tab off the pager's own live position, not
+    // vm.listFilter (`current`) — that only updates once a swipe settles
+    // (see the settledPage note in ListScreen), so reading it here made
+    // both the bold label and the indicator visibly wait for you to let
+    // go before catching up. Rounding the pager's continuous position
+    // instead tracks your finger every frame, same as the indicator below.
+    //
+    // derivedStateOf matters here: currentPageOffsetFraction changes on
+    // nearly every frame of a drag, but the *rounded* index only flips
+    // twice per swipe (at the halfway point each way). Reading the raw
+    // fraction directly in this composable's body — without derivedStateOf —
+    // meant every one of those per-frame changes invalidated this whole
+    // function, recomposing all six Tabs and their Text/bold/color logic
+    // on every frame of the drag. That's what was stuttering the swipe.
+    // Wrapping it means recomposition only fires on the two frames where
+    // the derived value actually changes.
+    val liveIndex by remember(labels) {
+        derivedStateOf {
+            (pagerState.currentPage + pagerState.currentPageOffsetFraction)
+                .roundToInt().coerceIn(0, labels.lastIndex)
+        }
+    }
+
     ScrollableTabRow(
-        selectedTabIndex = selectedIndex,
+        selectedTabIndex = liveIndex,
         modifier = modifier.clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
         containerColor = Color.Transparent,
         contentColor = c.primary,
         edgePadding = 6.dp,
         divider = {},
         indicator = { tabPositions ->
-            if (selectedIndex < tabPositions.size) {
-                val tabPosition = tabPositions[selectedIndex]
-                val indicatorWidth = textWidths[selectedIndex] ?: tabPosition.width
-                val animatedWidth by animateDpAsState(indicatorWidth, label = "tabIndicatorWidth")
-                val animatedOffset by animateDpAsState(
-                    tabPosition.left + (tabPosition.width - indicatorWidth) / 2,
-                    label = "tabIndicatorOffset",
-                )
+            if (tabPositions.isNotEmpty()) {
+                // Continuous page position — currentPage jumps by exactly
+                // the amount currentPageOffsetFraction jumps back by when
+                // you cross the halfway point, so the sum stays smooth
+                // across the whole drag instead of snapping tab-to-tab.
+                val rawPage = (pagerState.currentPage + pagerState.currentPageOffsetFraction)
+                    .coerceIn(0f, (tabPositions.size - 1).toFloat())
+                val from = floor(rawPage).toInt().coerceIn(0, tabPositions.size - 1)
+                val to = (from + 1).coerceAtMost(tabPositions.size - 1)
+                val frac = rawPage - from
+
+                val fromWidth = textWidths[from] ?: tabPositions[from].width
+                val toWidth = textWidths[to] ?: tabPositions[to].width
+                val fromOffset = tabPositions[from].left + (tabPositions[from].width - fromWidth) / 2
+                val toOffset = tabPositions[to].left + (tabPositions[to].width - toWidth) / 2
+
+                // No animateDpAsState here — this now IS the pager's own
+                // per-frame scroll value, so animating on top of it would
+                // just add lag back in. Only a tab tap (handled by
+                // pagerState.animateScrollToPage in ListScreen) animates;
+                // a swipe is already 1:1 with your finger.
+                val indicatorWidth = lerp(fromWidth, toWidth, frac)
+                val indicatorOffset = lerp(fromOffset, toOffset, frac)
+
                 Box(
                     Modifier
                         // fillMaxWidth() + wrapContentSize(BottomStart) first: this
@@ -894,8 +1029,8 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                         // TabRowDefaults.tabIndicatorOffset uses.
                         .fillMaxWidth()
                         .wrapContentSize(Alignment.BottomStart)
-                        .offset(x = animatedOffset)
-                        .width(animatedWidth)
+                        .offset(x = indicatorOffset)
+                        .width(indicatorWidth)
                         .height(3.dp)
                         .background(c.primary, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)),
                 )
@@ -903,7 +1038,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         },
     ) {
         labels.forEachIndexed { index, label ->
-            val selected = label == current
+            val selected = index == liveIndex
             Tab(
                 selected = selected,
                 onClick = { onSelect(label) },

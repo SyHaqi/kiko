@@ -374,7 +374,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     // shrink-wrapping to its own
     var anchorWidthPx by remember { mutableStateOf(0) }
     val arrowRotation by animateFloatAsState(if (expanded) 180f else 0f, label = "switcherArrowRotation")
-    Row(Modifier.fillMaxWidth().padding(horizontal = horizontalPadding, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = horizontalPadding, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Box {
             Row(
                 Modifier
@@ -505,7 +505,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                         transformOrigin = TransformOrigin(pivotFraction, 0.5f)
                     },
             ) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = horizontalPadding, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = horizontalPadding, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     HeaderSearchField(
                         value = query,
                         onValueChange = onQueryChange,
