@@ -741,7 +741,6 @@ class LibraryViewModel : ViewModel() {
     fun clearFriendProfileCache() { friendProfileStates.clear() }
     // NSFW off by default
     var nsfwEnabled by mutableStateOf(false); private set
-    var onboardingSeen by mutableStateOf(false); private set
     var amoledDark by mutableStateOf(false); private set
     // User profile stats
     var malProfile by mutableStateOf<MalProfile?>(null); private set
@@ -1345,11 +1344,6 @@ class LibraryViewModel : ViewModel() {
     fun setNsfw(context: Context, enabled: Boolean) { nsfwEnabled = enabled; settingsPrefs(context).edit().putBoolean("nsfw_enabled", enabled).apply() }
     fun loadAmoledDark(context: Context) { amoledDark = settingsPrefs(context).getBoolean("amoled_dark", false) }
     fun setAmoledDark(context: Context, enabled: Boolean) { amoledDark = enabled; settingsPrefs(context).edit().putBoolean("amoled_dark", enabled).apply() }
-    // First-install "Welcome" screen (see OnboardingScreen) — defaults to
-    // false (not seen) so a fresh install shows it before this loads rather
-    // than flashing straight into the app on the first frame.
-    fun loadOnboardingSeen(context: Context) { onboardingSeen = settingsPrefs(context).getBoolean("onboarding_seen", false) }
-    fun markOnboardingSeen(context: Context) { onboardingSeen = true; settingsPrefs(context).edit().putBoolean("onboarding_seen", true).apply() }
 
     // Load profile and stats
     fun loadProfile(context: Context) {

@@ -348,7 +348,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                 ) {
                     Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.People, null, tint = c.primary, modifier = Modifier.size(22.dp))
-                        Text("Friends & Favorites", color = c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp).weight(1f))
+                        Text("Unlock more features", color = c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp).weight(1f))
                         Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(20.dp))
                     }
                 }

@@ -80,7 +80,6 @@ import com.kiko.tracker.ui.screens.HistoryScreen
 import com.kiko.tracker.ui.screens.HomeScreen
 import com.kiko.tracker.ui.screens.ListScreen
 import com.kiko.tracker.ui.screens.MediaStacksScreen
-import com.kiko.tracker.ui.screens.OnboardingScreen
 import com.kiko.tracker.ui.screens.PersonDetailScreen
 import com.kiko.tracker.ui.screens.FriendProfileScreen
 import com.kiko.tracker.ui.screens.FriendsFavoritesScreen
@@ -650,14 +649,6 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
             typography = KikoTypography,
             shapes = KikoShapes,
         ) {
-            if (!vm.onboardingSeen) {
-                OnboardingScreen(
-                    malSignedIn = vm.signedIn,
-                    onSignIn = onSignIn,
-                    onFinish = { vm.markOnboardingSeen(context) },
-                )
-                return@MaterialTheme
-            }
             Scaffold(
                 containerColor = c.background,
                 bottomBar = { if (detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen) BottomBar(vm.destination, onDoubleTapDiscover = { vm.openDiscoverSearch(context) }) { discoverReturnItem = null; discoverReturnDestination = null; discoverReturnStack = null; vm.destination = it } }

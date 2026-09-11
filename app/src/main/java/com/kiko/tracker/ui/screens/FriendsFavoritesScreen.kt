@@ -124,9 +124,9 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
         if (!connected) {
             Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Icon(Icons.Default.People, null, tint = c.muted, modifier = Modifier.size(48.dp))
-                Text("Connect your MAL account", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink, modifier = Modifier.padding(top = 16.dp))
+                Text("Unlock more features", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink, modifier = Modifier.padding(top = 16.dp))
                 Text(
-                    "MAL doesn't expose friends or favorites through sign-in alone — Kiko needs to open a one-time login page to read them from your profile.",
+                    "MAL doesn't expose some features such as friends, favorites, etc. Kiko needs to open a one-time login page to read them from your profile.",
                     color = c.muted, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.padding(top = 6.dp, start = 24.dp, end = 24.dp),
                 )

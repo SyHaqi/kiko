@@ -134,12 +134,6 @@ class MainActivity : ComponentActivity() {
         var crashText by mutableStateOf<String?>(if (crashFile.exists()) runCatching { crashFile.readText() }.getOrNull() else null)
         setContent {
             val vm: LibraryViewModel = viewModel()
-            // Synchronous SharedPreferences read, done via remember (not
-            // LaunchedEffect) so it resolves during composition — before the
-            // first frame draws — instead of a frame later, which is what
-            // caused onboardingSeen's default to flash briefly on every
-            // launch before flipping to its real value.
-            remember { vm.loadOnboardingSeen(this@MainActivity) }
             // Note: vm.loadHomeExtras() (Discover's "You
             // trending manga rows) is
             // either of those lists,
