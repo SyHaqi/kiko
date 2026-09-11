@@ -56,7 +56,6 @@ import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import coil.size.Size
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlin.math.roundToInt
 import com.kiko.tracker.data.api.AiringInfo
@@ -1189,31 +1188,17 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
     // to return to half
     // left off so the
     val sheetState = rememberModalBottomSheetState()
-    // By default ModalBottomSheet resizes/re-anchors
-    // which is what caused
-    // contentWindowInsets stops that; imePadding()
-    // focused field up above
-    // Even so, Compose still
-    // keyboard finishes closing, which
-    // "cut" glitch. Remember the
-    // for the close animation/remeasure
-    // instead of fighting that
-    var lastStableValue by remember { mutableStateOf(sheetState.currentValue) }
-    val imeVisible = WindowInsets.isImeVisible
-    LaunchedEffect(imeVisible) {
-        if (imeVisible) {
-            lastStableValue = sheetState.currentValue
-        } else {
-            delay(120)
-            when (lastStableValue) {
-                SheetValue.Expanded -> sheetState.expand()
-                SheetValue.PartiallyExpanded -> sheetState.partialExpand()
-                else -> {}
-            }
-        }
-    }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow, contentWindowInsets = { WindowInsets(0, 0, 0, 0) }) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding().verticalScroll(rememberScrollState())) {
+        // verticalScroll() before imePadding() (not after) — this way the
+        // keyboard inset only ever eats into the scrollable content itself
+        // (extra space to scroll through), rather than shrinking the outer
+        // Column that ModalBottomSheet measures to place its anchors. That
+        // outer-shrink was what forced the sheet to re-anchor/"cut" every
+        // time the keyboard opened or closed, which used to need a
+        // reactive expand()/partialExpand() workaround keyed off IME
+        // visibility. With the order fixed, the sheet's anchors never move
+        // and that workaround isn't needed anymore.
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState()).imePadding()) {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 22.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { confirmDelete = true }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Delete") }
                 Button(
