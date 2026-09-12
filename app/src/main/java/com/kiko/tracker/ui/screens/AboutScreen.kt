@@ -163,8 +163,9 @@ import com.kiko.tracker.util.AppUpdateInfo
     }
 }
 
-@Composable fun StatusLegendRow(label: String, value: Int, color: Color, c: KikoColors) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+@Composable fun StatusLegendRow(label: String, value: Int, color: Color, c: KikoColors, onClick: (() -> Unit)? = null) {
+    val base = Modifier.fillMaxWidth().padding(vertical = 5.dp)
+    Row(if (onClick != null) base.kikoClickable(onClick = onClick) else base, verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(10.dp).clip(kikoCircleShape()).background(color))
         Spacer(Modifier.width(9.dp))
         Text(label, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))

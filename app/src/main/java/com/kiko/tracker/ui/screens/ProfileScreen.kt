@@ -114,6 +114,10 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     onLoadFriendsFavorites: (String) -> Unit = {},
     friendsFavoritesLoading: Boolean = false,
     cachedAboutMe: MalAboutMe? = null,
+    // Forwarded straight to ProfileStatsSection (own-profile path only —
+    // ProfileStatsScreen is always Kiko's own signed-in Profile, so
+    // isOwnProfile stays at its default true here).
+    onOpenListStatus: (MediaType, String) -> Unit = { _, _ -> },
 ) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
@@ -201,6 +205,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                     cachedFriends = cachedFriends, cachedFavorites = cachedFavorites, onLoadFriendsFavorites = onLoadFriendsFavorites,
                     friendsFavoritesLoading = friendsFavoritesLoading,
                     cachedAboutMe = cachedAboutMe,
+                    onOpenListStatus = { type, label -> onSaveScroll(scrollState.value); onOpenListStatus(type, label) },
                 )
             }
         }
@@ -267,6 +272,15 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     // hasFfSession below), so it's null until that scrape has run once and
     // MalAboutMe.isEmpty when the user hasn't set one up on MAL at all.
     cachedAboutMe: MalAboutMe? = null,
+    // True for Kiko's own signed-in Profile page (ProfileStatsScreen), false
+    // for another MAL member's page (FriendProfileScreen) — decides what
+    // tapping a Watching/Completed/On-Hold/Dropped/Plan-to-Watch legend row
+    // does below: navigate in-app to My List on your own profile (since
+    // that data is already synced locally), or open that status's MAL list
+    // page in the browser for anyone else (MAL doesn't expose another
+    // member's list through the API/app the way it does your own).
+    isOwnProfile: Boolean = true,
+    onOpenListStatus: (MediaType, String) -> Unit = { _, _ -> },
 ) {    val c = LocalKikoColors.current
     val context = LocalContext.current
     // Friends/favorites aren't in MAL's official API — scraped off the
@@ -279,6 +293,37 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     // card that opens the full screen and its login flow if there's no
     // session yet).
     val hasFfSession = remember { MalSessionCookie(context).has() }
+    // Tapping a Watching/Completed/On-Hold/Dropped/Plan-to-Watch legend row
+    // below (see isOwnProfile doc above): in-app My List navigation for your
+    // own profile, or that status's MAL list page in the browser otherwise.
+    // MAL's own status query params (confirmed against animelist/mangalist
+    // URLs): 1=watching/reading, 2=completed, 3=on hold, 4=dropped,
+    // 6=plan to watch/read (5 isn't used by any status here).
+    val openStatus: (MediaType, WatchStatus) -> Unit = { type, status ->
+        if (isOwnProfile) {
+            val label = when (status) {
+                WatchStatus.Watching, WatchStatus.Reading -> if (type == MediaType.Anime) "Watching" else "Reading"
+                WatchStatus.Plan -> if (type == MediaType.Anime) "Plan to Watch" else "Plan to Read"
+                WatchStatus.Completed -> "Completed"
+                WatchStatus.OnHold -> "On Hold"
+                WatchStatus.Dropped -> "Dropped"
+            }
+            onOpenListStatus(type, label)
+        } else {
+            val username = profile?.name.orEmpty()
+            if (username.isNotBlank()) {
+                val statusCode = when (status) {
+                    WatchStatus.Watching, WatchStatus.Reading -> 1
+                    WatchStatus.Completed -> 2
+                    WatchStatus.OnHold -> 3
+                    WatchStatus.Dropped -> 4
+                    WatchStatus.Plan -> 6
+                }
+                val kind = if (type == MediaType.Anime) "animelist" else "mangalist"
+                CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/$kind/$username?status=$statusCode"))
+            }
+        }
+    }
     LaunchedEffect(connected, profile?.name, hasFfSession) {
         val username = profile?.name.orEmpty()
         if (connected && hasFfSession && username.isNotBlank()) onLoadFriendsFavorites(username)
@@ -446,11 +491,11 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                                 Spacer(Modifier.height(20.dp))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                                     Column(Modifier.weight(1f)) {
-                                        StatusLegendRow("Watching", profile?.animeWatching ?: 0, statusColor("Watching"), c)
-                                        StatusLegendRow("Completed", profile?.animeCompleted ?: 0, statusColor("Completed"), c)
-                                        StatusLegendRow("On-Hold", profile?.animeOnHold ?: 0, statusColor("On hold"), c)
-                                        StatusLegendRow("Dropped", profile?.animeDropped ?: 0, statusColor("Dropped"), c)
-                                        StatusLegendRow("Plan to Watch", profile?.animePlanToWatch ?: 0, statusColor("Plan to watch"), c)
+                                        StatusLegendRow("Watching", profile?.animeWatching ?: 0, statusColor("Watching"), c, onClick = { openStatus(MediaType.Anime, WatchStatus.Watching) })
+                                        StatusLegendRow("Completed", profile?.animeCompleted ?: 0, statusColor("Completed"), c, onClick = { openStatus(MediaType.Anime, WatchStatus.Completed) })
+                                        StatusLegendRow("On-Hold", profile?.animeOnHold ?: 0, statusColor("On hold"), c, onClick = { openStatus(MediaType.Anime, WatchStatus.OnHold) })
+                                        StatusLegendRow("Dropped", profile?.animeDropped ?: 0, statusColor("Dropped"), c, onClick = { openStatus(MediaType.Anime, WatchStatus.Dropped) })
+                                        StatusLegendRow("Plan to Watch", profile?.animePlanToWatch ?: 0, statusColor("Plan to watch"), c, onClick = { openStatus(MediaType.Anime, WatchStatus.Plan) })
                                     }
                                     Column(Modifier.weight(1f)) {
                                         SummaryRow("Total Entries", formatExact(profile?.animeTotalEntries ?: 0), c)
@@ -488,11 +533,11 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                                 Spacer(Modifier.height(20.dp))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                                     Column(Modifier.weight(1f)) {
-                                        StatusLegendRow("Reading", mangaReadingCount, statusColor("Reading"), c)
-                                        StatusLegendRow("Completed", mangaCompletedCount, statusColor("Completed"), c)
-                                        StatusLegendRow("On-Hold", mangaOnHoldCount, statusColor("On hold"), c)
-                                        StatusLegendRow("Dropped", mangaDroppedCount, statusColor("Dropped"), c)
-                                        StatusLegendRow("Plan to Read", mangaPlanCount, statusColor("Plan to read"), c)
+                                        StatusLegendRow("Reading", mangaReadingCount, statusColor("Reading"), c, onClick = { openStatus(MediaType.Manga, WatchStatus.Reading) })
+                                        StatusLegendRow("Completed", mangaCompletedCount, statusColor("Completed"), c, onClick = { openStatus(MediaType.Manga, WatchStatus.Completed) })
+                                        StatusLegendRow("On-Hold", mangaOnHoldCount, statusColor("On hold"), c, onClick = { openStatus(MediaType.Manga, WatchStatus.OnHold) })
+                                        StatusLegendRow("Dropped", mangaDroppedCount, statusColor("Dropped"), c, onClick = { openStatus(MediaType.Manga, WatchStatus.Dropped) })
+                                        StatusLegendRow("Plan to Read", mangaPlanCount, statusColor("Plan to read"), c, onClick = { openStatus(MediaType.Manga, WatchStatus.Plan) })
                                     }
                                     Column(Modifier.weight(1f)) {
                                         SummaryRow("Total Entries", formatExact(mangaTotalDisplay), c)
