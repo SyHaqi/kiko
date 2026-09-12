@@ -235,6 +235,10 @@ data class GenreFacets(
     // Explicit Genres/Themes/Demographics — only used to rank the plain
     // "Genres" facet for Home's "Top Genres" row.
     val genreCounts: Map<String, Int> = emptyMap(),
+    // Same idea as genreCounts, but for the "Themes" facet (Isekai,
+    // School, Time Travel, ...) — used to rank Home's top-5 themes
+    // appended after the top-10 genres in that same row.
+    val themeCounts: Map<String, Int> = emptyMap(),
 )
 
 private object GenreFacetCache {
@@ -269,6 +273,14 @@ class MalGenreLookup {
     suspend fun topGenreNames(kind: String, limit: Int = 10): List<String> {
         val f = runCatching { facets(kind) }.getOrNull() ?: return emptyList()
         return f.genreCounts.entries.sortedByDescending { it.value }.take(limit).map { it.key }
+    }
+
+    // Same idea as topGenreNames, but ranks the "Themes" facet (Isekai,
+    // School, Time Travel, ...) by MAL's own site-wide count instead.
+    // Used to append Home's top-5 themes after its top-10 genres.
+    suspend fun topThemeNames(kind: String, limit: Int = 5): List<String> {
+        val f = runCatching { facets(kind) }.getOrNull() ?: return emptyList()
+        return f.themeCounts.entries.sortedByDescending { it.value }.take(limit).map { it.key }
     }
 
     suspend fun resolveGenreIds(kind: String, genres: Set<String>, themes: Set<String> = emptySet(), demographics: Set<String> = emptySet()): List<Int> {
@@ -310,6 +322,7 @@ class MalGenreLookup {
         // maps above which are looked up case-insensitively) since this
         // is surfaced directly in the Home "Top Genres" row.
         val genreCounts = mutableMapOf<String, Int>()
+        val themeCounts = mutableMapOf<String, Int>()
         doc.select("div.category-wrapper").forEach { wrapper ->
             val category = wrapper.selectFirst("div.category-type")?.text()?.trim() ?: return@forEach
             val map = byCategory.getOrPut(category) { mutableMapOf() }
@@ -322,6 +335,9 @@ class MalGenreLookup {
                     if (category == "Genres") {
                         val count = genreLabelCountSuffix.find(label)?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull() ?: 0
                         genreCounts[name] = count
+                    } else if (category == "Themes") {
+                        val count = genreLabelCountSuffix.find(label)?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull() ?: 0
+                        themeCounts[name] = count
                     }
                 }
             }
@@ -332,6 +348,7 @@ class MalGenreLookup {
             themes = byCategory["Themes"].orEmpty(),
             demographics = byCategory["Demographics"].orEmpty(),
             genreCounts = genreCounts,
+            themeCounts = themeCounts,
         )
     }
 }

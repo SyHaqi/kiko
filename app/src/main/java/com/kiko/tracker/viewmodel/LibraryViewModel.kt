@@ -420,49 +420,73 @@ class LibraryViewModel : ViewModel() {
     }
     // Home's "Top Genres" row — MAL's own top 10 "Genres" facet names
     // globally (by the site-wide anime count on each tag, scraped via
-    // MalGenreLookup.topGenreNames), not a per-user library tally. Cached
-    // to disk for a month (genre popularity ordering barely moves week to
-    // week, and this scrape plus the 10 per-genre searches below are the
+    // MalGenreLookup.topGenreNames), not a per-user library tally, with
+    // the top 5 "Themes" facet names (MalGenreLookup.topThemeNames)
+    // appended after them — homeTopGenres ends up 15 entries long, and
+    // homeTopThemes records which of those are themes (vs. genres) so
+    // downstream lookups (loadHomeTopGenreItems, Discover navigation)
+    // know which facet to resolve each name against. Cached to disk for
+    // a month (genre/theme popularity ordering barely moves week to
+    // week, and this scrape plus the per-entry searches below are the
     // heaviest thing Home loads) — only re-fetched once the cache is
     // missing or older than homeTopGenresMaxAgeMs.
     private val homeTopGenresMaxAgeMs = 30L * 24 * 60 * 60 * 1000
     var homeTopGenres by mutableStateOf<List<String>>(emptyList()); private set
+    var homeTopThemes by mutableStateOf<Set<String>>(emptySet()); private set
     private var homeTopGenresLoading = false
     fun loadHomeTopGenres(context: Context) {
         if (homeTopGenres.isNotEmpty() || homeTopGenresLoading) return
         val prefs = settingsPrefs(context)
         val cachedAt = prefs.getLong("home_top_genres_cached_at", 0L)
-        val cached = prefs.getString("home_top_genres", null)?.split("\u0001")?.filter { it.isNotBlank() }.orEmpty()
-        if (cached.isNotEmpty() && System.currentTimeMillis() - cachedAt < homeTopGenresMaxAgeMs) {
-            homeTopGenres = cached
-            // Restore each genre's cached cover too, so a cache hit here
-            // skips the 10 per-genre MAL searches below entirely, not
+        val cachedGenres = prefs.getString("home_top_genres", null)?.split("\u0001")?.filter { it.isNotBlank() }.orEmpty()
+        // Distinguish "no themes key written yet" (an older cache, from
+        // before themes existed, that must be treated as stale so themes
+        // get fetched) from "themes key written but genuinely empty" (a
+        // fresh fetch that happened to find zero themes) — the raw string
+        // presence check (not cachedThemes.isNotEmpty()) is what tells
+        // those two apart.
+        val hasThemesCache = prefs.contains("home_top_themes")
+        val cachedThemes = prefs.getString("home_top_themes", null)?.split("\u0001")?.filter { it.isNotBlank() }.orEmpty()
+        if (cachedGenres.isNotEmpty() && hasThemesCache && System.currentTimeMillis() - cachedAt < homeTopGenresMaxAgeMs) {
+            homeTopGenres = cachedGenres + cachedThemes
+            homeTopThemes = cachedThemes.toSet()
+            // Restore each genre/theme's cached cover too, so a cache hit
+            // here skips the per-entry MAL searches below entirely, not
             // just the facet scrape.
-            cached.forEach { genre ->
-                val cover = prefs.getString("home_top_genre_cover_${genre.lowercase()}", null)
-                if (!cover.isNullOrBlank()) genreTopItemCache[genre] = MediaItem(title = "", type = MediaType.Anime, status = WatchStatus.Plan, cover = cover)
+            homeTopGenres.forEach { name ->
+                val cover = prefs.getString("home_top_genre_cover_${name.lowercase()}", null)
+                if (!cover.isNullOrBlank()) genreTopItemCache[name] = MediaItem(title = "", type = MediaType.Anime, status = WatchStatus.Plan, cover = cover)
             }
             return
         }
         homeTopGenresLoading = true
         viewModelScope.launch {
-            val genres = runCatching { MalGenreLookup().topGenreNames("anime", 10) }.getOrDefault(emptyList())
-            homeTopGenres = genres
+            val lookup = MalGenreLookup()
+            val genres = runCatching { lookup.topGenreNames("anime", 10) }.getOrDefault(emptyList())
+            val themes = runCatching { lookup.topThemeNames("anime", 5) }.getOrDefault(emptyList())
+            homeTopGenres = genres + themes
+            homeTopThemes = themes.toSet()
             homeTopGenresLoading = false
-            if (genres.isNotEmpty()) prefs.edit().putString("home_top_genres", genres.joinToString("\u0001")).putLong("home_top_genres_cached_at", System.currentTimeMillis()).apply()
+            if (genres.isNotEmpty() || themes.isNotEmpty()) {
+                prefs.edit()
+                    .putString("home_top_genres", genres.joinToString("\u0001"))
+                    .putString("home_top_themes", themes.joinToString("\u0001"))
+                    .putLong("home_top_genres_cached_at", System.currentTimeMillis())
+                    .apply()
+            }
         }
     }
-    // Top-by-members anime per genre for Home's "Top Genres" cards, keyed
-    // by genre name — same guard-against-duplicate-fetch shape as
+    // Top-by-members anime per genre/theme for Home's "Top Genres" cards,
+    // keyed by name — same guard-against-duplicate-fetch shape as
     // stackCoverCache above. Loaded together as one batch (not
     // independently per card) so covers can be de-duplicated across the
-    // whole row: MAL's #1-by-members result for two different genres is
-    // often the very same blockbuster (e.g. Shingeki no Kyojin tops both
-    // Action and Drama), and a cover repeated across "different" genre
-    // cards would look broken. Falls through each genre's result page
-    // (not just its #1) until it finds a cover no earlier genre in this
+    // whole row: MAL's #1-by-members result for two different
+    // genres/themes is often the very same blockbuster (e.g. Shingeki no
+    // Kyojin tops both Action and Drama), and a cover repeated across
+    // "different" cards would look broken. Falls through each result page
+    // (not just its #1) until it finds a cover no earlier entry in this
     // batch has already claimed. Each cover is also cached to disk (see
-    // loadHomeTopGenres above) alongside the genre-name list.
+    // loadHomeTopGenres above) alongside the genre/theme-name lists.
     private val genreTopItemCache = mutableStateMapOf<String, MediaItem?>()
     private val genreTopItemInFlight = mutableSetOf<String>()
     fun getCachedGenreTopItem(genre: String): MediaItem? = genreTopItemCache[genre]
@@ -474,8 +498,9 @@ class LibraryViewModel : ViewModel() {
             val prefs = settingsPrefs(context)
             val usedCovers = genreTopItemCache.values.mapNotNull { it?.cover }.filterTo(mutableSetOf()) { it.isNotBlank() }
             for (genre in pending) {
+                val isTheme = genre in homeTopThemes
                 val item = runCatching {
-                    val ids = MalGenreLookup().resolveGenreIds("anime", setOf(genre))
+                    val ids = if (isTheme) MalGenreLookup().resolveGenreIds("anime", emptySet(), themes = setOf(genre)) else MalGenreLookup().resolveGenreIds("anime", setOf(genre))
                     if (ids.isEmpty()) null else {
                         val results = MalGenreApi().search("anime", ids, type = null, status = null, page = 1, includeAdult = nsfwEnabled, sort = DiscoverSort.Members).items
                         results.firstOrNull { it.cover.isNotBlank() && it.cover !in usedCovers } ?: results.firstOrNull()

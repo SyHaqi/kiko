@@ -107,7 +107,7 @@ import com.kiko.tracker.ui.theme.pressScale
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
 import com.kiko.tracker.viewmodel.LibraryViewModel
 
-@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onSeeHistory: () -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onSeeFeaturedArticles: () -> Unit = {}, onOpenFeaturedArticle: (String, String) -> Unit = { _, _ -> }, onOpenGenre: (String) -> Unit = {}) {
+@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onSeeHistory: () -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onSeeFeaturedArticles: () -> Unit = {}, onOpenFeaturedArticle: (String, String) -> Unit = { _, _ -> }, onOpenGenre: (String, Boolean) -> Unit = { _, _ -> }) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context) }
@@ -258,11 +258,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             HistoryRowSkeletonGroup(5)
                         }
                     }
-                    // Top 10 genres MAL-wide, rank-badged cards in a Material3
-                    // multi-browse carousel (large item + a peek of the next
-                    // one, per developer.android.com/.../components/carousel)
-                    // instead of a plain LazyRow — same tap-through to
-                    // Discover pre-filtered by that genre.
+                    // Top 10 genres + top 5 themes MAL-wide, rank-badged cards
+                    // in a Material3 multi-browse carousel (large item + a
+                    // peek of the next one, per
+                    // developer.android.com/.../components/carousel) instead
+                    // of a plain LazyRow — same tap-through to Discover
+                    // pre-filtered by that genre/theme.
                     key("topGenres") {
                         if (topGenres.isNotEmpty()) {
                             SectionTitle("Top Genres", "Discover", onDiscover)
@@ -277,7 +278,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 modifier = Modifier.fillMaxWidth().height(190.dp),
                             ) { index ->
                                 val genre = topGenres[index]
-                                GenreCard(index + 1, genre, vm.getCachedGenreTopItem(genre)) { onOpenGenre(genre) }
+                                GenreCard(index + 1, genre, vm.getCachedGenreTopItem(genre)) { onOpenGenre(genre, genre in vm.homeTopThemes) }
                             }
                         }
                     }
