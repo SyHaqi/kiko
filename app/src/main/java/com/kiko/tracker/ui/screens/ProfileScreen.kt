@@ -139,13 +139,19 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     // Restore scroll position on
     val scrollState = rememberScrollState(initial = scrollOffset)
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 14.dp)) {
-            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        // No blanket horizontal padding here anymore — the hero panel inside
+        // ProfileStatsSection now runs edge-to-edge (full-bleed, no card
+        // margin around it), the way a page header does on a website rather
+        // than another tile in a stack of cards. Everything below the hero
+        // applies its own horizontal inset instead.
+        Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = exitProfile, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-                // Always just "Profile" — the avatar card right below already
-                // shows the username next to the avatar, so repeating it up
-                // here in the header was redundant.
-                Text("Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp).weight(1f))
+                // "Profile" moved down to a small eyebrow label above the
+                // username in the avatar/name row below (ProfileStatsSection),
+                // matching DetailScreen's small-label-above-title pattern —
+                // so this row is now just the back button, spacer, and menu.
+                Spacer(Modifier.weight(1f))
                 // 3-dot overflow menu — replaces the separate "open in
                 // browser" button that used to live on the avatar card, and
                 // the standalone sign-out icon that used to sit here. Only
@@ -176,7 +182,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                     }
                 }
             }
-            Box(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
+            Box(Modifier.padding(bottom = 24.dp)) {
                 ProfileStatsSection(
                     connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange,
                     onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) },
@@ -278,130 +284,144 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
         if (connected && hasFfSession && username.isNotBlank()) onLoadFriendsFavorites(username)
     }
     Column {
-        // Profile header with stats
-        if (connected && profile != null) {
-            Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
-                Column(Modifier.padding(22.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (profile.picture.isNotBlank()) {
-                            AsyncImage(model = profile.picture, contentDescription = profile.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(64.dp).clip(kikoCircleShape()).background(c.warm))
-                        } else {
-                            Box(Modifier.size(64.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                                Text(profile.name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = c.ink)
-                            }
-                        }
-                        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                            Text(profile.name.ifBlank { "MyAnimeList" }, style = MaterialTheme.typography.titleLarge, color = c.ink)
-                        }
-                        // "Open in browser" moved to the 3-dot menu in the
-                        // Profile header (ProfileStatsScreen) alongside sign
-                        // out, instead of living here on the avatar card.
-                    }
-                    val details = detailsPills ?: listOfNotNull(
-                        profile.location.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.LocationOn, it) },
-                        profile.gender.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.Person, it) },
-                        profile.birthday.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Cake, formatFullDate(it)) },
-                        // Was a plain "Joined ..." line next to the name
-                        // above — moved down here as a pill (same ISO-date
-                        // formatting via formatFullDate) so it matches
-                        // FriendProfileScreen's Online/Gender/Born/Joined
-                        // pill row instead of looking like a different
-                        // pattern on your own profile. Own icon (Event,
-                        // vs. birthday's Cake) so the two dates read
-                        // differently at a glance.
-                        profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Event, formatFullDate(it)) },
-                    )
-                    if (details.isNotEmpty()) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 14.dp)) {
-                            details.forEach { Pill(it.text, c.surfaceLow, c.muted, icon = it.icon) }
+        // Body content sits on the plain page background, same margin as
+        // everywhere else — no tonal banner setting the header apart.
+        Column(Modifier.padding(horizontal = 20.dp)) {
+            if (connected && profile != null) {
+                // ---- Header: avatar left, name right -------------------------
+                // Same rounded-square avatar shape as the app header's Avatar()
+                // (RoundedCornerShape, not a circle), just larger — reads as
+                // the same avatar language used everywhere else in Kiko.
+                Row(Modifier.fillMaxWidth().padding(top = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (profile.picture.isNotBlank()) {
+                        AsyncImage(
+                            model = profile.picture, contentDescription = profile.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.size(72.dp).clip(RoundedCornerShape(kikoCorner(28.dp))).background(c.warm),
+                        )
+                    } else {
+                        Box(Modifier.size(72.dp).clip(RoundedCornerShape(kikoCorner(28.dp))).background(c.warm), contentAlignment = Alignment.Center) {
+                            Text(profile.name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 26.sp, color = c.ink)
                         }
                     }
-                }
-            }
-            // Right under the avatar card — MAL's own mobile webview puts
-            // About Me directly below the avatar/name block too, above
-            // Friends/Favorites, so this mirrors that order. Shares
-            // friendsFavoritesLoading with Friends/Favorites below since
-            // it's scraped in the same round-trip (see loadProfileFriendsFavorites).
-            if (cachedAboutMe == null && friendsFavoritesLoading) {
-                AboutMeCardSkeleton()
-            } else {
-                cachedAboutMe?.let { AboutMeCard(it, onOpenTitle = onOpenFavoriteTitle) }
-            }
-            if (hasFfSession) {
-                if (cachedFriends == null && friendsFavoritesLoading) {
-                    FriendsRowSkeleton()
-                } else {
-                    cachedFriends?.takeIf { it.isNotEmpty() }?.let { friends ->
-                        FriendsRow(
-                            friends, c, onSeeAll = onOpenFriendsFavorites, onOpenFriend = onOpenFriend,
-                            initialScroll = friendsRowScroll, onScrollChange = onSaveFriendsRowScroll,
+                    Column(Modifier.padding(start = 16.dp).weight(1f)) {
+                        // Small "PROFILE" eyebrow label above the username —
+                        // same treatment DetailScreen gives its type/format
+                        // label above the title (color c.primary, bold,
+                        // uppercase, letterSpacing) — now that the header
+                        // row's own "Profile" text is gone.
+                        Text("PROFILE", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp)
+                        Text(
+                            profile.name.ifBlank { "MyAnimeList" }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
+                            color = c.ink, modifier = Modifier.padding(top = 2.dp),
                         )
                     }
                 }
-            } else {
-                // No scrape session yet — this card opens FriendsFavoritesScreen,
-                // which handles the embedded-login flow itself.
-                Card(
-                    shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp).kikoClickable { onOpenFriendsFavorites() },
-                ) {
-                    Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                // "Open in browser" / sign out live in the 3-dot menu up in
+                // the Profile header (ProfileStatsScreen) instead of here.
+                val details = detailsPills ?: listOfNotNull(
+                    profile.location.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.LocationOn, it) },
+                    profile.gender.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.Person, it) },
+                    profile.birthday.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Cake, formatFullDate(it)) },
+                    // Was a plain "Joined ..." line next to the name
+                    // above — moved down here as a pill (same ISO-date
+                    // formatting via formatFullDate) so it matches
+                    // FriendProfileScreen's Online/Gender/Born/Joined
+                    // pill row instead of looking like a different
+                    // pattern on your own profile. Own icon (Event,
+                    // vs. birthday's Cake) so the two dates read
+                    // differently at a glance.
+                    profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Event, formatFullDate(it)) },
+                )
+                if (details.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = 14.dp),
+                    ) {
+                        details.forEach { Pill(it.text, c.surfaceLow, c.muted, icon = it.icon) }
+                    }
+                }
+                // Right under the header — MAL's own mobile webview puts About Me
+                // directly below the avatar/name block too, above
+                // Friends/Favorites, so this mirrors that order. Shares
+                // friendsFavoritesLoading with Friends/Favorites below since
+                // it's scraped in the same round-trip (see loadProfileFriendsFavorites).
+                if (cachedAboutMe == null && friendsFavoritesLoading) {
+                    AboutMeCardSkeleton()
+                } else {
+                    cachedAboutMe?.let { AboutMeCard(it, onOpenTitle = onOpenFavoriteTitle) }
+                }
+                if (hasFfSession) {
+                    if (cachedFriends == null && friendsFavoritesLoading) {
+                        FriendsRowSkeleton()
+                    } else {
+                        cachedFriends?.takeIf { it.isNotEmpty() }?.let { friends ->
+                            FriendsRow(
+                                friends, c, onSeeAll = onOpenFriendsFavorites, onOpenFriend = onOpenFriend,
+                                initialScroll = friendsRowScroll, onScrollChange = onSaveFriendsRowScroll,
+                            )
+                        }
+                    }
+                } else {
+                    // No scrape session yet — tapping opens FriendsFavoritesScreen,
+                    // which handles the embedded-login flow itself. A plain row
+                    // instead of a boxed card — reads as one more line, not
+                    // another tile stacked on the page.
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 24.dp).kikoClickable { onOpenFriendsFavorites() }.padding(vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Icon(Icons.Default.People, null, tint = c.primary, modifier = Modifier.size(22.dp))
                         Text("Unlock more features", color = c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp).weight(1f))
                         Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(20.dp))
                     }
                 }
+                HorizontalDivider(color = c.outlineVariant, thickness = 1.dp, modifier = Modifier.padding(top = 12.dp))
             }
-        }
 
-        // Tabbed anime/manga stats card
-        // remember(items): same reasoning as
-        // screens below (typeItems at
-        // whole library on every
-        val animeItems = remember(items) { items.filter { it.type == MediaType.Anime } }
-        val mangaItems = remember(items) { items.filter { it.type == MediaType.Manga } }
-        val mangaTotal = mangaItems.size
-        val mangaChaptersRead = remember(mangaItems) { mangaItems.sumOf { it.progress } }
-        val ratedManga = remember(mangaItems) { mangaItems.filter { it.myRating > 0 } }
-        val mangaMeanScore = if (ratedManga.isNotEmpty()) ratedManga.map { it.myRating }.average() else 0.0
-        val animeDaysWatched = profile?.animeDaysWatched ?: 0.0
-        // MAL: 8 min/chapter — fallback estimate, only used until a cookie
-        // session lets MalProfileScrapeApi pull the real manga stats
-        val mangaDaysReadEst = mangaChaptersRead * 8.0 / 60.0 / 24.0
-        // Manga stats aren't in MAL's official API at all — profile?.manga*
-        // comes from MalProfileScrapeApi scraping the profile page (requires
-        // a logged-in cookie session, see MalSessionCookie/MalLoginWebView).
-        // Fall back to the local estimate/count from the synced list until
-        // that session exists.
-        val hasScrapedMangaStats = (profile?.mangaTotalEntries ?: 0) > 0
-        val mangaDaysDisplay = if (hasScrapedMangaStats) profile!!.mangaDaysRead else mangaDaysReadEst
-        val mangaMeanScoreDisplay = if (hasScrapedMangaStats) profile!!.mangaMeanScore else mangaMeanScore
-        val mangaReadingCount = if (hasScrapedMangaStats) profile!!.mangaReading else mangaItems.count { it.status == WatchStatus.Reading }
-        val mangaCompletedCount = if (hasScrapedMangaStats) profile!!.mangaCompleted else mangaItems.count { it.status == WatchStatus.Completed }
-        val mangaOnHoldCount = if (hasScrapedMangaStats) profile!!.mangaOnHold else mangaItems.count { it.status == WatchStatus.OnHold }
-        val mangaDroppedCount = if (hasScrapedMangaStats) profile!!.mangaDropped else mangaItems.count { it.status == WatchStatus.Dropped }
-        val mangaPlanCount = if (hasScrapedMangaStats) profile!!.mangaPlanToRead else mangaItems.count { it.status == WatchStatus.Plan }
-        val mangaTotalDisplay = if (hasScrapedMangaStats) profile!!.mangaTotalEntries else mangaTotal
-        val mangaRereadDisplay = if (hasScrapedMangaStats) profile!!.mangaReread else mangaItems.sumOf { it.timesRewatched }
-        val mangaChaptersDisplay = if (hasScrapedMangaStats) profile!!.mangaChaptersRead else mangaChaptersRead
-        if (connected && ((profile?.animeTotalEntries ?: 0) > 0 || mangaItems.isNotEmpty())) {
-            if (animeDaysWatched > 0 || mangaDaysDisplay > 0) {
-                Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
-                    Column(Modifier.padding(22.dp)) {
-                        Text("TIME WATCHED VS READ", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+            // Tabbed anime/manga stats card
+            // remember(items): same reasoning as
+            // screens below (typeItems at
+            // whole library on every
+            val animeItems = remember(items) { items.filter { it.type == MediaType.Anime } }
+            val mangaItems = remember(items) { items.filter { it.type == MediaType.Manga } }
+            val mangaTotal = mangaItems.size
+            val mangaChaptersRead = remember(mangaItems) { mangaItems.sumOf { it.progress } }
+            val ratedManga = remember(mangaItems) { mangaItems.filter { it.myRating > 0 } }
+            val mangaMeanScore = if (ratedManga.isNotEmpty()) ratedManga.map { it.myRating }.average() else 0.0
+            val animeDaysWatched = profile?.animeDaysWatched ?: 0.0
+            // MAL: 8 min/chapter — fallback estimate, only used until a cookie
+            // session lets MalProfileScrapeApi pull the real manga stats
+            val mangaDaysReadEst = mangaChaptersRead * 8.0 / 60.0 / 24.0
+            // Manga stats aren't in MAL's official API at all — profile?.manga*
+            // comes from MalProfileScrapeApi scraping the profile page (requires
+            // a logged-in cookie session, see MalSessionCookie/MalLoginWebView).
+            // Fall back to the local estimate/count from the synced list until
+            // that session exists.
+            val hasScrapedMangaStats = (profile?.mangaTotalEntries ?: 0) > 0
+            val mangaDaysDisplay = if (hasScrapedMangaStats) profile!!.mangaDaysRead else mangaDaysReadEst
+            val mangaMeanScoreDisplay = if (hasScrapedMangaStats) profile!!.mangaMeanScore else mangaMeanScore
+            val mangaReadingCount = if (hasScrapedMangaStats) profile!!.mangaReading else mangaItems.count { it.status == WatchStatus.Reading }
+            val mangaCompletedCount = if (hasScrapedMangaStats) profile!!.mangaCompleted else mangaItems.count { it.status == WatchStatus.Completed }
+            val mangaOnHoldCount = if (hasScrapedMangaStats) profile!!.mangaOnHold else mangaItems.count { it.status == WatchStatus.OnHold }
+            val mangaDroppedCount = if (hasScrapedMangaStats) profile!!.mangaDropped else mangaItems.count { it.status == WatchStatus.Dropped }
+            val mangaPlanCount = if (hasScrapedMangaStats) profile!!.mangaPlanToRead else mangaItems.count { it.status == WatchStatus.Plan }
+            val mangaTotalDisplay = if (hasScrapedMangaStats) profile!!.mangaTotalEntries else mangaTotal
+            val mangaRereadDisplay = if (hasScrapedMangaStats) profile!!.mangaReread else mangaItems.sumOf { it.timesRewatched }
+            val mangaChaptersDisplay = if (hasScrapedMangaStats) profile!!.mangaChaptersRead else mangaChaptersRead
+            if (connected && ((profile?.animeTotalEntries ?: 0) > 0 || mangaItems.isNotEmpty())) {
+                if (animeDaysWatched > 0 || mangaDaysDisplay > 0) {
+                    Column(Modifier.fillMaxWidth().padding(top = 28.dp)) {
+                        Text("OVERVIEW", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 14.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             HeroStat(Modifier.weight(1f), Icons.Default.PlayCircle, "Days watched", animeDaysWatched.oneDecimal(), c.lavender, c.primary)
                             HeroStat(Modifier.weight(1f), Icons.Default.MenuBook, if (hasScrapedMangaStats) "Days read" else "Days read (est.)", mangaDaysDisplay.oneDecimal(), c.primaryContainer, c.onPrimaryContainer)
                         }
                     }
                 }
-            }
-            Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                Column(Modifier.padding(22.dp)) {
-                    Text("STATS", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                    TypeToggle(statsTab, trackColor = c.surfaceLow) { onStatsTabChange(it) }
-                    Spacer(Modifier.height(18.dp))
+                Column(Modifier.fillMaxWidth().padding(top = 36.dp)) {
+                    Text("Stats", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(bottom = 16.dp))
+                    TypeToggle(statsTab, trackColor = c.surfaceContainerHigh) { onStatsTabChange(it) }
+                    Spacer(Modifier.height(20.dp))
                     // Basic cross-fade between the
                     // tab-switch transition used elsewhere
                     AnimatedContent(
@@ -498,33 +518,40 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                         }
                     }
                 }
+                HorizontalDivider(color = c.outlineVariant, thickness = 1.dp, modifier = Modifier.padding(top = 32.dp))
             }
-        }
 
-        // Favorites, split by anime/manga/etc., right below the year
-        // distribution charts above.
-        if (connected && hasFfSession) {
-            if (cachedFavorites == null && friendsFavoritesLoading) {
-                FavoritesRowsSectionSkeleton()
-            } else {
-                cachedFavorites?.let {
-                    FavoritesRowsSection(
-                        it, c, onSeeAll = onOpenFriendsFavorites,
-                        onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
-                        onOpenFavoriteTitle = onOpenFavoriteTitle, loadingId = favoriteLoadingId,
-                        getRowScroll = getFavoritesRowScroll, onSaveRowScroll = onSaveFavoritesRowScroll,
-                    )
+            // Favorites, split by anime/manga/etc., right below the year
+            // distribution charts above.
+            if (connected && hasFfSession) {
+                if (cachedFavorites == null && friendsFavoritesLoading) {
+                    FavoritesRowsSectionSkeleton()
+                } else {
+                    cachedFavorites?.let {
+                        FavoritesRowsSection(
+                            it, c, onSeeAll = onOpenFriendsFavorites,
+                            onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
+                            onOpenFavoriteTitle = onOpenFavoriteTitle, loadingId = favoriteLoadingId,
+                            getRowScroll = getFavoritesRowScroll, onSaveRowScroll = onSaveFavoritesRowScroll,
+                        )
+                    }
                 }
             }
-        }
 
-        // Only shown when signed-out
-        if (!connected) {
-            Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.lavender), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
-                Column(Modifier.padding(22.dp)) {
-                    Text("Connect MyAnimeList", style = MaterialTheme.typography.headlineSmall, color = c.ink)
-                    Text("Sign in with your MyAnimeList account to bring in your real list.", color = c.muted, modifier = Modifier.padding(top = 8.dp, bottom = 15.dp))
-                    Button(onClick = onConnect, colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) { Text("Sign in with MyAnimeList") }
+            // Only shown when signed-out — a big expressive banner rather than
+            // a small card, since it's the one thing on the page at that point.
+            if (!connected) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 20.dp)
+                        .clip(RoundedCornerShape(kikoCorner(32.dp)))
+                        .background(c.lavender)
+                        .padding(24.dp),
+                ) {
+                    Text("Connect MyAnimeList", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = c.ink)
+                    Text("Sign in with your MyAnimeList account to bring in your real list.", color = c.muted, modifier = Modifier.padding(top = 8.dp, bottom = 18.dp))
+                    Button(onClick = onConnect, shape = RoundedCornerShape(kikoCorner(16.dp)), colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) { Text("Sign in with MyAnimeList") }
                 }
             }
         }
@@ -564,57 +591,61 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
     val muted = body.copy(alpha = 0.62f)
     val hasIntro = !aboutMe.displayName.isNullOrBlank() || !aboutMe.introText.isNullOrBlank()
 
-    Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = bg), modifier = modifier.fillMaxWidth().padding(top = 12.dp)) {
-        Column {
-            // Banner spans the card edge-to-edge, same treatment MAL's
-            // mobile webview gives it (full-bleed, above any padding),
-            // rather than inset like the poster rows below.
-            aboutMe.mainVisualUrl?.let { url ->
-                // Sized to the banner's own aspect ratio once it's loaded
-                // (MAL lets users upload any size/shape image here) rather
-                // than forcing every banner into the same fixed crop.
-                // Starts at the same 21:9 fallback AboutMeCardSkeleton uses
-                // so there's no layout jump before the real size is known;
-                // Crop still applies during that brief window, but has
-                // nothing to crop once bannerAspect matches the image.
-                var bannerAspect by remember(url) { mutableFloatStateOf(21f / 9f) }
-                AsyncImage(
-                    model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    onSuccess = { state ->
-                        val d = state.result.drawable
-                        if (d.intrinsicWidth > 0 && d.intrinsicHeight > 0) bannerAspect = d.intrinsicWidth.toFloat() / d.intrinsicHeight.toFloat()
-                    },
-                    modifier = Modifier.fillMaxWidth().aspectRatio(bannerAspect)
-                        .clip(RoundedCornerShape(topStart = kikoCorner(28.dp), topEnd = kikoCorner(28.dp)))
-                        .background(bg),
-                )
-            }
-            Column(Modifier.padding(22.dp)) {
-                Text("ABOUT ME", color = muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
-                if (hasIntro) {
-                    aboutMe.displayName?.takeIf { it.isNotBlank() }?.let {
-                        Text(it, style = MaterialTheme.typography.titleLarge, color = header, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
-                    }
-                    aboutMe.introText?.takeIf { it.isNotBlank() }?.let {
-                        Text(it, color = body, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 6.dp))
-                    }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .padding(top = 20.dp)
+            .clip(RoundedCornerShape(kikoCorner(32.dp)))
+            .background(bg),
+    ) {
+        // Banner spans the module edge-to-edge, same treatment MAL's
+        // mobile webview gives it (full-bleed, above any padding),
+        // rather than inset like the poster rows below.
+        aboutMe.mainVisualUrl?.let { url ->
+            // Sized to the banner's own aspect ratio once it's loaded
+            // (MAL lets users upload any size/shape image here) rather
+            // than forcing every banner into the same fixed crop.
+            // Starts at the same 21:9 fallback AboutMeCardSkeleton uses
+            // so there's no layout jump before the real size is known;
+            // Crop still applies during that brief window, but has
+            // nothing to crop once bannerAspect matches the image.
+            var bannerAspect by remember(url) { mutableFloatStateOf(21f / 9f) }
+            AsyncImage(
+                model = url, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                onSuccess = { state ->
+                    val d = state.result.drawable
+                    if (d.intrinsicWidth > 0 && d.intrinsicHeight > 0) bannerAspect = d.intrinsicWidth.toFloat() / d.intrinsicHeight.toFloat()
+                },
+                modifier = Modifier.fillMaxWidth().aspectRatio(bannerAspect)
+                    .clip(RoundedCornerShape(topStart = kikoCorner(32.dp), topEnd = kikoCorner(32.dp)))
+                    .background(bg),
+            )
+        }
+        Column(Modifier.padding(16.dp)) {
+            Text("ABOUT ME", color = muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
+            if (hasIntro) {
+                aboutMe.displayName?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, style = MaterialTheme.typography.titleLarge, color = header, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
                 }
-                aboutMe.sections.forEachIndexed { index, section ->
-                    Spacer(Modifier.height(if (index == 0 && !hasIntro) 4.dp else 20.dp))
-                    Text(section.heading.uppercase(), color = muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                        items(section.items, key = { it.url }) { entry: MalAboutMeItem ->
-                            Column(
-                                Modifier.width(96.dp).kikoClickable {
-                                    val id = malIdFromFavoriteUrl(entry.url)
-                                    if (id != null && entry.type != null) onOpenTitle(id, entry.type)
-                                },
-                            ) {
-                                AsyncImage(
-                                    model = entry.imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                    modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(body.copy(alpha = 0.08f)),
-                                )
-                            }
+                aboutMe.introText?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, color = body, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+            }
+            aboutMe.sections.forEachIndexed { index, section ->
+                Spacer(Modifier.height(if (index == 0 && !hasIntro) 4.dp else 20.dp))
+                Text(section.heading.uppercase(), color = muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                    items(section.items, key = { it.url }) { entry: MalAboutMeItem ->
+                        Column(
+                            Modifier.width(96.dp).kikoClickable {
+                                val id = malIdFromFavoriteUrl(entry.url)
+                                if (id != null && entry.type != null) onOpenTitle(id, entry.type)
+                            },
+                        ) {
+                            AsyncImage(
+                                model = entry.imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(body.copy(alpha = 0.08f)),
+                            )
                         }
                     }
                 }
@@ -622,25 +653,29 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
         }
     }
 }
-// Loading placeholder for AboutMeCard — same card shape/padding, a mock
+// Loading placeholder for AboutMeCard — same module shape/padding, a mock
 // banner + a couple of text-line blocks for the intro, and one row of
 // 96.dp poster-shaped blocks (matching AboutMeCard's own entry width),
 // shown while loadProfileFriendsFavorites is still fetching, same
 // friendsFavoritesLoading gate FriendsRowSkeleton/FavoritesRowsSectionSkeleton use.
 @Composable fun AboutMeCardSkeleton() {
     val c = LocalKikoColors.current
-    Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        Column {
-            SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(21f / 9f), shape = RoundedCornerShape(topStart = kikoCorner(28.dp), topEnd = kikoCorner(28.dp)))
-            Column(Modifier.padding(22.dp)) {
-                Text("ABOUT ME", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
-                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.5f).height(18.dp))
-                SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth().height(13.dp))
-                SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.7f).height(13.dp))
-                Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    repeat(3) {
-                        SkeletonBlock(Modifier.width(96.dp).aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(12.dp)))
-                    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 20.dp)
+            .clip(RoundedCornerShape(kikoCorner(32.dp)))
+            .background(c.surfaceContainer),
+    ) {
+        SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(21f / 9f), shape = RoundedCornerShape(topStart = kikoCorner(32.dp), topEnd = kikoCorner(32.dp)))
+        Column(Modifier.padding(24.dp)) {
+            Text("ABOUT ME", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
+            SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.5f).height(18.dp))
+            SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth().height(13.dp))
+            SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.7f).height(13.dp))
+            Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                repeat(3) {
+                    SkeletonBlock(Modifier.width(96.dp).aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(12.dp)))
                 }
             }
         }
@@ -663,66 +698,63 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
 ) {
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialScroll.first, initialFirstVisibleItemScrollOffset = initialScroll.second)
     DisposableEffect(Unit) { onDispose { onScrollChange(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) } }
-    Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        Column(Modifier.padding(22.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("FRIENDS", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
-                Text("See all", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.kikoClickable(onClick = onSeeAll))
-            }
-            Spacer(Modifier.height(14.dp))
-            LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                items(friends, key = { it.profileUrl }) { friend ->
-                    Column(Modifier.width(70.dp).kikoClickable { onOpenFriend(friend) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (!friend.avatarUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = friend.avatarUrl, contentDescription = friend.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh),
-                            )
-                        } else {
-                            Box(Modifier.size(64.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
-                                Text(friend.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = c.ink)
-                            }
-                        }
-                        Text(
-                            friend.username, color = c.ink, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp),
+    Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Friends", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
+            Text("See all", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.kikoClickable(onClick = onSeeAll))
+        }
+        Spacer(Modifier.height(16.dp))
+        LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+            items(friends, key = { it.profileUrl }) { friend ->
+                Column(Modifier.width(70.dp).kikoClickable { onOpenFriend(friend) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (!friend.avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = friend.avatarUrl, contentDescription = friend.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh),
                         )
+                    } else {
+                        Box(Modifier.size(64.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                            Text(friend.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = c.ink)
+                        }
                     }
+                    Text(
+                        friend.username, color = c.ink, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp),
+                    )
                 }
             }
         }
     }
 }
-// Loading placeholder for FriendsRow — same card, same 64.dp avatar/70.dp
-// column sizing, shown in its place while loadProfileFriendsFavorites is
-// still fetching (see friendsFavoritesLoading in ProfileStatsSection) so
-// the section doesn't just sit blank until the scrape finishes.
+// Loading placeholder for FriendsRow — same 64.dp avatar/70.dp column
+// sizing, shown in its place while loadProfileFriendsFavorites is still
+// fetching (see friendsFavoritesLoading in ProfileStatsSection) so the
+// section doesn't just sit blank until the scrape finishes.
 @Composable fun FriendsRowSkeleton() {
     val c = LocalKikoColors.current
-    Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        Column(Modifier.padding(22.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("FRIENDS", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                repeat(5) {
-                    Column(Modifier.width(70.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        SkeletonBlock(Modifier.size(64.dp), shape = RoundedCornerShape(kikoCorner(18.dp)))
-                        SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.7f).height(11.dp))
-                    }
+    Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Friends", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            repeat(5) {
+                Column(Modifier.width(70.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    SkeletonBlock(Modifier.size(64.dp), shape = RoundedCornerShape(kikoCorner(18.dp)))
+                    SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.7f).height(11.dp))
                 }
             }
         }
     }
 }
-// Favorites card below the year distribution charts, split into rows per
-// category (anime/manga/characters/people/companies) — each its own
-// horizontally-scrollable row of covers. Anime/manga open their in-app
-// detail page (fetched by id via onOpenFavoriteTitle); characters/people/
-// companies open via parseMalProfileLink same as everywhere else in Kiko
-// that renders MAL links (forum posts, clubs, stacks). "See all" opens the
-// full FriendsFavoritesScreen.
+// Favorites, split into rows per category (anime/manga/characters/people/
+// companies) — each its own horizontally-scrollable row of covers. Anime/
+// manga open their in-app detail page (fetched by id via
+// onOpenFavoriteTitle); characters/people/companies open via
+// parseMalProfileLink same as everywhere else in Kiko that renders MAL
+// links (forum posts, clubs, stacks). "See all" opens the full
+// FriendsFavoritesScreen. A plain section on the page background — no
+// boxed card — with each category introduced by its own small label.
 @Composable fun FavoritesRowsSection(
     favorites: MalFavorites, c: KikoColors, onSeeAll: () -> Unit,
     onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {},
@@ -737,48 +769,44 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
         favorites.companies.takeIf { it.isNotEmpty() }?.let { "Companies" to it },
     )
     if (sections.isEmpty()) return
-    Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-        Column(Modifier.padding(22.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("FAVORITES", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
-                Text("See all", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.kikoClickable(onClick = onSeeAll))
-            }
-            sections.forEachIndexed { index, (label, entries) ->
-                Spacer(Modifier.height(if (index == 0) 16.dp else 24.dp))
-                Text(label.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
-                key(label) {
-                    FavoritesCategoryRow(
-                        label, entries, c,
-                        initialScroll = getRowScroll(label), onScrollChange = { i, o -> onSaveRowScroll(label, i, o) },
-                        onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
-                        onOpenFavoriteTitle = onOpenFavoriteTitle, loadingId = loadingId,
-                    )
-                }
+    Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Favorites", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
+            Text("See all", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.kikoClickable(onClick = onSeeAll))
+        }
+        sections.forEachIndexed { index, (label, entries) ->
+            Spacer(Modifier.height(if (index == 0) 18.dp else 26.dp))
+            Text(label.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
+            key(label) {
+                FavoritesCategoryRow(
+                    label, entries, c,
+                    initialScroll = getRowScroll(label), onScrollChange = { i, o -> onSaveRowScroll(label, i, o) },
+                    onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
+                    onOpenFavoriteTitle = onOpenFavoriteTitle, loadingId = loadingId,
+                )
             }
         }
     }
 }
-// Loading placeholder for FavoritesRowsSection — same card and header, with
-// two mock category rows of 96.dp poster-shaped blocks (the common case is
-// Anime + Manga) shown in its place while loadProfileFriendsFavorites is
-// still fetching, so the section doesn't just sit blank until it resolves.
+// Loading placeholder for FavoritesRowsSection — same header, with two mock
+// category rows of 96.dp poster-shaped blocks (the common case is Anime +
+// Manga) shown in its place while loadProfileFriendsFavorites is still
+// fetching, so the section doesn't just sit blank until it resolves.
 @Composable fun FavoritesRowsSectionSkeleton() {
     val c = LocalKikoColors.current
-    Card(shape = RoundedCornerShape(kikoCorner(28.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-        Column(Modifier.padding(22.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("FAVORITES", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
-            }
-            repeat(2) { rowIndex ->
-                Spacer(Modifier.height(if (rowIndex == 0) 16.dp else 24.dp))
-                SkeletonBlock(Modifier.width(70.dp).height(11.dp), shape = RoundedCornerShape(kikoCorner(4.dp)))
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    repeat(3) {
-                        Column(Modifier.width(96.dp)) {
-                            SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(12.dp)))
-                            SkeletonBlock(Modifier.padding(top = 4.dp).fillMaxWidth(0.8f).height(12.dp))
-                        }
+    Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Favorites", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
+        }
+        repeat(2) { rowIndex ->
+            Spacer(Modifier.height(if (rowIndex == 0) 18.dp else 26.dp))
+            SkeletonBlock(Modifier.width(70.dp).height(11.dp), shape = RoundedCornerShape(kikoCorner(4.dp)))
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                repeat(3) {
+                    Column(Modifier.width(96.dp)) {
+                        SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(12.dp)))
+                        SkeletonBlock(Modifier.padding(top = 4.dp).fillMaxWidth(0.8f).height(12.dp))
                     }
                 }
             }

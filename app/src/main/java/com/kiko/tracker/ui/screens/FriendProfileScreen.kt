@@ -136,13 +136,14 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // below) doesn't show two loading indicators at once.
     val refreshing = (state.loading && state.profile != null) || (state.friendsFavoritesLoading && state.favorites != null)
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refreshFriendProfile(context, username) }, modifier = Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
-            Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-                // Same "Profile" title as Kiko's own Profile page — the avatar
-                // card below already shows this user's name next to their
-                // avatar, so this stays generic rather than repeating it.
-                Text("Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp).weight(1f))
+                // "Profile" moved down to the small eyebrow label above the
+                // username in ProfileStatsSection's avatar/name row below —
+                // same change as Kiko's own Profile page — so this row is
+                // just the back button, spacer, and menu.
+                Spacer(Modifier.weight(1f))
                 // 3-dot overflow menu — mirrors Kiko's own Profile header,
                 // just with "Open in browser" only (no sign out, since this
                 // isn't the signed-in user's account).
@@ -165,7 +166,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             }
 
             when {
-                state.loading && state.profile == null -> Column(Modifier.fillMaxWidth().padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                state.loading && state.profile == null -> Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     // Shows the avatar the caller already had (from the
                     // FriendsRow/FriendsList thumbnail that was tapped) while
                     // the full scrape is still in flight, so the page doesn't
@@ -176,7 +177,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                     CircularProgressIndicator(color = c.primary)
                 }
-                state.error != null && state.profile == null -> Column(Modifier.fillMaxWidth().padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                state.error != null && state.profile == null -> Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(state.error, color = c.muted, fontSize = 13.sp)
                     TextButton(onClick = { vm.loadFriendProfile(context, username, force = true) }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
                 }
@@ -196,7 +197,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         header.birthday?.let { DetailPill(Icons.Default.Cake, it) },
                         header.joined?.let { DetailPill(Icons.Default.Event, it) },
                     )
-                    Box(Modifier.padding(top = 16.dp, bottom = 24.dp)) {
+                    Box(Modifier.padding(bottom = 24.dp)) {
                         ProfileStatsSection(
                             connected = true, profile = state.profile.stats, items = emptyList(), onConnect = {},
                             statsTab = statsTab, onStatsTabChange = { statsTab = it },
