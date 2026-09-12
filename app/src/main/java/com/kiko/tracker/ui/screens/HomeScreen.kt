@@ -91,6 +91,7 @@ import com.kiko.tracker.ui.components.Cover
 import com.kiko.tracker.ui.components.ExpandableSearchHeader
 import com.kiko.tracker.ui.components.statusColor
 import com.kiko.tracker.ui.theme.AiringNextRowSkeleton
+import com.kiko.tracker.ui.theme.HistoryRowSkeletonGroup
 import com.kiko.tracker.ui.theme.HomeFeaturedArticleRowSkeleton
 import com.kiko.tracker.ui.theme.ListGridCardSkeleton
 import com.kiko.tracker.ui.theme.ListRowSkeletonGroup
@@ -252,6 +253,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                     }
                                 }
                             }
+                        } else if (vm.historyLoading) {
+                            SectionTitle("Last Updated List", "See more", onSeeHistory)
+                            HistoryRowSkeletonGroup(5)
                         }
                     }
                     // Top 10 genres MAL-wide, rank-badged cards in a Material3

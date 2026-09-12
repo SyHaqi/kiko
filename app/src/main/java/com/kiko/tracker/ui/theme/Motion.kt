@@ -202,6 +202,38 @@ fun ListRowSkeletonGroup(count: Int = 6) {
     }
 }
 
+/** Stand-in for [HistoryRow]: mirrors its exact layout — 44dp squircle cover
+ *  (kikoCorner(12dp)), vertical=7dp row padding, column padding start=12/end=4,
+ *  title sized for the real 14sp two-line text and a 12sp subtitle 6dp below it. */
+@Composable
+fun HistoryRowSkeleton(modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().padding(vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SkeletonBlock(Modifier.size(44.dp), shape = RoundedCornerShape(kikoCorner(12.dp)))
+        Column(Modifier.weight(1f).padding(start = 12.dp, end = 4.dp)) {
+            SkeletonBlock(Modifier.fillMaxWidth(0.8f).height(14.dp))
+            SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.45f).height(12.dp))
+        }
+    }
+}
+
+/** A handful of [HistoryRowSkeleton]s with the same start=68dp dividers the real
+ *  Home "Last Updated List" draws between its rows. */
+@Composable
+fun HistoryRowSkeletonGroup(count: Int = 5) {
+    val c = LocalKikoColors.current
+    Column {
+        repeat(count) { i ->
+            StaggeredItem(i) { HistoryRowSkeleton() }
+            if (i < count - 1) {
+                androidx.compose.material3.HorizontalDivider(modifier = Modifier.padding(start = 68.dp), thickness = 1.dp, color = c.outlineVariant)
+            }
+        }
+    }
+}
+
 /** Stand-in for an avatar-led */
 @Composable
 fun TopicRowSkeleton(modifier: Modifier = Modifier) {
@@ -222,7 +254,10 @@ fun TopicRowSkeletonGroup(count: Int = 6) {
     }
 }
 
-/** Stand-in for a single */
+/** Stand-in for [AiringNextCard]: mirrors its exact layout — fixed 146dp row height,
+ *  cover flush against the card edges (no padding, aspectRatio(84/118) against the
+ *  full height rather than a fixed size), and the text column's real padding/gaps
+ *  (16/14/14/14, 3dp before genre, 8dp spacer before the time row). */
 @Composable
 fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
@@ -232,14 +267,15 @@ fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
             .background(c.surfaceContainer),
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+            Modifier.fillMaxWidth().height(146.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SkeletonBlock(Modifier.size(width = 84.dp, height = 118.dp), shape = RoundedCornerShape(kikoCorner(16.dp)))
-            Column(Modifier.weight(1f).padding(start = 16.dp)) {
+            SkeletonBlock(Modifier.fillMaxHeight().aspectRatio(84f / 118f), shape = RoundedCornerShape(kikoCorner(16.dp)))
+            Column(Modifier.weight(1f).padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 14.dp)) {
                 SkeletonBlock(Modifier.fillMaxWidth(0.85f).height(14.dp))
-                SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.5f).height(14.dp))
-                SkeletonBlock(Modifier.padding(top = 14.dp).fillMaxWidth(0.6f).height(11.dp))
+                SkeletonBlock(Modifier.padding(top = 3.dp).fillMaxWidth(0.4f).height(12.dp))
+                Spacer(Modifier.height(8.dp))
+                SkeletonBlock(Modifier.fillMaxWidth(0.5f).height(12.dp))
             }
         }
     }
