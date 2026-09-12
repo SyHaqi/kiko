@@ -730,15 +730,17 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 // matching first; forumTopicOpen ==
                                 // branch is a no-op
                                 forumTopicOpen != null -> TopScreen.Topic(forumTopicOpen!!.first, forumTopicOpen!!.second)
+                                // Checked ahead of detailItem (same reasoning
+                                // as forumTopicOpen just above) so the reader
+                                // shows immediately when opened from Detail's
+                                // own "Recent Featured Articles" row, instead
+                                // of only appearing once detailItem is later
+                                // cleared by backing out of Detail.
+                                featuredArticleOpen != null -> TopScreen.FeaturedArticle(featuredArticleOpen!!.first, featuredArticleOpen!!.second)
                                 detailItem != null -> TopScreen.Detail(detailItem)
                                 characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
                                 personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
                                 companyDetailOpenId != null -> TopScreen.CompanyPage(companyDetailOpenId!!, companyDetailOpen)
-                                // Checked ahead of featuredArticlesOpen so
-                                // the reader shows on top whether it was
-                                // opened from the grid or from Detail's
-                                // own "Recent Featured Articles" row
-                                featuredArticleOpen != null -> TopScreen.FeaturedArticle(featuredArticleOpen!!.first, featuredArticleOpen!!.second)
                                 featuredArticlesOpen -> TopScreen.FeaturedArticles
                                 historyOpen -> TopScreen.History
                                 rankingOpen -> TopScreen.Ranking
