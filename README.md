@@ -4,6 +4,9 @@
 
 Kiko is a Material 3 Android app built around **MyAnimeList (MAL)** — fast discovery, detailed title pages, list management, a combined forums/clubs hub, seasonal charts, and profile stats, all in one clean interface.
 
+Discord server: https://discord.gg/qytyH7efp6
+
+
 ---
 
 ## ✨ Features at a Glance
