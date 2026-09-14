@@ -52,7 +52,11 @@ data class MalUserListEntry(
  * it into the scraped result and silently come back with 0 entries. Hitting
  * each status's own URL sidesteps that: every one of those five pages is
  * its own separately-paginated ~300-row cap, so nothing gets crowded out by
- * another status's titles.
+ * another status's titles. Within a single status, [fetchStatus] then pages
+ * through that status's own `&offset=` param (same one MAL's infinite
+ * scroll uses) until it runs out, so a status that's itself bigger than the
+ * ~300-row page — a long-running member's Completed list, say — isn't
+ * truncated either.
  */
 class MalUserListScrapeApi(context: Context) {
     private val client = NetworkClient.shared
@@ -87,8 +91,33 @@ class MalUserListScrapeApi(context: Context) {
     }
 
     private fun fetchStatus(kind: String, username: String, statusCode: Int, cookie: String, type: MediaType): List<MalUserListEntry> {
+        // MAL's list-table page caps at ~300 rows and expects the same
+        // infinite-scroll &offset= param the site's own JS uses to load
+        // further pages — fetching status=$statusCode alone only ever
+        // returned that first page, silently truncating any status with
+        // more than ~300 titles in it (an active member's Completed list
+        // clears that easily). Keep paging with an increasing offset until
+        // a page comes back with nothing, which is MAL's own signal that
+        // there's no more of this status left to fetch.
+        val entries = mutableListOf<MalUserListEntry>()
+        var offset = 0
+        while (true) {
+            val page = fetchPage(kind, username, statusCode, offset, cookie, type)
+            if (page.isEmpty()) break
+            entries += page
+            offset += page.size
+            // Safety valve so a server response we don't expect (e.g. the
+            // same page repeating) can't spin this into an infinite loop —
+            // 20,000 titles in one status is far beyond any real MAL list.
+            if (offset > 20_000) break
+        }
+        return entries
+    }
+
+    private fun fetchPage(kind: String, username: String, statusCode: Int, offset: Int, cookie: String, type: MediaType): List<MalUserListEntry> {
+        val url = "https://myanimelist.net/$kind/$username?status=$statusCode" + (if (offset > 0) "&offset=$offset" else "")
         val request = Request.Builder()
-            .url("https://myanimelist.net/$kind/$username?status=$statusCode")
+            .url(url)
             .header("Cookie", cookie)
             .header("User-Agent", MAL_DESKTOP_USER_AGENT)
             .build()
@@ -102,8 +131,9 @@ class MalUserListScrapeApi(context: Context) {
         }
 
         // A single-status page renders exactly one table for that status
-        // (empty statuses render none at all) — no per-group merging needed
-        // here the way the old single `status=7` request required.
+        // (empty statuses, or an offset past the end of one, render none at
+        // all) — no per-group merging needed here the way the old single
+        // `status=7` request required.
         val doc = Jsoup.parse(body, request.url.toString())
         val table = doc.selectFirst("table.list-table") ?: return emptyList()
         val raw = table.attr("data-items")
