@@ -859,9 +859,14 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         }
     }
     val scope = rememberCoroutineScope()
-    val showGoToTop by remember { derivedStateOf { if (isGrid) gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 else listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
-    // Go-to-top (left) and the
-    // stacking, so a flat
+    // Keyed on isGrid: without it, this derivedStateOf's lambda closes over
+    // whichever mode was active the first time this composable ran and never
+    // re-derives after a grid/list toggle — e.g. starting in Grid mode baked
+    // in `gridState`, so switching to List mode left this permanently
+    // watching a gridState that no longer scrolls, and the button never
+    // showed up no matter how far you scrolled the list.
+    val showGoToTop by remember(isGrid) { derivedStateOf { if (isGrid) gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 else listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    // Go-to-top, bottom-right
     val bottomInset = 90.dp
     PullToRefreshBox(isRefreshing = vm.loading, onRefresh = { vm.load(context) }, modifier = Modifier.fillMaxSize()) {
         // Basic cross-fade when switching
@@ -910,7 +915,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { if (isGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }
