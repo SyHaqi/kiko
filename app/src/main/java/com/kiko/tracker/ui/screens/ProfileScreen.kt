@@ -281,9 +281,12 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     // member's list through the API/app the way it does your own).
     isOwnProfile: Boolean = true,
     onOpenListStatus: (MediaType, String) -> Unit = { _, _ -> },
-    // Friend path of openStatus below: opens that status's list in Kiko's
-    // own FriendListScreen instead of a CustomTabsIntent out to MAL.
-    onOpenFriendListStatus: (MediaType, WatchStatus) -> Unit = { _, _ -> },
+    // Friend path: a single "See List" action per tab (bottom-right of the
+    // Stats card, see below) opens that type's full list in Kiko's own
+    // FriendListScreen — replaces what used to be five separately-tappable
+    // StatusLegendRow taps (one per status), which read as more interactive
+    // than a read-only friend's list actually is.
+    onOpenFriendList: (MediaType) -> Unit = {},
 ) {    val c = LocalKikoColors.current
     val context = LocalContext.current
     // Friends/favorites aren't in MAL's official API — scraped off the
@@ -297,22 +300,19 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     // session yet).
     val hasFfSession = remember { MalSessionCookie(context).has() }
     // Tapping a Watching/Completed/On-Hold/Dropped/Plan-to-Watch legend row
-    // below (see isOwnProfile doc above): in-app My List navigation for your
-    // own profile, or that status's list opened in Kiko's own
-    // FriendListScreen otherwise (see onOpenFriendListStatus above).
-    val openStatus: (MediaType, WatchStatus) -> Unit = { type, status ->
-        if (isOwnProfile) {
-            val label = when (status) {
-                WatchStatus.Watching, WatchStatus.Reading -> if (type == MediaType.Anime) "Watching" else "Reading"
-                WatchStatus.Plan -> if (type == MediaType.Anime) "Plan to Watch" else "Plan to Read"
-                WatchStatus.Completed -> "Completed"
-                WatchStatus.OnHold -> "On Hold"
-                WatchStatus.Dropped -> "Dropped"
-            }
-            onOpenListStatus(type, label)
-        } else {
-            onOpenFriendListStatus(type, status)
+    // below (see isOwnProfile doc above) is only wired up on your own
+    // profile now — in-app My List navigation for that status. A friend's
+    // rows are display-only; opening their list happens via the single
+    // "See List" button per tab instead (onOpenFriendList below).
+    val openOwnStatus: (MediaType, WatchStatus) -> Unit = { type, status ->
+        val label = when (status) {
+            WatchStatus.Watching, WatchStatus.Reading -> if (type == MediaType.Anime) "Watching" else "Reading"
+            WatchStatus.Plan -> if (type == MediaType.Anime) "Plan to Watch" else "Plan to Read"
+            WatchStatus.Completed -> "Completed"
+            WatchStatus.OnHold -> "On Hold"
+            WatchStatus.Dropped -> "Dropped"
         }
+        onOpenListStatus(type, label)
     }
     LaunchedEffect(connected, profile?.name, hasFfSession) {
         val username = profile?.name.orEmpty()
@@ -481,16 +481,19 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                                 Spacer(Modifier.height(20.dp))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                                     Column(Modifier.weight(1f)) {
-                                        StatusLegendRow("Watching", profile?.animeWatching ?: 0, statusColor("Watching"), c, onClick = { openStatus(MediaType.Anime, WatchStatus.Watching) })
-                                        StatusLegendRow("Completed", profile?.animeCompleted ?: 0, statusColor("Completed"), c, onClick = { openStatus(MediaType.Anime, WatchStatus.Completed) })
-                                        StatusLegendRow("On-Hold", profile?.animeOnHold ?: 0, statusColor("On hold"), c, onClick = { openStatus(MediaType.Anime, WatchStatus.OnHold) })
-                                        StatusLegendRow("Dropped", profile?.animeDropped ?: 0, statusColor("Dropped"), c, onClick = { openStatus(MediaType.Anime, WatchStatus.Dropped) })
-                                        StatusLegendRow("Plan to Watch", profile?.animePlanToWatch ?: 0, statusColor("Plan to watch"), c, onClick = { openStatus(MediaType.Anime, WatchStatus.Plan) })
+                                        StatusLegendRow("Watching", profile?.animeWatching ?: 0, statusColor("Watching"), c, onClick = if (isOwnProfile) { { openOwnStatus(MediaType.Anime, WatchStatus.Watching) } } else null)
+                                        StatusLegendRow("Completed", profile?.animeCompleted ?: 0, statusColor("Completed"), c, onClick = if (isOwnProfile) { { openOwnStatus(MediaType.Anime, WatchStatus.Completed) } } else null)
+                                        StatusLegendRow("On-Hold", profile?.animeOnHold ?: 0, statusColor("On hold"), c, onClick = if (isOwnProfile) { { openOwnStatus(MediaType.Anime, WatchStatus.OnHold) } } else null)
+                                        StatusLegendRow("Dropped", profile?.animeDropped ?: 0, statusColor("Dropped"), c, onClick = if (isOwnProfile) { { openOwnStatus(MediaType.Anime, WatchStatus.Dropped) } } else null)
+                                        StatusLegendRow("Plan to Watch", profile?.animePlanToWatch ?: 0, statusColor("Plan to watch"), c, onClick = if (isOwnProfile) { { openOwnStatus(MediaType.Anime, WatchStatus.Plan) } } else null)
                                     }
                                     Column(Modifier.weight(1f)) {
                                         SummaryRow("Total Entries", formatExact(profile?.animeTotalEntries ?: 0), c)
                                         SummaryRow("Rewatched", formatExact(animeItems.sumOf { it.timesRewatched }), c)
                                         SummaryRow("Episodes", formatExact(profile?.animeEpisodesWatched ?: 0), c)
+                                        // Bottom-right of the card — lines up under
+                                        // "Episodes", to the right of "Plan to Watch".
+                                        if (!isOwnProfile) SeeFriendListButton(c, onClick = { onOpenFriendList(MediaType.Anime) })
                                     }
                                 }
                                 if (animeItems.isNotEmpty()) {
@@ -523,16 +526,19 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                                 Spacer(Modifier.height(20.dp))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                                     Column(Modifier.weight(1f)) {
-                                        StatusLegendRow("Reading", mangaReadingCount, statusColor("Reading"), c, onClick = { openStatus(MediaType.Manga, WatchStatus.Reading) })
-                                        StatusLegendRow("Completed", mangaCompletedCount, statusColor("Completed"), c, onClick = { openStatus(MediaType.Manga, WatchStatus.Completed) })
-                                        StatusLegendRow("On-Hold", mangaOnHoldCount, statusColor("On hold"), c, onClick = { openStatus(MediaType.Manga, WatchStatus.OnHold) })
-                                        StatusLegendRow("Dropped", mangaDroppedCount, statusColor("Dropped"), c, onClick = { openStatus(MediaType.Manga, WatchStatus.Dropped) })
-                                        StatusLegendRow("Plan to Read", mangaPlanCount, statusColor("Plan to read"), c, onClick = { openStatus(MediaType.Manga, WatchStatus.Plan) })
+                                        StatusLegendRow("Reading", mangaReadingCount, statusColor("Reading"), c, onClick = if (isOwnProfile) { { openOwnStatus(MediaType.Manga, WatchStatus.Reading) } } else null)
+                                        StatusLegendRow("Completed", mangaCompletedCount, statusColor("Completed"), c, onClick = if (isOwnProfile) { { openOwnStatus(MediaType.Manga, WatchStatus.Completed) } } else null)
+                                        StatusLegendRow("On-Hold", mangaOnHoldCount, statusColor("On hold"), c, onClick = if (isOwnProfile) { { openOwnStatus(MediaType.Manga, WatchStatus.OnHold) } } else null)
+                                        StatusLegendRow("Dropped", mangaDroppedCount, statusColor("Dropped"), c, onClick = if (isOwnProfile) { { openOwnStatus(MediaType.Manga, WatchStatus.Dropped) } } else null)
+                                        StatusLegendRow("Plan to Read", mangaPlanCount, statusColor("Plan to read"), c, onClick = if (isOwnProfile) { { openOwnStatus(MediaType.Manga, WatchStatus.Plan) } } else null)
                                     }
                                     Column(Modifier.weight(1f)) {
                                         SummaryRow("Total Entries", formatExact(mangaTotalDisplay), c)
                                         SummaryRow("Reread", formatExact(mangaRereadDisplay), c)
                                         SummaryRow("Chapters", formatExact(mangaChaptersDisplay), c)
+                                        // Bottom-right of the card — lines up under
+                                        // "Chapters", to the right of "Plan to Read".
+                                        if (!isOwnProfile) SeeFriendListButton(c, onClick = { onOpenFriendList(MediaType.Manga) })
                                     }
                                 }
                                 if (mangaItems.isNotEmpty()) {
@@ -589,6 +595,25 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                     Button(onClick = onConnect, shape = RoundedCornerShape(kikoCorner(16.dp)), colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) { Text("Sign in with MyAnimeList") }
                 }
             }
+        }
+    }
+}
+
+// Bottom-right action for a friend's Stats card — replaces individually
+// tapping each StatusLegendRow (Watching/Completed/…) with one button per
+// tab that opens that type's full list (all statuses) in FriendListScreen.
+@Composable private fun SeeFriendListButton(c: KikoColors, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.End) {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(kikoCorner(12.dp)))
+                .background(c.surfaceContainerHigh)
+                .kikoClickable(onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("See List", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Icon(Icons.Default.ChevronRight, null, tint = c.primary, modifier = Modifier.size(16.dp))
         }
     }
 }

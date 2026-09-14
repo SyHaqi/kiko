@@ -936,7 +936,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
                                         onOpenCompany = { malId -> openCompany(malId, castOnTop = true) },
                                         onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) },
-                                        onOpenListStatus = { type, status -> friendListStatusOpen = TopScreen.FriendListStatus(screen.username, type, status) },
+                                        onOpenList = { type -> friendListStatusOpen = TopScreen.FriendListStatus(screen.username, type, null) },
                                     )
                                     is TopScreen.FriendFriendsFavorites -> FriendsFavoritesScreen(
                                         username = screen.username, onBack = { friendFriendsFavoritesOpen = null },

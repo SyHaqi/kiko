@@ -33,7 +33,6 @@ import coil.compose.AsyncImage
 import com.kiko.tracker.data.api.MalFriend
 import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.data.model.MediaType
-import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.ui.components.MalLoginWebView
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.kikoCircleShape
@@ -66,7 +65,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     onOpenFriend: (MalFriend) -> Unit = {}, onOpenFriendsFavorites: (String) -> Unit = {},
     onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {},
     onOpenFavoriteTitle: (Int, MediaType) -> Unit = { _, _ -> },
-    onOpenListStatus: (MediaType, WatchStatus) -> Unit = { _, _ -> },
+    onOpenList: (MediaType) -> Unit = {},
 ) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
@@ -215,7 +214,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             onOpenFriend = onOpenFriend,
                             onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
                             onOpenFavoriteTitle = onOpenFavoriteTitle,
-                            onOpenFriendListStatus = onOpenListStatus,
+                            onOpenFriendList = onOpenList,
                             cachedFriends = state.friends, cachedFavorites = state.favorites,
                             onLoadFriendsFavorites = { forUsername -> vm.loadFriendProfileFriendsFavorites(context, forUsername) },
                             friendsFavoritesLoading = state.friendsFavoritesLoading,
