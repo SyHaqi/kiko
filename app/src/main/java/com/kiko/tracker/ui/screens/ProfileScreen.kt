@@ -281,6 +281,9 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     // member's list through the API/app the way it does your own).
     isOwnProfile: Boolean = true,
     onOpenListStatus: (MediaType, String) -> Unit = { _, _ -> },
+    // Friend path of openStatus below: opens that status's list in Kiko's
+    // own FriendListScreen instead of a CustomTabsIntent out to MAL.
+    onOpenFriendListStatus: (MediaType, WatchStatus) -> Unit = { _, _ -> },
 ) {    val c = LocalKikoColors.current
     val context = LocalContext.current
     // Friends/favorites aren't in MAL's official API — scraped off the
@@ -295,10 +298,8 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val hasFfSession = remember { MalSessionCookie(context).has() }
     // Tapping a Watching/Completed/On-Hold/Dropped/Plan-to-Watch legend row
     // below (see isOwnProfile doc above): in-app My List navigation for your
-    // own profile, or that status's MAL list page in the browser otherwise.
-    // MAL's own status query params (confirmed against animelist/mangalist
-    // URLs): 1=watching/reading, 2=completed, 3=on hold, 4=dropped,
-    // 6=plan to watch/read (5 isn't used by any status here).
+    // own profile, or that status's list opened in Kiko's own
+    // FriendListScreen otherwise (see onOpenFriendListStatus above).
     val openStatus: (MediaType, WatchStatus) -> Unit = { type, status ->
         if (isOwnProfile) {
             val label = when (status) {
@@ -310,18 +311,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
             }
             onOpenListStatus(type, label)
         } else {
-            val username = profile?.name.orEmpty()
-            if (username.isNotBlank()) {
-                val statusCode = when (status) {
-                    WatchStatus.Watching, WatchStatus.Reading -> 1
-                    WatchStatus.Completed -> 2
-                    WatchStatus.OnHold -> 3
-                    WatchStatus.Dropped -> 4
-                    WatchStatus.Plan -> 6
-                }
-                val kind = if (type == MediaType.Anime) "animelist" else "mangalist"
-                CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/$kind/$username?status=$statusCode"))
-            }
+            onOpenFriendListStatus(type, status)
         }
     }
     LaunchedEffect(connected, profile?.name, hasFfSession) {

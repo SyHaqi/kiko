@@ -371,6 +371,17 @@ class LibraryViewModel : ViewModel() {
     private val stackDetailScrollPositions = mutableMapOf<Int, Pair<Int, Int>>()
     fun getStackDetailScroll(stackId: Int) = stackDetailScrollPositions[stackId] ?: (0 to 0)
     fun saveStackDetailScroll(stackId: Int, index: Int, offset: Int) { stackDetailScrollPositions[stackId] = index to offset }
+    // Same idea for a friend's anime/manga list (FriendListScreen) — keyed
+    // on username/type/status since each status tab is its own swipeable
+    // page with its own scroll position. Needed for the same reason as
+    // the other scroll caches above: FriendListScreen is torn down (not
+    // just backgrounded) whenever the user opens a title from it, so a
+    // plain rememberLazyListState/rememberLazyGridState resets to the top
+    // instead of restoring where they left off.
+    private val friendListScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
+    private fun friendListScrollKey(username: String, type: MediaType, status: WatchStatus?) = "$username|$type|$status"
+    fun getFriendListScroll(username: String, type: MediaType, status: WatchStatus?) = friendListScrollPositions[friendListScrollKey(username, type, status)] ?: (0 to 0)
+    fun saveFriendListScroll(username: String, type: MediaType, status: WatchStatus?, index: Int, offset: Int) { friendListScrollPositions[friendListScrollKey(username, type, status)] = index to offset }
     // A stack's fetched entries,
     // opening an entry from
     // re-show a spinner for)
@@ -714,9 +725,17 @@ class LibraryViewModel : ViewModel() {
         val loading: Boolean = false,
         val friendsFavoritesLoading: Boolean = false,
         val error: String? = null,
+        // FriendProfileScreen's own vertical scroll position. Kept here
+        // rather than a plain rememberScrollState(), since that screen is
+        // torn down (not just backgrounded) whenever the user opens
+        // something off it — a title, a character/person/company page, the
+        // anime/manga list, Friends & Favorites — and rebuilt fresh on the
+        // way back, which would otherwise always reset it to the top.
+        val scrollOffset: Int = 0,
     )
     private val friendProfileStates = mutableStateMapOf<String, FriendProfileState>()
     fun getFriendProfileState(username: String): FriendProfileState = friendProfileStates[username] ?: FriendProfileState()
+    fun saveFriendProfileScroll(username: String, offset: Int) { friendProfileStates[username] = (friendProfileStates[username] ?: FriendProfileState()).copy(scrollOffset = offset) }
     fun loadFriendProfile(context: Context, username: String, force: Boolean = false) {
         if (username.isBlank()) return
         val current = friendProfileStates[username]

@@ -33,6 +33,7 @@ import coil.compose.AsyncImage
 import com.kiko.tracker.data.api.MalFriend
 import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.data.model.MediaType
+import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.ui.components.MalLoginWebView
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.kikoCircleShape
@@ -65,6 +66,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     onOpenFriend: (MalFriend) -> Unit = {}, onOpenFriendsFavorites: (String) -> Unit = {},
     onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {},
     onOpenFavoriteTitle: (Int, MediaType) -> Unit = { _, _ -> },
+    onOpenListStatus: (MediaType, WatchStatus) -> Unit = { _, _ -> },
 ) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
@@ -135,8 +137,15 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // uses, so the very first scrape (which has its own full-page spinner
     // below) doesn't show two loading indicators at once.
     val refreshing = (state.loading && state.profile != null) || (state.friendsFavoritesLoading && state.favorites != null)
+    val scrollState = rememberScrollState(initial = state.scrollOffset)
+    // Saved regardless of how the user leaves (back button, or tapping
+    // into a title/character/person/company/friend/list-status/Friends &
+    // Favorites link below) since this whole screen is torn down and
+    // rebuilt on return — see FriendProfileState.scrollOffset's doc
+    // comment in LibraryViewModel.
+    DisposableEffect(username) { onDispose { vm.saveFriendProfileScroll(username, scrollState.value) } }
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refreshFriendProfile(context, username) }, modifier = Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                 // "Profile" moved down to the small eyebrow label above the
@@ -206,6 +215,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             onOpenFriend = onOpenFriend,
                             onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
                             onOpenFavoriteTitle = onOpenFavoriteTitle,
+                            onOpenFriendListStatus = onOpenListStatus,
                             cachedFriends = state.friends, cachedFavorites = state.favorites,
                             onLoadFriendsFavorites = { forUsername -> vm.loadFriendProfileFriendsFavorites(context, forUsername) },
                             friendsFavoritesLoading = state.friendsFavoritesLoading,
