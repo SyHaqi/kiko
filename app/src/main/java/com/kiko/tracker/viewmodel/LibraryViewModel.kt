@@ -287,10 +287,14 @@ class LibraryViewModel : ViewModel() {
         // this is the vertical
         // list inside the "See
         // more" sheet, a different
-        // LazyList entirely from the
-        // horizontal row on the
-        // page itself.
-        var reviewListScroll: Pair<Int, Int> = 0 to 0,
+        // scroll container entirely from
+        // the horizontal row on
+        // the page itself. Plain
+        // pixel offset (not index/offset)
+        // since that sheet scrolls
+        // as one Column, not
+        // a LazyColumn.
+        var reviewListScroll: Int = 0,
     )
     private val detailCaches = mutableMapOf<Pair<String, MediaType>, DetailCache>()
     private fun detailCache(id: String, type: MediaType) = detailCaches.getOrPut(id to type) { DetailCache() }
@@ -365,7 +369,7 @@ class LibraryViewModel : ViewModel() {
     // restores the sheet exactly
     // where the user left it.
     fun getReviewListScroll(id: String, type: MediaType) = detailCache(id, type).reviewListScroll
-    fun saveReviewListScroll(id: String, type: MediaType, index: Int, offset: Int) { detailCache(id, type).reviewListScroll = index to offset }
+    fun saveReviewListScroll(id: String, type: MediaType, offset: Int) { detailCache(id, type).reviewListScroll = offset }
     // Same idea for a
     // coming back from an
     private val stackDetailScrollPositions = mutableMapOf<Int, Pair<Int, Int>>()

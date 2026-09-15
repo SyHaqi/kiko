@@ -1030,7 +1030,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                     onOpenReview = { rev -> reviewOpen = rev to item.title },
                     initialReviews = vm.peekDetailCache(item.id, item.type)?.reviews.orEmpty(),
                     initialScroll = vm.getReviewListScroll(item.id, item.type),
-                    onLeaveScroll = { index, offset -> vm.saveReviewListScroll(item.id, item.type, index, offset) },
+                    onLeaveScroll = { offset -> vm.saveReviewListScroll(item.id, item.type, offset) },
                 )
             }
             if (themeOpen) ThemeSheet(vm.themeMode, onDismiss = { themeOpen = false }, onSelect = { vm.setTheme(context, it); themeOpen = false })

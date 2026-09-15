@@ -4,9 +4,6 @@ package com.kiko.tracker.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -95,19 +92,27 @@ import com.kiko.tracker.ui.theme.kikoCorner
     onLoad: ((List<ReviewEntry>) -> Unit, () -> Unit) -> Unit,
     onOpenReview: (ReviewEntry) -> Unit,
     initialReviews: List<ReviewEntry> = emptyList(),
-    initialScroll: Pair<Int, Int> = 0 to 0,
-    onLeaveScroll: (Int, Int) -> Unit = { _, _ -> },
+    initialScroll: Int = 0,
+    onLeaveScroll: (Int) -> Unit = {},
 ) {
     val c = LocalKikoColors.current
     var reviews by remember(item.id, item.type) { mutableStateOf(initialReviews) }
     var loading by remember(item.id, item.type) { mutableStateOf(initialReviews.isEmpty()) }
-    val listState = remember(item.id, item.type) { LazyListState(initialScroll.first, initialScroll.second) }
+    // A plain ScrollState Column (not a LazyColumn) — same shape every
+    // other sheet in this app uses. Handing ModalBottomSheet an
+    // unbounded, self-measuring Column lets it size to the real content
+    // height and keep its half/full/close anchors; a LazyColumn forced
+    // into a fixed heightIn(max=...) here used to fight the sheet's own
+    // drag for who owns vertical scroll, which is what left it stuck
+    // partway and made it snap once the list end was reached.
+    val scrollState = rememberScrollState(initial = initialScroll)
+    val sheetState = rememberModalBottomSheetState()
     LaunchedEffect(item.id, item.type) { onLoad({ reviews = it }, { loading = false }) }
     DisposableEffect(item.id, item.type) {
-        onDispose { onLeaveScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
+        onDispose { onLeaveScroll(scrollState.value) }
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).heightIn(max = 640.dp)) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(scrollState)) {
             Text("Reviews", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text(item.title, style = MaterialTheme.typography.headlineSmall, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             when {
@@ -115,8 +120,8 @@ import com.kiko.tracker.ui.theme.kikoCorner
                     CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
                 }
                 reviews.isEmpty() -> Text("No reviews yet.", color = c.muted, fontSize = 12.sp)
-                else -> LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    items(reviews, key = { it.malId }) { rev -> ReviewListItem(rev, onClick = { onOpenReview(rev) }) }
+                else -> Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    reviews.forEach { rev -> ReviewListItem(rev, onClick = { onOpenReview(rev) }) }
                 }
             }
         }
