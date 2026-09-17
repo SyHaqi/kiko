@@ -888,6 +888,28 @@ private fun linkify(text: String, linkColor: Color): AnnotatedString = buildAnno
         },
     )
 }
+// Positions a tooltip below its anchor, centered horizontally — Material3's built-in
+// rememberPlainTooltipPositionProvider() only places tooltips above the anchor, which
+// reads as floating/disconnected for header buttons near the top of the screen.
+@Composable
+fun rememberBelowAnchorTooltipPositionProvider(spacing: Dp = 4.dp): androidx.compose.ui.window.PopupPositionProvider {
+    val density = LocalDensity.current
+    val spacingPx = with(density) { spacing.roundToPx() }
+    return remember(spacingPx) {
+        object : androidx.compose.ui.window.PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: androidx.compose.ui.unit.IntRect,
+                windowSize: androidx.compose.ui.unit.IntSize,
+                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                popupContentSize: androidx.compose.ui.unit.IntSize,
+            ): androidx.compose.ui.unit.IntOffset {
+                val x = anchorBounds.left + (anchorBounds.width - popupContentSize.width) / 2
+                val y = anchorBounds.bottom + spacingPx
+                return androidx.compose.ui.unit.IntOffset(x, y)
+            }
+        }
+    }
+}
 // Uniform shared card shell// Standalone "Add to Favorites" heart toggle — anime/manga/character/person/company detail
 // pages, positioned beside their cover image (see FavoriteApi/LibraryViewModel.toggleFavorite).
 // Same tap-toggles-immediately interaction as the Interest Stacks "Save Stack" button, just
@@ -905,15 +927,22 @@ fun FavoriteHeartButton(
     outlineTint: Color? = null,
 ) {
     val c = LocalKikoColors.current
-    IconButton(
-        onClick = onClick,
-        modifier = modifier.size(size).clip(RoundedCornerShape(kikoCorner(14.dp))).background(background ?: c.surfaceContainerHigh),
+    val tooltipState = rememberTooltipState()
+    TooltipBox(
+        positionProvider = rememberBelowAnchorTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(if (favorited) "Remove from favorites" else "Add to favorites") } },
+        state = tooltipState,
     ) {
-        Icon(
-            if (favorited) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-            if (favorited) "Remove from favorites" else "Add to favorites",
-            tint = if (favorited) c.danger else (outlineTint ?: c.ink),
-            modifier = Modifier.size(18.dp),
-        )
+        IconButton(
+            onClick = onClick,
+            modifier = modifier.size(size).clip(RoundedCornerShape(kikoCorner(14.dp))).background(background ?: c.surfaceContainerHigh),
+        ) {
+            Icon(
+                if (favorited) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                if (favorited) "Remove from favorites" else "Add to favorites",
+                tint = if (favorited) c.danger else (outlineTint ?: c.ink),
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }

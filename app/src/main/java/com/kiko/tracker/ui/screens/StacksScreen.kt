@@ -61,6 +61,7 @@ import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.ui.components.CoverStatusMark
 import com.kiko.tracker.ui.components.Pill
+import com.kiko.tracker.ui.components.rememberBelowAnchorTooltipPositionProvider
 import com.kiko.tracker.ui.components.SearchField
 import com.kiko.tracker.ui.components.SkeletonBlock
 import com.kiko.tracker.ui.components.centerChip
@@ -624,16 +625,23 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         // detail page — a standalone toggle instead of a
                         // menu item, with the 3-dot menu just to its right.
                         val isRestacked = vm.isStackRestacked(stackId)
-                        IconButton(
-                            onClick = { vm.restackStack(context, stackId, !isRestacked) },
-                            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
+                        val restackTooltipState = rememberTooltipState()
+                        TooltipBox(
+                            positionProvider = rememberBelowAnchorTooltipPositionProvider(),
+                            tooltip = { PlainTooltip { Text(if (isRestacked) "Remove Stack" else "Save Stack") } },
+                            state = restackTooltipState,
                         ) {
-                            Icon(
-                                if (isRestacked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                if (isRestacked) "Remove Stack" else "Save Stack",
-                                tint = if (isRestacked) c.primary else c.ink,
-                                modifier = Modifier.size(18.dp),
-                            )
+                            IconButton(
+                                onClick = { vm.restackStack(context, stackId, !isRestacked) },
+                                modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
+                            ) {
+                                Icon(
+                                    if (isRestacked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                    if (isRestacked) "Remove Stack" else "Save Stack",
+                                    tint = if (isRestacked) c.primary else c.ink,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
                         }
                         Spacer(Modifier.width(8.dp))
                         var moreOpen by remember { mutableStateOf(false) }
