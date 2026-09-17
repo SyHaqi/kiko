@@ -86,7 +86,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             }
             Column(Modifier.padding(horizontal = 14.dp)) {
                 SkeletonBlock(Modifier.width(128.dp).aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(16.dp)))
@@ -160,14 +160,14 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                    IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Spacer(Modifier.weight(1f))
                     // Favorite sits right beside "open in browser" in the header row.
-                    FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 38.dp)
+                    FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 42.dp)
                     Spacer(Modifier.width(8.dp))
                     IconButton(
                         onClick = { runCatching { uriHandler.openUri("https://myanimelist.net/character/${character.malId}") } },
-                        modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh),
+                        modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
                     ) { Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.ink) }
                 }
                 Column(Modifier.padding(horizontal = 14.dp)) {

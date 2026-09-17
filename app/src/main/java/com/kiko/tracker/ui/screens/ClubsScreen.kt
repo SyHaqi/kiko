@@ -250,9 +250,9 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                     }
                     Box(Modifier.fillMaxWidth().height(160.dp).background(Color.Black.copy(alpha = .35f)))
                     Row(Modifier.fillMaxWidth().padding(top = 16.dp, start = 16.dp, end = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(Color.Black.copy(alpha = .35f))) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
+                        IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .35f))) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
                         if (full.url.isNotBlank()) {
-                            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(full.url)) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(Color.Black.copy(alpha = .35f))) {
+                            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(full.url)) }, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .35f))) {
                                 Icon(Icons.Default.OpenInNew, "Open on MyAnimeList", tint = Color.White, modifier = Modifier.size(18.dp))
                             }
                         }

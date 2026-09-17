@@ -144,7 +144,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     if (!connected) {
         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                 Text(if (type == MediaType.Anime) "Anime List" else "Manga List", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
             }
             if (showLogin) {
@@ -184,7 +184,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Column(Modifier.padding(start = 12.dp)) {
                 Text(if (type == MediaType.Anime) "Anime List" else "Manga List", style = MaterialTheme.typography.titleLarge, color = c.ink)
                 Text(username, color = c.muted, fontSize = 12.sp)

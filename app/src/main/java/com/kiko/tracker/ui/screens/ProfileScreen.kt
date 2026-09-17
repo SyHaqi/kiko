@@ -150,7 +150,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
         // applies its own horizontal inset instead.
         Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = exitProfile, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                IconButton(onClick = exitProfile, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                 // "Profile" moved down to a small eyebrow label above the
                 // username in the avatar/name row below (ProfileStatsSection),
                 // matching DetailScreen's small-label-above-title pattern —
@@ -163,8 +163,8 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                 if (connected) {
                     var moreOpen by remember { mutableStateOf(false) }
                     Box {
-                        IconButton(onClick = { moreOpen = true }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
-                            Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(18.dp))
+                        IconButton(onClick = { moreOpen = true }, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+                            Icon(Icons.Default.MoreVert, "More options", tint = c.ink)
                         }
                         DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
                             if (profile?.name?.isNotBlank() == true) {
@@ -224,7 +224,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Settings", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         Box(Modifier.padding(top = 12.dp, bottom = 24.dp)) {
@@ -987,7 +987,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
     val isGrid = vm.scoreFilterViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Score Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         ScoreFilterRow(score) { score = it }
@@ -1084,7 +1084,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
     var yearSheetOpen by remember { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Year Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1181,7 +1181,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
     val isGrid = vm.formatFilterViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Format Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         FormatFilterRow(formats, format) { format = it }
@@ -1259,7 +1259,7 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
     var genreSheetOpen by remember { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Genre Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {

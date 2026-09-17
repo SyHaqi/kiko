@@ -900,14 +900,14 @@ fun FavoriteHeartButton(
     favorited: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: Dp = 38.dp,
+    size: Dp = 42.dp,
     background: Color? = null,
     outlineTint: Color? = null,
 ) {
     val c = LocalKikoColors.current
     IconButton(
         onClick = onClick,
-        modifier = modifier.size(size).clip(RoundedCornerShape(kikoCorner(13.dp))).background(background ?: c.surfaceContainerHigh),
+        modifier = modifier.size(size).clip(RoundedCornerShape(kikoCorner(14.dp))).background(background ?: c.surfaceContainerHigh),
     ) {
         Icon(
             if (favorited) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
