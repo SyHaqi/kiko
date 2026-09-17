@@ -84,6 +84,7 @@ import com.kiko.tracker.data.model.twoDecimals
 import com.kiko.tracker.data.model.verdict
 import com.kiko.tracker.data.model.verdictColor
 import com.kiko.tracker.ui.components.CoverStatusMark
+import com.kiko.tracker.ui.components.FavoriteHeartButton
 import com.kiko.tracker.ui.components.GenreChip
 import com.kiko.tracker.ui.components.LinkifiedText
 import com.kiko.tracker.ui.components.SkeletonBlock
@@ -181,6 +182,12 @@ data class DetailScreenActions(
     // time (see LibraryViewModel.loadAiringEpisode) —
     // airingInfo param below, same
     val onLoadAiringEpisode: (MediaItem) -> Unit = {},
+    // "Add to Favorites" heart beside the poster — see FavoriteApi/LibraryViewModel. Mirrors
+    // the other onLoad* callbacks' shape: onLoadFavoriteStatus kicks off the same signed-in-
+    // user favorites scrape isFavorited() reads from (this screen's own `favorited` param),
+    // onToggleFavorite flips it for this item.
+    val onLoadFavoriteStatus: () -> Unit = {},
+    val onToggleFavorite: () -> Unit = {},
 )
 
 // Loading placeholder shaped like
@@ -222,8 +229,9 @@ data class DetailScreenActions(
     }
 }
 
-@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, castLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, initialCharactersScroll: Pair<Int, Int> = 0 to 0, initialReviewsScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null, airingInfo: AiringInfo? = null) {
+@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, castLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, initialCharactersScroll: Pair<Int, Int> = 0 to 0, initialReviewsScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null, airingInfo: AiringInfo? = null, favorited: Boolean = false) {
     LaunchedEffect(item.id) { actions.onLoadAiringEpisode(item) }
+    LaunchedEffect(item.id) { actions.onLoadFavoriteStatus() }
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
     var themesExpanded by remember(item.id) { mutableStateOf(false) }
@@ -392,44 +400,58 @@ data class DetailScreenActions(
                             modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .32f)),
                         ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
                         var moreOpen by remember(item.id) { mutableStateOf(false) }
-                        Box(Modifier.align(Alignment.TopEnd).padding(16.dp)) {
-                            IconButton(
-                                onClick = { moreOpen = true },
-                                modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .32f)),
-                            ) { Icon(Icons.Default.MoreVert, "More options", tint = Color.White) }
-                            DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp))) {
-                                DropdownMenuItem(
-                                    text = { Text("Share") },
-                                    leadingIcon = { Icon(Icons.Default.Share, null) },
-                                    onClick = {
-                                        moreOpen = false
-                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "text/plain"
-                                            putExtra(Intent.EXTRA_TEXT, malUrl(item))
-                                        }
-                                        context.startActivity(Intent.createChooser(sendIntent, displayTitle))
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Open in browser") },
-                                    leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                                    onClick = { moreOpen = false; uriHandler.openUri(malUrl(item)) },
-                                )
+                        Row(Modifier.align(Alignment.TopEnd).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            // Favorite sits to the left of the 3-dot menu, in the same header row.
+                            FavoriteHeartButton(
+                                favorited = favorited,
+                                onClick = actions.onToggleFavorite,
+                                size = 42.dp,
+                                background = Color.Black.copy(alpha = .32f),
+                                outlineTint = Color.White,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Box {
+                                IconButton(
+                                    onClick = { moreOpen = true },
+                                    modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .32f)),
+                                ) { Icon(Icons.Default.MoreVert, "More options", tint = Color.White) }
+                                DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp))) {
+                                    DropdownMenuItem(
+                                        text = { Text("Share") },
+                                        leadingIcon = { Icon(Icons.Default.Share, null) },
+                                        onClick = {
+                                            moreOpen = false
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_TEXT, malUrl(item))
+                                            }
+                                            context.startActivity(Intent.createChooser(sendIntent, displayTitle))
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Open in browser") },
+                                        leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                                        onClick = { moreOpen = false; uriHandler.openUri(malUrl(item)) },
+                                    )
+                                }
                             }
                         }
                     }
-                    // Poster position below button
-                    val posterInteraction = remember { MutableInteractionSource() }
-                    Box(
-                        Modifier.padding(start = 14.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f)
-                            .shadow(10.dp, RoundedCornerShape(kikoCorner(16.dp))).clip(RoundedCornerShape(kikoCorner(16.dp))).background(Color(item.color))
-                            .pressScale(posterInteraction, scale = 0.94f)
-                            .clickable(indication = null, interactionSource = posterInteraction) { showFullCover = true },
-                    ) {
-                        if (item.cover.isNotBlank()) {
-                            Image(painter = coverPainter, contentDescription = displayTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                        } else {
-                            Text(displayTitle.take(1), fontWeight = FontWeight.Bold, fontSize = 44.sp, color = Color.White.copy(.85f), modifier = Modifier.align(Alignment.Center))
+                    // Poster position below header buttons. Favorite now lives in the header
+                    // row (to the left of the 3-dot menu), so this row is just the poster.
+                    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 96.dp), verticalAlignment = Alignment.Bottom) {
+                        val posterInteraction = remember { MutableInteractionSource() }
+                        Box(
+                            Modifier.width(128.dp).aspectRatio(2f / 3f)
+                                .shadow(10.dp, RoundedCornerShape(kikoCorner(16.dp))).clip(RoundedCornerShape(kikoCorner(16.dp))).background(Color(item.color))
+                                .pressScale(posterInteraction, scale = 0.94f)
+                                .clickable(indication = null, interactionSource = posterInteraction) { showFullCover = true },
+                        ) {
+                            if (item.cover.isNotBlank()) {
+                                Image(painter = coverPainter, contentDescription = displayTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                            } else {
+                                Text(displayTitle.take(1), fontWeight = FontWeight.Bold, fontSize = 44.sp, color = Color.White.copy(.85f), modifier = Modifier.align(Alignment.Center))
+                            }
                         }
                     }
                 }

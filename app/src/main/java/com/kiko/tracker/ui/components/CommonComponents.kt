@@ -888,4 +888,32 @@ private fun linkify(text: String, linkColor: Color): AnnotatedString = buildAnno
         },
     )
 }
-// Uniform shared card shell
+// Uniform shared card shell// Standalone "Add to Favorites" heart toggle — anime/manga/character/person/company detail
+// pages, positioned beside their cover image (see FavoriteApi/LibraryViewModel.toggleFavorite).
+// Same tap-toggles-immediately interaction as the Interest Stacks "Save Stack" button, just
+// with a heart instead of a bookmark and red instead of primary — filled + danger-red once
+// favorited, outline otherwise. `outlineTint` lets DetailScreen.kt's version (which sits over a
+// dark image backdrop, same as its neighboring back/more buttons) use white for the un-favorited
+// state instead of the ink/surface colors that fit everywhere else.
+@Composable
+fun FavoriteHeartButton(
+    favorited: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 38.dp,
+    background: Color? = null,
+    outlineTint: Color? = null,
+) {
+    val c = LocalKikoColors.current
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.size(size).clip(RoundedCornerShape(kikoCorner(13.dp))).background(background ?: c.surfaceContainerHigh),
+    ) {
+        Icon(
+            if (favorited) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+            if (favorited) "Remove from favorites" else "Add to favorites",
+            tint = if (favorited) c.danger else (outlineTint ?: c.ink),
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}

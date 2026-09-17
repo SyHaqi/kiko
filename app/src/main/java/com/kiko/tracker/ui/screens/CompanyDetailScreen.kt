@@ -48,6 +48,7 @@ import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.sortedForDiscover
 import com.kiko.tracker.ui.components.LinkifiedText
+import com.kiko.tracker.ui.components.FavoriteHeartButton
 import com.kiko.tracker.ui.components.SkeletonBlock
 import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.theme.ListGridCardSkeleton
@@ -120,6 +121,10 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
     myListStatus: Map<Int, WatchStatus> = emptyMap(),
     initialScroll: Pair<Int, Int> = 0 to 0,
     onLeaveScroll: (Int, Int) -> Unit = { _, _ -> },
+    // "Add to Favorites" heart beside the logo — see FavoriteApi/LibraryViewModel.
+    favorited: Boolean = false,
+    onLoadFavoriteStatus: () -> Unit = {},
+    onToggleFavorite: () -> Unit = {},
 ) {
     // Same instant-navigate-then-fill reasoning as
     // — see companyDetailOpenId's doc
@@ -134,6 +139,7 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
         onDispose { onLeaveScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
     }
     BackHandler(onBack = onBack)
+    LaunchedEffect(company.malId) { onLoadFavoriteStatus() }
     var showFullImage by remember(company.malId) { mutableStateOf(false) }
     // Same collapsed-to-3-lines / tap-to-expand
     // own About section —
@@ -171,17 +177,24 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
                 Column(Modifier.padding(horizontal = 14.dp)) {
                     // Square logo, not a
                     // are actually shaped, unlike
-                    val logoInteraction = remember { MutableInteractionSource() }
-                    Box(
-                        Modifier.size(110.dp)
-                            .clip(RoundedCornerShape(kikoCorner(24.dp))).background(c.surfaceContainerHigh)
-                            .let { m -> if (company.image.isNotBlank()) m.clickable(indication = null, interactionSource = logoInteraction) { showFullImage = true } else m },
-                    ) {
-                        if (company.image.isNotBlank()) {
-                            AsyncImage(model = company.image, contentDescription = company.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                        } else {
-                            Text(company.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 40.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                    // Heart sits beside the logo in the same Row so Alignment.Bottom keeps its
+                    // "foot" level with the logo's, regardless of the heart button's own
+                    // (smaller) height.
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                        val logoInteraction = remember { MutableInteractionSource() }
+                        Box(
+                            Modifier.size(110.dp)
+                                .clip(RoundedCornerShape(kikoCorner(24.dp))).background(c.surfaceContainerHigh)
+                                .let { m -> if (company.image.isNotBlank()) m.clickable(indication = null, interactionSource = logoInteraction) { showFullImage = true } else m },
+                        ) {
+                            if (company.image.isNotBlank()) {
+                                AsyncImage(model = company.image, contentDescription = company.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                            } else {
+                                Text(company.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 40.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                            }
                         }
+                        Spacer(Modifier.weight(1f))
+                        FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite)
                     }
 
                     Text("COMPANY", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp, modifier = Modifier.padding(top = 18.dp))

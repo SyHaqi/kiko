@@ -52,6 +52,8 @@ import com.kiko.tracker.data.api.MalProfileScrapeApi
 import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.data.api.MalSessionExpired
 import com.kiko.tracker.data.api.MalUserApi
+import com.kiko.tracker.data.api.FavoriteApi
+import com.kiko.tracker.data.api.FavoriteKind
 import com.kiko.tracker.data.api.NewsSnapshot
 import com.kiko.tracker.data.api.RecommendedEntry
 import com.kiko.tracker.data.api.StackBrowseKind
@@ -2317,6 +2319,62 @@ class LibraryViewModel : ViewModel() {
             stacksRestackInFlight -= stackId
         }
     }
+    // Add-to-Favorites (anime/manga/character/person/company detail pages' heart button — see
+    // FavoriteApi). Optimistic per-entity override, same "flip the icon immediately, reconcile
+    // once the real list reloads, revert on failure" shape as stacksRestackedOverride above.
+    // Keyed by (kind, malId) since ids aren't unique across kinds (anime #1 and character #1
+    // both exist). "The real list" here is profileFavorites — the signed-in user's own MAL
+    // Favorites, the same scrape ProfileScreen's Favorites rows already use — so no separate
+    // fetch is needed, just a reload of that existing cache.
+    private val favoritesOverride = mutableStateMapOf<Pair<FavoriteKind, Int>, Boolean>()
+    private val favoritesInFlight = mutableSetOf<Pair<FavoriteKind, Int>>()
+    var favoriteError by mutableStateOf<String?>(null); private set
+    fun clearFavoriteError() { favoriteError = null }
+
+    // profileFavorites/profileFriendsFavoritesUsername are shared with ProfileScreen's own
+    // Favorites rows — friend profiles keep an entirely separate per-username cache
+    // (friendProfileStates), so this only ever reflects the signed-in user's own list, never a
+    // friend's. Returns false (rather than "unknown") until that scrape has actually completed
+    // for the signed-in user — see ensureMyFavoritesLoaded below.
+    fun isFavorited(kind: FavoriteKind, malId: Int): Boolean {
+        favoritesOverride[kind to malId]?.let { return it }
+        if (profileFriendsFavoritesUsername == null || profileFriendsFavoritesUsername != malProfile?.name) return false
+        val entries = when (kind) {
+            FavoriteKind.Anime -> profileFavorites?.anime
+            FavoriteKind.Manga -> profileFavorites?.manga
+            FavoriteKind.Character -> profileFavorites?.characters
+            FavoriteKind.Person -> profileFavorites?.people
+            FavoriteKind.Company -> profileFavorites?.companies
+        }
+        return entries.orEmpty().any { malIdFromFavoriteUrl(it.url) == malId }
+    }
+
+    // Kicks off the same profile scrape isFavorited() reads from, the first time a detail page
+    // with a heart button is opened — a no-op once it's already loaded/loading for the
+    // signed-in user. Best-effort like loadStacksSaved: silently does nothing when signed out.
+    fun ensureMyFavoritesLoaded(context: Context) {
+        val username = malProfile?.name?.takeIf { it.isNotBlank() } ?: return
+        loadProfileFriendsFavorites(context, username)
+    }
+
+    fun toggleFavorite(context: Context, kind: FavoriteKind, malId: Int, favorited: Boolean) {
+        val key = kind to malId
+        if (key in favoritesInFlight) return
+        favoritesInFlight += key
+        val previous = isFavorited(kind, malId)
+        favoritesOverride[key] = favorited
+        viewModelScope.launch {
+            val ok = runCatching { FavoriteApi(context).setFavorited(kind, malId, favorited) }.isSuccess
+            if (ok) {
+                malProfile?.name?.takeIf { it.isNotBlank() }?.let { loadProfileFriendsFavorites(context, it, force = true) }
+            } else {
+                favoritesOverride[key] = previous
+                favoriteError = if (favorited) "Couldn't add to favorites — try again." else "Couldn't remove from favorites — try again."
+            }
+            favoritesInFlight -= key
+        }
+    }
+
     // Single freshest stack for
     // lighter-weight cousin of loadStacksHome()
     // needs the one most-recent

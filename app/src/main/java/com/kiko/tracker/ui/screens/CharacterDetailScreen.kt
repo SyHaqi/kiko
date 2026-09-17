@@ -41,6 +41,7 @@ import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.ui.components.SkeletonBlock
+import com.kiko.tracker.ui.components.FavoriteHeartButton
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.kikoCorner
@@ -120,6 +121,10 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     onLeaveScroll: (Int, Int) -> Unit = { _, _ -> },
     onLeaveAnimeScroll: (Int, Int) -> Unit = { _, _ -> },
     onLeaveMangaScroll: (Int, Int) -> Unit = { _, _ -> },
+    // "Add to Favorites" heart beside the poster — see FavoriteApi/LibraryViewModel.
+    favorited: Boolean = false,
+    onLoadFavoriteStatus: () -> Unit = {},
+    onToggleFavorite: () -> Unit = {},
 ) {
     // Navigation.kt now shows this
     // the fetch behind it
@@ -142,6 +147,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
         }
     }
     BackHandler(onBack = onBack)
+    LaunchedEffect(character.malId) { onLoadFavoriteStatus() }
     val voiceActorsSeen = rememberStaggerMemory()
     val animeSeen = rememberStaggerMemory()
     val mangaSeen = rememberStaggerMemory()
@@ -165,17 +171,24 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                     // No backdrop banner —
                     // with, so this is
                     // treatment as every other
-                    val posterInteraction = remember { MutableInteractionSource() }
-                    Box(
-                        Modifier.width(128.dp).aspectRatio(2f / 3f)
-                            .clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)
-                            .let { m -> if (character.image.isNotBlank()) m.clickable(indication = null, interactionSource = posterInteraction) { showFullImage = true } else m },
-                    ) {
-                        if (character.image.isNotBlank()) {
-                            AsyncImage(model = character.image, contentDescription = character.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        } else {
-                            Text(character.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 44.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                    // Heart sits beside the poster in the same Row so Alignment.Bottom keeps
+                    // its "foot" level with the poster's, regardless of the heart button's own
+                    // (smaller) height.
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                        val posterInteraction = remember { MutableInteractionSource() }
+                        Box(
+                            Modifier.width(128.dp).aspectRatio(2f / 3f)
+                                .clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)
+                                .let { m -> if (character.image.isNotBlank()) m.clickable(indication = null, interactionSource = posterInteraction) { showFullImage = true } else m },
+                        ) {
+                            if (character.image.isNotBlank()) {
+                                AsyncImage(model = character.image, contentDescription = character.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            } else {
+                                Text(character.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 44.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                            }
                         }
+                        Spacer(Modifier.weight(1f))
+                        FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite)
                     }
 
                     // No trailing " ·

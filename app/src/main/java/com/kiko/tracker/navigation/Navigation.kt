@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.kiko.tracker.data.api.FavoriteKind
 import com.kiko.tracker.data.api.MalApi
 import com.kiko.tracker.data.api.MalClub
 import com.kiko.tracker.data.api.MalFriend
@@ -840,6 +841,14 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             onLoadAiringEpisode = { forItem -> vm.loadAiringEpisode(forItem) },
                                             onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) },
                                             onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
+                                            onLoadFavoriteStatus = { vm.ensureMyFavoritesLoaded(context) },
+                                            onToggleFavorite = {
+                                                val malId = screen.item.id.toIntOrNull()
+                                                if (malId != null) {
+                                                    val kind = if (screen.item.type == MediaType.Manga) FavoriteKind.Manga else FavoriteKind.Anime
+                                                    vm.toggleFavorite(context, kind, malId, !vm.isFavorited(kind, malId))
+                                                }
+                                            },
                                         ),
                                         relatedLoadingId = vm.relatedLoadingId,
                                         recommendedLoadingId = vm.recommendedLoadingId,
@@ -852,6 +861,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         cachedSnapshot = vm.peekDetailCache(screen.item.id, screen.item.type),
                                         myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
                                         airingInfo = vm.getCachedAiring(screen.item.id),
+                                        favorited = screen.item.id.toIntOrNull()?.let { malId -> vm.isFavorited(if (screen.item.type == MediaType.Manga) FavoriteKind.Manga else FavoriteKind.Anime, malId) } ?: false,
                                     )
                                     is TopScreen.CharacterPage -> CharacterDetailScreen(
                                         screen.malId,
@@ -867,6 +877,9 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         onLeaveScroll = { index, offset -> vm.saveCharacterScroll(screen.malId, index, offset) },
                                         onLeaveAnimeScroll = { index, offset -> vm.saveCharacterAnimeScroll(screen.malId, index, offset) },
                                         onLeaveMangaScroll = { index, offset -> vm.saveCharacterMangaScroll(screen.malId, index, offset) },
+                                        favorited = vm.isFavorited(FavoriteKind.Character, screen.malId),
+                                        onLoadFavoriteStatus = { vm.ensureMyFavoritesLoaded(context) },
+                                        onToggleFavorite = { vm.toggleFavorite(context, FavoriteKind.Character, screen.malId, !vm.isFavorited(FavoriteKind.Character, screen.malId)) },
                                     )
                                     is TopScreen.PersonPage -> PersonDetailScreen(
                                         screen.malId,
@@ -883,6 +896,9 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         onLeaveRolesScroll = { index, offset -> vm.savePersonRolesScroll(screen.malId, index, offset) },
                                         onLeaveStaffScroll = { index, offset -> vm.savePersonStaffScroll(screen.malId, index, offset) },
                                         onLeaveMangaScroll = { index, offset -> vm.savePersonMangaScroll(screen.malId, index, offset) },
+                                        favorited = vm.isFavorited(FavoriteKind.Person, screen.malId),
+                                        onLoadFavoriteStatus = { vm.ensureMyFavoritesLoaded(context) },
+                                        onToggleFavorite = { vm.toggleFavorite(context, FavoriteKind.Person, screen.malId, !vm.isFavorited(FavoriteKind.Person, screen.malId)) },
                                     )
                                     is TopScreen.CompanyPage -> CompanyDetailScreen(
                                         screen.malId,
@@ -900,6 +916,9 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.takeIf { li.type == MediaType.Anime }?.let { it to li.status } }.toMap(),
                                         initialScroll = vm.getCompanyScroll(screen.malId),
                                         onLeaveScroll = { index, offset -> vm.saveCompanyScroll(screen.malId, index, offset) },
+                                        favorited = vm.isFavorited(FavoriteKind.Company, screen.malId),
+                                        onLoadFavoriteStatus = { vm.ensureMyFavoritesLoaded(context) },
+                                        onToggleFavorite = { vm.toggleFavorite(context, FavoriteKind.Company, screen.malId, !vm.isFavorited(FavoriteKind.Company, screen.malId)) },
                                     )
                                     TopScreen.FeaturedArticles -> FeaturedArticlesScreen(vm, onBack = { featuredArticlesOpen = false }, onOpenArticle = { url, articleTitle -> featuredArticleOpen = url to articleTitle })
                                     TopScreen.History -> HistoryScreen(vm, onBack = { historyOpen = false }, onOpenDetail = ::openDetail)

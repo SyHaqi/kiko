@@ -41,6 +41,7 @@ import com.kiko.tracker.data.model.PersonDetail
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.ui.components.SkeletonBlock
+import com.kiko.tracker.ui.components.FavoriteHeartButton
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.kikoCorner
@@ -109,6 +110,10 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     onLeaveRolesScroll: (Int, Int) -> Unit = { _, _ -> },
     onLeaveStaffScroll: (Int, Int) -> Unit = { _, _ -> },
     onLeaveMangaScroll: (Int, Int) -> Unit = { _, _ -> },
+    // "Add to Favorites" heart beside the poster — see FavoriteApi/LibraryViewModel.
+    favorited: Boolean = false,
+    onLoadFavoriteStatus: () -> Unit = {},
+    onToggleFavorite: () -> Unit = {},
 ) {
     // Same instant-navigate-then-fill reasoning as
     // characterDetailOpenId's doc comment in
@@ -131,6 +136,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
         }
     }
     BackHandler(onBack = onBack)
+    LaunchedEffect(person.malId) { onLoadFavoriteStatus() }
     val rolesSeen = rememberStaggerMemory()
     val staffSeen = rememberStaggerMemory()
     val mangaSeen = rememberStaggerMemory()
@@ -153,17 +159,24 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                 Column(Modifier.padding(horizontal = 14.dp)) {
                     // No backdrop banner —
                     // same fallback-letter treatment as
-                    val posterInteraction = remember { MutableInteractionSource() }
-                    Box(
-                        Modifier.width(128.dp).aspectRatio(2f / 3f)
-                            .clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)
-                            .let { m -> if (person.image.isNotBlank()) m.clickable(indication = null, interactionSource = posterInteraction) { showFullImage = true } else m },
-                    ) {
-                        if (person.image.isNotBlank()) {
-                            AsyncImage(model = person.image, contentDescription = person.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        } else {
-                            Text(person.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 44.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                    // Heart sits beside the poster in the same Row so Alignment.Bottom keeps
+                    // its "foot" level with the poster's, regardless of the heart button's own
+                    // (smaller) height.
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                        val posterInteraction = remember { MutableInteractionSource() }
+                        Box(
+                            Modifier.width(128.dp).aspectRatio(2f / 3f)
+                                .clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)
+                                .let { m -> if (person.image.isNotBlank()) m.clickable(indication = null, interactionSource = posterInteraction) { showFullImage = true } else m },
+                        ) {
+                            if (person.image.isNotBlank()) {
+                                AsyncImage(model = person.image, contentDescription = person.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            } else {
+                                Text(person.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 44.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                            }
                         }
+                        Spacer(Modifier.weight(1f))
+                        FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite)
                     }
 
                     Text("PERSON", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp, modifier = Modifier.padding(top = 18.dp))
