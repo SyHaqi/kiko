@@ -2466,17 +2466,24 @@ class LibraryViewModel : ViewModel() {
         stacksBrowseLoading = true
         viewModelScope.launch {
             val result = runCatching { StacksApi().search(kind, stacksBrowseQuery.trim(), targetPage) }.getOrElse { emptyList() }
-            stacksBrowseResults = if (reset) result else stacksBrowseResults + result
-            stacksBrowsePage = targetPage
-            stacksBrowseLoading = false
+            // Guards against a quick double-tap across chips landing out of order —
+            // only apply this response if its kind is still the one showing.
+            if (stacksBrowseActiveKind == kind) {
+                stacksBrowseResults = if (reset) result else stacksBrowseResults + result
+                stacksBrowsePage = targetPage
+                stacksBrowseLoading = false
+            }
         }
     }
-    // Switches tab and reloads
-    // the same tab after
+    // Switches kind and always refetches it fresh — a tap on a chip re-runs the
+    // scrape even if that kind's already showing, same reasoning as
+    // setStacksSavedTab: search results/counts can change between visits, so a
+    // tap should always confirm what's shown is current rather than trusting a
+    // (possibly stale) cache.
     fun setStacksBrowseKind(kind: StackBrowseKind) {
-        if (stacksBrowseActiveKind == kind) return
+        val switchingKind = stacksBrowseActiveKind != kind
         stacksBrowseActiveKind = kind
-        stacksBrowseScrollIndex = 0; stacksBrowseScrollOffset = 0
+        if (switchingKind) { stacksBrowseScrollIndex = 0; stacksBrowseScrollOffset = 0 }
         loadStacksBrowse(reset = true)
     }
     fun searchStacksBrowse() { stacksBrowseScrollIndex = 0; stacksBrowseScrollOffset = 0; loadStacksBrowse(reset = true) }
