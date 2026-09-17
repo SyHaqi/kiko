@@ -2284,6 +2284,12 @@ class LibraryViewModel : ViewModel() {
     var stacksSaved by mutableStateOf<List<StackSummary>>(emptyList()); private set
     var stacksSavedLoading by mutableStateOf(false); private set
     private var stacksSavedLoaded = false
+    // Scroll position for the dedicated StacksSavedScreen (opened from
+    // Interest Stacks home's 3-dot menu) — same restore-on-return shape as
+    // stacksHomeScrollIndex/mediaStacksScrollIndex above.
+    var stacksSavedScrollIndex by mutableStateOf(0); private set
+    var stacksSavedScrollOffset by mutableStateOf(0); private set
+    fun saveStacksSavedScroll(index: Int, offset: Int) { stacksSavedScrollIndex = index; stacksSavedScrollOffset = offset }
     // Per-stack optimistic restack state: set the instant the user taps the
     // button (before the network call resolves) so the icon flips
     // immediately, then reconciled against the real "My Interest Stacks"
@@ -2297,15 +2303,18 @@ class LibraryViewModel : ViewModel() {
     fun loadStacksSaved(context: Context, force: Boolean = false) {
         if (stacksSavedLoading) return
         if (!force && stacksSavedLoaded) return
+        // myStacks() needs the signed-in username to hit /profile/{username}/stacks — if
+        // malProfile hasn't loaded yet, don't mark this "loaded" so a later call (once the
+        // name is known) actually retries instead of being skipped for the rest of the session.
+        val myName = malProfile?.name?.takeIf { it.isNotBlank() } ?: return
         stacksSavedLoaded = true
         stacksSavedLoading = true
         viewModelScope.launch {
-            val all = runCatching { StacksRestackApi(context).myStacks() }.getOrElse { emptyList() }
+            val all = runCatching { StacksRestackApi(context).myStacks(myName) }.getOrElse { emptyList() }
             // "Saved" reads as "stacks I've restacked from others" rather
             // than the user's own creations, which this same MAL page also
             // lists mixed in with no separate tab for restacks-only.
-            val myName = malProfile?.name
-            stacksSaved = if (myName.isNullOrBlank()) all else all.filterNot { it.author.equals(myName, ignoreCase = true) }
+            stacksSaved = all.filterNot { it.author.equals(myName, ignoreCase = true) }
             stacksSavedLoading = false
         }
     }

@@ -68,16 +68,23 @@ class StacksRestackApi(context: Context) {
 
     /**
      * The signed-in user's own "My Interest Stacks" list (created + restacked), scraped from
-     * https://myanimelist.net/stacks/my (redirects to /profile/{username}/stacks). Reuses
+     * https://myanimelist.net/profile/{username}/stacks?tab=all — the same profile-stacks page
+     * MalProfileScrapeApi's other calls already hit successfully for this user. Reuses
      * StacksApi's own row parser — the profile stacks list is the same "title anchor pointing
      * at /stacks/{id}" row shape, just with the type/Challenge badge as its own clean
      * <span class="tag-anime">Anime</span> rather than glued to "by" like the browse pages, so
      * it parses the same way either form takes in StacksApi.parseSummaries().
+     *
+     * Deliberately doesn't hit /stacks/my and rely on OkHttp following a redirect to the profile
+     * page: /stacks/my doesn't 3xx there server-side (it's a client-side bounce), so a plain GET
+     * just serves the generic Interest Stacks home page — which is why this used to silently
+     * return only Spotlight/Recent-style content and never the signed-in user's own stacks.
+     * [username] is the same malProfile?.name value MalProfileScrapeApi's calls already use.
      */
-    suspend fun myStacks(): List<StackSummary> = withContext(Dispatchers.IO) {
+    suspend fun myStacks(username: String): List<StackSummary> = withContext(Dispatchers.IO) {
         val cookie = session.get() ?: throw MalSessionExpired()
         val request = Request.Builder()
-            .url("https://myanimelist.net/stacks/my")
+            .url("https://myanimelist.net/profile/$username/stacks?tab=all")
             .header("Cookie", cookie)
             .header("User-Agent", MAL_DESKTOP_USER_AGENT)
             .build()

@@ -100,6 +100,7 @@ import com.kiko.tracker.ui.screens.SeasonalScreen
 import com.kiko.tracker.ui.screens.SettingsScreen
 import com.kiko.tracker.ui.screens.StackDetailScreen
 import com.kiko.tracker.ui.screens.StacksHomeScreen
+import com.kiko.tracker.ui.screens.StacksSavedScreen
 import com.kiko.tracker.ui.screens.StacksScreen
 import com.kiko.tracker.ui.screens.YearFilterScreen
 import com.kiko.tracker.ui.screens.parseMalDeepLink
@@ -174,6 +175,10 @@ sealed class TopScreen {
     // Full "Interest Stacks" page
     // Detail — see DetailScreenActions.onOpenStacksList
     data class MediaStacks(val item: MediaItem) : TopScreen()
+    // Dedicated "Saved Stacks" list, opened from Interest Stacks home's
+    // 3-dot menu — see StacksHomeScreen/StacksSavedScreen. Single per-user
+    // page, no id to carry — same simple boolean-toggle shape as History.
+    object StacksSaved : TopScreen()
     // Single club page
     data class ClubDetail(val club: MalClub) : TopScreen()
     // Full pages opened from
@@ -251,6 +256,7 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.StacksBrowse -> "stacksBrowse"
     is TopScreen.StackDetail -> "stackDetail:$stackId"
     is TopScreen.MediaStacks -> "mediaStacks:${item.id}:${item.type}"
+    TopScreen.StacksSaved -> "stacksSaved"
     is TopScreen.ClubDetail -> "clubDetail:${club.id}"
     TopScreen.ProfileStats -> "profileStats"
     TopScreen.MalFriendsFavorites -> "malFriendsFavorites"
@@ -271,7 +277,7 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.Tab -> "tab:$destination"
 }
 
-fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.MediaStacks || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.MalFriendsFavorites || this is TopScreen.FriendProfile || this is TopScreen.FriendFriendsFavorites || this is TopScreen.FriendListStatus || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage || this is TopScreen.CompanyPage || this is TopScreen.FeaturedArticles || this is TopScreen.FeaturedArticle || this is TopScreen.History
+fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.MediaStacks || this is TopScreen.StacksSaved || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.MalFriendsFavorites || this is TopScreen.FriendProfile || this is TopScreen.FriendFriendsFavorites || this is TopScreen.FriendListStatus || this is TopScreen.SettingsPage || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage || this is TopScreen.CompanyPage || this is TopScreen.FeaturedArticles || this is TopScreen.FeaturedArticle || this is TopScreen.History
 
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}) {
@@ -293,6 +299,10 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var stacksHomeOpen by remember { mutableStateOf(false) }
     var stacksBrowseKind by remember { mutableStateOf<StackBrowseKind?>(null) }
     var stackDetailOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    // Dedicated "Saved Stacks" list, opened from Stacks home's 3-dot menu —
+    // same relationship to stacksHomeOpen as stacksBrowseKind above (shows
+    // on top while stacksHomeOpen stays true underneath).
+    var stacksSavedOpen by remember { mutableStateOf(false) }
     // Character detail page, opened
     // cast row, or a
     //
@@ -515,7 +525,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Full review readout state
     var reviewOpen by remember { mutableStateOf<Pair<ReviewEntry, String>?>(null) }
     // Reviews webview state
-    fun openStacks() { stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = true }
+    fun openStacks() { stackDetailOpen = null; stacksBrowseKind = null; stacksSavedOpen = false; stacksHomeOpen = true }
     fun openStacksBrowse(kind: StackBrowseKind) { stackDetailOpen = null; stacksBrowseKind = kind }
     // Club detail state
     var clubDetailOpen by remember { mutableStateOf<MalClub?>(null) }
@@ -613,7 +623,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         characterDetailOpenId = null; characterDetailOpen = null; castCharacterOnTop = false
         personDetailOpenId = null; personDetailOpen = null; castPersonOnTop = false
         companyDetailOpenId = null; companyDetailOpen = null
-        stackDetailOpen = null; stacksBrowseKind = null; stacksHomeOpen = false
+        stackDetailOpen = null; stacksBrowseKind = null; stacksSavedOpen = false; stacksHomeOpen = false
         clubDetailOpen = null
         mediaStacksOpen = null
         rankingOpen = false; recommendationsOpen = false; scheduleOpen = false
@@ -631,7 +641,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Prefer live item copy
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && (vm.destination != Destination.Home || discoverReturnItem != null)) {
+    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && (vm.destination != Destination.Home || discoverReturnItem != null)) {
         val returnItem = discoverReturnItem
         if (returnItem != null && vm.destination == Destination.Discover) {
             discoverReturnItem = null
@@ -658,7 +668,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Top-level destinations are only present at the root of the hierarchy.
     // Calculating this once also lets the app switch between a navigation bar
     // and rail without every detail route owning a slightly different shell.
-    val showNavigation = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen
+    val showNavigation = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen
     val selectDestination: (Destination) -> Unit = {
         discoverReturnItem = null
         discoverReturnDestination = null
@@ -764,6 +774,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 recommendationsOpen -> TopScreen.Recommendations
                                 scheduleOpen -> TopScreen.Schedule(scheduleInitialDay)
                                 stacksBrowseKind != null -> TopScreen.StacksBrowse(stacksBrowseKind!!)
+                                stacksSavedOpen -> TopScreen.StacksSaved
                                 stacksHomeOpen -> TopScreen.StacksHome
                                 clubDetailOpen != null -> TopScreen.ClubDetail(clubDetailOpen!!)
                                 aboutOpen -> TopScreen.About
@@ -938,7 +949,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     // section (it's the root
                                     // detail entries here rather
                                     // the process.
-                                    TopScreen.StacksHome -> StacksHomeScreen(vm, onBack = { stacksHomeOpen = false; vm.clearStackDetailCache() }, onOpenBrowse = { kind -> openStacksBrowse(kind) }, onOpenStack = { id, title -> stackDetailOpen = id to title })
+                                    TopScreen.StacksHome -> StacksHomeScreen(vm, onBack = { stacksHomeOpen = false; vm.clearStackDetailCache() }, onOpenBrowse = { kind -> openStacksBrowse(kind) }, onOpenStack = { id, title -> stackDetailOpen = id to title }, onOpenSaved = { stacksSavedOpen = true })
+                                    TopScreen.StacksSaved -> StacksSavedScreen(vm, onBack = { stacksSavedOpen = false }, onOpenStack = { id, title -> stackDetailOpen = id to title })
                                     is TopScreen.StacksBrowse -> StacksScreen(vm, initialKind = screen.initialKind, onBack = { stacksBrowseKind = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
                                     // Backing out of a
                                     // section when neither Stacks
