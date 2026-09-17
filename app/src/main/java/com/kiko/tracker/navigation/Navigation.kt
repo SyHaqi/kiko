@@ -76,6 +76,7 @@ import com.kiko.tracker.ui.screens.EditSheet
 import com.kiko.tracker.ui.screens.FeaturedArticleScreen
 import com.kiko.tracker.ui.screens.FeaturedArticlesScreen
 import com.kiko.tracker.ui.screens.FormatFilterScreen
+import com.kiko.tracker.ui.screens.ForumDiscussionListSheet
 import com.kiko.tracker.ui.screens.FriendListScreen
 import com.kiko.tracker.ui.screens.ForumTopicScreen
 import com.kiko.tracker.ui.screens.GenreFilterScreen
@@ -573,6 +574,13 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // cached onLoadReviews rather than
     // fetching separately.
     var reviewListOpen by remember { mutableStateOf<MediaItem?>(null) }
+    // "See more" on Detail's Recent Forum Discussion row — same
+    // sheet-over-current-screen shape as reviewListOpen above. Rendered only
+    // while forumTopicOpen == null, same reasoning as reviewListOpen's own
+    // reviewOpen check: tapping a topic inside the sheet pushes
+    // forumTopicOpen on top of it instead of dismissing it, so
+    // the sheet reappears on its own once that topic's onBack fires.
+    var forumDiscussionListOpen by remember { mutableStateOf<MediaItem?>(null) }
     // Jump from a detail
     // Clears every other overlay
     // page can be reached
@@ -817,6 +825,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) },
                                             onOpenReview = { rev -> reviewOpen = rev to screen.item.title },
                                             onOpenReviewList = { reviewListOpen = it },
+                                            onOpenForumDiscussionList = { forumDiscussionListOpen = it },
                                             onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, screen.item.type, index, offset) },
                                             onLeaveRelatedScroll = { index, offset -> vm.saveRelatedRowScroll(screen.item.id, screen.item.type, index, offset) },
                                             onLeaveRecommendedScroll = { index, offset -> vm.saveRecommendedRowScroll(screen.item.id, screen.item.type, index, offset) },
@@ -1031,6 +1040,17 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                     initialReviews = vm.peekDetailCache(item.id, item.type)?.reviews.orEmpty(),
                     initialScroll = vm.getReviewListScroll(item.id, item.type),
                     onLeaveScroll = { offset -> vm.saveReviewListScroll(item.id, item.type, offset) },
+                )
+            }
+            // Same reviewOpen-guard reasoning as reviewListOpen above, just against
+            // forumTopicOpen instead — see forumDiscussionListOpen's own declaration comment.
+            if (forumDiscussionListOpen != null && forumTopicOpen == null) {
+                val item = forumDiscussionListOpen!!
+                ForumDiscussionListSheet(
+                    item = item,
+                    onDismiss = { forumDiscussionListOpen = null },
+                    onLoad = { filter, onFound, onDone -> vm.loadForumDiscussionList(item, filter, onFound, onDone) },
+                    onOpenTopic = { id, title -> forumTopicOpen = id to title },
                 )
             }
             if (themeOpen) ThemeSheet(vm.themeMode, onDismiss = { themeOpen = false }, onSelect = { vm.setTheme(context, it); themeOpen = false })

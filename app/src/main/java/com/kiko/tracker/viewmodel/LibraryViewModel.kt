@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.runtime.Stable
 import com.kiko.tracker.data.api.AiringInfo
 import com.kiko.tracker.data.api.AniListApi
+import com.kiko.tracker.data.api.AnimeForumFilter
 import com.kiko.tracker.data.api.ClubsPage
 import com.kiko.tracker.data.api.ForumBoard
 import com.kiko.tracker.data.api.ForumCategory
@@ -275,6 +276,11 @@ class LibraryViewModel : ViewModel() {
         // network round trip.
         var news: List<CompanyNews>? = null,
         var forumDiscussion: List<ForumTopic>? = null,
+        // Full per-title /forum listing behind the "See more"
+        // sheet, keyed by which of MAL's own All/Episodes/Other
+        // tabs it was fetched for — separate from forumDiscussion
+        // above (that's just this same page's 2-item preview).
+        var forumDiscussionList: MutableMap<AnimeForumFilter, List<ForumTopic>> = mutableMapOf(),
         var featuredArticles: List<FeaturedArticleEntry>? = null,
         // "Available At" links —
         // forumDiscussion/featuredArticles above, just reading
@@ -2582,6 +2588,29 @@ class LibraryViewModel : ViewModel() {
             ensureDetailFetched(context, item.id, item.type).await()
             val result = cache.forumDiscussion ?: emptyList()
             if (result.isNotEmpty()) onFound(result)
+            onDone()
+        }
+    }
+
+    // "See more" forum-discussion sheet — full per-title /forum
+    // listing, filterable the same three ways MAL's own tab
+    // strip offers (see AnimeForumFilter). Deliberately its own scrape
+    // call rather than routing through ensureDetailFetched/loadDetailForumDiscussion above:
+    // that call only ever fills the 2-item preview and has no
+    // notion of a filter. Cached per-filter so flipping between
+    // tabs already viewed this sheet-visit doesn't re-hit the network
+    // — unlike loadDetailNews/loadDetailForumDiscussion's onFound-only-if-nonempty
+    // pattern, onFound fires even for a genuinely empty result here,
+    // since the sheet needs to actually clear a stale list when
+    // switching to a tab that comes back with nothing.
+    fun loadForumDiscussionList(item: MediaItem, filter: AnimeForumFilter, onFound: (List<ForumTopic>) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(item.id, item.type)
+        cache.forumDiscussionList[filter]?.let { onFound(it); onDone(); return }
+        val intId = item.id.toIntOrNull()
+        if (intId == null) { onDone(); return }
+        viewModelScope.launch {
+            runCatching { MalDetailScrapeApi().fetchForumDiscussionList(intId, item.type, item.title, filter) }
+                .onSuccess { cache.forumDiscussionList[filter] = it; onFound(it) }
             onDone()
         }
     }

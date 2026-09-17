@@ -21,6 +21,16 @@ import com.kiko.tracker.data.model.VoiceActorEntry
 
 private const val MAL = "https://myanimelist.net"
 
+// The three tabs MAL's own per-title "Forum" subpage offers
+// (table#forumTopics.normal_header row at the top of
+// /{kind}/{id}/{slug}/forum) — All Topics is the plain
+// no-query page, the other two are its "?topic=" links.
+enum class AnimeForumFilter(val query: String?, val label: String) {
+    All(null, "All Topics"),
+    Episodes("episode", "Episodes"),
+    Other("other", "Other"),
+}
+
 // Scrapes anime/manga detail-page widgets
 // (or that we've deliberately
 // (same approach as ClubsApi/MalPeopleApi/StacksApi
@@ -539,6 +549,23 @@ class MalDetailScrapeApi {
         return results
     }
 
+    // Full per-title "Forum" tab — table#forumTopics with every
+    // row MAL has for the selected filter, not just the
+    // detail page's 2-row preview (parseDetailForumDiscussion below reuses
+    // this same parse, just capped to that preview's limit).
+    // Same slug-then-id-only fallback as fetchReviews/fetchScoreStats/fetchCharacters
+    // above — MAL's own /forum subpage 404s on a mismatched
+    // slug for some titles, so a plain id-only request is
+    // tried whenever the slugged one comes back with nothing.
+    suspend fun fetchForumDiscussionList(id: Int, type: MediaType, title: String, filter: AnimeForumFilter): List<ForumTopic> = withContext(Dispatchers.IO) {
+        val kind = if (type == MediaType.Anime) "anime" else "manga"
+        val query = filter.query?.let { "?topic=$it" }.orEmpty()
+        val slugged = runCatching { parseForumTopicsTable(client.fetchMalDocument("$MAL/$kind/$id/${malSlug(title)}/forum$query")) }
+        if ((slugged.getOrNull()?.size ?: 0) > 0) return@withContext slugged.getOrThrow()
+        val fallback = runCatching { parseForumTopicsTable(client.fetchMalDocument("$MAL/$kind/$id/forum$query")) }
+        fallback.getOrNull() ?: slugged.getOrDefault(emptyList())
+    }
+
     // "Recent Forum Discussion" widget
     // table#forumTopics, one <tr data-topic-id="...">
     // the row/cell markup rather
@@ -547,11 +574,21 @@ class MalDetailScrapeApi {
     // pagination number from a
     // final cell's own trailing
     // there's no wrapping element
-    private fun parseDetailForumDiscussion(doc: Document, limit: Int): List<ForumTopic> =
-        doc.select("table#forumTopics tr[data-topic-id]").take(limit).mapNotNull { row ->
+    private fun parseDetailForumDiscussion(doc: Document, limit: Int): List<ForumTopic> = parseForumTopicsTable(doc).take(limit)
+
+    // Shared by the detail page's trimmed preview above and
+    // fetchForumDiscussionList's full listing. The two source pages render
+    // slightly different markup for the same table: the detail
+    // page's title link carries a data-ga-click-type attribute the
+    // dedicated /forum subpage's plain "<a href='/forum/?topicid=...'>" link
+    // doesn't, so the title-link lookup falls back to matching
+    // on the topicid href itself whenever that attribute is absent.
+    private fun parseForumTopicsTable(doc: Document): List<ForumTopic> =
+        doc.select("table#forumTopics tr[data-topic-id]").mapNotNull { row ->
             val id = row.attr("data-topic-id").toIntOrNull() ?: return@mapNotNull null
             val titleCell = row.selectFirst("td.forum_boardrow1") ?: return@mapNotNull null
             val titleLink = titleCell.selectFirst("a[data-ga-click-type=anime-recent-forum-discussion]")
+                ?: titleCell.select("a[href]").firstOrNull { it.attr("href").contains("topicid=") }
                 ?: return@mapNotNull null
             val title = titleLink.text().trim()
             if (title.isBlank()) return@mapNotNull null

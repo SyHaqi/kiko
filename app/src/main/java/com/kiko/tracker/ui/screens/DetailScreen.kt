@@ -132,6 +132,11 @@ data class DetailScreenActions(
     // in-app reader, so it
     val onLoadNews: (MediaItem, (List<CompanyNews>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onLoadForumDiscussion: (MediaItem, (List<ForumTopic>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    // Opens the "See more" forum-discussion sheet — same
+    // item-not-URL shape as onOpenReviewList above, since the sheet
+    // fetches the full per-title /forum listing itself instead of
+    // being handed a pre-fetched one.
+    val onOpenForumDiscussionList: (MediaItem) -> Unit = {},
     val onLoadFeaturedArticles: (MediaItem, (List<FeaturedArticleEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onLoadLinks: (MediaItem, (List<Pair<String, String>>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenTopic: (Int, String) -> Unit = { _, _ -> },
@@ -798,7 +803,7 @@ data class DetailScreenActions(
                     // MalDetailScrapeApi.parseDetailForumDiscussion's own limit).
                     key("forumDiscussion") {
                         if (forumDiscussion.isNotEmpty()) {
-                            SectionTitle("Recent Forum Discussion", "", {})
+                            SectionTitle("Recent Forum Discussion", "See more", { actions.onOpenForumDiscussionList(item) })
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 forumDiscussion.forEachIndexed { i, topic ->
                                     DetailForumDiscussionRow(topic) { actions.onOpenTopic(topic.id, topic.title) }

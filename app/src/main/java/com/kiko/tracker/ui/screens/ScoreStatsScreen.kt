@@ -21,12 +21,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.kiko.tracker.data.api.AnimeForumFilter
+import com.kiko.tracker.data.api.ForumTopic
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.ReviewEntry
 import com.kiko.tracker.data.model.ReviewVerdictTags
 import com.kiko.tracker.data.model.ScoreStats
 import com.kiko.tracker.data.model.verdict
 import com.kiko.tracker.data.model.verdictColor
+import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.kikoCircleShape
 import com.kiko.tracker.ui.theme.kikoClickable
@@ -122,6 +125,60 @@ import com.kiko.tracker.ui.theme.kikoCorner
                 reviews.isEmpty() -> Text("No reviews yet.", color = c.muted, fontSize = 12.sp)
                 else -> Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     reviews.forEach { rev -> ReviewListItem(rev, onClick = { onOpenReview(rev) }) }
+                }
+            }
+        }
+    }
+}
+
+// "See more" sheet from Detail's Recent Forum Discussion row —
+// same shape as ReviewListSheet above, except the row above
+// only ever shows a 2-item preview (parseDetailForumDiscussion's own
+// limit), so this always re-fetches the full per-title /forum
+// listing rather than reading back an already-complete cached list.
+// The three FilterChips mirror MAL's own "All Topics | Episodes
+// | Other" tab strip on that page (see AnimeForumFilter) —
+// switching one re-runs onLoad with the new filter, which
+// LibraryViewModel.loadForumDiscussionList caches per-filter so flipping back
+// to a tab already viewed this sheet-visit doesn't re-hit the
+// network. Tapping a topic opens the full ForumTopicScreen on
+// top of this sheet (see onOpenTopic at the Navigation.kt call
+// site) the same way ReviewListSheet's onOpenReview does, rather
+// than dismissing it — reusing DetailForumDiscussionRow itself so the
+// row here looks identical to the preview it's expanding.
+@Composable fun ForumDiscussionListSheet(
+    item: MediaItem, onDismiss: () -> Unit,
+    onLoad: (AnimeForumFilter, (List<ForumTopic>) -> Unit, () -> Unit) -> Unit,
+    onOpenTopic: (Int, String) -> Unit,
+) {
+    val c = LocalKikoColors.current
+    var filter by remember(item.id, item.type) { mutableStateOf(AnimeForumFilter.All) }
+    var topics by remember(item.id, item.type) { mutableStateOf<List<ForumTopic>>(emptyList()) }
+    var loading by remember(item.id, item.type) { mutableStateOf(true) }
+    LaunchedEffect(item.id, item.type, filter) {
+        loading = true
+        topics = emptyList()
+        onLoad(filter, { topics = it }, { loading = false })
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
+            Text("Forum", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(item.title, style = MaterialTheme.typography.headlineSmall, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+                AnimeForumFilter.entries.forEach { f ->
+                    FilterChip(selected = filter == f, onClick = { filter = f }, label = { Text(f.label) }, colors = kikoFilterChipColors())
+                }
+            }
+            when {
+                loading && topics.isEmpty() -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                }
+                topics.isEmpty() -> Text("No topics yet.", color = c.muted, fontSize = 12.sp)
+                else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    topics.forEachIndexed { i, topic ->
+                        DetailForumDiscussionRow(topic) { onOpenTopic(topic.id, topic.title) }
+                        if (i < topics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                    }
                 }
             }
         }
