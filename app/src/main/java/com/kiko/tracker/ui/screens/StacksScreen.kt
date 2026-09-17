@@ -665,7 +665,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             }
                         }
                     }
-                    Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp))
+                    Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 6.dp))
                     if (detail == null && !loadFailed) {
                         StackDetailHeaderSkeleton()
                     } else if (loadFailed) {
