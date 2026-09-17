@@ -54,6 +54,7 @@ import com.kiko.tracker.data.api.MalSessionExpired
 import com.kiko.tracker.data.api.MalUserApi
 import com.kiko.tracker.data.api.FavoriteApi
 import com.kiko.tracker.data.api.FavoriteKind
+import com.kiko.tracker.data.api.FavoriteToggleFailed
 import com.kiko.tracker.data.api.NewsSnapshot
 import com.kiko.tracker.data.api.RecommendedEntry
 import com.kiko.tracker.data.api.StackBrowseKind
@@ -2425,13 +2426,27 @@ class LibraryViewModel : ViewModel() {
         val previous = isFavorited(kind, malId)
         favoritesOverride[key] = favorited
         viewModelScope.launch {
-            val ok = runCatching { FavoriteApi(context).setFavorited(kind, malId, favorited) }.isSuccess
-            if (ok) {
-                malProfile?.name?.takeIf { it.isNotBlank() }?.let { loadProfileFriendsFavorites(context, it, force = true) }
-            } else {
-                favoritesOverride[key] = previous
-                favoriteError = if (favorited) "Couldn't add to favorites — try again." else "Couldn't remove from favorites — try again."
-            }
+            runCatching { FavoriteApi(context).setFavorited(kind, malId, favorited) }
+                .onSuccess {
+                    malProfile?.name?.takeIf { it.isNotBlank() }?.let { loadProfileFriendsFavorites(context, it, force = true) }
+                }
+                .onFailure { e ->
+                    favoritesOverride[key] = previous
+                    favoriteError = when {
+                        e is MalSessionExpired -> {
+                            MalSessionCookie(context).clear()
+                            "Your MAL session expired — sign in again to use favorites."
+                        }
+                        // MAL gave a specific reason (e.g. why this entry can't be favorited) —
+                        // show that verbatim instead of a generic message.
+                        e is FavoriteToggleFailed && !e.reason.isNullOrBlank() -> e.reason
+                        favorited -> "Couldn't add to favorites — try again."
+                        else -> "Couldn't remove from favorites — try again."
+                    }
+                    // Surfaces via the app-wide ErrorDialog in Navigation.kt (same mechanism as
+                    // MAL sync failures above) — favoriteError itself isn't read by any screen.
+                    error = favoriteError
+                }
             favoritesInFlight -= key
         }
     }
