@@ -816,6 +816,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             onLoadStacks = { forItem, onFound -> vm.loadMediaStacks(forItem, onFound) },
                                             onOpenStacksList = { mediaStacksOpen = it },
                                             onOpenStack = { id, title -> stackDetailOpen = id to title },
+                                            onLoadStackCovers = { stackId, onFound -> vm.loadStackCovers(stackId, onFound) },
                                             onLoadNews = { forItem, onFound, onDone -> vm.loadDetailNews(context, forItem, onFound, onDone) },
                                             onLoadForumDiscussion = { forItem, onFound, onDone -> vm.loadDetailForumDiscussion(context, forItem, onFound, onDone) },
                                             onLoadFeaturedArticles = { forItem, onFound, onDone -> vm.loadDetailFeaturedArticles(context, forItem, onFound, onDone) },

@@ -124,6 +124,9 @@ data class DetailScreenActions(
     val onLoadStacks: (MediaItem, (List<StackSummary>) -> Unit) -> Unit = { _, _ -> },
     val onOpenStacksList: (MediaItem) -> Unit = {},
     val onOpenStack: (Int, String) -> Unit = { _, _ -> },
+    // On-demand cover backfill for a stack card that shipped with no
+    // covers — see DetailStackCard/LibraryViewModel.loadStackCovers.
+    val onLoadStackCovers: (Int, (List<String>) -> Unit) -> Unit = { _, _ -> },
     // Recent News / Recent
     // Interest Stacks row —
     // LibraryViewModel.ensureDetailFetched), just surfaced through
@@ -803,7 +806,7 @@ data class DetailScreenActions(
                             SectionTitle("Interest Stacks", "", {})
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                                 itemsIndexed(stacks, key = { _, it -> it.id }) { i, s ->
-                                    StaggeredItem(i, stacksSeen) { DetailStackCard(s) { actions.onOpenStack(s.id, s.title) } }
+                                    StaggeredItem(i, stacksSeen) { DetailStackCard(s, actions.onLoadStackCovers) { actions.onOpenStack(s.id, s.title) } }
                                 }
                             }
                         }

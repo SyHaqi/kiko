@@ -430,16 +430,25 @@ class LibraryViewModel : ViewModel() {
     private val stackCoverCache = mutableStateMapOf<Int, List<String>>()
     private val stackCoverInFlight = mutableSetOf<Int>()
     fun getCachedStackCovers(stackId: Int): List<String>? = stackCoverCache[stackId]
-    fun loadStackCovers(stackId: Int) {
-        if (stackCoverCache.containsKey(stackId) || stackId in stackCoverInFlight) return
+    // onLoaded is optional — StackListRow/SpotlightStackCard etc. just read
+    // stackCoverCache back reactively via getCachedStackCovers instead. It's
+    // for callback-based callers like DetailScreenActions.onLoadStackCovers,
+    // which don't hold a `vm` reference to re-read the cache from.
+    fun loadStackCovers(stackId: Int, onLoaded: (List<String>) -> Unit = {}) {
+        stackCoverCache[stackId]?.let { onLoaded(it); return }
+        if (stackId in stackCoverInFlight) return
         stackDetailCache[stackId]?.let { detail ->
-            stackCoverCache[stackId] = detail.entries.mapNotNull { it.cover.takeIf(String::isNotBlank) }.take(3)
+            val covers = detail.entries.mapNotNull { it.cover.takeIf(String::isNotBlank) }.take(3)
+            stackCoverCache[stackId] = covers
+            onLoaded(covers)
             return
         }
         stackCoverInFlight += stackId
         viewModelScope.launch {
-            stackCoverCache[stackId] = runCatching { StacksApi().topCovers(stackId) }.getOrElse { emptyList() }
+            val covers = runCatching { StacksApi().topCovers(stackId) }.getOrElse { emptyList() }
+            stackCoverCache[stackId] = covers
             stackCoverInFlight -= stackId
+            onLoaded(covers)
         }
     }
     // Home's "Top Genres" row — MAL's own top 10 "Genres" facet names

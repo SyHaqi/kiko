@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -426,9 +427,15 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // on-demand cover fetch: StacksApi.forMedia's
 // LibraryViewModel.loadMediaStacks) already ships each
 // there's nothing to backfill
-@Composable fun DetailStackCard(stack: StackSummary, onClick: () -> Unit) {
+@Composable fun DetailStackCard(stack: StackSummary, onLoadCovers: (Int, (List<String>) -> Unit) -> Unit = { _, _ -> }, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     val interactionSource = remember { MutableInteractionSource() }
+    // Turns out forMedia()'s browse-row markup doesn't always carry usable
+    // cover <img>s after all, so this needs the same on-demand backfill
+    // StackListRow/SpotlightStackCard use — fetch from the stack's own
+    // detail page once when the row ships with no covers.
+    var covers by remember(stack.id) { mutableStateOf(stack.covers) }
+    LaunchedEffect(stack.id) { if (stack.covers.isEmpty()) onLoadCovers(stack.id) { covers = it } }
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
@@ -437,11 +444,18 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         modifier = Modifier.width(210.dp).pressScale(interactionSource),
     ) {
         Column {
-            StackCoverBanner(stack.covers, modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp))))
+            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp))))
             Column(Modifier.padding(13.dp)) {
-                Text(stack.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (stack.author.isNotBlank()) Text("by ${stack.author}", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 5.dp))
-                Box(Modifier.padding(top = 8.dp)) { StackStatsRow(stack.entryCount, stack.restacks, stack.updatedLabel) }
+                // minLines/always-rendered author line/fixed-height stats box
+                // below all exist so every card in the row lands on the same
+                // total height regardless of how long its title is, whether
+                // it has an author, or whether its restack pill shows —
+                // matching the tallest card without needing to measure
+                // siblings (LazyRow doesn't support intrinsic sizing across
+                // items).
+                Text(stack.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.ink, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(stack.author.takeIf { it.isNotBlank() }?.let { "by $it" } ?: "", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 5.dp))
+                Box(Modifier.padding(top = 8.dp).height(20.dp), contentAlignment = Alignment.CenterStart) { StackStatsRow(stack.entryCount, stack.restacks, stack.updatedLabel) }
             }
         }
     }
@@ -605,27 +619,39 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                         Spacer(Modifier.weight(1f))
-                        // 3-dot overflow menu — combines the restack ("Save
-                        // Stack") action and "Open in browser" that used to
-                        // be separate icon buttons in this row.
+                        // Save Stack sits beside the 3-dot menu now, same
+                        // pattern as the favorite heart on the anime/manga
+                        // detail page — a standalone toggle instead of a
+                        // menu item, with the 3-dot menu just to its right.
                         val isRestacked = vm.isStackRestacked(stackId)
+                        IconButton(
+                            onClick = { vm.restackStack(context, stackId, !isRestacked) },
+                            modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh),
+                        ) {
+                            Icon(
+                                if (isRestacked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                if (isRestacked) "Remove Stack" else "Save Stack",
+                                tint = if (isRestacked) c.primary else c.ink,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
                         var moreOpen by remember { mutableStateOf(false) }
                         Box {
                             IconButton(onClick = { moreOpen = true }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
-                                Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.MoreVert, "More options", tint = c.ink)
                             }
                             DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
-                                // Restacks (MAL's own "save this stack" action) straight
-                                // from the app — see StacksRestackApi. Filled/outline icon
-                                // reflects vm.isStackRestacked(), which is reconciled
-                                // against the real "My Interest Stacks" list once the
-                                // call succeeds.
                                 DropdownMenuItem(
-                                    text = { Text(if (isRestacked) "Remove Stack" else "Save Stack") },
-                                    leadingIcon = { Icon(if (isRestacked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, null, tint = if (isRestacked) c.primary else c.ink) },
+                                    text = { Text("Share") },
+                                    leadingIcon = { Icon(Icons.Default.Share, null, tint = c.primary) },
                                     onClick = {
                                         moreOpen = false
-                                        vm.restackStack(context, stackId, !isRestacked)
+                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, "https://myanimelist.net/stacks/$stackId")
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, detail?.title?.ifBlank { initialTitle } ?: initialTitle))
                                     },
                                 )
                                 DropdownMenuItem(

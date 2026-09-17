@@ -187,6 +187,14 @@ class StacksApi {
             val title = a.text().trim().takeIf { it.isNotBlank() } ?: continue
             if (seen.containsKey(id)) continue
             val container = rowContainer(a)
+            // The real markup wraps a card as .column-item > (.img with the
+            // cover <img>s, .detail with the title/author/"N Entries" text)
+            // as SIBLINGS — rowContainer climbs only until it finds the "N
+            // Entries" text, which lands on .detail alone and never reaches
+            // the sibling .img block. Prefer the closest .column-item
+            // ancestor for cover extraction so it sees both; fall back to
+            // the text-container for pages that don't use that wrapper.
+            val coverContainer = a.closest(".column-item") ?: container
             val text = normalizeWhitespace(container)
             val typeTokens = stackBadgeRun.findAll(text).flatMap { run -> stackBadgeToken.findAll(run.value).map { it.value } }.toList()
             val type = typeTokens.firstOrNull { it == "Anime" || it == "Manga" }.orEmpty()
@@ -200,7 +208,7 @@ class StacksApi {
                     .find(text)?.groupValues?.get(1)?.trim().orEmpty()
             } else ""
             val tags = listOfNotNull(type.takeIf { it.isNotBlank() }, "Challenge".takeIf { typeTokens.contains("Challenge") })
-            seen[id] = StackSummary(id, title, type, author, description, entryCount, restacks, updatedLabel, coverUrls(container), tags)
+            seen[id] = StackSummary(id, title, type, author, description, entryCount, restacks, updatedLabel, coverUrls(coverContainer), tags)
         }
         return seen.values.toList()
     }
@@ -341,7 +349,17 @@ class StacksApi {
     private fun parseEntries(doc: Document): List<StackTitleEntry> {
         data class Hit(val type: MediaType, val id: Int, val a: Element)
         val idHref = Regex("https?://myanimelist\\.net/(anime|manga)/(\\d+)")
-        val hits = doc.select("a[href]").mapNotNull { a ->
+        // The stack's own entries render inside the page's left content
+        // column (.content-left); the right sidebar (.content-right) —
+        // "More Like This", "Challenge Interest Stacks", "MyAnimeList
+        // Interest Stacks" — links to OTHER stacks (a different href shape)
+        // except when it itself links straight to an anime/manga id, which
+        // then reuses the exact same /anime|manga/{id} shape as a real
+        // entry. Scoping the scan to .content-left keeps those out; fall
+        // back to the whole doc if MAL ever drops that wrapper so entries
+        // still parse rather than coming up empty.
+        val scope = doc.selectFirst(".content-left") ?: doc
+        val hits = scope.select("a[href]").mapNotNull { a ->
             val m = idHref.find(a.absUrl("href")) ?: return@mapNotNull null
             val id = m.groupValues[2].toIntOrNull() ?: return@mapNotNull null
             Hit(if (m.groupValues[1] == "anime") MediaType.Anime else MediaType.Manga, id, a)
