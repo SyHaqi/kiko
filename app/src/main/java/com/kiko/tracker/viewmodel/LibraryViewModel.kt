@@ -59,6 +59,7 @@ import com.kiko.tracker.data.api.StackDetail
 import com.kiko.tracker.data.api.StackSummary
 import com.kiko.tracker.data.api.StackTitleEntry
 import com.kiko.tracker.data.api.StacksApi
+import com.kiko.tracker.data.api.StacksRestackApi
 import com.kiko.tracker.data.api.TenraiApi
 import com.kiko.tracker.data.model.CharacterDetail
 import com.kiko.tracker.data.model.CharacterEntry
@@ -2258,6 +2259,62 @@ class LibraryViewModel : ViewModel() {
                 stacksHomeSpotlight = sp.await(); stacksHomeRecent = rc.await()
             }
             stacksHomeLoading = false
+        }
+    }
+
+    // "Saved Stacks" — the signed-in user's own restacked-from-others stacks
+    // (see StacksRestackApi.myStacks()), shown as its own section on the
+    // Interest Stacks home screen, right after "Recent Interest Stacks".
+    // Needs the logged-in session cookie, so it's loaded separately from
+    // loadStacksHome() above rather than folded into that same coroutineScope
+    // (which has no Context to build a StacksRestackApi with). Silently
+    // empty (rather than an error state) when there's no session yet or the
+    // scrape fails — same "best effort" treatment as spotlight/recent above.
+    var stacksSaved by mutableStateOf<List<StackSummary>>(emptyList()); private set
+    var stacksSavedLoading by mutableStateOf(false); private set
+    private var stacksSavedLoaded = false
+    // Per-stack optimistic restack state: set the instant the user taps the
+    // button (before the network call resolves) so the icon flips
+    // immediately, then reconciled against the real "My Interest Stacks"
+    // list once loadStacksSaved() refetches after a successful call. Reverted
+    // on failure.
+    private val stacksRestackedOverride = mutableStateMapOf<Int, Boolean>()
+    private val stacksRestackInFlight = mutableSetOf<Int>()
+    var stackRestackError by mutableStateOf<String?>(null); private set
+    fun clearStackRestackError() { stackRestackError = null }
+
+    fun loadStacksSaved(context: Context, force: Boolean = false) {
+        if (stacksSavedLoading) return
+        if (!force && stacksSavedLoaded) return
+        stacksSavedLoaded = true
+        stacksSavedLoading = true
+        viewModelScope.launch {
+            val all = runCatching { StacksRestackApi(context).myStacks() }.getOrElse { emptyList() }
+            // "Saved" reads as "stacks I've restacked from others" rather
+            // than the user's own creations, which this same MAL page also
+            // lists mixed in with no separate tab for restacks-only.
+            val myName = malProfile?.name
+            stacksSaved = if (myName.isNullOrBlank()) all else all.filterNot { it.author.equals(myName, ignoreCase = true) }
+            stacksSavedLoading = false
+        }
+    }
+
+    fun isStackRestacked(stackId: Int): Boolean = stacksRestackedOverride[stackId] ?: stacksSaved.any { it.id == stackId }
+
+    fun restackStack(context: Context, stackId: Int, restacked: Boolean) {
+        if (stackId in stacksRestackInFlight) return
+        stacksRestackInFlight += stackId
+        val previous = isStackRestacked(stackId)
+        stacksRestackedOverride[stackId] = restacked
+        viewModelScope.launch {
+            val ok = runCatching { StacksRestackApi(context).setRestacked(stackId, restacked) }.isSuccess
+            if (ok) {
+                loadStacksSaved(context, force = true)
+            } else {
+                stacksRestackedOverride[stackId] = previous
+                stackRestackError = if (restacked) "Couldn't restack — try again." else "Couldn't remove restack — try again."
+            }
+            stacksRestackInFlight -= stackId
         }
     }
     // Single freshest stack for

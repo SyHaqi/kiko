@@ -177,7 +177,9 @@ class StacksApi {
     }
 
     // Title anchors that point
-    private fun parseSummaries(doc: Document, limit: Int? = null): List<StackSummary> {
+    // Internal (not private) so StacksRestackApi can reuse it against the
+    // "My Interest Stacks" profile page, which shares this same row shape.
+    internal fun parseSummaries(doc: Document, limit: Int? = null): List<StackSummary> {
         val seen = LinkedHashMap<Int, StackSummary>()
         for (a in doc.select("a[href~=(?i)^https?://myanimelist\\.net/stacks/\\d+$]")) {
             if (limit != null && seen.size >= limit) break

@@ -86,6 +86,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // Data is cached in
     // entries and back doesn't
     LaunchedEffect(Unit) { vm.loadStacksHome() }
+    LaunchedEffect(Unit) { vm.loadStacksSaved(context) }
+    LaunchedEffect(vm.stackRestackError) {
+        vm.stackRestackError?.let { msg ->
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            vm.clearStackRestackError()
+        }
+    }
     // Restore scroll position on
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.stacksHomeScrollIndex, initialFirstVisibleItemScrollOffset = vm.stacksHomeScrollOffset)
     val staggerSeen = rememberStaggerMemory()
@@ -152,6 +159,23 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             // Same subtle row separator
                             // (see SearchResultRow's divider) —
                             if (index < vm.stacksHomeRecent.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                        }
+                    }
+                }
+            }
+            if (vm.stacksSavedLoading && vm.stacksSaved.isEmpty()) {
+                item { ListRowSkeletonGroup(2) }
+            }
+            if (vm.stacksSaved.isNotEmpty()) {
+                // Stacks restacked from other users — no dedicated browse
+                // screen for this locally, so "See all" opens the same list
+                // on MAL's own site instead.
+                item { StackSectionHeader("Saved Stacks", onSeeAll = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks/my")) }) }
+                itemsIndexed(vm.stacksSaved, key = { _, it -> "sv-${it.id}" }) { index, s ->
+                    StaggeredItem(index, staggerSeen) {
+                        Column {
+                            StackListRow(s, vm) { openStack(s) }
+                            if (index < vm.stacksSaved.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                         }
                     }
                 }
@@ -521,6 +545,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val detail = vm.getCachedStackDetail(stackId)
     val loadFailed = detail == null && vm.stackDetailLoadFailed(stackId)
     LaunchedEffect(stackId) { vm.loadStackDetail(stackId) }
+    LaunchedEffect(vm.stackRestackError) {
+        vm.stackRestackError?.let { msg ->
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            vm.clearStackRestackError()
+        }
+    }
     val gridState = rememberLazyGridState()
     // On a cache miss
     // an initial index/offset set
@@ -570,14 +600,46 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 Column {
                     // Back button gets real
                     // matching the spacing every
-                    Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Title moved below this row (same pattern as ForumTopicScreen) —
+                    // row is just back button, spacer, and the 3-dot overflow menu.
+                    Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-                        Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                        // Open this stack in
-                        IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks/$stackId")) }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
-                            Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.weight(1f))
+                        // 3-dot overflow menu — combines the restack ("Save
+                        // Stack") action and "Open in browser" that used to
+                        // be separate icon buttons in this row.
+                        val isRestacked = vm.isStackRestacked(stackId)
+                        var moreOpen by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { moreOpen = true }, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) {
+                                Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(18.dp))
+                            }
+                            DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
+                                // Restacks (MAL's own "save this stack" action) straight
+                                // from the app — see StacksRestackApi. Filled/outline icon
+                                // reflects vm.isStackRestacked(), which is reconciled
+                                // against the real "My Interest Stacks" list once the
+                                // call succeeds.
+                                DropdownMenuItem(
+                                    text = { Text(if (isRestacked) "Remove Stack" else "Save Stack") },
+                                    leadingIcon = { Icon(if (isRestacked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, null, tint = if (isRestacked) c.primary else c.ink) },
+                                    onClick = {
+                                        moreOpen = false
+                                        vm.restackStack(context, stackId, !isRestacked)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Open in Browser") },
+                                    leadingIcon = { Icon(Icons.Default.OpenInNew, null, tint = c.primary) },
+                                    onClick = {
+                                        moreOpen = false
+                                        CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks/$stackId"))
+                                    },
+                                )
+                            }
                         }
                     }
+                    Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp))
                     if (detail == null && !loadFailed) {
                         StackDetailHeaderSkeleton()
                     } else if (loadFailed) {
