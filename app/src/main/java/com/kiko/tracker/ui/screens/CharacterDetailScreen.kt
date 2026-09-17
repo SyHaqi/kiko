@@ -162,6 +162,9 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                 Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Spacer(Modifier.weight(1f))
+                    // Favorite sits right beside "open in browser" in the header row.
+                    FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 38.dp)
+                    Spacer(Modifier.width(8.dp))
                     IconButton(
                         onClick = { runCatching { uriHandler.openUri("https://myanimelist.net/character/${character.malId}") } },
                         modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh),
@@ -171,9 +174,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                     // No backdrop banner —
                     // with, so this is
                     // treatment as every other
-                    // Heart sits beside the poster in the same Row so Alignment.Bottom keeps
-                    // its "foot" level with the poster's, regardless of the heart button's own
-                    // (smaller) height.
+                    // Favorite now lives in the header row beside "open in browser".
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                         val posterInteraction = remember { MutableInteractionSource() }
                         Box(
@@ -187,8 +188,6 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                                 Text(character.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 44.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
                             }
                         }
-                        Spacer(Modifier.weight(1f))
-                        FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite)
                     }
 
                     // No trailing " ·

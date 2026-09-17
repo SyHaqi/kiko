@@ -169,6 +169,9 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
                 Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack, modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Spacer(Modifier.weight(1f))
+                    // Favorite sits right beside "open in browser" in the header row.
+                    FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 38.dp)
+                    Spacer(Modifier.width(8.dp))
                     IconButton(
                         onClick = { runCatching { uriHandler.openUri("https://myanimelist.net/anime/producer/${company.malId}") } },
                         modifier = Modifier.size(38.dp).clip(RoundedCornerShape(kikoCorner(13.dp))).background(c.surfaceContainerHigh),
@@ -177,9 +180,7 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
                 Column(Modifier.padding(horizontal = 14.dp)) {
                     // Square logo, not a
                     // are actually shaped, unlike
-                    // Heart sits beside the logo in the same Row so Alignment.Bottom keeps its
-                    // "foot" level with the logo's, regardless of the heart button's own
-                    // (smaller) height.
+                    // Favorite now lives in the header row beside "open in browser".
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                         val logoInteraction = remember { MutableInteractionSource() }
                         Box(
@@ -193,8 +194,6 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
                                 Text(company.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 40.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
                             }
                         }
-                        Spacer(Modifier.weight(1f))
-                        FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite)
                     }
 
                     Text("COMPANY", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp, modifier = Modifier.padding(top = 18.dp))
