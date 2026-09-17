@@ -8,6 +8,17 @@ import okhttp3.Request
 import org.jsoup.Jsoup
 import java.io.IOException
 
+// The tabs MAL's own /profile/{username}/stacks page offers (?tab=all|challenges|created),
+// confirmed off a real capture of that page — "All" mixes created + restacked with no way to
+// tell them apart, "Challenges" is challenge stacks only, "Created" is stacks this user
+// authored themselves. Mirrors StackBrowseKind's (param, label) shape used for the browse
+// screen's own FilterChips.
+enum class StacksSavedTab(val param: String, val label: String) {
+    All("all", "All"),
+    Challenges("challenges", "Challenges"),
+    Created("created", "Created"),
+}
+
 /**
  * Restacks (or un-restacks) an Interest Stack on myanimelist.net's own website — there's no
  * such endpoint on the official API, same situation as MalForumReplyApi's forum replies. Needs
@@ -80,11 +91,14 @@ class StacksRestackApi(context: Context) {
      * just serves the generic Interest Stacks home page — which is why this used to silently
      * return only Spotlight/Recent-style content and never the signed-in user's own stacks.
      * [username] is the same malProfile?.name value MalProfileScrapeApi's calls already use.
+     * [tab] picks which of the profile page's own tabs to scrape (see [StacksSavedTab]) —
+     * defaults to "All" since that's the one isStackRestacked()/restackStack() need as their
+     * single source of truth for "is this stack already in my My Interest Stacks".
      */
-    suspend fun myStacks(username: String): List<StackSummary> = withContext(Dispatchers.IO) {
+    suspend fun myStacks(username: String, tab: StacksSavedTab = StacksSavedTab.All): List<StackSummary> = withContext(Dispatchers.IO) {
         val cookie = session.get() ?: throw MalSessionExpired()
         val request = Request.Builder()
-            .url("https://myanimelist.net/profile/$username/stacks?tab=all")
+            .url("https://myanimelist.net/profile/$username/stacks?tab=${tab.param}")
             .header("Cookie", cookie)
             .header("User-Agent", MAL_DESKTOP_USER_AGENT)
             .build()

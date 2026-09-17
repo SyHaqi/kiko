@@ -62,6 +62,7 @@ import com.kiko.tracker.data.api.StackSummary
 import com.kiko.tracker.data.api.StackTitleEntry
 import com.kiko.tracker.data.api.StacksApi
 import com.kiko.tracker.data.api.StacksRestackApi
+import com.kiko.tracker.data.api.StacksSavedTab
 import com.kiko.tracker.data.api.TenraiApi
 import com.kiko.tracker.data.model.CharacterDetail
 import com.kiko.tracker.data.model.CharacterEntry
@@ -2273,14 +2274,18 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
-    // "Saved Stacks" — the signed-in user's own restacked-from-others stacks
-    // (see StacksRestackApi.myStacks()), shown as its own section on the
+    // "Saved Stacks" — the signed-in user's own "My Interest Stacks" (see
+    // StacksRestackApi.myStacks()), shown as its own section on the
     // Interest Stacks home screen, right after "Recent Interest Stacks".
     // Needs the logged-in session cookie, so it's loaded separately from
     // loadStacksHome() above rather than folded into that same coroutineScope
     // (which has no Context to build a StacksRestackApi with). Silently
     // empty (rather than an error state) when there's no session yet or the
     // scrape fails — same "best effort" treatment as spotlight/recent above.
+    // This is always the "All" tab's data specifically (created + restacked
+    // mixed, same as MAL's own page) — isStackRestacked()/restackStack() below
+    // need one single source of truth for "is this stack in my My Interest
+    // Stacks at all", independent of whichever tab StacksSavedScreen shows.
     var stacksSaved by mutableStateOf<List<StackSummary>>(emptyList()); private set
     var stacksSavedLoading by mutableStateOf(false); private set
     private var stacksSavedLoaded = false
@@ -2310,13 +2315,48 @@ class LibraryViewModel : ViewModel() {
         stacksSavedLoaded = true
         stacksSavedLoading = true
         viewModelScope.launch {
-            val all = runCatching { StacksRestackApi(context).myStacks(myName) }.getOrElse { emptyList() }
-            // "Saved" reads as "stacks I've restacked from others" rather
-            // than the user's own creations, which this same MAL page also
-            // lists mixed in with no separate tab for restacks-only.
-            stacksSaved = all.filterNot { it.author.equals(myName, ignoreCase = true) }
+            stacksSaved = runCatching { StacksRestackApi(context).myStacks(myName) }.getOrElse { emptyList() }
             stacksSavedLoading = false
         }
+    }
+
+    // The Challenges/Created FilterChip tabs on the dedicated StacksSavedScreen — mirrors
+    // MAL's own /profile/{username}/stacks tabs (see StacksSavedTab). "All" is handled by
+    // reusing stacksSaved/loadStacksSaved above rather than a second identical fetch; only
+    // Challenges/Created get their own cache here.
+    var stacksSavedActiveTab by mutableStateOf(StacksSavedTab.All); private set
+    var stacksSavedTabResults by mutableStateOf<List<StackSummary>>(emptyList()); private set
+    var stacksSavedTabLoading by mutableStateOf(false); private set
+    // What StacksSavedScreen should actually render for the active tab —
+    // callers don't need to know "All" is sourced differently under the hood.
+    val stacksSavedDisplayed: List<StackSummary> get() = if (stacksSavedActiveTab == StacksSavedTab.All) stacksSaved else stacksSavedTabResults
+    val stacksSavedDisplayedLoading: Boolean get() = if (stacksSavedActiveTab == StacksSavedTab.All) stacksSavedLoading else stacksSavedTabLoading
+
+    private fun loadStacksSavedTab(context: Context, tab: StacksSavedTab, force: Boolean = false) {
+        if (tab == StacksSavedTab.All) { loadStacksSaved(context, force); return }
+        val myName = malProfile?.name?.takeIf { it.isNotBlank() } ?: return
+        stacksSavedTabLoading = true
+        viewModelScope.launch {
+            val result = runCatching { StacksRestackApi(context).myStacks(myName, tab) }.getOrElse { emptyList() }
+            // Guards against a quick double-tap across tabs landing out of order —
+            // only apply this response if its tab is still the one showing.
+            if (stacksSavedActiveTab == tab) {
+                stacksSavedTabResults = result
+                stacksSavedTabLoading = false
+            }
+        }
+    }
+
+    // Switches tab and always refetches it fresh — unlike the browse screen's
+    // setStacksBrowseKind, this deliberately doesn't treat an already-cached (or
+    // already-active) tab as a no-op: restacking happens from other screens too
+    // (StackDetailScreen), so the cache here can go stale behind the person's
+    // back, and a tap on a chip is exactly when they'd expect it caught up.
+    fun setStacksSavedTab(context: Context, tab: StacksSavedTab) {
+        val switchingTab = stacksSavedActiveTab != tab
+        stacksSavedActiveTab = tab
+        if (switchingTab) { stacksSavedScrollIndex = 0; stacksSavedScrollOffset = 0 }
+        loadStacksSavedTab(context, tab, force = true)
     }
 
     fun isStackRestacked(stackId: Int): Boolean = stacksRestackedOverride[stackId] ?: stacksSaved.any { it.id == stackId }
@@ -2330,6 +2370,9 @@ class LibraryViewModel : ViewModel() {
             val ok = runCatching { StacksRestackApi(context).setRestacked(stackId, restacked) }.isSuccess
             if (ok) {
                 loadStacksSaved(context, force = true)
+                // A restack can only ever add/remove a Challenges/Created row too — refresh
+                // whichever of those tabs is currently showing so it picks up the change.
+                if (stacksSavedActiveTab != StacksSavedTab.All) loadStacksSavedTab(context, stacksSavedActiveTab, force = true)
             } else {
                 stacksRestackedOverride[stackId] = previous
                 stackRestackError = if (restacked) "Couldn't restack — try again." else "Couldn't remove restack — try again."

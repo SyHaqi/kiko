@@ -53,6 +53,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import com.kiko.tracker.data.api.StackBrowseKind
+import com.kiko.tracker.data.api.StacksSavedTab
 import com.kiko.tracker.data.api.StackSummary
 import com.kiko.tracker.data.api.StackTitleEntry
 import com.kiko.tracker.data.model.MediaItem
@@ -544,11 +545,11 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         }
     }
 }
-// Dedicated "Saved Stacks" list — the signed-in user's own
-// restacked-from-others stacks (vm.stacksSaved, see
-// LibraryViewModel.loadStacksSaved), opened from the Interest Stacks home's
-// 3-dot menu. Mirrors MediaStacksScreen's shape (simple back-button header +
-// StackListRow list, no search/filter chips) since it's just one fixed list.
+// Dedicated "Saved Stacks" list — the signed-in user's own "My Interest
+// Stacks" (vm.stacksSavedDisplayed, see LibraryViewModel.loadStacksSaved/
+// setStacksSavedTab), opened from the Interest Stacks home's 3-dot menu.
+// All/Challenges/Created FilterChips mirror MAL's own profile stacks tabs
+// (StacksSavedTab) the same way StacksScreen's own chips mirror StackBrowseKind.
 
 @Composable fun StacksSavedScreen(vm: LibraryViewModel, onBack: () -> Unit, onOpenStack: (Int, String) -> Unit) {
     val c = LocalKikoColors.current
@@ -557,6 +558,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // Cheap no-op if already loaded/loading — same guarded call StacksHomeScreen
     // makes, kept here too so this screen works even if ever reached another way.
     LaunchedEffect(Unit) { vm.loadStacksSaved(context) }
+    val activeTab = vm.stacksSavedActiveTab
+    val results = vm.stacksSavedDisplayed
+    val loading = vm.stacksSavedDisplayedLoading
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.stacksSavedScrollIndex, initialFirstVisibleItemScrollOffset = vm.stacksSavedScrollOffset)
     val staggerSeen = rememberStaggerMemory()
     val scope = rememberCoroutineScope()
@@ -567,19 +571,48 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
             Text("Saved Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
+        // Mirrors StacksScreen's own browse-kind FilterChip row (All/Challenges/Anime/Manga/
+        // MyAnimeList) — same shape, just against StacksSavedTab's own three tabs. The chips
+        // scroll on their own (weight(1f)) so a fixed "N Entries" count for whichever tab is
+        // active can sit pinned to the row's right edge, MAL-style, without being scrolled away.
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            LazyRow(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(StacksSavedTab.entries.toList()) { tab ->
+                    FilterChip(
+                        selected = activeTab == tab,
+                        onClick = { vm.setStacksSavedTab(context, tab) },
+                        label = { Text(tab.label) },
+                        colors = kikoFilterChipColors(),
+                    )
+                }
+            }
+            if (!loading) {
+                Text(
+                    "${results.size} ${if (results.size == 1) "Entry" else "Entries"}",
+                    color = c.muted,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(start = 10.dp),
+                )
+            }
+        }
         Box(Modifier.fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
-                if (vm.stacksSaved.isEmpty() && !vm.stacksSavedLoading) {
-                    item { Text("No saved stacks yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                if (results.isEmpty() && !loading) {
+                    val emptyLabel = when (activeTab) {
+                        StacksSavedTab.All -> "No saved stacks yet."
+                        StacksSavedTab.Challenges -> "No challenge stacks yet."
+                        StacksSavedTab.Created -> "No created stacks yet."
+                    }
+                    item { Text(emptyLabel, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
                 }
-                if (vm.stacksSavedLoading && vm.stacksSaved.isEmpty()) {
+                if (loading && results.isEmpty()) {
                     item { ListRowSkeletonGroup(6) }
                 } else {
-                    itemsIndexed(vm.stacksSaved, key = { _, it -> it.id }) { index, s ->
+                    itemsIndexed(results, key = { _, it -> it.id }) { index, s ->
                         StaggeredItem(index, staggerSeen) {
                             Column {
                                 StackListRow(s, vm) { onOpenStack(s.id, s.title) }
-                                if (index < vm.stacksSaved.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                                if (index < results.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                             }
                         }
                     }
