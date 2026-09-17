@@ -1,6 +1,9 @@
 package com.kiko.tracker.data.api
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -59,8 +62,14 @@ enum class StackBrowseKind(val param: String, val label: String) {
 class StacksApi {
     private val client = NetworkClient.shared
 
-    // Deliberately its own distinct
-    private fun fetchDoc(url: String): Document = client.fetchMalDocument(url, userAgent = "Mozilla/5.0 (Android) Kiko/1.0")
+    // Every other MAL* scraper (ClubsApi,
+    // just uses the shared desktop UA
+    // "Kiko/1.0" — a string that
+    // self-identifies as a scraper. /stacks
+    // reCAPTCHA/CMP/ad-loader scripts guarding it), so
+    // treats that UA fingerprint differently there
+    // trace while /stacks/search (thinner page,
+    private fun fetchDoc(url: String): Document = client.fetchMalDocument(url)
 
     // Browse or search stacks
     // still has to download
@@ -131,6 +140,26 @@ class StacksApi {
     // this can take.
     private val descriptionStop = Regex("\\d+\\s+Entries|My List:|Mean Score:|Start tracking this stack!|Tags:")
 
+    // MAL's browse/search rows render the type/Challenge badges glued
+    // directly together with no separator, e.g. "AnimeChallengeby
+    // MyAnimeList" or "ChallengeMangaby MyAnimeList" (badge order isn't
+    // fixed, and either badge can appear alone too: "Animeby ..."). A plain
+    // \b(Anime|Manga)\b regex never matches any of this because there's no
+    // word boundary between "Anime"/"Manga"/"Challenge" and the "by" that
+    // immediately follows — both sides are letters. Instead, first find the
+    // whole glued run of badge words (anchored so it can't start mid-word,
+    // e.g. inside "Animegataris"), then split that run into its individual
+    // tokens. Also matches the normal spaced-out form used elsewhere (e.g.
+    // stack detail pages), since a single word is a run of length one.
+    private val stackBadgeRun = Regex("(?:(?<=^)|(?<=[^A-Za-z]))(?:Anime|Manga|Challenge)+(?=by|[^A-Za-z]|$)")
+    private val stackBadgeToken = Regex("Anime|Manga|Challenge")
+
+    // Shared by parseSummaries() and parsePickups()
+    // "N days left" or an
+    private val relativeOrDatedLabel = Regex(
+        "(\\d+\\s+(?:hours?|days?|minutes?)\\s+ago|\\d+\\s+days?\\s+left|Time ended|[A-Za-z]{3}\\s+\\d{1,2},\\s*\\d{1,2}:\\d{2}\\s*[AP]M)"
+    )
+
     // Climbs from a title
     // already contains one of
     // wrapper around this one
@@ -157,23 +186,58 @@ class StacksApi {
             if (seen.containsKey(id)) continue
             val container = rowContainer(a)
             val text = normalizeWhitespace(container)
-            val type = Regex("\\b(Anime|Manga)\\b").find(text)?.groupValues?.get(1).orEmpty()
+            val typeTokens = stackBadgeRun.findAll(text).flatMap { run -> stackBadgeToken.findAll(run.value).map { it.value } }.toList()
+            val type = typeTokens.firstOrNull { it == "Anime" || it == "Manga" }.orEmpty()
             val author = Regex("by\\s+([\\w\\-.]+)").find(text)?.groupValues?.get(1).orEmpty()
             val entryCount = Regex("(\\d+)\\s+Entries").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
             val restacks = Regex("(\\d+)\\s+Restacks").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
             // Covers relative "N ago"/"N
-            val updatedLabel = Regex(
-                "(\\d+\\s+(?:hours?|days?|minutes?)\\s+ago|\\d+\\s+days?\\s+left|Time ended|[A-Za-z]{3}\\s+\\d{1,2},\\s*\\d{1,2}:\\d{2}\\s*[AP]M)"
-            ).find(text)?.value.orEmpty()
+            val updatedLabel = relativeOrDatedLabel.find(text)?.value.orEmpty()
             val description = if (author.isNotBlank()) {
                 Regex(Regex.escape("by $author") + "\\s*(.*?)\\s*(?:${descriptionStop.pattern})", RegexOption.DOT_MATCHES_ALL)
                     .find(text)?.groupValues?.get(1)?.trim().orEmpty()
             } else ""
-            // "Challenge" shows as its
-            val tags = listOfNotNull(type.takeIf { it.isNotBlank() }, "Challenge".takeIf { Regex("\\bChallenge\\b").containsMatchIn(text) })
+            val tags = listOfNotNull(type.takeIf { it.isNotBlank() }, "Challenge".takeIf { typeTokens.contains("Challenge") })
             seen[id] = StackSummary(id, title, type, author, description, entryCount, restacks, updatedLabel, coverUrls(container), tags)
         }
         return seen.values.toList()
+    }
+
+    // The 4 banner-style picks pinned
+    // above "Recent Interest Stacks" on
+    // (.column-1) plus three smaller ones
+    // its own inline field parsing (entry
+    // out to be too easy to
+    // page — so this only pulls
+    // reused search() to hydrate the
+    // parseSummaries() already gets right for
+    private fun parsePickupTitles(doc: Document): List<Pair<Int, String>> {
+        val seen = LinkedHashMap<Int, String>()
+        for (block in doc.select(".column-1, .column-3 .column-item")) {
+            val a = block.select("a[href~=(?i)/stacks/\\d+$]").firstOrNull { it.text().isNotBlank() } ?: continue
+            val id = a.attr("href").substringAfterLast("/stacks/").substringBefore("?").toIntOrNull() ?: continue
+            val title = a.text().trim()
+            if (title.isNotBlank()) seen.putIfAbsent(id, title)
+        }
+        return seen.toList()
+    }
+
+    // Fetches those 4 pickup stacks'
+    // and title only, then hydrates
+    // — the same summary shape that
+    // works fine already) rather than
+    // banner markup, which doesn't always
+    suspend fun spotlight(): List<StackSummary> = withContext(Dispatchers.IO) {
+        val picks = parsePickupTitles(fetchDoc("$MAL/stacks"))
+        coroutineScope {
+            picks.map { (id, title) ->
+                async {
+                    runCatching { search(StackBrowseKind.All, query = title, limit = 5) }
+                        .getOrElse { emptyList() }
+                        .firstOrNull { it.id == id }
+                }
+            }.awaitAll().filterNotNull()
+        }
     }
 
     // Renders an element's content

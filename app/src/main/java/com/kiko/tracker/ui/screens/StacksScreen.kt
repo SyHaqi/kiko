@@ -94,11 +94,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val openBrowse: (StackBrowseKind) -> Unit = { k -> saveScroll(); onOpenBrowse(k) }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
-    // Spotlight row data —
-    // Hoisted here (not inside
-    val spotlightStacks = remember(vm.stacksHomeChallenges, vm.stacksHomeManga, vm.stacksHomeAnime) {
-        vm.stacksHomeChallenges.map { "ch" to it } + vm.stacksHomeManga.map { "mg" to it } + vm.stacksHomeAnime.map { "an" to it }
-    }
     // The "Recent" section here
     // this screen. Paging further
     // screen (via "See all"
@@ -130,7 +125,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             if (vm.stacksHomeLoading) {
                 item { ListRowSkeletonGroup(4) }
             }
-            if (spotlightStacks.isNotEmpty()) {
+            if (vm.stacksHomeSpotlight.isNotEmpty()) {
                 // Spotlight row — the
                 item { StackSectionHeader("Spotlight", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
                 item {
@@ -142,7 +137,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         Modifier.horizontalScroll(rememberScrollState()).height(IntrinsicSize.Max),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        spotlightStacks.forEachIndexed { index, (_, s) ->
+                        vm.stacksHomeSpotlight.forEachIndexed { index, s ->
                             StaggeredItem(index, modifier = Modifier.fillMaxHeight()) { StackSpotlightCard(s, vm, modifier = Modifier.fillMaxHeight()) { openStack(s) } }
                         }
                     }
@@ -364,6 +359,8 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 }
 // Spotlight card — fixed-width
 // Challenge/Manga/Anime spotlight row on
+
+// Spotlight banner card — cover
 
 @Composable fun StackSpotlightCard(stack: StackSummary, vm: LibraryViewModel, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = LocalKikoColors.current

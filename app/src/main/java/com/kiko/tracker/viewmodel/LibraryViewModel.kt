@@ -2229,10 +2229,9 @@ class LibraryViewModel : ViewModel() {
     // fetched lists AND scroll
     // entries and back out
     // and drops the user
-    var stacksHomeChallenges by mutableStateOf<List<StackSummary>>(emptyList()); private set
-    var stacksHomeManga by mutableStateOf<List<StackSummary>>(emptyList()); private set
-    var stacksHomeAnime by mutableStateOf<List<StackSummary>>(emptyList()); private set
-    var stacksHomeMal by mutableStateOf<List<StackSummary>>(emptyList()); private set
+    // The 4 big banner picks
+    // (see StacksApi.spotlight())
+    var stacksHomeSpotlight by mutableStateOf<List<StackSummary>>(emptyList()); private set
     // Only ever page 1
     // results are reached via
     // browse screen (that screen
@@ -2251,17 +2250,12 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             val api = StacksApi()
             coroutineScope {
-                // limit matches each row's
-                // stack on the page
-                val ch = async { runCatching { api.search(StackBrowseKind.Challenges, limit = 2) }.getOrElse { emptyList() } }
-                val mg = async { runCatching { api.search(StackBrowseKind.Manga, limit = 1) }.getOrElse { emptyList() } }
-                val an = async { runCatching { api.search(StackBrowseKind.Anime, limit = 1) }.getOrElse { emptyList() } }
-                val mal = async { runCatching { api.search(StackBrowseKind.MyAnimeList, limit = 1) }.getOrElse { emptyList() } }
+                val sp = async { runCatching { api.spotlight() }.getOrElse { emptyList() } }
                 // Home's "Recent" row only
                 // away via "See all"
                 // screen), so there's no
                 val rc = async { runCatching { api.search(StackBrowseKind.All, limit = 5) }.getOrElse { emptyList() } }
-                stacksHomeChallenges = ch.await(); stacksHomeManga = mg.await(); stacksHomeAnime = an.await(); stacksHomeMal = mal.await(); stacksHomeRecent = rc.await()
+                stacksHomeSpotlight = sp.await(); stacksHomeRecent = rc.await()
             }
             stacksHomeLoading = false
         }
