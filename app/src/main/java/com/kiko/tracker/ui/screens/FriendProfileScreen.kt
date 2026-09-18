@@ -3,6 +3,7 @@
 package com.kiko.tracker.ui.screens
 
 import androidx.activity.compose.BackHandler
+import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -153,7 +155,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 // just the back button, spacer, and menu.
                 Spacer(Modifier.weight(1f))
                 // 3-dot overflow menu — mirrors Kiko's own Profile header,
-                // just with "Open in browser" only (no sign out, since this
+                // just with Share/"Open in browser" only (no sign out, since this
                 // isn't the signed-in user's account).
                 var moreOpen by remember { mutableStateOf(false) }
                 Box {
@@ -161,6 +163,18 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         Icon(Icons.Default.MoreVert, "More options", tint = c.ink)
                     }
                     DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
+                        DropdownMenuItem(
+                            text = { Text("Share") },
+                            leadingIcon = { Icon(Icons.Default.Share, null) },
+                            onClick = {
+                                moreOpen = false
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, "https://myanimelist.net/profile/$username")
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, username))
+                            },
+                        )
                         DropdownMenuItem(
                             text = { Text("Open in browser") },
                             leadingIcon = { Icon(Icons.Default.OpenInNew, null) },

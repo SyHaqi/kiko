@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -20,7 +21,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -122,6 +126,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
         return
     }
     val c = LocalKikoColors.current
+    val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val listState = remember(person.malId) { LazyListState(initialScroll.first, initialScroll.second) }
     val rolesListState = remember(person.malId) { LazyListState(initialRolesScroll.first, initialRolesScroll.second) }
@@ -151,13 +156,35 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                 Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
                     Spacer(Modifier.weight(1f))
-                    // Favorite sits right beside "open in browser" in the header row.
+                    // Favorite sits right beside the 3-dot menu in the header row.
                     FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 42.dp)
                     Spacer(Modifier.width(8.dp))
-                    IconButton(
-                        onClick = { runCatching { uriHandler.openUri("https://myanimelist.net/people/${person.malId}") } },
-                        modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
-                    ) { Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.ink) }
+                    var moreOpen by remember(person.malId) { mutableStateOf(false) }
+                    Box {
+                        IconButton(
+                            onClick = { moreOpen = true },
+                            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
+                        ) { Icon(Icons.Default.MoreVert, "More options", tint = c.ink) }
+                        DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
+                            DropdownMenuItem(
+                                text = { Text("Share") },
+                                leadingIcon = { Icon(Icons.Default.Share, null) },
+                                onClick = {
+                                    moreOpen = false
+                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, "https://myanimelist.net/people/${person.malId}")
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, person.name))
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Open in browser") },
+                                leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                                onClick = { moreOpen = false; runCatching { uriHandler.openUri("https://myanimelist.net/people/${person.malId}") } },
+                            )
+                        }
+                    }
                 }
                 Column(Modifier.padding(horizontal = 14.dp)) {
                     // No backdrop banner —
