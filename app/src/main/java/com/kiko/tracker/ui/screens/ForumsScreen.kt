@@ -840,6 +840,9 @@ sealed class ForumBlock {
     data class ListBlock(val items: List<AnnotatedString>, val ordered: Boolean) : ForumBlock()
     // Quote holds nested blocks
     data class Quote(val blocks: List<ForumBlock>) : ForumBlock()
+    // YouTube embed ([yt]ID[/yt], or MAL's <iframe class="movie youtube">) — drawn as a tappable
+    // thumbnail that opens the video in the YouTube app / browser (see ForumVideo).
+    data class VideoBlock(val videoId: String) : ForumBlock()
 }
 sealed class BbToken {
     data class Text(val text: String) : BbToken()
@@ -932,6 +935,47 @@ sealed class BbToken {
                 }
                 else -> SubcomposeAsyncImageContent()
             }
+        }
+    }
+}
+// YouTube embed placeholder: thumbnail + play button, tap opens the video externally. A real
+// in-app player isn't embedded on purpose — a WebView per post would be heavy in a scrolling list.
+@Composable fun ForumVideo(videoId: String, c: KikoColors) {
+    val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    // maxresdefault only exists for HD uploads (404s otherwise); hqdefault always exists but is
+    // 4:3 with black bars baked in, which the 16:9 Crop below trims off exactly.
+    val thumbs = remember(videoId) {
+        listOf("https://img.youtube.com/vi/$videoId/maxresdefault.jpg", "https://img.youtube.com/vi/$videoId/hqdefault.jpg")
+    }
+    var thumbIndex by remember(videoId) { mutableStateOf(0) }
+    val shape = RoundedCornerShape(kikoCorner(8.dp))
+    Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.fillMaxWidth(0.9f).aspectRatio(16f / 9f).clip(shape).background(Color.Black)
+                .border(1.dp, c.primary.copy(alpha = .5f), shape)
+                .clickable {
+                    val url = "https://www.youtube.com/watch?v=$videoId"
+                    if (runCatching { uriHandler.openUri(url) }.isFailure) {
+                        android.widget.Toast.makeText(context, "Couldn't open video link", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+        ) {
+            AsyncImage(
+                model = thumbs[thumbIndex], contentDescription = "Video thumbnail",
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                onError = { if (thumbIndex < thumbs.lastIndex) thumbIndex++ },
+                modifier = Modifier.fillMaxSize(),
+            )
+            Box(
+                Modifier.align(Alignment.Center).size(56.dp).clip(kikoCircleShape()).background(Color.Black.copy(alpha = .6f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Default.PlayArrow, "Play video on YouTube", tint = Color.White, modifier = Modifier.size(36.dp)) }
+            Text(
+                "Watch on YouTube", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
+                    .clip(kikoPillShape()).background(Color.Black.copy(alpha = .6f)).padding(horizontal = 9.dp, vertical = 3.dp),
+            )
         }
     }
 }
@@ -1061,6 +1105,7 @@ private fun openForumLink(url: String, uriHandler: androidx.compose.ui.platform.
                 ForumImage(block.url, c, onImageTap)
             }
         }
+        is ForumBlock.VideoBlock -> ForumVideo(block.videoId, c)
         is ForumBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             block.items.forEachIndexed { index, item ->
                 Row {

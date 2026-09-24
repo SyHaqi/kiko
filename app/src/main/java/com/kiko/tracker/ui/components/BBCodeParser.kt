@@ -23,7 +23,25 @@ import com.kiko.tracker.ui.screens.ForumBlock
 val bbTagRegex = Regex("""\[(/?)([a-zA-Z*]+)(=[^\]]*)?\]""")
 // Match img attribute forms
 
-val bbBlockRegex = Regex("""\[(img|list|quote|center)(?:[^\]]*)?\](.*?)\[/\1\]""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+// yt/youtube: MAL's YouTube embed tag ([yt]VIDEO_ID[/yt]) — becomes a tappable thumbnail block.
+val bbBlockRegex = Regex("""\[(img|list|quote|center|yt|youtube)(?:[^\]]*)?\](.*?)\[/\1\]""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+
+// Pulls the 11-char YouTube video id out of whatever ended up between [yt]...[/yt]: MAL's own
+// bare id ("qOyrumtlOGA", optionally with trailing "&feature=..." junk), or a full
+// watch / youtu.be / embed / shorts URL (what the scraped <iframe src> gives us; playlist embeds
+// like embed/videoseries?list=... have no single video id, so they're deliberately not matched). By the time
+// this runs, normalizeMalMarkup may have wrapped a URL in [url]..[/url], so strip tags first.
+private val youTubeUrlIdRegex = Regex(
+    """(?:youtube(?:-nocookie)?\.com/(?:watch\?(?:[^#\s]*&)?v=|embed/(?!videoseries)|v/|shorts/|live/)|youtu\.be/)([A-Za-z0-9_-]{11})""",
+    RegexOption.IGNORE_CASE,
+)
+private val youTubeBareIdRegex = Regex("""^([A-Za-z0-9_-]{11})(?:[&?#].*)?$""")
+
+fun youTubeIdFrom(raw: String): String? {
+    val s = stripBbTags(raw).trim()
+    youTubeUrlIdRegex.find(s)?.let { return it.groupValues[1] }
+    return youTubeBareIdRegex.find(s)?.groupValues?.get(1)
+}
 
 
 fun tokenizeBb(raw: String): List<BbToken> {
@@ -201,6 +219,12 @@ fun parseBlocks(raw: String, linkColor: Color): List<ForumBlock> {
                 val cleaned = stripBbTags(imgInner).ifBlank { imgInner }
                 if (cleaned.startsWith("tenor:", ignoreCase = true)) blocks += ForumBlock.ImageBlock(cleaned.substring(6), resolveTenor = true)
                 else blocks += ForumBlock.ImageBlock(httpsUpgrade(cleaned))
+            }
+            "yt", "youtube" -> {
+                val videoId = youTubeIdFrom(inner)
+                // Unparseable id: show whatever was typed rather than silently dropping the tag.
+                if (videoId != null) blocks += ForumBlock.VideoBlock(videoId)
+                else blocks += paragraphsFrom(stripBbTags(inner), linkColor)
             }
             "list" -> {
                 val items = inner.split(Regex("""\[\*\]""", RegexOption.IGNORE_CASE)).map { it.trim() }.filter { it.isNotBlank() }

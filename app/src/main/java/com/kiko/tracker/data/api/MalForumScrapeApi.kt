@@ -1,5 +1,6 @@
 package com.kiko.tracker.data.api
 
+import com.kiko.tracker.ui.components.youTubeIdFrom
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Document
@@ -48,6 +49,10 @@ import java.util.TimeZone
  * htmlToBb is necessarily reverse-engineered off the same single captured page as the rest of
  * this file, so treat its tag coverage as best-effort, not exhaustive:
  *  - [b]/[i]/[u]/[s], [url=...], [img], [list]/[list=1], [quote], and centered blocks are mapped.
+ *  - MAL's rendered YouTube embed (<iframe class="movie youtube" src=".../embed/ID">) is emitted
+ *    as "[yt]ID[/yt]" — the same tag MAL's REST body carries — so it renders as a tappable
+ *    thumbnail instead of vanishing (an iframe has no child nodes, so the generic fallthrough
+ *    used to produce nothing). Non-YouTube iframes are still dropped.
  *  - A bare tenor.com/view link (href text == its own URL) is emitted as an unadorned
  *    "[url]...[/url]" rather than "[url=...]...[/url]" specifically so normalizeMalMarkup's
  *    bareTenorLinkRegex still catches it and inlines the actual GIF, same as it already does for
@@ -126,6 +131,10 @@ class MalForumScrapeApi {
                     val style = node.attr("style").replace(" ", "").lowercase()
                     when {
                         tag == "br" -> sb.append("\n")
+                        tag == "iframe" -> {
+                            val id = youTubeIdFrom(node.attr("data-src").ifBlank { node.attr("src") })
+                            if (id != null) sb.append("\n[yt]").append(id).append("[/yt]\n")
+                        }
                         tag == "img" -> {
                             val src = node.attr("data-src").ifBlank { node.attr("src") }.trim()
                             if (src.isNotBlank()) sb.append("[img]").append(src).append("[/img]")
