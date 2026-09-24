@@ -290,6 +290,10 @@ class LibraryViewModel : ViewModel() {
         // "Available At" links —
         // forumDiscussion/featuredArticles above, just reading
         var links: List<Pair<String, String>>? = null,
+        // Favorites count (Statistics sidebar) — nullable so "not yet
+        // fetched" is distinguishable from a genuine 0, same reasoning
+        // as the other scrape-only fields above.
+        var favorites: Int? = null,
         var relatedScroll: Pair<Int, Int> = 0 to 0,
         var recommendedScroll: Pair<Int, Int> = 0 to 0,
         var charactersScroll: Pair<Int, Int> = 0 to 0,
@@ -330,9 +334,10 @@ class LibraryViewModel : ViewModel() {
         val forumDiscussion: List<ForumTopic>?,
         val featuredArticles: List<FeaturedArticleEntry>?,
         val links: List<Pair<String, String>>?,
+        val favorites: Int?,
     )
     fun peekDetailCache(id: String, type: MediaType): DetailCacheSnapshot? = detailCaches[id to type]?.let {
-        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.reviews, it.stacks, it.news, it.forumDiscussion, it.featuredArticles, it.links)
+        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.reviews, it.stacks, it.news, it.forumDiscussion, it.featuredArticles, it.links, it.favorites)
     }
     // Drops every cached detail
     // call this once the
@@ -2619,6 +2624,7 @@ class LibraryViewModel : ViewModel() {
                     cache.forumDiscussion = scraped.forumDiscussion
                     cache.featuredArticles = scraped.featuredArticles
                     cache.links = scraped.links
+                    cache.favorites = scraped.favorites
                 }
             }
         }
@@ -2833,6 +2839,21 @@ class LibraryViewModel : ViewModel() {
             ensureDetailFetched(context, item.id, item.type).await()
             val result = cache.links ?: emptyList()
             if (result.isNotEmpty()) onFound(result)
+            onDone()
+        }
+    }
+
+    // Favorites count (Statistics sidebar) — same on-demand backfill shape
+    // as loadDetailLinks above, just an Int instead of a list so a genuine
+    // 0 is still handed back (the UI decides whether to hide it).
+    fun loadDetailFavorites(context: Context, item: MediaItem, onFound: (Int) -> Unit, onDone: () -> Unit = {}) {
+        val cache = detailCache(item.id, item.type)
+        cache.favorites?.let { onFound(it); onDone(); return }
+        val intId = item.id.toIntOrNull()
+        if (intId == null) { onDone(); return }
+        viewModelScope.launch {
+            ensureDetailFetched(context, item.id, item.type).await()
+            onFound(cache.favorites ?: 0)
             onDone()
         }
     }

@@ -76,6 +76,10 @@ class MalDetailScrapeApi {
         // visible text, value is
         // with CompanyDetailScreen's own link-chip
         val links: List<Pair<String, String>> = emptyList(),
+        // "Favorites" count from the sidebar Statistics block (Score/Ranked/
+        // Popularity/Members/Favorites) — the official API has no equivalent
+        // field, so this is scraped-only, same reasoning as links above.
+        val favorites: Int = 0,
     )
 
     suspend fun fetch(id: Int, type: MediaType): PageExtras = withContext(Dispatchers.IO) {
@@ -88,6 +92,7 @@ class MalDetailScrapeApi {
             forumDiscussion = parseDetailForumDiscussion(doc, limit = 2),
             featuredArticles = parseFeaturedArticles(doc, limit = 2),
             links = parseAvailableLinks(doc),
+            favorites = parseFavorites(doc),
         )
     }
 
@@ -108,6 +113,20 @@ class MalDetailScrapeApi {
             val label = a.selectFirst("div.caption")?.text()?.trim().orEmpty()
             if (url.isBlank() || label.isBlank()) null else label to url
         }
+    }
+
+    // Sidebar Statistics block: a run of <div class="spaceit_pad"> rows,
+    // each headed by a <span class="dark_text"> label ("Score:", "Ranked:",
+    // "Popularity:", "Members:", "Favorites:") followed by its value as a
+    // plain sibling text node. Same shape MalPeopleApi's own "Member
+    // Favorites:" field is pulled from, just matched by row instead of
+    // flattening the whole column, since this block sits alongside several
+    // other single-line label/value rows that aren't worth parsing generically.
+    private fun parseFavorites(doc: Document): Int {
+        val row = doc.select("div.spaceit_pad").firstOrNull {
+            it.selectFirst("span.dark_text")?.text()?.trim()?.equals("Favorites:", ignoreCase = true) == true
+        } ?: return 0
+        return Regex("[\\d,]+").find(row.text())?.value?.replace(",", "")?.toIntOrNull() ?: 0
     }
 
     // Fetch characters row for

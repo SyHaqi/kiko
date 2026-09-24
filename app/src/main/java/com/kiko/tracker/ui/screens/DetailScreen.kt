@@ -143,6 +143,7 @@ data class DetailScreenActions(
     val onOpenForumDiscussionList: (MediaItem) -> Unit = {},
     val onLoadFeaturedArticles: (MediaItem, (List<FeaturedArticleEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onLoadLinks: (MediaItem, (List<Pair<String, String>>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onLoadFavorites: (MediaItem, (Int) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenTopic: (Int, String) -> Unit = { _, _ -> },
     val onOpenFeaturedArticle: (String, String) -> Unit = { _, _ -> },
     val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit, () -> Unit) -> Unit = { _, _, onDone, _ -> onDone() },
@@ -315,6 +316,10 @@ data class DetailScreenActions(
     // already uses for a
     var links by remember(item.id) { mutableStateOf(cachedSnapshot?.links ?: emptyList()) }
     LaunchedEffect(item.id) { actions.onLoadLinks(item, { links = it }, {}) }
+    // Favorites count (Statistics sidebar) — scraped-only, same backfill
+    // shape as links above.
+    var favorites by remember(item.id) { mutableStateOf(cachedSnapshot?.favorites) }
+    LaunchedEffect(item.id) { actions.onLoadFavorites(item, { favorites = it }, {}) }
     // Fresh scroll state per-title
     val listState = remember(item.id) { LazyListState(initialScroll.first, initialScroll.second) }
     // One stagger-memory set per
@@ -543,6 +548,13 @@ data class DetailScreenActions(
                                 listOfNotNull(label, airTime?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
                                 color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp),
                             )
+                        }
+                    }
+
+                    favorites?.takeIf { it > 0 }?.let { fav ->
+                        Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Favorite, null, tint = c.danger, modifier = Modifier.size(14.dp))
+                            Text("${formatCount(fav)} favorites", color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
                         }
                     }
 
