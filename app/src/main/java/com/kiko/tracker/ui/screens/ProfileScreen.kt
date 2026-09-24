@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.util.openInBrowser
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -173,7 +174,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                                     leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
                                     onClick = {
                                         moreOpen = false
-                                        CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/profile/${profile.name}"))
+                                        context.openInBrowser("https://myanimelist.net/profile/${profile.name}")
                                     },
                                 )
                             }

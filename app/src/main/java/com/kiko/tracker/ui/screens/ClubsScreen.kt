@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.util.openInBrowser
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -252,7 +253,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                     Row(Modifier.fillMaxWidth().padding(top = 16.dp, start = 16.dp, end = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .35f))) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
                         if (full.url.isNotBlank()) {
-                            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(full.url)) }, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .35f))) {
+                            IconButton(onClick = { context.openInBrowser(full.url) }, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .35f))) {
                                 Icon(Icons.Default.OpenInNew, "Open on MyAnimeList", tint = Color.White, modifier = Modifier.size(18.dp))
                             }
                         }
@@ -284,9 +285,9 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
             item {
                 AnimatedContent(tab, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "club-tab", modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp)) { t ->
                     when (t) {
-                        ClubTab.Couch -> ClubCouchSection(club.id, full, onOpenBrowser = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(full.url)) }, onOpenProfileLink = onOpenProfileLink)
-                        ClubTab.Cabinet -> ClubCabinetSection(full, loading, onOpenBrowser = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(it)) })
-                        ClubTab.Members -> ClubMembersSection(club.id, onOpenBrowser = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(it)) })
+                        ClubTab.Couch -> ClubCouchSection(club.id, full, onOpenBrowser = { context.openInBrowser(full.url) }, onOpenProfileLink = onOpenProfileLink)
+                        ClubTab.Cabinet -> ClubCabinetSection(full, loading, onOpenBrowser = { context.openInBrowser(it) })
+                        ClubTab.Members -> ClubMembersSection(club.id, onOpenBrowser = { context.openInBrowser(it) })
                     }
                 }
             }

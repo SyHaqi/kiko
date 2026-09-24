@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.util.openInBrowser
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -439,7 +440,7 @@ data class DetailScreenActions(
                                     DropdownMenuItem(
                                         text = { Text("Open in browser") },
                                         leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                                        onClick = { moreOpen = false; uriHandler.openUri(malUrl(item)) },
+                                        onClick = { moreOpen = false; context.openInBrowser(malUrl(item)) },
                                     )
                                 }
                             }

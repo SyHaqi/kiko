@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.util.openInBrowser
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
@@ -181,7 +182,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                             DropdownMenuItem(
                                 text = { Text("Open in browser") },
                                 leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                                onClick = { moreOpen = false; runCatching { uriHandler.openUri("https://myanimelist.net/people/${person.malId}") } },
+                                onClick = { moreOpen = false; context.openInBrowser("https://myanimelist.net/people/${person.malId}") },
                             )
                         }
                     }

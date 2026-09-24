@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.util.openInBrowser
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -135,7 +136,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             DropdownMenuItem(
                                 text = { Text("Open in browser") },
                                 leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                                onClick = { moreOpen = false; CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks")) },
+                                onClick = { moreOpen = false; context.openInBrowser("https://myanimelist.net/stacks") },
                             )
                         }
                     }
@@ -750,7 +751,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                     leadingIcon = { Icon(Icons.Default.OpenInNew, null, tint = c.primary) },
                                     onClick = {
                                         moreOpen = false
-                                        CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/stacks/$stackId"))
+                                        context.openInBrowser("https://myanimelist.net/stacks/$stackId")
                                     },
                                 )
                             }

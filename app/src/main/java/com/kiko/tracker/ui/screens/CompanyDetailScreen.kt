@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.util.openInBrowser
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
@@ -199,7 +200,7 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
                             DropdownMenuItem(
                                 text = { Text("Open in browser") },
                                 leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                                onClick = { moreOpen = false; runCatching { uriHandler.openUri("https://myanimelist.net/anime/producer/${company.malId}") } },
+                                onClick = { moreOpen = false; context.openInBrowser("https://myanimelist.net/anime/producer/${company.malId}") },
                             )
                         }
                     }

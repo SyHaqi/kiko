@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.util.openInBrowser
 import androidx.activity.compose.BackHandler
 import android.content.Intent
 import android.net.Uri
@@ -180,7 +181,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
                             onClick = {
                                 moreOpen = false
-                                CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://myanimelist.net/profile/$username"))
+                                context.openInBrowser("https://myanimelist.net/profile/$username")
                             },
                         )
                     }
