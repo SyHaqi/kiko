@@ -337,12 +337,16 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         }
         if (restacks > 0) {
             Spacer(Modifier.weight(1f))
+            // Fixed 20.dp pill height (no vertical padding): DetailStackCard wraps this row in a
+            // 20.dp Box, and the old 4.dp vertical padding + 11.sp text's default line height
+            // needed ~24.dp, so the count got squashed downward and clipped. Explicit lineHeight
+            // keeps the digits vertically centered inside the pill.
             Row(
-                Modifier.clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 4.dp),
+                Modifier.height(20.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Default.Layers, null, tint = c.accent, modifier = Modifier.size(11.dp))
-                Text(restacks.toString(), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                Text(restacks.toString(), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 4.dp))
             }
         }
     }

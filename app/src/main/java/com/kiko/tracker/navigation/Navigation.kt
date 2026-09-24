@@ -287,6 +287,11 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var selectedItem by remember { mutableStateOf<MediaItem?>(null) }
     // Related title navigation stack
     var detailStack by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+    // Detail pages left underneath an open Interest Stack while one of its entries is shown on
+    // top (see openDetailFromStack): each element is the page that was open when the stack entry
+    // was tapped, plus that page's own related-title history. backDetail pops it once the entry
+    // is backed out of, so the stack shows first and the original page is right behind it.
+    var stackReturnStack by remember { mutableStateOf<List<Pair<MediaItem, List<MediaItem>>>>(emptyList()) }
     // Direction hint for the
     // hops (tapping a related/recommended
     // "isFullPage() on both sides"
@@ -378,6 +383,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         vm.clearDetailCache()
         detailGoingBack = false
         detailStack = emptyList()
+        stackReturnStack = emptyList()
         // A fresh top-level open
         // including a work opened
         // row, which also goes
@@ -461,6 +467,17 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
             // from here (tapping a
             // fresh title anyway), so
             // linger until the whole
+            leaving?.let { vm.forgetDetailPage(it.id, it.type) }
+            return
+        }
+        // The entry was opened from a stack that sits on top of an original Detail page: put that
+        // page back as selectedItem (its cache was never cleared) and drop the "entry on top"
+        // flag so the still-open stack shows first; backing out of the stack then reveals it.
+        stackReturnStack.lastOrNull()?.let { (origin, originHistory) ->
+            detailGoingBack = true
+            selectedItem = origin; detailStack = originHistory
+            stackReturnStack = stackReturnStack.dropLast(1)
+            detailOnTopOfTopicOrStack = false
             leaving?.let { vm.forgetDetailPage(it.id, it.type) }
             return
         }
@@ -574,6 +591,22 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // instant back is pressed,
     // need for a separate
     var mediaStacksOpen by remember { mutableStateOf<MediaItem?>(null) }
+    // An entry tapped inside a stack. If that stack was opened from an anime/manga Detail page
+    // (or its "Interest Stacks" list), that original page is still selectedItem underneath, so
+    // stash it (and its related-title history) in stackReturnStack instead of going through
+    // openDetail(), which would wipe the detail cache and history. The stack stays open under the
+    // entry: back from the entry shows the stack, and back from the stack shows the original
+    // page again (see backDetail). A stack opened from anywhere else (Home/Stacks home/Browse/
+    // Topic) has no such page, so keep the plain overlay behavior.
+    fun openDetailFromStack(item: MediaItem) {
+        val origin = selectedItem
+        if (origin == null) { openDetail(item); detailOnTopOfTopicOrStack = true; return }
+        stackReturnStack = stackReturnStack + (origin to detailStack)
+        detailGoingBack = false
+        detailStack = emptyList()
+        selectedItem = item
+        detailOnTopOfTopicOrStack = true
+    }
     // A title's community score
     // more" on Status distribution
     // somewhere you navigate/browse (same
@@ -619,7 +652,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         // for a page that's
         // dropped for real once
         // resets the search itself
-        selectedItem = null; detailStack = emptyList()
+        selectedItem = null; detailStack = emptyList(); stackReturnStack = emptyList()
         characterDetailOpenId = null; characterDetailOpen = null; castCharacterOnTop = false
         personDetailOpenId = null; personDetailOpen = null; castPersonOnTop = false
         companyDetailOpenId = null; companyDetailOpen = null
@@ -958,7 +991,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                     // (i.e. this stack was
                                     // otherwise the user is
                                     // the flow, and the
-                                    is TopScreen.StackDetail -> StackDetailScreen(vm, screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), initialScroll = vm.getStackDetailScroll(screen.stackId), onLeaveScroll = { index, offset -> vm.saveStackDetailScroll(screen.stackId, index, offset) }, onBack = { stackDetailOpen = null; if (!stacksHomeOpen && stacksBrowseKind == null && mediaStacksOpen == null) vm.clearStackDetailCache() }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetail(fetched); detailOnTopOfTopicOrStack = true } }, onEditEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> editor = fetched } }, selectedItem = editor, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
+                                    is TopScreen.StackDetail -> StackDetailScreen(vm, screen.stackId, screen.title, loadingId = vm.stackEntryLoadingId, myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(), initialScroll = vm.getStackDetailScroll(screen.stackId), onLeaveScroll = { index, offset -> vm.saveStackDetailScroll(screen.stackId, index, offset) }, onBack = { stackDetailOpen = null; if (!stacksHomeOpen && stacksBrowseKind == null && mediaStacksOpen == null) vm.clearStackDetailCache() }, onOpenEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> openDetailFromStack(fetched) } }, onEditEntry = { entry -> vm.openStackEntry(context, entry) { fetched -> editor = fetched } }, selectedItem = editor, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
                                     is TopScreen.MediaStacks -> MediaStacksScreen(vm = vm, item = screen.item, onBack = { mediaStacksOpen = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
                                     is TopScreen.ClubDetail -> ClubDetailScreen(screen.club, onBack = { clubDetailOpen = null }, onOpenCharacter = { malId -> openCharacter(malId) }, onOpenPerson = { malId -> openPerson(malId) }, onOpenCompany = { malId -> openCompany(malId) })
                                     TopScreen.ProfileStats -> ProfileStatsScreen(vm.signedIn, vm.malProfile, vm.items, onConnect = onSignIn, onBack = { profileStatsOpen = false }, scrollOffset = vm.profileScrollOffset, onSaveScroll = vm::saveProfileScroll, statsTab = vm.profileStatsTab, onStatsTabChange = vm::selectProfileStatsTab, onScoreClick = { type, score -> scoreFilterOpen = type to score }, onYearClick = { type, year -> yearFilterOpen = type to year }, onFormatClick = { type, format -> formatFilterOpen = type to format }, onGenreClick = { type, genre -> genreFilterOpen = type to genre }, onSignOut = { profileStatsOpen = false; onSignOut() }, refreshing = vm.loading || vm.profileLoading, onRefresh = { vm.load(context); vm.malProfile?.name?.takeIf { it.isNotBlank() }?.let { vm.refreshProfileFriendsFavorites(context, it) } }, onOpenFriendsFavorites = { malFriendsFavoritesOpen = true }, onOpenFriend = ::openFriendProfile, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) }, onOpenFavoriteTitle = { malId, type -> openFavoriteTitle(malId, type) }, favoriteLoadingId = vm.profileFavoriteLoadingId, friendsRowScroll = vm.profileFriendsRowScroll, onSaveFriendsRowScroll = vm::saveProfileFriendsRowScroll, getFavoritesRowScroll = vm::getProfileFavoritesRowScroll, onSaveFavoritesRowScroll = vm::saveProfileFavoritesRowScroll, cachedFriends = vm.profileFriends, cachedFavorites = vm.profileFavorites, onLoadFriendsFavorites = { username -> vm.loadProfileFriendsFavorites(context, username) }, friendsFavoritesLoading = vm.profileFriendsFavoritesLoading, cachedAboutMe = vm.profileAboutMe, onOpenListStatus = { type, label -> profileStatsOpen = false; vm.destination = Destination.List; vm.selectListTypeTab(context, type); vm.setListFilter(context, label) })
