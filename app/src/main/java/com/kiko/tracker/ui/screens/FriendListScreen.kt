@@ -68,15 +68,17 @@ private fun friendListStatusTabs(type: MediaType): List<WatchStatus?> =
 
 private fun WatchStatus?.tabLabel(type: MediaType): String = this?.displayLabel(type) ?: "All"
 
-// Sort options for a friend's list — a smaller set than My List's ListSort:
-// MalUserListEntry (scraped from MAL's list page) carries no update/start
-// date fields, only title/progress/score, so LastUpdated/StartDate have
-// nothing to sort by here.
-private enum class FriendListSort(val label: String) { Title("Title"), Score("Score") }
+// Sort options for a friend's list — same four as My List's ListSort.
+// LastUpdated/StartDate read MalUserListEntry.updatedAt/startDate (scraped
+// from the same list page); entries missing one sink to the bottom, and both
+// sort newest-first, matching sortedWithListSort in HomeScreen.
+private enum class FriendListSort(val label: String) { Title("Title"), Score("Score"), LastUpdated("Last Updated"), StartDate("Start Date") }
 
 private fun List<MalUserListEntry>.sortedWithFriendSort(sort: FriendListSort): List<MalUserListEntry> = when (sort) {
     FriendListSort.Title -> sortedBy { it.title.lowercase() }
     FriendListSort.Score -> sortedWith(compareByDescending<MalUserListEntry> { it.score > 0 }.thenByDescending { it.score })
+    FriendListSort.LastUpdated -> sortedWith(compareByDescending<MalUserListEntry> { it.updatedAt > 0L }.thenByDescending { it.updatedAt })
+    FriendListSort.StartDate -> sortedWith(compareByDescending<MalUserListEntry> { it.startDate.isNotBlank() }.thenByDescending { it.startDate })
 }
 
 private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): String {
@@ -364,7 +366,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     }
 }
 
-// Same visual shape as My List's SortMenu, over the smaller FriendListSort set.
+// Same visual shape as My List's SortMenu, over FriendListSort.
 @Composable private fun FriendSortMenu(current: FriendListSort, onSelect: (FriendListSort) -> Unit) {
     val c = LocalKikoColors.current
     var open by remember { mutableStateOf(false) }

@@ -30,6 +30,13 @@ data class MalUserListEntry(
     val total: Int,
     // 0..10, MAL's own scale — 0 means "no score given" (rendered as "-").
     val score: Int,
+    // Unix seconds of the member's last edit to this entry (MAL's `updated_at`),
+    // 0 when MAL didn't send one. Only used to sort by "Last Updated".
+    val updatedAt: Long = 0L,
+    // The member's own start date for this entry, normalised to "yyyy-MM-dd"
+    // (same shape as My List's watchStartDate, so it sorts as plain text);
+    // blank when they never set one. Only used to sort by "Start Date".
+    val startDate: String = "",
 )
 
 /**
@@ -142,8 +149,25 @@ class MalUserListScrapeApi(context: Context) {
         return (0 until array.length()).mapNotNull { i -> parseEntry(array.getJSONObject(i), type) }
     }
 
+    // MAL prints the member's own start date as "dd-MM-yy" (e.g. "19-02-24"),
+    // or JSON null when it was never set. Turn it into "yyyy-MM-dd" so a
+    // plain string compare orders it chronologically. The two-digit year is
+    // always 20xx — MAL didn't exist before 2004. Anything that isn't that
+    // exact shape (null, or a different date format) comes back blank, which
+    // sorts to the bottom like an unset date does.
+    private val startDateRegex = Regex("""^(\d{2})-(\d{2})-(\d{2})$""")
+
+    private fun normalizeStartDate(o: JSONObject): String {
+        if (o.isNull("start_date_string")) return ""
+        val m = startDateRegex.matchEntire(o.optString("start_date_string").trim()) ?: return ""
+        val (dd, mm, yy) = m.destructured
+        return "20$yy-$mm-$dd"
+    }
+
     private fun parseEntry(o: JSONObject, type: MediaType): MalUserListEntry? {
         val status = statusFromCode(o.optInt("status"), type) ?: return null
+        val updatedAt = o.optLong("updated_at")
+        val startDate = normalizeStartDate(o)
         return if (type == MediaType.Anime) {
             val id = o.optInt("anime_id")
             if (id == 0) return null
@@ -156,6 +180,8 @@ class MalUserListScrapeApi(context: Context) {
                 progress = o.optInt("num_watched_episodes"),
                 total = o.optInt("anime_num_episodes"),
                 score = o.optInt("score"),
+                updatedAt = updatedAt,
+                startDate = startDate,
             )
         } else {
             val id = o.optInt("manga_id")
@@ -169,6 +195,8 @@ class MalUserListScrapeApi(context: Context) {
                 progress = o.optInt("num_read_chapters"),
                 total = o.optInt("manga_num_chapters"),
                 score = o.optInt("score"),
+                updatedAt = updatedAt,
+                startDate = startDate,
             )
         }
     }
