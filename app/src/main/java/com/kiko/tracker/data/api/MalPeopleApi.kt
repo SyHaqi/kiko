@@ -204,8 +204,14 @@ class MalPeopleApi {
             ?.takeIf { it.isNotBlank() }
             ?.let(::fullResMalImage) ?: ""
         val (allFields, about) = infoCell?.let(::parseProfileFields) ?: (emptyList<Pair<String, String>>() to "")
-        val favorites = allFields.firstOrNull { it.first.contains("favorites", ignoreCase = true) }
-            ?.second?.replace(",", "")?.toIntOrNull() ?: 0
+        // Read the count straight off the portrait column's text rather than only via the
+        // generic label splitter: the trailing "More:" label (whose value lives in the
+        // separate .people-informantion-more block) used to get glued onto this value.
+        val favorites = infoCell?.let { Regex("Member Favorites:\\s*([\\d,]+)").find(normalizeWhitespace(it)) }
+            ?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull()
+            ?: allFields.firstOrNull { it.first.contains("favorites", ignoreCase = true) }
+                ?.second?.let { Regex("[\\d,]+").find(it)?.value }?.replace(",", "")?.toIntOrNull()
+            ?: 0
         // Shown separately with its
         // CharacterDetail.favorites — so it's
         // rather than rendered twice.
@@ -233,9 +239,12 @@ class MalPeopleApi {
         val moreDiv = working.selectFirst(".people-informantion-more")
         val (moreFields, about) = moreDiv?.let(::parseMoreBlock) ?: (emptyList<Pair<String, String>>() to "")
         moreDiv?.remove()
+        // The "Add to/Remove from Favorites" button and share icons live in this same column;
+        // their text ("...Favorites") otherwise glues onto the first real label ("Given name").
+        working.select("#v-favorite, .js-sns-icon-container").remove()
 
         val text = normalizeWhitespace(working)
-        val labelRegex = Regex("([A-Z][A-Za-z][A-Za-z &()]{0,28}):\\s")
+        val labelRegex = Regex("([A-Z][A-Za-z][A-Za-z &()]{0,28}):(?:\\s|$)")
         val matches = labelRegex.findAll(text).toList()
         val fields = mutableListOf<Pair<String, String>>()
         for (i in matches.indices) {
