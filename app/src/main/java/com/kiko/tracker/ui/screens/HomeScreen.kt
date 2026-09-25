@@ -3,6 +3,8 @@
 package com.kiko.tracker.ui.screens
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.ui.res.stringResource
+import com.kiko.tracker.R
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -284,9 +286,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                     if (vm.authChecked && !vm.signedIn && !vm.loading) {
                         Column(Modifier.fillMaxWidth().padding(top = 50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Please sign in with your MyAnimeList account", color = c.muted, fontSize = 14.sp, textAlign = TextAlign.Center)
+                            Text(stringResource(R.string.home_sign_in_prompt), color = c.muted, fontSize = 14.sp, textAlign = TextAlign.Center)
                             Spacer(Modifier.height(16.dp))
-                            Button(onClick = onSignIn, colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) { Text("Sign in with MyAnimeList") }
+                            Button(onClick = onSignIn, colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) { Text(stringResource(R.string.home_sign_in_button)) }
                         }
                     }
                 }
@@ -851,7 +853,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     }
     val countRow: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
+            Text(context.resources.getQuantityString(R.plurals.list_title_count, filtered.size, filtered.size) + if (vm.loading) stringResource(R.string.list_syncing_suffix) else "", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ListViewModeToggle(vm.listViewMode) { vm.setListViewMode(context, it) }
                 SortMenu(vm.listSort) { vm.setListSort(context, it) }
@@ -891,7 +893,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     } else {
                         itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, openItem, onIncrement, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) } }
                     }
-                    if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                    if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text(stringResource(R.string.list_empty), color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = bottomInset)) {
@@ -908,7 +910,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                             }
                         }
                     }
-                    if (!vm.loading && filtered.isEmpty()) item { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                    if (!vm.loading && filtered.isEmpty()) item { Text(stringResource(R.string.list_empty), color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
             }
         }

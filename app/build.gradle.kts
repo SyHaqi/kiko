@@ -20,7 +20,9 @@ val gitTagOutput = providers.exec {
 val appVersionName = gitTagOutput.removePrefix("v").ifBlank { "0.0.0" }
 val appVersionCode = appVersionName.split(".")
     .map { it.toIntOrNull() ?: 0 }
-    .let { (maj, min, patch) -> maj * 10000 + min * 100 + patch }
+    .let { parts -> parts.getOrElse(0) { 0 } * 10000 + parts.getOrElse(1) { 0 } * 100 + parts.getOrElse(2) { 0 } }
+    // No git tag (fresh clone / tags not fetched) gives 0.0.0 => 0, which AGP rejects; versionCode must be >= 1.
+    .coerceAtLeast(1)
 
 android { namespace = "com.kiko.tracker"; compileSdk = 37
     defaultConfig {
