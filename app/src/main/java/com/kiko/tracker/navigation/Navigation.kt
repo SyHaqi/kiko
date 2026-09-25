@@ -3,6 +3,8 @@
 package com.kiko.tracker.navigation
 
 import android.app.Activity
+import com.kiko.tracker.util.findActivity
+import com.kiko.tracker.util.setAppLanguage
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -577,7 +579,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // FriendProfile — same shape as malFriendsFavoritesOpen above.
     var friendFriendsFavoritesOpen by remember { mutableStateOf<String?>(null) }
     var friendListStatusOpen by remember { mutableStateOf<TopScreen.FriendListStatus?>(null) }
-    var settingsPageOpen by remember { mutableStateOf(false) }
+    // Reopens Settings after the activity is recreated by an app-language change (see onAppLanguageSelect).
+    var settingsPageOpen by remember { mutableStateOf(vm.reopenSettingsOnce.also { vm.reopenSettingsOnce = false }) }
     // Score distribution drill-down, opened
     var scoreFilterOpen by remember { mutableStateOf<Pair<MediaType, Int>?>(null) }
     // Year distribution drill-down, opened
@@ -1040,6 +1043,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         nsfwEnabled = vm.nsfwEnabled, onNsfwChange = { vm.setNsfw(context, it) },
                                         amoledDark = vm.amoledDark, onAmoledDarkChange = { vm.setAmoledDark(context, it) },
                                         onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true },
+                                        onAppLanguageSelect = { lang -> vm.reopenSettingsOnce = true; context.findActivity()?.let { setAppLanguage(it, lang) } },
                                         updateInfo = vm.updateInfo, onAboutClick = { aboutOpen = true },
                                         onBack = { settingsPageOpen = false },
                                     )

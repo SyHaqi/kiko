@@ -3,6 +3,7 @@
 package com.kiko.tracker.ui.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.text.BasicTextField
@@ -123,7 +124,7 @@ import com.kiko.tracker.ui.theme.kikoPillShape
                     select(d)
                 },
                 icon = { Icon(d.icon, null) },
-                label = { Text(d.label) },
+                label = { Text(stringResource(d.labelRes)) },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = c.onSecondaryContainer, selectedTextColor = c.onSecondaryContainer,
                     unselectedIconColor = c.muted, unselectedTextColor = c.muted,
@@ -166,8 +167,8 @@ import com.kiko.tracker.ui.theme.kikoPillShape
                     lastTapTime = now
                     select(d)
                 },
-                icon = { Icon(d.icon, contentDescription = d.label) },
-                label = { Text(d.label, maxLines = 1) },
+                icon = { Icon(d.icon, contentDescription = stringResource(d.labelRes)) },
+                label = { Text(stringResource(d.labelRes), maxLines = 1) },
                 alwaysShowLabel = true,
                 colors = NavigationRailItemDefaults.colors(
                     selectedIconColor = c.onSecondaryContainer,

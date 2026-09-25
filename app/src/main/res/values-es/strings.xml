@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Common -->
+    <string name="action_back">Atrás</string>
+
+    <!-- Bottom navigation / rail -->
+    <string name="nav_home">Inicio</string>
+    <string name="nav_my_list">Mi lista</string>
+    <string name="nav_discover">Descubrir</string>
+    <string name="nav_seasonal">Temporada</string>
+    <string name="nav_hub">Comunidad</string>
+
+    <!-- Profile drawer -->
+    <string name="drawer_not_signed_in">Sesión no iniciada</string>
+    <string name="drawer_view_profile">Ver perfil y estadísticas</string>
+    <string name="drawer_sign_in_for_stats">Inicia sesión para ver tus estadísticas</string>
+    <string name="drawer_settings_summary">Apariencia, idioma, títulos, contenido para adultos, acerca de</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_color">Color</string>
+    <string name="settings_color_palette">Paleta de colores</string>
+    <string name="settings_title_language">Idioma de los títulos</string>
+    <string name="settings_app_language">Idioma de la aplicación</string>
+    <string name="settings_amoled">Negro AMOLED</string>
+    <string name="settings_amoled_desc">Fondos de negro puro en modo oscuro; ahorra batería en pantallas AMOLED</string>
+    <string name="settings_adult">Contenido para adultos</string>
+    <string name="settings_adult_shown">Se muestran los títulos clasificados como hentai</string>
+    <string name="settings_adult_hidden">Se ocultan los títulos clasificados como hentai</string>
+    <string name="settings_about">Acerca de</string>
+    <string name="settings_update_available">Actualización disponible — %1$s</string>
+
+    <!-- App language dropdown -->
+    <string name="language_system_default">Predeterminado del sistema</string>
+
+    <!-- Settings sheets -->
+    <string name="sheet_appearance">Apariencia</string>
+    <string name="sheet_preferences">Preferencias</string>
+
+    <string name="sheet_choose_theme">Elige un tema</string>
+    <string name="theme_system">Sistema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Oscuro</string>
+    <string name="theme_system_desc">Sigue el ajuste de tu dispositivo</string>
+    <string name="theme_light_desc">Siempre claro</string>
+    <string name="theme_dark_desc">Siempre oscuro</string>
+
+    <string name="sheet_choose_color">Elige un color</string>
+    <string name="color_app_default">Predeterminado de la app</string>
+    <string name="color_dynamic">Dinámico</string>
+    <string name="color_custom">Personalizado</string>
+    <string name="color_app_default_desc">El índigo predeterminado de Kiko</string>
+    <string name="color_dynamic_desc">Se adapta al fondo de pantalla de tu dispositivo</string>
+    <string name="color_custom_desc">Elige tu propio color hexadecimal</string>
+    <string name="color_hex_error">Hexadecimal de 6 dígitos, p. ej. 2E51A2</string>
+
+    <string name="sheet_choose_palette">Elige una paleta de colores</string>
+    <string name="palette_tonal_spot">Tonal Spot</string>
+    <string name="palette_neutral">Neutral</string>
+    <string name="palette_monochrome">Monocromo</string>
+    <string name="palette_tonal_spot_desc">Color de acento equilibrado y vivo</string>
+    <string name="palette_neutral_desc">Colores más suaves y apagados</string>
+    <string name="palette_monochrome_desc">Escala de grises: igual con cualquier color</string>
+
+    <string name="title_language_romaji">Romaji</string>
+    <string name="title_language_english">Inglés</string>
+    <string name="title_language_romaji_example">p. ej. Sousou no Frieren</string>
+    <string name="title_language_english_example">p. ej. Frieren: Beyond Journey\'s End</string>
+
+    <!-- Home / My list -->
+    <string name="home_sign_in_prompt">Inicia sesión con tu cuenta de MyAnimeList</string>
+    <string name="home_sign_in_button">Iniciar sesión con MyAnimeList</string>
+    <plurals name="list_title_count">
+        <item quantity="one">%1$d título</item>
+        <item quantity="many">%1$d de títulos</item>
+        <item quantity="other">%1$d títulos</item>
+    </plurals>
+    <string name="list_syncing_suffix">" · sincronizando…"</string>
+    <string name="list_empty">Aún no hay títulos aquí.</string>
+
+    <!-- Seasonal -->
+    <string name="seasonal_current_suffix">" · Actual"</string>
+    <string name="seasonal_empty">No hay títulos para esta temporada.</string>
+    <string name="seasonal_schedule_title">Calendario de estrenos</string>
+    <string name="seasonal_schedule_empty">No hay estrenos este día.</string>
+</resources>

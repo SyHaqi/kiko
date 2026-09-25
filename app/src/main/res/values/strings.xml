@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the core screens are externalized so far (navigation, drawer, Settings and its sheets,
+     plus a few Home/Seasonal messages). Everything else is still hardcoded English in Kotlin —
+     when moving more text here, add the matching entry to values-es/strings.xml. -->
+<resources>
+    <!-- Common -->
+    <string name="action_back">Back</string>
+
+    <!-- Bottom navigation / rail -->
+    <string name="nav_home">Home</string>
+    <string name="nav_my_list">My list</string>
+    <string name="nav_discover">Discover</string>
+    <string name="nav_seasonal">Seasonal</string>
+    <string name="nav_hub">Hub</string>
+
+    <!-- Profile drawer -->
+    <string name="drawer_not_signed_in">Not signed in</string>
+    <string name="drawer_view_profile">View profile &amp; stats</string>
+    <string name="drawer_sign_in_for_stats">Sign in to see your stats</string>
+    <string name="drawer_settings_summary">Appearance, language, titles, adult content, about</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_color">Color</string>
+    <string name="settings_color_palette">Color palette</string>
+    <string name="settings_title_language">Title language</string>
+    <string name="settings_app_language">App language</string>
+    <string name="settings_amoled">AMOLED black</string>
+    <string name="settings_amoled_desc">True black backgrounds in dark mode, saves battery on AMOLED screens</string>
+    <string name="settings_adult">Adult content</string>
+    <string name="settings_adult_shown">Hentai-rated titles are shown</string>
+    <string name="settings_adult_hidden">Hentai-rated titles are hidden</string>
+    <string name="settings_about">About</string>
+    <string name="settings_update_available">Update available — %1$s</string>
+
+    <!-- App language dropdown -->
+    <string name="language_system_default">System default</string>
+
+    <!-- Settings sheets -->
+    <string name="sheet_appearance">Appearance</string>
+    <string name="sheet_preferences">Preferences</string>
+
+    <string name="sheet_choose_theme">Choose a theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system_desc">Matches your device setting</string>
+    <string name="theme_light_desc">Always light</string>
+    <string name="theme_dark_desc">Always dark</string>
+
+    <string name="sheet_choose_color">Choose a color</string>
+    <string name="color_app_default">App default</string>
+    <string name="color_dynamic">Dynamic</string>
+    <string name="color_custom">Custom</string>
+    <string name="color_app_default_desc">Kiko\'s default indigo</string>
+    <string name="color_dynamic_desc">Matches your device wallpaper</string>
+    <string name="color_custom_desc">Pick your own hex color</string>
+    <string name="color_hex_error">6-digit hex, e.g. 2E51A2</string>
+
+    <string name="sheet_choose_palette">Choose a color palette</string>
+    <string name="palette_tonal_spot">Tonal Spot</string>
+    <string name="palette_neutral">Neutral</string>
+    <string name="palette_monochrome">Monochrome</string>
+    <string name="palette_tonal_spot_desc">Balanced, vivid accent color</string>
+    <string name="palette_neutral_desc">Softer, more muted colors</string>
+    <string name="palette_monochrome_desc">Greyscale — the same in every color</string>
+
+    <string name="title_language_romaji">Romaji</string>
+    <string name="title_language_english">English</string>
+    <string name="title_language_romaji_example">e.g. Sousou no Frieren</string>
+    <string name="title_language_english_example">e.g. Frieren: Beyond Journey\'s End</string>
+
+    <!-- Home / My list -->
+    <string name="home_sign_in_prompt">Please sign in with your MyAnimeList account</string>
+    <string name="home_sign_in_button">Sign in with MyAnimeList</string>
+    <plurals name="list_title_count">
+        <item quantity="one">%1$d title</item>
+        <item quantity="other">%1$d titles</item>
+    </plurals>
+    <string name="list_syncing_suffix">" · syncing…"</string>
+    <string name="list_empty">No titles here yet.</string>
+
+    <!-- Seasonal -->
+    <string name="seasonal_current_suffix">" · Current"</string>
+    <string name="seasonal_empty">No titles for this season.</string>
+    <string name="seasonal_schedule_title">Release Schedule</string>
+    <string name="seasonal_schedule_empty">No releases on this day.</string>
+</resources>

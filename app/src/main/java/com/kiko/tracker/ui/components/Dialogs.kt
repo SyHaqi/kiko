@@ -3,6 +3,8 @@
 package com.kiko.tracker.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.res.stringResource
+import com.kiko.tracker.R
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -142,13 +144,13 @@ import com.kiko.tracker.util.AppUpdateInfo
     val c = LocalKikoColors.current
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
-            Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Choose a theme", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+            Text(stringResource(R.string.sheet_appearance), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(stringResource(R.string.sheet_choose_theme), style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             ThemeMode.entries.forEach { mode ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (mode == current) c.primaryContainer else Color.Transparent).kikoClickable { onSelect(mode) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
-                        Text(mode.label, fontWeight = FontWeight.Bold, color = c.ink)
-                        Text(when (mode) { ThemeMode.System -> "Matches your device setting"; ThemeMode.Light -> "Always light"; ThemeMode.Dark -> "Always dark" }, color = c.muted, fontSize = 12.sp)
+                        Text(stringResource(mode.labelRes), fontWeight = FontWeight.Bold, color = c.ink)
+                        Text(stringResource(when (mode) { ThemeMode.System -> R.string.theme_system_desc; ThemeMode.Light -> R.string.theme_light_desc; ThemeMode.Dark -> R.string.theme_dark_desc }), color = c.muted, fontSize = 12.sp)
                     }
                     if (mode == current) Icon(Icons.Default.Check, null, tint = c.primary)
                 }
@@ -161,8 +163,8 @@ import com.kiko.tracker.util.AppUpdateInfo
     val c = LocalKikoColors.current
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
-            Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Choose a color", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+            Text(stringResource(R.string.sheet_appearance), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(stringResource(R.string.sheet_choose_color), style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             ColorSource.entries.forEach { source ->
                 Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (source == current) c.primaryContainer else Color.Transparent).animateContentSize()) {
                     Row(
@@ -170,9 +172,9 @@ import com.kiko.tracker.util.AppUpdateInfo
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Column {
-                            Text(source.label, fontWeight = FontWeight.Bold, color = c.ink)
+                            Text(stringResource(source.labelRes), fontWeight = FontWeight.Bold, color = c.ink)
                             Text(
-                                when (source) { ColorSource.AppDefault -> "Kiko's default indigo"; ColorSource.Dynamic -> "Matches your device wallpaper"; ColorSource.Custom -> "Pick your own hex color" },
+                                stringResource(when (source) { ColorSource.AppDefault -> R.string.color_app_default_desc; ColorSource.Dynamic -> R.string.color_dynamic_desc; ColorSource.Custom -> R.string.color_custom_desc }),
                                 color = c.muted, fontSize = 12.sp,
                             )
                         }
@@ -209,7 +211,7 @@ import com.kiko.tracker.util.AppUpdateInfo
                                     modifier = Modifier.weight(1f).padding(start = 12.dp),
                                     singleLine = true, prefix = { Text("#", color = c.muted) },
                                     isError = !valid,
-                                    supportingText = { if (!valid) Text("6-digit hex, e.g. 2E51A2", color = c.danger, fontSize = 11.sp) },
+                                    supportingText = { if (!valid) Text(stringResource(R.string.color_hex_error), color = c.danger, fontSize = 11.sp) },
                                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
                                 )
                             }
@@ -225,17 +227,17 @@ import com.kiko.tracker.util.AppUpdateInfo
     val c = LocalKikoColors.current
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
-            Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Choose a color palette", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+            Text(stringResource(R.string.sheet_appearance), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(stringResource(R.string.sheet_choose_palette), style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             PaletteStyle.entries.forEach { style ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (style == current) c.primaryContainer else Color.Transparent).kikoClickable { onSelect(style) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
-                        Text(style.label, fontWeight = FontWeight.Bold, color = c.ink)
+                        Text(stringResource(style.labelRes), fontWeight = FontWeight.Bold, color = c.ink)
                         Text(
                             when (style) {
-                                PaletteStyle.TonalSpot -> "Balanced, vivid accent color"
-                                PaletteStyle.Neutral -> "Softer, more muted colors"
-                                PaletteStyle.Monochrome -> "Greyscale — the same in every color"
+                                PaletteStyle.TonalSpot -> stringResource(R.string.palette_tonal_spot_desc)
+                                PaletteStyle.Neutral -> stringResource(R.string.palette_neutral_desc)
+                                PaletteStyle.Monochrome -> stringResource(R.string.palette_monochrome_desc)
                             },
                             color = c.muted, fontSize = 12.sp,
                         )
@@ -251,13 +253,13 @@ import com.kiko.tracker.util.AppUpdateInfo
     val c = LocalKikoColors.current
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
-            Text("Preferences", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Title language", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+            Text(stringResource(R.string.sheet_preferences), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text(stringResource(R.string.settings_title_language), style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             TitleLanguage.entries.forEach { lang ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (lang == current) c.primaryContainer else Color.Transparent).kikoClickable { onSelect(lang) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
-                        Text(lang.label, fontWeight = FontWeight.Bold, color = c.ink)
-                        Text(when (lang) { TitleLanguage.Romaji -> "e.g. Sousou no Frieren"; TitleLanguage.English -> "e.g. Frieren: Beyond Journey's End" }, color = c.muted, fontSize = 12.sp)
+                        Text(stringResource(lang.labelRes), fontWeight = FontWeight.Bold, color = c.ink)
+                        Text(stringResource(when (lang) { TitleLanguage.Romaji -> R.string.title_language_romaji_example; TitleLanguage.English -> R.string.title_language_english_example }), color = c.muted, fontSize = 12.sp)
                     }
                     if (lang == current) Icon(Icons.Default.Check, null, tint = c.primary)
                 }

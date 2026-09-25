@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup rules for Android 11 and lower (android:fullBackupContent).
+     Empty = the platform default: back up everything in the app's data directories.
+     Add <exclude domain="sharedpref" path="..."/> entries here to keep files out of backups. -->
+<full-backup-content>
+</full-backup-content>
