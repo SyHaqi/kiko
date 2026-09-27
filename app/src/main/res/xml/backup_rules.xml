@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Auto Backup rules for Android 11 and lower (android:fullBackupContent).
-     Empty = the platform default: back up everything in the app's data directories.
-     Add <exclude domain="sharedpref" path="..."/> entries here to keep files out of backups. -->
+<!-- Pre-API-31 equivalent of data_extraction_rules.xml — same exclusion, older syntax.
+     Both files are needed: dataExtractionRules only applies on API 31+, this one covers
+     API 26-30 where fullBackupContent is still what Android auto backup reads. -->
 <full-backup-content>
+    <exclude domain="sharedpref" path="mal_session.xml" />
 </full-backup-content>

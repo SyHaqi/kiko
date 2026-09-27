@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Backup and device-transfer rules for Android 12+ (android:dataExtractionRules).
-     Empty sections = the platform default: include everything.
-     Add <exclude domain="sharedpref" path="..."/> entries inside a section to leave files out. -->
+<!-- Excludes the MAL OAuth session (access/refresh tokens) from both cloud backup and
+     device-to-device transfer. Those tokens are only meaningful for this install talking to
+     this MAL account — restoring them onto a different device/install would just hand out a
+     valid bearer token via whatever backup channel carried it, cloud or local, so they're
+     excluded from both rather than just one. -->
 <data-extraction-rules>
     <cloud-backup>
+        <exclude domain="sharedpref" path="mal_session.xml" />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="sharedpref" path="mal_session.xml" />
     </device-transfer>
 </data-extraction-rules>
