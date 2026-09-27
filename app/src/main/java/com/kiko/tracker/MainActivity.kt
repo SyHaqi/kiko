@@ -3,6 +3,8 @@
 package com.kiko.tracker
 
 import android.Manifest
+import android.content.Context
+import com.kiko.tracker.util.withAppLanguage
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -188,6 +190,8 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    // Applies the saved in-app language below API 33 (newer versions get it from the system).
+    override fun attachBaseContext(newBase: Context) { super.attachBaseContext(newBase.withAppLanguage()) }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); routeIntentUri(intent.data) }
 }
 

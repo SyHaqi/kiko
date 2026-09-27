@@ -5,11 +5,11 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.browser.customtabs.CustomTabsClient
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.core.net.toUri
 
 /**
  * The one place every "Open in browser" action goes through.
@@ -25,7 +25,7 @@ import androidx.browser.customtabs.CustomTabsIntent
  * pinned to any installed browser -> toast. Returns whether something was launched.
  */
 fun Context.openInBrowser(url: String): Boolean {
-    val uri = Uri.parse(url.trim())
+    val uri = url.trim().toUri()
     val browser = findBrowserPackage()
 
     val tab = CustomTabsIntent.Builder().build()
@@ -49,7 +49,7 @@ fun Context.openInBrowser(url: String): Boolean {
     return false
 }
 
-private tailrec fun Context.findActivity(): Activity? = when (this) {
+internal tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
@@ -60,7 +60,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 @Suppress("DEPRECATION")
 private fun Context.findBrowserPackage(): String? {
     runCatching { CustomTabsClient.getPackageName(this, null) }.getOrNull()?.let { return it }
-    val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")).addCategory(Intent.CATEGORY_BROWSABLE)
+    val probe = Intent(Intent.ACTION_VIEW, "https://example.com".toUri()).addCategory(Intent.CATEGORY_BROWSABLE)
     return runCatching {
         packageManager.queryIntentActivities(probe, PackageManager.MATCH_ALL)
             .map { it.activityInfo.packageName }

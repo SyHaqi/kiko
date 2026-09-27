@@ -3,6 +3,8 @@
 package com.kiko.tracker.data.model
 
 import androidx.compose.foundation.background
+import androidx.annotation.StringRes
+import com.kiko.tracker.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items
@@ -20,7 +22,7 @@ import com.kiko.tracker.data.api.RecommendedEntry
 import com.kiko.tracker.ui.screens.resolvedTitle
 import com.kiko.tracker.ui.theme.KikoColors
 
-enum class TitleLanguage(val label: String) { Romaji("Romaji"), English("English") }
+enum class TitleLanguage(@StringRes val labelRes: Int) { Romaji(R.string.title_language_romaji), English(R.string.title_language_english) }
 
 val LocalTitleLanguage = staticCompositionLocalOf { TitleLanguage.Romaji }
 // Preferred title to show
@@ -228,16 +230,16 @@ enum class WatchStatus(val label: String) { Watching("Watching"), Reading("Readi
 fun WatchStatus.displayLabel(type: MediaType): String =
     if (this == WatchStatus.Plan && type == MediaType.Manga) "Plan to Read" else label
 
-enum class Destination(val label: String, val icon: ImageVector) { Home("Home", Icons.Default.Home), List("My list", Icons.Default.List), Discover("Discover", Icons.Default.Search), Seasonal("Seasonal", Icons.Default.DateRange), Community("Hub", Icons.Default.Groups) }
+enum class Destination(@StringRes val labelRes: Int, val icon: ImageVector) { Home(R.string.nav_home, Icons.Default.Home), List(R.string.nav_my_list, Icons.Default.List), Discover(R.string.nav_discover, Icons.Default.Search), Seasonal(R.string.nav_seasonal, Icons.Default.DateRange), Community(R.string.nav_hub, Icons.Default.Groups) }
 
 // Sub-tab within the combined
 enum class CommunityTab(val label: String) { Forums("Forums"), Clubs("Clubs") }
 
-enum class ThemeMode(val label: String) { System("System"), Light("Light"), Dark("Dark") }
+enum class ThemeMode(@StringRes val labelRes: Int) { System(R.string.theme_system), Light(R.string.theme_light), Dark(R.string.theme_dark) }
 
-enum class ColorSource(val label: String) { AppDefault("App default"), Dynamic("Dynamic"), Custom("Custom") }
+enum class ColorSource(@StringRes val labelRes: Int) { AppDefault(R.string.color_app_default), Dynamic(R.string.color_dynamic), Custom(R.string.color_custom) }
 
-enum class PaletteStyle(val label: String) { TonalSpot("Tonal Spot"), Neutral("Neutral"), Monochrome("Monochrome") }
+enum class PaletteStyle(@StringRes val labelRes: Int) { TonalSpot(R.string.palette_tonal_spot), Neutral(R.string.palette_neutral), Monochrome(R.string.palette_monochrome) }
 
 // ViewModel section
 

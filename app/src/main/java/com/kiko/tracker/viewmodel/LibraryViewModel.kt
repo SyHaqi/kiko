@@ -170,6 +170,8 @@ class LibraryViewModel : ViewModel() {
     var paletteStyle by mutableStateOf(PaletteStyle.TonalSpot); private set
     var customColorHex by mutableStateOf("2E51A2"); private set
     var titleLanguage by mutableStateOf(TitleLanguage.Romaji)
+    // Set right before an app-language change recreates the activity so KikoApp reopens the Settings page it was on.
+    var reopenSettingsOnce = false
     var listFilter by mutableStateOf("All")
     // Hoisted scroll state
     var listTypeTab by mutableStateOf(MediaType.Anime); private set

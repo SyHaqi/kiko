@@ -3,6 +3,10 @@
 package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.util.openInBrowser
+import androidx.compose.ui.res.stringResource
+import com.kiko.tracker.R
+import com.kiko.tracker.util.AppLanguage
+import com.kiko.tracker.util.currentAppLanguage
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -219,14 +223,15 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     nsfwEnabled: Boolean, onNsfwChange: (Boolean) -> Unit,
     amoledDark: Boolean, onAmoledDarkChange: (Boolean) -> Unit,
     onThemeClick: () -> Unit, onColorClick: () -> Unit, onPaletteClick: () -> Unit, onTitleLanguageClick: () -> Unit,
+    onAppLanguageSelect: (AppLanguage) -> Unit,
     updateInfo: AppUpdateInfo?, onAboutClick: () -> Unit, onBack: () -> Unit,
 ) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-            Text("Settings", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+            IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back), tint = c.ink) }
+            Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         Box(Modifier.padding(top = 12.dp, bottom = 24.dp)) {
             SettingsSection(
@@ -234,6 +239,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                 nsfwEnabled = nsfwEnabled, onNsfwChange = onNsfwChange,
                 amoledDark = amoledDark, onAmoledDarkChange = onAmoledDarkChange,
                 onThemeClick = onThemeClick, onColorClick = onColorClick, onPaletteClick = onPaletteClick, onTitleLanguageClick = onTitleLanguageClick,
+                onAppLanguageSelect = onAppLanguageSelect,
                 updateInfo = updateInfo, onAboutClick = onAboutClick,
             )
         }
@@ -945,21 +951,38 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
     nsfwEnabled: Boolean, onNsfwChange: (Boolean) -> Unit,
     amoledDark: Boolean = false, onAmoledDarkChange: (Boolean) -> Unit = {},
     onThemeClick: () -> Unit, onColorClick: () -> Unit, onPaletteClick: () -> Unit, onTitleLanguageClick: () -> Unit,
+    onAppLanguageSelect: (AppLanguage) -> Unit,
     updateInfo: AppUpdateInfo? = null, onAboutClick: () -> Unit = {},
 ) {
     val c = LocalKikoColors.current
     Column {
-        ListItem(headlineContent = { Text("Theme", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(themeMode.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Palette, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onThemeClick))
-        ListItem(headlineContent = { Text("Color", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(colorSource.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.ColorLens, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onColorClick))
-        ListItem(headlineContent = { Text("Color palette", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(paletteStyle.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Gradient, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onPaletteClick))
-        ListItem(headlineContent = { Text("Title language", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(titleLanguage.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Translate, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onTitleLanguageClick))
+        ListItem(headlineContent = { Text(stringResource(R.string.settings_theme), fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(stringResource(themeMode.labelRes), color = c.muted) }, leadingContent = { Icon(Icons.Default.Palette, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onThemeClick))
+        ListItem(headlineContent = { Text(stringResource(R.string.settings_color), fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(stringResource(colorSource.labelRes), color = c.muted) }, leadingContent = { Icon(Icons.Default.ColorLens, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onColorClick))
+        ListItem(headlineContent = { Text(stringResource(R.string.settings_color_palette), fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(stringResource(paletteStyle.labelRes), color = c.muted) }, leadingContent = { Icon(Icons.Default.Gradient, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onPaletteClick))
+        ListItem(headlineContent = { Text(stringResource(R.string.settings_title_language), fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(stringResource(titleLanguage.labelRes), color = c.muted) }, leadingContent = { Icon(Icons.Default.Translate, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onTitleLanguageClick))
+        // App language — dropdown anchored to the row. Picking one recreates the activity (see setAppLanguage).
+        val context = LocalContext.current
+        var languageMenuOpen by remember { mutableStateOf(false) }
+        val selectedLanguage = remember { currentAppLanguage(context) }
+        Box {
+            ListItem(headlineContent = { Text(stringResource(R.string.settings_app_language), fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(selectedLanguage.displayName(), color = c.muted) }, leadingContent = { Icon(Icons.Default.Language, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ArrowDropDown, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable { languageMenuOpen = true })
+            DropdownMenu(expanded = languageMenuOpen, onDismissRequest = { languageMenuOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
+                AppLanguage.entries.forEach { lang ->
+                    DropdownMenuItem(
+                        text = { Text(lang.displayName(), color = c.ink, fontWeight = if (lang == selectedLanguage) FontWeight.Bold else FontWeight.Normal) },
+                        trailingIcon = { if (lang == selectedLanguage) Icon(Icons.Default.Check, null, tint = c.primary) },
+                        onClick = { languageMenuOpen = false; if (lang != selectedLanguage) onAppLanguageSelect(lang) },
+                    )
+                }
+            }
+        }
         // Pure-black backgrounds for OLED/AMOLED
-        ListItem(headlineContent = { Text("AMOLED black", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text("True black backgrounds in dark mode, saves battery on AMOLED screens", color = c.muted) }, leadingContent = { Icon(Icons.Default.DarkMode, null, tint = c.primary) }, trailingContent = { Switch(checked = amoledDark, onCheckedChange = onAmoledDarkChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
-        ListItem(headlineContent = { Text("Adult content", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(if (nsfwEnabled) "Hentai-rated titles are shown" else "Hentai-rated titles are hidden", color = c.muted) }, leadingContent = { Icon(Icons.Default.VisibilityOff, null, tint = c.primary) }, trailingContent = { Switch(checked = nsfwEnabled, onCheckedChange = onNsfwChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
+        ListItem(headlineContent = { Text(stringResource(R.string.settings_amoled), fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(stringResource(R.string.settings_amoled_desc), color = c.muted) }, leadingContent = { Icon(Icons.Default.DarkMode, null, tint = c.primary) }, trailingContent = { Switch(checked = amoledDark, onCheckedChange = onAmoledDarkChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
+        ListItem(headlineContent = { Text(stringResource(R.string.settings_adult), fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(stringResource(if (nsfwEnabled) R.string.settings_adult_shown else R.string.settings_adult_hidden), color = c.muted) }, leadingContent = { Icon(Icons.Default.VisibilityOff, null, tint = c.primary) }, trailingContent = { Switch(checked = nsfwEnabled, onCheckedChange = onNsfwChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
         // Tap opens about page
         ListItem(
-            headlineContent = { Text("About", fontWeight = FontWeight.Bold, color = c.ink) },
-            supportingContent = { Text(if (updateInfo != null) "Update available — ${updateInfo.version}" else "v${BuildConfig.VERSION_NAME}", color = if (updateInfo != null) c.primary else c.muted, fontWeight = if (updateInfo != null) FontWeight.Bold else FontWeight.Normal) },
+            headlineContent = { Text(stringResource(R.string.settings_about), fontWeight = FontWeight.Bold, color = c.ink) },
+            supportingContent = { Text(if (updateInfo != null) stringResource(R.string.settings_update_available, updateInfo.version) else "v${BuildConfig.VERSION_NAME}", color = if (updateInfo != null) c.primary else c.muted, fontWeight = if (updateInfo != null) FontWeight.Bold else FontWeight.Normal) },
             leadingContent = {
                 Box {
                     Icon(Icons.Default.Info, null, tint = c.primary)
@@ -1365,3 +1388,6 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
 }
 
 // App info page
+
+// Each language under its own name; "System default" is the only translated entry.
+@Composable private fun AppLanguage.displayName(): String = nativeName ?: stringResource(R.string.language_system_default)

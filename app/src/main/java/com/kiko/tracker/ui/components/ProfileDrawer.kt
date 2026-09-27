@@ -3,6 +3,8 @@
 package com.kiko.tracker.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.res.stringResource
+import com.kiko.tracker.R
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -125,8 +127,8 @@ import com.kiko.tracker.ui.theme.kikoCorner
                             }
                         }
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text(profile?.name?.ifBlank { "MyAnimeList" } ?: (if (connected) "MyAnimeList" else "Not signed in"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink, maxLines = 1)
-                            Text(if (connected) "View profile & stats" else "Sign in to see your stats", color = c.muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 1.dp))
+                            Text(profile?.name?.ifBlank { "MyAnimeList" } ?: (if (connected) "MyAnimeList" else stringResource(R.string.drawer_not_signed_in)), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink, maxLines = 1)
+                            Text(if (connected) stringResource(R.string.drawer_view_profile) else stringResource(R.string.drawer_sign_in_for_stats), color = c.muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 1.dp))
                         }
                         Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(18.dp))
                     }
@@ -143,8 +145,8 @@ import com.kiko.tracker.ui.theme.kikoCorner
                             Icon(Icons.Default.Settings, null, tint = c.onPrimaryContainer, modifier = Modifier.size(20.dp))
                         }
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text("Settings", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
-                            Text("Appearance, titles, adult content, about", color = c.muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 1.dp))
+                            Text(stringResource(R.string.settings_title), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
+                            Text(stringResource(R.string.drawer_settings_summary), color = c.muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 1.dp))
                         }
                         Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(18.dp))
                     }

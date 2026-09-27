@@ -3,6 +3,8 @@
 package com.kiko.tracker.ui.screens
 
 import android.content.Context
+import androidx.compose.ui.res.stringResource
+import com.kiko.tracker.R
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
@@ -104,7 +106,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     // since this screen can
                     val isCurrentSeason = vm.seasonalSeason == currentSeasonName() && vm.seasonalYear == java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
                     Text(
-                        "${vm.seasonalSeason.label} ${vm.seasonalYear}" + if (isCurrentSeason) " · Current" else "",
+                        "${vm.seasonalSeason.label} ${vm.seasonalYear}" + if (isCurrentSeason) stringResource(R.string.seasonal_current_suffix) else "",
                         color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp),
                     )
                     if (vm.seasonalLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), color = c.primary, trackColor = c.surfaceLow)
@@ -118,7 +120,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 itemsIndexed(vm.visibleSeasonalResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index, staggerSeen) { SeasonalGridCard(it, openTitle, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, myStatus = vm.trackedStatus(it)) } }
             }
             if (!vm.seasonalLoading && vm.visibleSeasonalResults.isEmpty() && vm.seasonalError == null) {
-                item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles for this season.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                item(span = { GridItemSpan(maxLineSpan) }) { Text(stringResource(R.string.seasonal_empty), color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             }
             if (vm.seasonalLoadingMore) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -159,7 +161,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
-            Text("Release Schedule", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+            Text(stringResource(R.string.seasonal_schedule_title), style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
         }
         val dayListState = rememberLazyListState(initialFirstVisibleItemIndex = java.time.DayOfWeek.values().indexOf(initialDay))
         val scope = rememberCoroutineScope()
@@ -179,7 +181,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
             if (dayItems.isEmpty()) {
-                item { Text("No releases on this day.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                item { Text(stringResource(R.string.seasonal_schedule_empty), color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             }
             itemsIndexed(dayItems, key = { _, it -> it.first.id }) { index, (item, _, time) ->
                 StaggeredItem(index) {

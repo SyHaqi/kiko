@@ -27,7 +27,7 @@
         android:allowBackup="true"
         android:label="Kiko"
         android:theme="@style/Theme.Kiko"
-        android:supportsRtl="true"
+        android:supportsRtl="true" android:localeConfig="@xml/locales_config"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:dataExtractionRules="@xml/data_extraction_rules"
