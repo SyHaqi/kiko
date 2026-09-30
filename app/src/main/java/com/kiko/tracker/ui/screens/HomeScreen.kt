@@ -772,7 +772,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
         // Status switcher — Material3 scrollable tabs
         // (replaces the old bottom-right filter FAB)
-        StatusFilterTabs(typeTab, pagerState, modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) { label ->
+        StatusFilterTabs(typeTab, pagerState, modifier = Modifier.padding(top = 4.dp)) { label ->
             vm.setListFilter(context, label)
             scope.launch { pagerState.animateScrollToPage(labels.indexOf(label).coerceAtLeast(0)) }
         }
@@ -1040,11 +1040,12 @@ fun statusFilterLabels(type: MediaType): List<String> {
 
     ScrollableTabRow(
         selectedTabIndex = liveIndex,
-        modifier = modifier.clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
+        modifier = modifier,
         containerColor = Color.Transparent,
         contentColor = c.primary,
-        edgePadding = 6.dp,
-        divider = {},
+        edgePadding = 14.dp,
+        // Full-width line under the tabs (M3 primary-tab look) instead of the old filled box.
+        divider = { HorizontalDivider(color = c.outlineVariant) },
         indicator = { tabPositions ->
             if (tabPositions.isNotEmpty()) {
                 // Continuous page position — currentPage jumps by exactly
