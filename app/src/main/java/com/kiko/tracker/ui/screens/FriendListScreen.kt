@@ -62,9 +62,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 import kotlinx.coroutines.launch
 
 // Tab order/labels for the status strip — "All" first, then MAL's own five
-// per-item statuses (same set FriendProfile's StatusLegendRow taps into).
+// per-item statuses (same set FriendProfile's StatusLegendRow taps into), in
+// the same order as My List's statusFilterLabels (Plan third).
 private fun friendListStatusTabs(type: MediaType): List<WatchStatus?> =
-    listOf(null, if (type == MediaType.Anime) WatchStatus.Watching else WatchStatus.Reading, WatchStatus.Completed, WatchStatus.OnHold, WatchStatus.Dropped, WatchStatus.Plan)
+    listOf(null, if (type == MediaType.Anime) WatchStatus.Watching else WatchStatus.Reading, WatchStatus.Plan, WatchStatus.Completed, WatchStatus.OnHold, WatchStatus.Dropped)
 
 private fun WatchStatus?.tabLabel(type: MediaType): String = this?.displayLabel(type) ?: "All"
 
@@ -216,34 +217,16 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     onSetViewMode: (ListViewMode) -> Unit, onSetSort: (FriendListSort) -> Unit,
     onRetry: () -> Unit, onOpenTitle: (Int, MediaType) -> Unit,
 ) {
-    val c = LocalKikoColors.current
     val tabs = remember(type) { friendListStatusTabs(type) }
     val labels = remember(tabs) { tabs.map { it.tabLabel(type) } }
     val initialIndex = remember(tabs, initialStatus) { tabs.indexOf(initialStatus).coerceAtLeast(0) }
     val pagerState = rememberPagerState(initialPage = initialIndex) { labels.size }
     val scope = rememberCoroutineScope()
 
-    // Same rounded-container + underline-tab look as My List's own
-    // StatusFilterTabs, just driven off a plain index instead of a
-    // vm-backed filter string.
-    ScrollableTabRow(
-        selectedTabIndex = pagerState.currentPage,
-        modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
-        containerColor = Color.Transparent,
-        contentColor = c.primary,
-        edgePadding = 6.dp,
-        divider = {},
-    ) {
-        labels.forEachIndexed { index, label ->
-            val selected = index == pagerState.currentPage
-            Tab(
-                selected = selected,
-                onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                selectedContentColor = c.primary,
-                unselectedContentColor = c.muted,
-                text = { Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1) },
-            )
-        }
+    // Same status strip as My List (StatusTabRow in HomeScreen.kt) — driven off
+    // a plain pager index instead of a vm-backed filter string.
+    StatusTabRow(labels, pagerState, modifier = Modifier.padding(top = 4.dp)) { index ->
+        scope.launch { pagerState.animateScrollToPage(index) }
     }
 
     HorizontalPager(state = pagerState, modifier = Modifier.weight(1f).fillMaxWidth(), beyondViewportPageCount = 1) { page ->

@@ -1007,13 +1007,21 @@ fun statusFilterLabels(type: MediaType): List<String> {
 }
 
 @Composable fun StatusFilterTabs(type: MediaType, pagerState: PagerState, modifier: Modifier = Modifier, onSelect: (String) -> Unit) {
+    val labels = remember(type) { statusFilterLabels(type) }
+    StatusTabRow(labels, pagerState, modifier) { index -> onSelect(labels[index]) }
+}
+
+// The actual tab strip, split out of StatusFilterTabs so other screens (the
+// friend's list) can reuse the exact same look — scrollable M3 tabs, a full-width
+// divider, and a text-width indicator that follows the pager's live position.
+// Callers own the labels and the pager; onSelect gets the tapped tab's index.
+@Composable fun StatusTabRow(labels: List<String>, pagerState: PagerState, modifier: Modifier = Modifier, onSelect: (Int) -> Unit) {
     val c = LocalKikoColors.current
     val density = LocalDensity.current
-    val labels = remember(type) { statusFilterLabels(type) }
 
     // Measured width of each tab's text, keyed by index — lets the
     // indicator shrink to the label itself instead of the full tab.
-    val textWidths = remember(type) { mutableStateMapOf<Int, Dp>() }
+    val textWidths = remember(labels) { mutableStateMapOf<Int, Dp>() }
 
     // Drive the highlighted tab off the pager's own live position, not
     // vm.listFilter (`current`) — that only updates once a swipe settles
@@ -1094,7 +1102,7 @@ fun statusFilterLabels(type: MediaType): List<String> {
             val selected = index == liveIndex
             Tab(
                 selected = selected,
-                onClick = { onSelect(label) },
+                onClick = { onSelect(index) },
                 selectedContentColor = c.primary,
                 unselectedContentColor = c.muted,
                 text = {
