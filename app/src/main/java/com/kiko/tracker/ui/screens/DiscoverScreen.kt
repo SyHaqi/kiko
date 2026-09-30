@@ -186,21 +186,27 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 // DiscoverResultsScreen) instead of an
                 // icon that jumps there,
                 // part of the header
-                AppHeader("Discover", 0.dp) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // Same pill search icon
-                        // (43dp squircle, surfaceContainerHigh, kikoClickable)
-                        // plain Material IconButton, so
-                        Box(
-                            Modifier
-                                .size(43.dp)
-                                .clip(RoundedCornerShape(kikoCorner(16.dp)))
-                                .background(c.surfaceContainerHigh)
-                                .kikoClickable { vm.openDiscoverSearch(context) },
-                            contentAlignment = Alignment.Center,
-                        ) { Icon(Icons.Default.Search, "Search", tint = c.ink) }
-                        Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
+                // Play Store-style header: full-width search pill + round avatar.
+                // Tapping the pill opens the search screen (same as the old icon did).
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(c.surfaceContainerHigh)
+                            .kikoClickable { vm.openDiscoverSearch(context) }
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.Search, "Search", tint = c.ink, modifier = Modifier.size(22.dp))
+                        Text("Search anime & manga", color = c.muted, fontSize = 16.sp, maxLines = 1, modifier = Modifier.padding(start = 14.dp))
                     }
+                    Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
                 }
                 Spacer(Modifier.height(17.dp))
 

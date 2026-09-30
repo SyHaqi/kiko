@@ -719,16 +719,17 @@ fun statusColor(label: String): Color = when {
 // main activity window don't
 // to appear offset from
 
-@Composable fun Avatar(picture: String = "", name: String = "", showUpdateBadge: Boolean = false, onClick: ((Rect) -> Unit)? = null) {
+@Composable fun Avatar(picture: String = "", name: String = "", showUpdateBadge: Boolean = false, size: Dp = 43.dp, circle: Boolean = false, onClick: ((Rect) -> Unit)? = null) {
     val c = LocalKikoColors.current
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val posMod = Modifier.onGloballyPositioned { val pos = it.positionOnScreen(); bounds = Rect(pos.x, pos.y, pos.x + it.size.width, pos.y + it.size.height) }
     val tapMod = if (onClick != null) Modifier.kikoClickable { onClick(bounds) } else Modifier
+    val avatarShape: androidx.compose.ui.graphics.Shape = if (circle) kikoCircleShape() else RoundedCornerShape(kikoCorner(16.dp))
     Box {
         if (picture.isNotBlank()) {
-            AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.warm).then(posMod).then(tapMod))
+            AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(size).clip(avatarShape).background(c.warm).then(posMod).then(tapMod))
         } else {
-            Box(Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.warm).then(posMod).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = c.ink) }
+            Box(Modifier.size(size).clip(avatarShape).background(c.warm).then(posMod).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.44f).sp, color = c.ink) }
         }
         // Small dot signaling an
         // app update is ready.

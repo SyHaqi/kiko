@@ -98,7 +98,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column {
-                    AppHeader("Seasonal", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
+                    AppHeader("Seasonal", 0.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
                     // "· Current" suffix flags
                     // for anyone who doesn't
                     // since this screen can
