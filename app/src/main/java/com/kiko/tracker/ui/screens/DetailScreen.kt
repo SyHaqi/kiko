@@ -193,6 +193,9 @@ data class DetailScreenActions(
     // onToggleFavorite flips it for this item.
     val onLoadFavoriteStatus: () -> Unit = {},
     val onToggleFavorite: () -> Unit = {},
+    // Remembers which detail tab (Info/Casts/Related/Stats/Forum) was open so coming back from a
+    // related title / character / review lands on the same tab the saved scroll offset belongs to.
+    val onSelectTab: (Int) -> Unit = {},
 )
 
 // Loading placeholder shaped like
@@ -234,12 +237,13 @@ data class DetailScreenActions(
     }
 }
 
-@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, castLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, initialCharactersScroll: Pair<Int, Int> = 0 to 0, initialReviewsScroll: Pair<Int, Int> = 0 to 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null, airingInfo: AiringInfo? = null, favorited: Boolean = false) {
+@Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, castLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, initialCharactersScroll: Pair<Int, Int> = 0 to 0, initialReviewsScroll: Pair<Int, Int> = 0 to 0, initialTab: Int = 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null, airingInfo: AiringInfo? = null, favorited: Boolean = false) {
     LaunchedEffect(item.id) { actions.onLoadAiringEpisode(item) }
     LaunchedEffect(item.id) { actions.onLoadFavoriteStatus() }
     val c = LocalKikoColors.current
     var synopsisExpanded by remember(item.id) { mutableStateOf(false) }
     var themesExpanded by remember(item.id) { mutableStateOf(false) }
+    var selectedTab by remember(item.id) { mutableIntStateOf(initialTab.coerceIn(0, 4)) }
     // Track related backfill completion.
     // item.related) so a title
     // backfill — not present
@@ -568,299 +572,347 @@ data class DetailScreenActions(
                     val meta = listOfNotNull(item.creator.takeIf { it.isNotBlank() }, aired.takeIf { it.isNotBlank() })
                     if (meta.isNotEmpty()) Text(meta.joinToString("   ·   "), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
 
-                    SectionTitle("Synopsis", "", {})
-                    LinkifiedText(
-                        item.synopsis.ifBlank { "No synopsis available yet." },
-                        color = if (item.synopsis.isBlank()) c.muted else c.ink,
-                        fontSize = 14.sp, lineHeight = 21.sp,
-                        maxLines = if (synopsisExpanded) Int.MAX_VALUE else 3,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.animateContentSize(),
-                        onClick = if (item.synopsis.isNotBlank()) { { synopsisExpanded = !synopsisExpanded } } else null,
-                    )
-
-                    // "Available At" — official
-                    // Same icon-led pill row
-                    // company detail page's own
-                    // its own LaunchedEffect (same
-                    // wrapped in key(...) too
-                    // down for why an
-                    key("links") {
-                        if (links.isNotEmpty()) {
-                            SectionTitle("Links", "", {})
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                links.forEach { (label, url) ->
-                                    CompanyLinkChip(label, url, onClick = { runCatching { uriHandler.openUri(url) } })
-                                }
-                            }
-                        }
-                    }
-
-                    // Community rank/popularity stats
-                    if (item.rank > 0 || item.popularity > 0 || item.listUsers > 0) {
-                        SectionTitle("Statistics", "", {})
-                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                            Row(Modifier.fillMaxWidth().padding(vertical = 20.dp)) {
-                                if (item.rank > 0) StatBlock(Modifier.weight(1f), "#${item.rank}", "Rank")
-                                if (item.popularity > 0) StatBlock(Modifier.weight(1f), "#${item.popularity}", "Popularity")
-                                if (item.listUsers > 0) StatBlock(Modifier.weight(1f), formatCount(item.listUsers), "Members")
-                            }
-                        }
-                    }
-
-                    val details = buildList {
-                        if (item.format.isNotBlank()) add("Format" to item.format)
-                        if (item.source.isNotBlank()) add("Source" to item.source)
-                        if (aired.isNotBlank()) add(if (item.type == MediaType.Anime) "Aired" to aired else "Published" to aired)
-                        if (item.startDateFull.isNotBlank()) add("Start date" to formatFullDate(item.startDateFull))
-                        if (item.endDateFull.isNotBlank()) add("End date" to formatFullDate(item.endDateFull))
-                        else if (item.startDateFull.isNotBlank()) add("End date" to "Ongoing")
-                        if (item.type == MediaType.Anime && item.total > 0) add("Episodes" to item.total.toString())
-                        if (item.type == MediaType.Manga && item.total > 0) add("Chapters" to item.total.toString())
-                        if (item.type == MediaType.Manga && item.volumes > 0) add("Volumes" to item.volumes.toString())
-                        if (item.type == MediaType.Anime && item.rating.isNotBlank()) add("Rating" to item.rating)
-                        if (item.creator.isNotBlank()) add(if (item.type == MediaType.Anime) "Studio" to item.creator else "Author" to item.creator)
-                    }
-                    if (details.isNotEmpty()) {
-                        SectionTitle("Details", "", {})
-                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
-                                details.forEachIndexed { i, (label, value) ->
-                                    val isCreatorRow = (label == "Studio" || label == "Author") && item.creator.isNotBlank()
-                                    InfoRow(label, value, onClick = if (isCreatorRow) { { actions.onCreatorClick(item.creator) } } else null)
-                                    if (i != details.lastIndex) HorizontalDivider(color = c.outlineVariant)
-                                }
-                            }
-                        }
-                    }
-
-                    if (item.synonyms.isNotEmpty()) {
-                        SectionTitle("Alternative titles", "", {})
-                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                            SelectionContainer {
-                                Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
-                                    item.synonyms.forEachIndexed { i, name ->
-                                        Text(name, color = c.ink, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 11.dp))
-                                        if (i != item.synonyms.lastIndex) HorizontalDivider(color = c.outlineVariant)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // characters/charactersFailed load async, well
-                    // shown (unlike related/themes/recommended, which
-                    // waits on before rendering
-                    // its arrival from recomposing
-                    // block that isn't itself
-                    // one recompose scope, so
-                    // the header, poster, and
-                    // (often mid-scroll). Same reasoning
-                    //
-                    // Characters and their Japanese voice actors share one
-                    // "Characters & Voice Actors" header — a VA row is just
-                    // that same cast's dub credits, not a separate topic —
-                    // but stay two separate keyed blocks/LazyRows below it
-                    // since they load and fail independently.
-                    key("characters") {
-                        if (characters.isNotEmpty()) {
-                            SectionTitle("Characters & Voice Actors", "", {})
-                            LazyRow(state = charactersListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch ->
-                                    StaggeredItem(i, charactersSeen) {
-                                        CharacterCard(ch, loading = castLoadingId == ch.malId, onClick = { actions.onOpenCharacter(ch.malId) })
-                                    }
-                                }
-                            }
-                        } else if (charactersFailed) {
-                            // Fetch itself failed (as
-                            // listed) — surface it
-                            // that's the difference between
-                            // this" (e.g. a network-level
-                            SectionTitle("Characters & Voice Actors", "", {})
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(kikoCorner(16.dp)))
-                                    .background(c.surfaceContainer)
-                                    .kikoClickable { charactersRetryKey++ }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                    // Detail tabs — Material3 secondary tabs (https://developer.android.com/develop/ui/compose/components/tabs).
+                    // Everything below the studio/season line is split across these five pages; only the
+                    // selected page is composed. The generic Tab overload is used (not the text= one) because
+                    // text= pads each label 16dp per side, which would clip "Related"/"Casts" once five equal-width
+                    // tabs share a phone-width row.
+                    val detailTabs = listOf("Info", "Casts", "Related", "Stats", "Forum")
+                    SecondaryTabRow(
+                        selectedTabIndex = selectedTab,
+                        modifier = Modifier.padding(top = 20.dp),
+                        containerColor = Color.Transparent,
+                        contentColor = c.primary,
+                    ) {
+                        detailTabs.forEachIndexed { index, label ->
+                            val selected = index == selectedTab
+                            Tab(
+                                selected = selected,
+                                onClick = { if (selectedTab != index) { selectedTab = index; actions.onSelectTab(index) } },
+                                modifier = Modifier.height(48.dp),
+                                selectedContentColor = c.primary,
+                                unselectedContentColor = c.muted,
                             ) {
-                                Icon(Icons.Default.Refresh, null, tint = c.muted, modifier = Modifier.size(16.dp))
-                                Text("Couldn't load cast — tap to retry", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
-                            }
-                        }
-                    }
-                    // Japanese cast only, one
-                    // (e.g. a role recast
-                    key("voiceActors") {
-                        val japaneseVoiceActors = characters.mapNotNull { ch -> ch.japaneseVoiceActor?.let { it to ch.name } }
-                        if (japaneseVoiceActors.isNotEmpty()) {
-                            // Small gap under the characters row above,
-                            // rather than SectionTitle's full 32dp — this
-                            // row reads as a second group within the same
-                            // section, not a new section of its own.
-                            Spacer(Modifier.height(14.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                itemsIndexed(japaneseVoiceActors, key = { _, (va, charName) -> "${va.malId}-$charName" }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, onClick = { actions.onOpenPerson(va.malId) }) } }
+                                Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, softWrap = false)
                             }
                         }
                     }
 
-                    val themes = openingThemes.map { "OP" to it } + endingThemes.map { "ED" to it }
-                    if (themes.isNotEmpty()) {
-                        SectionTitle("Theme songs", "", {})
-                        val visibleThemes = if (themesExpanded) themes else themes.take(4)
-                        val themesArrowRotation by animateFloatAsState(if (themesExpanded) 180f else 0f, label = "themesArrowRotation")
-                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).animateContentSize()) {
-                                visibleThemes.forEachIndexed { i, (kind, text) ->
+                    when (selectedTab) {
+                        // Info
+                        0 -> {
+                            SectionTitle("Synopsis", "", {})
+                            LinkifiedText(
+                                item.synopsis.ifBlank { "No synopsis available yet." },
+                                color = if (item.synopsis.isBlank()) c.muted else c.ink,
+                                fontSize = 14.sp, lineHeight = 21.sp,
+                                maxLines = if (synopsisExpanded) Int.MAX_VALUE else 3,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.animateContentSize(),
+                                onClick = if (item.synopsis.isNotBlank()) { { synopsisExpanded = !synopsisExpanded } } else null,
+                            )
+
+                            // "Available At" — official
+                            // Same icon-led pill row
+                            // company detail page's own
+                            // its own LaunchedEffect (same
+                            // wrapped in key(...) too
+                            // down for why an
+                            key("links") {
+                                if (links.isNotEmpty()) {
+                                    SectionTitle("Links", "", {})
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        links.forEach { (label, url) ->
+                                            CompanyLinkChip(label, url, onClick = { runCatching { uriHandler.openUri(url) } })
+                                        }
+                                    }
+                                }
+                            }
+
+                            val details = buildList {
+                                if (item.format.isNotBlank()) add("Format" to item.format)
+                                if (item.source.isNotBlank()) add("Source" to item.source)
+                                if (aired.isNotBlank()) add(if (item.type == MediaType.Anime) "Aired" to aired else "Published" to aired)
+                                if (item.startDateFull.isNotBlank()) add("Start date" to formatFullDate(item.startDateFull))
+                                if (item.endDateFull.isNotBlank()) add("End date" to formatFullDate(item.endDateFull))
+                                else if (item.startDateFull.isNotBlank()) add("End date" to "Ongoing")
+                                if (item.type == MediaType.Anime && item.total > 0) add("Episodes" to item.total.toString())
+                                if (item.type == MediaType.Manga && item.total > 0) add("Chapters" to item.total.toString())
+                                if (item.type == MediaType.Manga && item.volumes > 0) add("Volumes" to item.volumes.toString())
+                                if (item.type == MediaType.Anime && item.rating.isNotBlank()) add("Rating" to item.rating)
+                                if (item.creator.isNotBlank()) add(if (item.type == MediaType.Anime) "Studio" to item.creator else "Author" to item.creator)
+                            }
+                            if (details.isNotEmpty()) {
+                                SectionTitle("Details", "", {})
+                                Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
+                                        details.forEachIndexed { i, (label, value) ->
+                                            val isCreatorRow = (label == "Studio" || label == "Author") && item.creator.isNotBlank()
+                                            InfoRow(label, value, onClick = if (isCreatorRow) { { actions.onCreatorClick(item.creator) } } else null)
+                                            if (i != details.lastIndex) HorizontalDivider(color = c.outlineVariant)
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (item.synonyms.isNotEmpty()) {
+                                SectionTitle("Alternative titles", "", {})
+                                Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
+                                    SelectionContainer {
+                                        Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
+                                            item.synonyms.forEachIndexed { i, name ->
+                                                Text(name, color = c.ink, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 11.dp))
+                                                if (i != item.synonyms.lastIndex) HorizontalDivider(color = c.outlineVariant)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            val themes = openingThemes.map { "OP" to it } + endingThemes.map { "ED" to it }
+                            if (themes.isNotEmpty()) {
+                                SectionTitle("Theme songs", "", {})
+                                val visibleThemes = if (themesExpanded) themes else themes.take(4)
+                                val themesArrowRotation by animateFloatAsState(if (themesExpanded) 180f else 0f, label = "themesArrowRotation")
+                                Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).animateContentSize()) {
+                                        visibleThemes.forEachIndexed { i, (kind, text) ->
+                                            Row(
+                                                Modifier.fillMaxWidth().kikoClickable { uriHandler.openUri(youtubeSearchUrl("$text $itemDisplayTitle")) }.padding(vertical = 11.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Text(kind, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.width(28.dp))
+                                                Text(text, color = c.ink, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
+                                                Icon(Icons.Default.PlayArrow, "Search on YouTube", tint = c.muted, modifier = Modifier.size(18.dp))
+                                            }
+                                            if (i != visibleThemes.lastIndex || themes.size > 4) HorizontalDivider(color = c.outlineVariant)
+                                        }
+                                        if (themes.size > 4) {
+                                            Row(
+                                                Modifier.fillMaxWidth().kikoClickable { themesExpanded = !themesExpanded }.padding(vertical = 11.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Text(
+                                                    if (themesExpanded) "Show less" else "Show ${themes.size - 4} more",
+                                                    color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                                                    modifier = Modifier.weight(1f),
+                                                )
+                                                Icon(
+                                                    Icons.Default.KeyboardArrowDown,
+                                                    contentDescription = if (themesExpanded) "Show less" else "Show more",
+                                                    tint = c.muted,
+                                                    modifier = Modifier.size(20.dp).rotate(themesArrowRotation),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (item.background.isNotBlank()) {
+                                SectionTitle("Background", "", {})
+                                LinkifiedText(item.background, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp)
+                            }
+
+                        }
+                        // Casts
+                        1 -> {
+                            // characters/charactersFailed load async, well
+                            // shown (unlike related/themes/recommended, which
+                            // waits on before rendering
+                            // its arrival from recomposing
+                            // block that isn't itself
+                            // one recompose scope, so
+                            // the header, poster, and
+                            // (often mid-scroll). Same reasoning
+                            //
+                            // Characters and their Japanese voice actors share one
+                            // "Characters & Voice Actors" header — a VA row is just
+                            // that same cast's dub credits, not a separate topic —
+                            // but stay two separate keyed blocks/LazyRows below it
+                            // since they load and fail independently.
+                            key("characters") {
+                                if (characters.isNotEmpty()) {
+                                    SectionTitle("Characters & Voice Actors", "", {})
+                                    LazyRow(state = charactersListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch ->
+                                            StaggeredItem(i, charactersSeen) {
+                                                CharacterCard(ch, loading = castLoadingId == ch.malId, onClick = { actions.onOpenCharacter(ch.malId) })
+                                            }
+                                        }
+                                    }
+                                } else if (charactersFailed) {
+                                    // Fetch itself failed (as
+                                    // listed) — surface it
+                                    // that's the difference between
+                                    // this" (e.g. a network-level
+                                    SectionTitle("Characters & Voice Actors", "", {})
                                     Row(
-                                        Modifier.fillMaxWidth().kikoClickable { uriHandler.openUri(youtubeSearchUrl("$text $itemDisplayTitle")) }.padding(vertical = 11.dp),
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(kikoCorner(16.dp)))
+                                            .background(c.surfaceContainer)
+                                            .kikoClickable { charactersRetryKey++ }
+                                            .padding(horizontal = 16.dp, vertical = 14.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Text(kind, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.width(28.dp))
-                                        Text(text, color = c.ink, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
-                                        Icon(Icons.Default.PlayArrow, "Search on YouTube", tint = c.muted, modifier = Modifier.size(18.dp))
-                                    }
-                                    if (i != visibleThemes.lastIndex || themes.size > 4) HorizontalDivider(color = c.outlineVariant)
-                                }
-                                if (themes.size > 4) {
-                                    Row(
-                                        Modifier.fillMaxWidth().kikoClickable { themesExpanded = !themesExpanded }.padding(vertical = 11.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Text(
-                                            if (themesExpanded) "Show less" else "Show ${themes.size - 4} more",
-                                            color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                        Icon(
-                                            Icons.Default.KeyboardArrowDown,
-                                            contentDescription = if (themesExpanded) "Show less" else "Show more",
-                                            tint = c.muted,
-                                            modifier = Modifier.size(20.dp).rotate(themesArrowRotation),
-                                        )
+                                        Icon(Icons.Default.Refresh, null, tint = c.muted, modifier = Modifier.size(16.dp))
+                                        Text("Couldn't load cast — tap to retry", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
                                     }
                                 }
                             }
-                        }
-                    }
-
-                    key("reviews") {
-                        if (reviews.isNotEmpty()) {
-                            val previewReviews = reviews.take(3)
-                            SectionTitle("Reviews", if (reviews.size > 3) "See more" else "", { actions.onOpenReviewList(item) })
-                            LazyRow(state = reviewsListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                itemsIndexed(previewReviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i, reviewsSeen) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
-                            }
-                        }
-                    }
-
-                    if (related.isNotEmpty()) {
-                        SectionTitle("Related", "", {})
-                        LazyRow(state = relatedListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            itemsIndexed(related, key = { _, it -> "${it.relation}-${it.malId}-${it.title}" }) { i, rel ->
-                                StaggeredItem(i, relatedSeen) {
-                                    RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId, myStatus = myListStatus[rel.malId to (if (rel.malType == "manga") MediaType.Manga else MediaType.Anime)]) {
-                                        // Fallback to web search
-                                        if (rel.malId > 0) actions.onOpenRelated(rel) else uriHandler.openUri(malUrl(rel))
+                            // Japanese cast only, one
+                            // (e.g. a role recast
+                            key("voiceActors") {
+                                val japaneseVoiceActors = characters.mapNotNull { ch -> ch.japaneseVoiceActor?.let { it to ch.name } }
+                                if (japaneseVoiceActors.isNotEmpty()) {
+                                    // Small gap under the characters row above,
+                                    // rather than SectionTitle's full 32dp — this
+                                    // row reads as a second group within the same
+                                    // section, not a new section of its own.
+                                    Spacer(Modifier.height(14.dp))
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        itemsIndexed(japaneseVoiceActors, key = { _, (va, charName) -> "${va.malId}-$charName" }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, onClick = { actions.onOpenPerson(va.malId) }) } }
                                     }
                                 }
                             }
+
+                            if (characters.isEmpty() && !charactersFailed) DetailTabEmpty()
                         }
-                    }
-
-                    // Recommendations from MAL endpoint
-                    if (recommended.isNotEmpty()) {
-                        SectionTitle("Recommended", "", {})
-                        LazyRow(state = recommendedListState, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                            // Keyed by malId +
-                            // ids are numbered independently
-                            // anime and an unrelated
-                            // throws "Key ... was
-                            // (widening parseRecommended's selector made
-                            // actually happen in practice,
-                            itemsIndexed(recommended, key = { _, it -> "${it.malId}-${it.malType}" }) { i, rec ->
-                                StaggeredItem(i, recommendedSeen) { RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) } }
-                            }
-                        }
-                    }
-
-                    if (item.background.isNotBlank()) {
-                        SectionTitle("Background", "", {})
-                        LinkifiedText(item.background, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp)
-                    }
-
-                    // Reuse status bar styling
-                    key("statusDistribution") {
-                        statusDistribution?.takeIf { it.total > 0 }?.let { dist ->
-                            SectionTitle("Status distribution", "See more", { actions.onOpenScoreStats(item) }, icon = Icons.Default.BarChart)
-                            Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
-                                    StatBar("Watching", dist.watching, dist.total, c, statusColor("Watching"))
-                                    StatBar("Completed", dist.completed, dist.total, c, statusColor("Completed"))
-                                    StatBar("On hold", dist.onHold, dist.total, c, statusColor("On hold"))
-                                    StatBar("Dropped", dist.dropped, dist.total, c, statusColor("Dropped"))
-                                    StatBar("Plan to watch", dist.planToWatch, dist.total, c, statusColor("Plan to watch"))
+                        // Related
+                        2 -> {
+                            if (related.isNotEmpty()) {
+                                SectionTitle("Related", "", {})
+                                LazyRow(state = relatedListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    itemsIndexed(related, key = { _, it -> "${it.relation}-${it.malId}-${it.title}" }) { i, rel ->
+                                        StaggeredItem(i, relatedSeen) {
+                                            RelatedCard(rel, loading = rel.malId > 0 && relatedLoadingId == rel.malId, myStatus = myListStatus[rel.malId to (if (rel.malType == "manga") MediaType.Manga else MediaType.Anime)]) {
+                                                // Fallback to web search
+                                                if (rel.malId > 0) actions.onOpenRelated(rel) else uriHandler.openUri(malUrl(rel))
+                                            }
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
 
-                    // Interest Stacks — always
-                    // link (see loadMediaStacks' limit
-                    // of everything else on
-                    // above, deliberately left out
-                    // function) so a slow
-                    key("stacks") {
-                        if (stacks.isNotEmpty()) {
-                            SectionTitle("Interest Stacks", "", {})
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                                itemsIndexed(stacks, key = { _, it -> it.id }) { i, s ->
-                                    StaggeredItem(i, stacksSeen) { DetailStackCard(s, actions.onLoadStackCovers) { actions.onOpenStack(s.id, s.title) } }
+                            // Recommendations from MAL endpoint
+                            if (recommended.isNotEmpty()) {
+                                SectionTitle("Recommended", "", {})
+                                LazyRow(state = recommendedListState, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                                    // Keyed by malId +
+                                    // ids are numbered independently
+                                    // anime and an unrelated
+                                    // throws "Key ... was
+                                    // (widening parseRecommended's selector made
+                                    // actually happen in practice,
+                                    itemsIndexed(recommended, key = { _, it -> "${it.malId}-${it.malType}" }) { i, rec ->
+                                        StaggeredItem(i, recommendedSeen) { RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) } }
+                                    }
                                 }
                             }
-                        }
-                    }
 
-                    // Recent News — reuses
-                    // the same as the
-                    // CompanyNewsCard in CompanyDetailScreen.kt).
-                    key("news") {
-                        if (news.isNotEmpty()) {
-                            SectionTitle("Recent News", "", {})
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                news.forEach { n -> CompanyNewsCard(n) { actions.onOpenTopic(n.topicId, n.title) } }
-                            }
-                        }
-                    }
-
-                    // Recent Forum Discussion —
-                    // MalDetailScrapeApi.parseDetailForumDiscussion's own limit).
-                    key("forumDiscussion") {
-                        if (forumDiscussion.isNotEmpty()) {
-                            SectionTitle("Recent Forum Discussion", "See more", { actions.onOpenForumDiscussionList(item) })
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                forumDiscussion.forEachIndexed { i, topic ->
-                                    DetailForumDiscussionRow(topic) { actions.onOpenTopic(topic.id, topic.title) }
-                                    if (i < forumDiscussion.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                            // Interest Stacks — always
+                            // link (see loadMediaStacks' limit
+                            // of everything else on
+                            // above, deliberately left out
+                            // function) so a slow
+                            key("stacks") {
+                                if (stacks.isNotEmpty()) {
+                                    SectionTitle("Interest Stacks", "", {})
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                                        itemsIndexed(stacks, key = { _, it -> it.id }) { i, s ->
+                                            StaggeredItem(i, stacksSeen) { DetailStackCard(s, actions.onLoadStackCovers) { actions.onOpenStack(s.id, s.title) } }
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
 
-                    // Recent Featured Articles —
-                    // MalDetailScrapeApi.parseFeaturedArticles's own limit).
-                    // Tapping opens FeaturedArticleScreen in-app (see
-                    // Navigation.kt's featuredArticleOpen).
-                    key("detailFeaturedArticles") {
-                        if (featuredArticles.isNotEmpty()) {
-                            SectionTitle("Recent Featured Articles", "", {})
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                featuredArticles.forEach { article -> DetailFeaturedArticleCard(article) { actions.onOpenFeaturedArticle(article.url, article.title) } }
+                            if (related.isEmpty() && recommended.isEmpty() && stacks.isEmpty()) DetailTabEmpty()
+                        }
+                        // Stats
+                        3 -> {
+                            // Community rank/popularity stats
+                            if (item.rank > 0 || item.popularity > 0 || item.listUsers > 0) {
+                                SectionTitle("Statistics", "", {})
+                                Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
+                                    Row(Modifier.fillMaxWidth().padding(vertical = 20.dp)) {
+                                        if (item.rank > 0) StatBlock(Modifier.weight(1f), "#${item.rank}", "Rank")
+                                        if (item.popularity > 0) StatBlock(Modifier.weight(1f), "#${item.popularity}", "Popularity")
+                                        if (item.listUsers > 0) StatBlock(Modifier.weight(1f), formatCount(item.listUsers), "Members")
+                                    }
+                                }
                             }
+
+                            // Reuse status bar styling
+                            key("statusDistribution") {
+                                statusDistribution?.takeIf { it.total > 0 }?.let { dist ->
+                                    SectionTitle("Status distribution", "See more", { actions.onOpenScoreStats(item) }, icon = Icons.Default.BarChart)
+                                    Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+                                            StatBar("Watching", dist.watching, dist.total, c, statusColor("Watching"))
+                                            StatBar("Completed", dist.completed, dist.total, c, statusColor("Completed"))
+                                            StatBar("On hold", dist.onHold, dist.total, c, statusColor("On hold"))
+                                            StatBar("Dropped", dist.dropped, dist.total, c, statusColor("Dropped"))
+                                            StatBar("Plan to watch", dist.planToWatch, dist.total, c, statusColor("Plan to watch"))
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (item.rank <= 0 && item.popularity <= 0 && item.listUsers <= 0 && (statusDistribution?.total ?: 0) <= 0) DetailTabEmpty()
+                        }
+                        // Forum
+                        else -> {
+                            key("reviews") {
+                                if (reviews.isNotEmpty()) {
+                                    val previewReviews = reviews.take(3)
+                                    SectionTitle("Reviews", if (reviews.size > 3) "See more" else "", { actions.onOpenReviewList(item) })
+                                    LazyRow(state = reviewsListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        itemsIndexed(previewReviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i, reviewsSeen) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
+                                    }
+                                }
+                            }
+
+                            // Recent News — reuses
+                            // the same as the
+                            // CompanyNewsCard in CompanyDetailScreen.kt).
+                            key("news") {
+                                if (news.isNotEmpty()) {
+                                    SectionTitle("Recent News", "", {})
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        news.forEach { n -> CompanyNewsCard(n) { actions.onOpenTopic(n.topicId, n.title) } }
+                                    }
+                                }
+                            }
+
+                            // Recent Forum Discussion —
+                            // MalDetailScrapeApi.parseDetailForumDiscussion's own limit).
+                            key("forumDiscussion") {
+                                if (forumDiscussion.isNotEmpty()) {
+                                    SectionTitle("Recent Forum Discussion", "See more", { actions.onOpenForumDiscussionList(item) })
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        forumDiscussion.forEachIndexed { i, topic ->
+                                            DetailForumDiscussionRow(topic) { actions.onOpenTopic(topic.id, topic.title) }
+                                            if (i < forumDiscussion.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Recent Featured Articles —
+                            // MalDetailScrapeApi.parseFeaturedArticles's own limit).
+                            // Tapping opens FeaturedArticleScreen in-app (see
+                            // Navigation.kt's featuredArticleOpen).
+                            key("detailFeaturedArticles") {
+                                if (featuredArticles.isNotEmpty()) {
+                                    SectionTitle("Recent Featured Articles", "", {})
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        featuredArticles.forEach { article -> DetailFeaturedArticleCard(article) { actions.onOpenFeaturedArticle(article.url, article.title) } }
+                                    }
+                                }
+                            }
+
+                            if (reviews.isEmpty() && news.isEmpty() && forumDiscussion.isEmpty() && featuredArticles.isEmpty()) DetailTabEmpty()
                         }
                     }
                 }
@@ -874,6 +926,12 @@ data class DetailScreenActions(
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
         )
     }
+}
+
+// Placeholder for a detail tab whose sections all came back empty (or haven't loaded yet).
+@Composable fun DetailTabEmpty() {
+    val c = LocalKikoColors.current
+    Text("Nothing to show here yet.", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 40.dp, bottom = 16.dp))
 }
 
 // One row for the

@@ -256,6 +256,11 @@ class LibraryViewModel : ViewModel() {
     private val detailScrollPositions = mutableMapOf<Pair<String, MediaType>, Pair<Int, Int>>()
     fun getDetailScroll(id: String, type: MediaType) = detailScrollPositions[id to type] ?: (0 to 0)
     fun saveDetailScroll(id: String, type: MediaType, index: Int, offset: Int) { detailScrollPositions[id to type] = index to offset }
+    // Which detail tab (0=Info, 1=Casts, 2=Related, 3=Stats, 4=Forum) was open, so the saved scroll
+    // offset above is restored against the same tab content.
+    private val detailTabPositions = mutableMapOf<Pair<String, MediaType>, Int>()
+    fun getDetailTab(id: String, type: MediaType) = detailTabPositions[id to type] ?: 0
+    fun saveDetailTab(id: String, type: MediaType, tab: Int) { detailTabPositions[id to type] = tab }
     // Per-title cache for every
     // recommended, status distribution, characters/staff,
     // since anime and manga
@@ -343,13 +348,13 @@ class LibraryViewModel : ViewModel() {
     // call this once the
     // every single step back
     // opened from outside any
-    fun clearDetailCache() { detailCaches.clear(); detailScrollPositions.clear() }
+    fun clearDetailCache() { detailCaches.clear(); detailScrollPositions.clear(); detailTabPositions.clear() }
     // Drops the cache +
     // stepping back past that
     // in Navigation.kt), so a
     // leave stale cached data/position
     // backed out of.
-    fun forgetDetailPage(id: String, type: MediaType) { detailCaches.remove(id to type); detailScrollPositions.remove(id to type) }
+    fun forgetDetailPage(id: String, type: MediaType) { detailCaches.remove(id to type); detailScrollPositions.remove(id to type); detailTabPositions.remove(id to type) }
     // Scroll position for the
     // page — separate from
     // page's own vertical scroll.
