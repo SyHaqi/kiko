@@ -291,8 +291,8 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.orEmpty().size} titles" + if (loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ListViewModeToggle(viewMode, onSetViewMode)
                 FriendSortMenu(sort, onSetSort)
+                ListViewModeToggle(viewMode, onSetViewMode)
             }
         }
     }

@@ -853,8 +853,8 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ListViewModeToggle(vm.listViewMode) { vm.setListViewMode(context, it) }
                 SortMenu(vm.listSort) { vm.setListSort(context, it) }
+                ListViewModeToggle(vm.listViewMode) { vm.setListViewMode(context, it) }
             }
         }
     }
