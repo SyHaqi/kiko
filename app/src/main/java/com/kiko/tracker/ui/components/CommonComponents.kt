@@ -479,11 +479,10 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                             Modifier
                                 .size(43.dp)
                                 .onGloballyPositioned { iconBounds = it.boundsInRoot() }
-                                .clip(RoundedCornerShape(kikoCorner(16.dp)))
-                                .background(c.surfaceContainerHigh)
+                                .clip(kikoCircleShape())
                                 .kikoClickable { onExpandedChange(true) },
                             contentAlignment = Alignment.Center,
-                        ) { Icon(Icons.Default.Search, hint, tint = c.ink) }
+                        ) { Icon(Icons.Default.Search, hint, tint = c.ink, modifier = Modifier.size(24.dp)) }
                         avatar()
                     }
                 }
