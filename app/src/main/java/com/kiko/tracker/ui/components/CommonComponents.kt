@@ -394,7 +394,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 // saving vertical space while
 // any small option set
 // every "tap the big
-@Composable fun <T> SwitcherHeader(current: T, options: List<T>, labelFor: (T) -> String, onSelect: (T) -> Unit, horizontalPadding: Dp = 20.dp, switchDescription: String = "Switch section", minHeight: Dp = 72.dp, action: @Composable () -> Unit = {}) {
+@Composable fun <T> SwitcherHeader(current: T, options: List<T>, labelFor: (T) -> String, onSelect: (T) -> Unit, horizontalPadding: Dp = 20.dp, switchDescription: String = "Switch section", minHeight: Dp = 72.dp, verticalPadding: Dp = 12.dp, action: @Composable () -> Unit = {}) {
     val c = LocalKikoColors.current
     val density = LocalDensity.current
     var expanded by remember { mutableStateOf(false) }
@@ -402,7 +402,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     // shrink-wrapping to its own
     var anchorWidthPx by remember { mutableStateOf(0) }
     val arrowRotation by animateFloatAsState(if (expanded) 180f else 0f, label = "switcherArrowRotation")
-    Row(Modifier.fillMaxWidth().heightIn(min = minHeight).padding(horizontal = horizontalPadding, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(Modifier.fillMaxWidth().heightIn(min = minHeight).padding(horizontal = horizontalPadding, vertical = verticalPadding), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Box {
             Row(
                 Modifier
@@ -464,6 +464,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     horizontalPadding: Dp = 20.dp,
     switchDescription: String = "Switch section",
     minHeight: Dp = 72.dp,
+    verticalPadding: Dp = 12.dp,
     avatar: @Composable () -> Unit,
 ) {
     val c = LocalKikoColors.current
@@ -502,7 +503,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
         // Only composed while not
         if (progress < 1f) {
             Box(Modifier.graphicsLayer { alpha = 1f - progress }) {
-                SwitcherHeader(current, options, labelFor, onSelect, horizontalPadding, switchDescription, minHeight) {
+                SwitcherHeader(current, options, labelFor, onSelect, horizontalPadding, switchDescription, minHeight, verticalPadding) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Box(
                             Modifier
@@ -533,7 +534,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                         transformOrigin = TransformOrigin(pivotFraction, 0.5f)
                     },
             ) {
-                Row(Modifier.fillMaxWidth().heightIn(min = minHeight).padding(horizontal = horizontalPadding, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().heightIn(min = minHeight).padding(horizontal = horizontalPadding, vertical = verticalPadding), verticalAlignment = Alignment.CenterVertically) {
                     HeaderSearchField(
                         value = query,
                         onValueChange = onQueryChange,

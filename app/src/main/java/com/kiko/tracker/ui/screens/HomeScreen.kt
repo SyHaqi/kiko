@@ -41,6 +41,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -768,12 +769,18 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             hint = "Search your list",
             horizontalPadding = 14.dp,
             switchDescription = "Switch between Anime and Manga",
-            minHeight = 60.dp,
         ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
         // Status switcher — Material3 scrollable tabs
         // (replaces the old bottom-right filter FAB)
-        StatusFilterTabs(typeTab, pagerState, modifier = Modifier.padding(top = 4.dp)) { label ->
+        // Header is the standard 72dp (same as Discover, so it doesn't jump between
+        // screens); pull the tabs up 8dp into its empty bottom padding to keep the
+        // tighter header->tabs gap.
+        StatusFilterTabs(typeTab, pagerState, modifier = Modifier.layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            val trim = 8.dp.roundToPx()
+            layout(placeable.width, (placeable.height - trim).coerceAtLeast(0)) { placeable.place(0, -trim) }
+        }) { label ->
             vm.setListFilter(context, label)
             scope.launch { pagerState.animateScrollToPage(labels.indexOf(label).coerceAtLeast(0)) }
         }
