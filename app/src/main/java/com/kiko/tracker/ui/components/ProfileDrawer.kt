@@ -2,154 +2,168 @@
 
 package com.kiko.tracker.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import kotlinx.coroutines.delay
 import com.kiko.tracker.data.api.MalProfile
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.kikoCircleShape
 import com.kiko.tracker.ui.theme.kikoClickable
-import com.kiko.tracker.ui.theme.kikoCorner
 
-// Avatar popup menu, opened
-// under the avatar rather
-// behind it dims, the
-// it reads as "lifted"
-// pops out from that
-// profile stats page; Row
-// destinations the old slider
-@Composable fun AvatarMenu(
-    connected: Boolean, profile: MalProfile?, anchor: Rect?,
+// Avatar account sheet (Play Store style). A full-page screen in the app's own
+// navigation (TopScreen.AccountSheet) rather than a dialog: pages opened from
+// it (History, Settings, ...) push on top of it, so backing out of them lands
+// right back here with no close/reopen flicker. Back / the X close the sheet.
+@Composable fun AccountSheet(
+    connected: Boolean, profile: MalProfile?,
+    onClose: () -> Unit,
     onOpenProfile: () -> Unit, onOpenSettings: () -> Unit,
-    onDismiss: () -> Unit,
+    onOpenHistory: (() -> Unit)? = null,
+    onOpenFriends: (() -> Unit)? = null,
+    onOpenAbout: (() -> Unit)? = null,
+    onSignIn: (() -> Unit)? = null,
+    updateVersion: String? = null,
+    onOpenUpdate: (() -> Unit)? = null,
 ) {
     val c = LocalKikoColors.current
-    val density = LocalDensity.current
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-    // Wait for the fade/scale-out
-    LaunchedEffect(visible) { if (!visible) { delay(160); onDismiss() } }
+    BackHandler(onBack = onClose)
 
-    Dialog(onDismissRequest = { visible = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        // This Dialog is its
-        // absolute screen (0,0) (system
-        // anchor (now in absolute
-        // to be translated into
-        // for an offset inside
-        // what let the redrawn
-        var dialogRootOnScreen by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-        BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { dialogRootOnScreen = it.positionOnScreen() }) {
-            val screenWidthPx = with(density) { maxWidth.toPx() }
-            // Fallback anchor (top-right, roughly
-            // case this ever opens
-            val rawAnchor = anchor ?: with(density) {
-                Rect(screenWidthPx - 20.dp.toPx() - 43.dp.toPx(), 56.dp.toPx(), screenWidthPx - 20.dp.toPx(), 56.dp.toPx() + 43.dp.toPx())
-            }
-            val a = if (anchor != null) rawAnchor.translate(-dialogRootOnScreen.x, -dialogRootOnScreen.y) else rawAnchor
-            val menuTopPad = with(density) { (a.bottom + 10.dp.toPx()).toDp() }
-            val menuEndPad = with(density) { (screenWidthPx - a.right).coerceAtLeast(0f).toDp() }.coerceAtLeast(16.dp)
+    Column(Modifier.fillMaxSize().background(c.background)) {
+        // Close button
+        Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), contentAlignment = Alignment.CenterEnd) {
+            Box(
+                Modifier.size(44.dp).clip(kikoCircleShape()).kikoClickable { onClose() },
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Default.Close, "Close", tint = c.ink, modifier = Modifier.size(26.dp)) }
+        }
 
-            // Scrim — dims everything
-            AnimatedVisibility(visible = visible, enter = fadeIn(tween(180)), exit = fadeOut(tween(140))) {
-                Box(
-                    Modifier.fillMaxSize().background(Color.Black.copy(alpha = .5f))
-                        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { visible = false },
-                )
-            }
-
-            // The avatar itself, redrawn
-            // the scrim rather than
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn(tween(180)),
-                exit = fadeOut(tween(140)),
-                modifier = Modifier.offset { IntOffset(a.left.toInt(), a.top.toInt()) },
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // Profile card
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(36.dp)).background(c.primaryContainer)
+                    .kikoClickable(scale = 0.98f) { if (connected) onOpenProfile() else onSignIn?.invoke() }
+                    .padding(horizontal = 18.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Avatar(profile?.picture.orEmpty(), profile?.name.orEmpty()) { visible = false }
-            }
-
-            // The menu card, popping
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.85f, transformOrigin = TransformOrigin(1f, 0f)),
-                exit = fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.9f, transformOrigin = TransformOrigin(1f, 0f)),
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = menuTopPad, end = menuEndPad).widthIn(max = 280.dp),
-            ) {
-                Column(
-                    Modifier.shadow(16.dp, RoundedCornerShape(kikoCorner(24.dp))).clip(RoundedCornerShape(kikoCorner(24.dp))).background(c.surfaceContainerHigh).padding(8.dp),
-                ) {
-                    // Row 1 — avatar
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHighest)
-                            .kikoClickable { visible = false; onOpenProfile() }.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (profile?.picture?.isNotBlank() == true) {
-                            AsyncImage(model = profile.picture, contentDescription = profile.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(43.dp).clip(kikoCircleShape()).background(c.warm))
-                        } else {
-                            Box(Modifier.size(43.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                                Text(profile?.name?.take(1)?.uppercase()?.ifBlank { "M" } ?: "M", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = c.ink)
-                            }
-                        }
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text(profile?.name?.ifBlank { "MyAnimeList" } ?: (if (connected) "MyAnimeList" else "Not signed in"), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink, maxLines = 1)
-                            Text(if (connected) "View profile & stats" else "Sign in to see your stats", color = c.muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 1.dp))
-                        }
-                        Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(18.dp))
+                if (profile?.picture?.isNotBlank() == true) {
+                    AsyncImage(model = profile.picture, contentDescription = profile.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(58.dp).clip(kikoCircleShape()).background(c.warm))
+                } else {
+                    Box(Modifier.size(58.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
+                        Text(profile?.name?.take(1)?.uppercase()?.ifBlank { "M" } ?: "M", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = c.ink)
                     }
+                }
+                Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                    Text(
+                        profile?.name?.ifBlank { "MyAnimeList" } ?: (if (connected) "MyAnimeList" else "Not signed in"),
+                        fontWeight = FontWeight.Medium, fontSize = 22.sp, color = c.onPrimaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        if (connected) "View profile & stats" else "Sign in to see your stats",
+                        color = c.onPrimaryContainer.copy(alpha = 0.75f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                Box(Modifier.size(width = 44.dp, height = 44.dp).clip(RoundedCornerShape(50)).background(c.onPrimaryContainer.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.ChevronRight, null, tint = c.onPrimaryContainer, modifier = Modifier.size(24.dp))
+                }
+            }
 
-                    Spacer(Modifier.height(6.dp))
+            // Stand-alone pill rows
+            if (updateVersion != null && onOpenUpdate != null) {
+                MenuRow(Icons.Default.SystemUpdate, "Update available", subtitle = "Version $updateVersion", shape = RoundedCornerShape(50), container = c.tertiaryContainer, content = c.onTertiaryContainer, iconTint = c.onTertiaryContainer) { onOpenUpdate() }
+            }
+            if (!connected && onSignIn != null) {
+                MenuRow(Icons.Default.Login, "Sign in to MyAnimeList", shape = RoundedCornerShape(50), container = c.secondaryContainer, content = c.onSecondaryContainer, iconTint = c.onSecondaryContainer) { onSignIn() }
+            }
 
-                    // Row 2 — Settings,
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHighest)
-                            .kikoClickable { visible = false; onOpenSettings() }.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(Modifier.size(43.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.primaryContainer), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Settings, null, tint = c.onPrimaryContainer, modifier = Modifier.size(20.dp))
-                        }
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text("Settings", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
-                            Text("Appearance, titles, adult content, about", color = c.muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 1.dp))
-                        }
-                        Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.height(4.dp))
+
+            // Group 1 — library pages
+            val pages = buildList<Triple<ImageVector, String, () -> Unit>> {
+                if (onOpenHistory != null) add(Triple(Icons.Default.History, "History", onOpenHistory))
+                if (connected && onOpenFriends != null) add(Triple(Icons.Default.People, "Friends & favorites", onOpenFriends))
+            }
+            if (pages.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    pages.forEachIndexed { i, (icon, label, action) ->
+                        MenuRow(icon, label, shape = groupShape(i, pages.size)) { action() }
                     }
                 }
             }
+
+            // Group 2 — app
+            val app = buildList<Triple<ImageVector, String, () -> Unit>> {
+                add(Triple(Icons.Default.Settings, "Settings", onOpenSettings))
+                if (onOpenAbout != null) add(Triple(Icons.Default.Info, "About", onOpenAbout))
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                app.forEachIndexed { i, (icon, label, action) ->
+                    MenuRow(icon, label, shape = groupShape(i, app.size)) { action() }
+                }
+            }
+        }
+    }
+}
+
+// Big outer corners, tight inner ones — same grouped look as the Play Store list.
+private fun groupShape(index: Int, count: Int): Shape {
+    val outer = 28.dp
+    val inner = 4.dp
+    if (count == 1) return RoundedCornerShape(outer)
+    return when (index) {
+        0 -> RoundedCornerShape(topStart = outer, topEnd = outer, bottomStart = inner, bottomEnd = inner)
+        count - 1 -> RoundedCornerShape(topStart = inner, topEnd = inner, bottomStart = outer, bottomEnd = outer)
+        else -> RoundedCornerShape(inner)
+    }
+}
+
+@Composable private fun MenuRow(
+    icon: ImageVector,
+    title: String,
+    shape: Shape,
+    subtitle: String? = null,
+    container: Color = LocalKikoColors.current.surfaceContainerHigh,
+    content: Color = LocalKikoColors.current.ink,
+    iconTint: Color = LocalKikoColors.current.primary,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(shape).background(container)
+            .kikoClickable(scale = 0.98f, onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = iconTint, modifier = Modifier.size(26.dp))
+        Column(Modifier.weight(1f).padding(start = 18.dp)) {
+            Text(title, fontSize = 17.sp, color = content, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle != null) Text(subtitle, fontSize = 13.sp, color = content.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
