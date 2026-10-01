@@ -332,9 +332,6 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
                             StaggeredItem(index, staggerSeen) {
                                 Column(Modifier.padding(horizontal = 14.dp)) {
                                     FriendListRow(entry, type, c, onClick = { onOpenTitle(entry.malId, type) })
-                                    // Same indent as My List's own ListRow divider —
-                                    // lines up with the 92dp cover + 16dp text gap below.
-                                    if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                                 }
                             }
                         }
@@ -407,34 +404,46 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     }
 }
 
-// 1:1 with My List's own ListRow: 92x128 cover, same vertical rhythm.
-// Score-only (no genre line) — MAL's scraped list-table data has no genre
-// field to show one (see MalUserListEntry's doc comment).
+// Same layout as ListRow (My List / Profile): 100x150 cover, text column exactly as
+// tall as the cover — title, then the score under it, pinned to the top; progress
+// bar and counter pinned to the bottom. MAL's scraped list-table data has no
+// format / airing-status field (see MalUserListEntry's doc comment), so unlike
+// ListRow there is no format line or air-timer row here.
 @Composable
 private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.tracker.ui.theme.KikoColors, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onClick).padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(width = 92.dp, height = 128.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(width = 100.dp, height = 150.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
             if (entry.cover.isNotBlank()) {
                 AsyncImage(model = entry.cover, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
                 Text(entry.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }
         }
-        Column(Modifier.padding(start = 16.dp, end = 6.dp).weight(1f)) {
-            Text(entry.title, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (entry.score > 0) {
-                Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
-                    Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+        Column(
+            Modifier.weight(1f).height(150.dp).padding(start = 16.dp, end = 6.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column {
+                Text(entry.title, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (entry.score > 0) {
+                    Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                        Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+                    }
                 }
             }
-            if (entry.total > 0) {
-                LinearProgressIndicator(progress = { entry.progress.toFloat() / entry.total }, modifier = Modifier.fillMaxWidth(0.75f).padding(top = 9.dp).height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))), color = statusColor(entry.status), trackColor = c.surfaceLow)
+            Column {
+                // Always drawn, even when the total is unknown: the track just stays empty.
+                LinearProgressIndicator(
+                    progress = { if (entry.total > 0) (entry.progress.toFloat() / entry.total).coerceIn(0f, 1f) else 0f },
+                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
+                    color = statusColor(entry.status), trackColor = c.surfaceLow,
+                )
+                Text(friendProgressLabel(entry, type), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
             }
-            Text(friendProgressLabel(entry, type), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }
