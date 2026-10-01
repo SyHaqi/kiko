@@ -602,6 +602,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     onBack: () -> Unit,
     focusRequester: androidx.compose.ui.focus.FocusRequester,
     modifier: Modifier = Modifier,
+    showDivider: Boolean = true,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val c = LocalKikoColors.current
@@ -633,7 +634,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
             }
             trailing()
         }
-        HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+        if (showDivider) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
     }
 }
 

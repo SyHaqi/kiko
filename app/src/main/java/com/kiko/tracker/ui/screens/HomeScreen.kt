@@ -70,6 +70,11 @@ import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import kotlin.math.floor
 import kotlin.math.roundToInt
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import com.kiko.tracker.ui.theme.kikoCircleShape
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Size
@@ -97,7 +102,8 @@ import com.kiko.tracker.data.model.systemIs24Hour
 import com.kiko.tracker.ui.components.AppHeader
 import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.Cover
-import com.kiko.tracker.ui.components.ExpandableSearchHeader
+import com.kiko.tracker.ui.components.SearchTopBar
+import com.kiko.tracker.ui.components.SwitcherHeader
 import com.kiko.tracker.ui.components.statusColor
 import com.kiko.tracker.ui.components.CoverStatusMark
 import com.kiko.tracker.ui.theme.AiringNextRowSkeleton
@@ -806,25 +812,52 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     }
 
     Column(Modifier.fillMaxSize()) {
-        // Type switcher lives in
-        // instead of a separate
-        // search icon sits just
-        // row when tapped, hiding
-        ExpandableSearchHeader(
-            current = typeTab,
-            options = MediaType.entries.toList(),
-            labelFor = { if (it == MediaType.Anime) "Anime" else "Manga" },
-            onSelect = { vm.selectListTypeTab(context, it) },
-            query = query,
-            onQueryChange = { query = it },
-            onSearch = { submittedQuery = query },
-            onClear = { query = ""; submittedQuery = "" },
-            expanded = searchExpanded,
-            onExpandedChange = { expanded -> searchExpanded = expanded; if (!expanded) { query = ""; submittedQuery = "" } },
-            hint = "Search your list",
-            horizontalPadding = 14.dp,
-            switchDescription = "Switch between Anime and Manga",
-        ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
+        // Header: Anime/Manga switcher + search icon + avatar. Tapping the icon swaps the
+        // WHOLE header for the same empty Play Store-style search bar Search & Discover uses
+        // (back arrow, flat text field, hairline divider); back / system back restores it.
+        AnimatedContent(
+            targetState = searchExpanded,
+            transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(120)) },
+            label = "listHeaderSearch",
+        ) { expanded ->
+            if (!expanded) {
+                SwitcherHeader(
+                    current = typeTab,
+                    options = MediaType.entries.toList(),
+                    labelFor = { if (it == MediaType.Anime) "Anime" else "Manga" },
+                    onSelect = { vm.selectListTypeTab(context, it) },
+                    horizontalPadding = 14.dp,
+                    switchDescription = "Switch between Anime and Manga",
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            Modifier.size(43.dp).clip(kikoCircleShape()).kikoClickable { searchExpanded = true },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Default.Search, "Search your list", tint = c.ink, modifier = Modifier.size(24.dp)) }
+                        Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
+                    }
+                }
+            } else {
+                val focusRequester = remember { FocusRequester() }
+                val keyboard = LocalSoftwareKeyboardController.current
+                val focusManager = LocalFocusManager.current
+                val closeSearch = { focusManager.clearFocus(); keyboard?.hide(); searchExpanded = false; query = ""; submittedQuery = "" }
+                BackHandler { closeSearch() }
+                LaunchedEffect(Unit) { focusRequester.requestFocus(); keyboard?.show() }
+                // Same 72dp slot as the normal header so the tabs below don't jump.
+                Box(Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
+                    SearchTopBar(
+                        value = query,
+                        onValueChange = { query = it; if (it.isEmpty()) submittedQuery = "" },
+                        hint = "Search your list",
+                        onSearch = { submittedQuery = query },
+                        onBack = closeSearch,
+                        focusRequester = focusRequester,
+                        showDivider = false,
+                    )
+                }
+            }
+        }
         if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
         // Status switcher — Material3 scrollable tabs
         // (replaces the old bottom-right filter FAB)
