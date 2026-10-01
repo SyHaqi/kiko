@@ -1182,21 +1182,33 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
         }
         if (onIncrement != null) {
             val atMax = item.total > 0 && item.progress >= item.total
-            // Compact squircle instead of
-            // its own wide rectangle,
-            // horizontal room for a
+            // Vertical pill (28x32dp) with a "+1" label, same shape/size as the Play Store expand button.
+            // The outer Box keeps a 48dp-tall tap target around the smaller visible pill.
             Box(
                 Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(kikoCorner(12.dp)))
-                    .background(if (atMax) c.surfaceContainerHigh else c.primaryContainer)
+                    .size(width = 38.dp, height = 48.dp)
+                    .clip(kikoPillShape())
                     .kikoClickable(enabled = !atMax) {
                         val next = (item.progress + 1).let { p -> if (item.total > 0) minOf(p, item.total) else p }
                         onIncrement(item.copy(progress = next))
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                Text("+1", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = if (atMax) c.muted else c.onPrimaryContainer)
+                Box(
+                    Modifier
+                        .size(width = 28.dp, height = 32.dp)
+                        .clip(kikoPillShape())
+                        .background(if (atMax) c.surfaceContainerHigh else c.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // "+1" label instead of a bare plus — small bold type so the two
+                    // characters sit comfortably inside the 28dp-wide pill.
+                    Text(
+                        "+1",
+                        color = if (atMax) c.muted else c.onPrimaryContainer,
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+                    )
+                }
             }
         } else if (showChevron) {
             // No increment action here
