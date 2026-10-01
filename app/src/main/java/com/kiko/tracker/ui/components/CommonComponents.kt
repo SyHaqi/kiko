@@ -954,6 +954,14 @@ fun rememberBelowAnchorTooltipPositionProvider(spacing: Dp = 4.dp): androidx.com
  */
 fun Modifier.headerEdgeStart(parentPadding: Dp = 14.dp): Modifier = this.offset(x = 4.dp - parentPadding)
 fun Modifier.headerEdgeEnd(parentPadding: Dp = 14.dp): Modifier = this.offset(x = parentPadding - 4.dp)
+/**
+ * Title next to a [headerEdgeStart] back button, laid out like the Material 3 small top app bar:
+ * 4dp bar padding + 48dp navigation button + 12dp = the title starts 64dp from the screen edge
+ * (the 48dp button sits 4dp in, so its glyph is 16dp from the edge). Without this the title sat at
+ * 14dp + 48dp + 12dp = 74dp, 10dp too far right, because [headerEdgeStart] only shifts the button
+ * visually, not its layout slot. Same [parentPadding] as the matching headerEdgeStart call.
+ */
+fun Modifier.headerTitleStart(parentPadding: Dp = 14.dp): Modifier = this.offset(x = 4.dp - parentPadding).padding(start = 12.dp)
 
 @Composable
 fun FavoriteHeartButton(

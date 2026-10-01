@@ -4,6 +4,7 @@ package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
+import com.kiko.tracker.ui.components.headerTitleStart
 import com.kiko.tracker.util.openInBrowser
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -114,7 +115,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 item(key = "header") {
                     Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 1.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                        Text("Featured Articles", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
+                        Text("Featured Articles", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
                     }
                     // Search bar + tag filter button, same row shape as
                     // Search & Discover's own SearchField/FilterIconButton

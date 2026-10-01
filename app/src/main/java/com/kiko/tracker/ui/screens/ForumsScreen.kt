@@ -4,6 +4,7 @@ package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
+import com.kiko.tracker.ui.components.headerTitleStart
 import com.kiko.tracker.util.openInBrowser
 import android.util.Log
 import android.content.Context
@@ -300,7 +301,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 19.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = vm::exitForumTopics, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back to Forums", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                    Text(headerTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp))
+                    Text(headerTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
                 }
                 if (vm.forumSubboards.isNotEmpty()) {
                     val subboardListState = rememberLazyListState()
@@ -826,7 +827,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
         Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 14.dp).padding(bottom = if (showGoToTop) 90.dp else 24.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 19.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
                 if (entry.url.isNotBlank()) {
                     // Open review in browser
                     IconButton(onClick = { context.openInBrowser(entry.url) }, modifier = Modifier.headerEdgeEnd()) {

@@ -4,6 +4,7 @@ package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
+import com.kiko.tracker.ui.components.headerTitleStart
 import com.kiko.tracker.util.openInBrowser
 import androidx.activity.compose.BackHandler
 import android.content.Intent
@@ -118,7 +119,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                Text("Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp).weight(1f))
+                Text("Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart().weight(1f))
             }
             Column(Modifier.fillMaxWidth().padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.People, null, tint = c.muted, modifier = Modifier.size(48.dp))

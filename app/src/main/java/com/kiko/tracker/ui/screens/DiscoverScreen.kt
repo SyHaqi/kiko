@@ -3,6 +3,7 @@
 package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.headerEdgeStart
+import com.kiko.tracker.ui.components.headerTitleStart
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -483,7 +484,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 19.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onExitResults, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                    Text("Search & Discover", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+                    Text("Search & Discover", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -1207,7 +1208,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 19.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                    Text("You might like", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.padding(start = 12.dp))
+                    Text("You might like", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
                 }
             }
             if (vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
