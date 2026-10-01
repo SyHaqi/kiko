@@ -209,10 +209,11 @@ data class DetailScreenActions(
             Box(Modifier.fillMaxWidth()) {
                 Box(Modifier.fillMaxWidth().height(248.dp).clip(RoundedCornerShape(bottomStart = kikoCorner(32.dp), bottomEnd = kikoCorner(32.dp)))) {
                     SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(0.dp))
+                    // Plain 24dp icon floating on the banner (no backing chip), 48dp touch target.
                     IconButton(
                         onClick = onBack,
-                        modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .32f)),
-                    ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
+                        modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 13.dp),
+                    ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White, modifier = Modifier.size(24.dp)) }
                 }
                 Box(Modifier.padding(start = 14.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f).shadow(10.dp, RoundedCornerShape(kikoCorner(16.dp)))) {
                     SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(kikoCorner(16.dp)))
@@ -408,26 +409,26 @@ data class DetailScreenActions(
                         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .5f), .4f to Color.Transparent)))
                         // General darkening overlay
                         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .32f), Color.Black.copy(alpha = .7f)))))
+                        // Plain 24dp icons floating on the banner (no backing chip), 48dp touch targets.
                         IconButton(
                             onClick = actions.onBack,
-                            modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .32f)),
-                        ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
+                            modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 13.dp),
+                        ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White, modifier = Modifier.size(24.dp)) }
                         var moreOpen by remember(item.id) { mutableStateOf(false) }
-                        Row(Modifier.align(Alignment.TopEnd).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 13.dp), verticalAlignment = Alignment.CenterVertically) {
                             // Favorite sits to the left of the 3-dot menu, in the same header row.
                             FavoriteHeartButton(
                                 favorited = favorited,
                                 onClick = actions.onToggleFavorite,
-                                size = 42.dp,
-                                background = Color.Black.copy(alpha = .32f),
+                                size = 48.dp,
+                                iconSize = 24.dp,
+                                background = Color.Transparent,
                                 outlineTint = Color.White,
                             )
-                            Spacer(Modifier.width(8.dp))
                             Box {
                                 IconButton(
                                     onClick = { moreOpen = true },
-                                    modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .32f)),
-                                ) { Icon(Icons.Default.MoreVert, "More options", tint = Color.White) }
+                                ) { Icon(Icons.Default.MoreVert, "More options", tint = Color.White, modifier = Modifier.size(24.dp)) }
                                 DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp))) {
                                     DropdownMenuItem(
                                         text = { Text("Share") },

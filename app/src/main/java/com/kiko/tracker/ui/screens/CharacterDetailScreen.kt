@@ -2,6 +2,8 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.headerEdgeEnd
+import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.util.openInBrowser
 import android.content.Intent
 import androidx.activity.compose.BackHandler
@@ -90,8 +92,8 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     val c = LocalKikoColors.current
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             }
             Column(Modifier.padding(horizontal = 14.dp)) {
                 SkeletonBlock(Modifier.width(128.dp).aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(16.dp)))
@@ -165,18 +167,16 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
             item {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink) }
+                Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                     Spacer(Modifier.weight(1f))
                     // Favorite sits right beside the 3-dot menu in the header row.
-                    FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 42.dp)
-                    Spacer(Modifier.width(8.dp))
+                    FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 48.dp, iconSize = 24.dp, background = androidx.compose.ui.graphics.Color.Transparent, modifier = Modifier.headerEdgeEnd())
                     var moreOpen by remember(character.malId) { mutableStateOf(false) }
-                    Box {
+                    Box(Modifier.headerEdgeEnd()) {
                         IconButton(
                             onClick = { moreOpen = true },
-                            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
-                        ) { Icon(Icons.Default.MoreVert, "More options", tint = c.ink) }
+                        ) { Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp)) }
                         DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
                             DropdownMenuItem(
                                 text = { Text("Share") },

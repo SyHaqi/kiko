@@ -947,6 +947,14 @@ fun rememberBelowAnchorTooltipPositionProvider(spacing: Dp = 4.dp): androidx.com
 // favorited, outline otherwise. `outlineTint` lets DetailScreen.kt's version (which sits over a
 // dark image backdrop, same as its neighboring back/more buttons) use white for the un-favorited
 // state instead of the ink/surface colors that fit everywhere else.
+/**
+ * Header icon buttons (back / more / favorite / open-in-browser): puts the 24dp glyph 16dp from the screen edge
+ * (the 48dp touch target starts 4dp in), like the Play Store header. [parentPadding] is the horizontal
+ * padding the surrounding screen already applies, so the same call works inside 14dp and 20dp layouts.
+ */
+fun Modifier.headerEdgeStart(parentPadding: Dp = 14.dp): Modifier = this.offset(x = 4.dp - parentPadding)
+fun Modifier.headerEdgeEnd(parentPadding: Dp = 14.dp): Modifier = this.offset(x = parentPadding - 4.dp)
+
 @Composable
 fun FavoriteHeartButton(
     favorited: Boolean,
@@ -955,6 +963,7 @@ fun FavoriteHeartButton(
     size: Dp = 42.dp,
     background: Color? = null,
     outlineTint: Color? = null,
+    iconSize: Dp = 18.dp,
 ) {
     val c = LocalKikoColors.current
     val tooltipState = rememberTooltipState()
@@ -965,13 +974,15 @@ fun FavoriteHeartButton(
     ) {
         IconButton(
             onClick = onClick,
-            modifier = modifier.size(size).clip(RoundedCornerShape(kikoCorner(14.dp))).background(background ?: c.surfaceContainerHigh),
+            // Color.Transparent = bare icon (no chip, default circular ripple), e.g. over a banner image.
+            modifier = if (background == Color.Transparent) modifier.size(size)
+            else modifier.size(size).clip(RoundedCornerShape(kikoCorner(14.dp))).background(background ?: c.surfaceContainerHigh),
         ) {
             Icon(
                 if (favorited) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                 if (favorited) "Remove from favorites" else "Add to favorites",
                 tint = if (favorited) c.danger else (outlineTint ?: c.ink),
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(iconSize),
             )
         }
     }
