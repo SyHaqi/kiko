@@ -62,6 +62,7 @@ import com.kiko.tracker.data.api.StackDetail
 import com.kiko.tracker.data.api.StackSummary
 import com.kiko.tracker.data.api.StackTitleEntry
 import com.kiko.tracker.data.api.StacksApi
+import com.kiko.tracker.data.model.TrailerEntry
 import com.kiko.tracker.data.api.StacksRestackApi
 import com.kiko.tracker.data.api.StacksSavedTab
 import com.kiko.tracker.data.api.TenraiApi
@@ -299,6 +300,9 @@ class LibraryViewModel : ViewModel() {
         // fetched" is distinguishable from a genuine 0, same reasoning
         // as the other scrape-only fields above.
         var favorites: Int? = null,
+        // Trailers row — its own scrape of the /video subpage (see loadMediaTrailers), so it
+        // isn't tied to ensureDetailFetched. Nullable so "not fetched yet" differs from "none".
+        var trailers: List<TrailerEntry>? = null,
         var relatedScroll: Pair<Int, Int> = 0 to 0,
         var recommendedScroll: Pair<Int, Int> = 0 to 0,
         var charactersScroll: Pair<Int, Int> = 0 to 0,
@@ -340,9 +344,10 @@ class LibraryViewModel : ViewModel() {
         val featuredArticles: List<FeaturedArticleEntry>?,
         val links: List<Pair<String, String>>?,
         val favorites: Int?,
+        val trailers: List<TrailerEntry>?,
     )
     fun peekDetailCache(id: String, type: MediaType): DetailCacheSnapshot? = detailCaches[id to type]?.let {
-        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.reviews, it.stacks, it.news, it.forumDiscussion, it.featuredArticles, it.links, it.favorites)
+        DetailCacheSnapshot(it.related, it.openingThemes, it.endingThemes, it.covers, it.recommended, it.statusDistribution, it.characters, it.reviews, it.stacks, it.news, it.forumDiscussion, it.featuredArticles, it.links, it.favorites, it.trailers)
     }
     // Drops every cached detail
     // call this once the
@@ -2845,6 +2850,23 @@ class LibraryViewModel : ViewModel() {
             val result = cache.links ?: emptyList()
             if (result.isNotEmpty()) onFound(result)
             onDone()
+        }
+    }
+
+    // Trailers row (Info tab, right after Links). Own scrape of /anime/{id}/{slug}/video rather than
+    // part of ensureDetailFetched, since it's a different page and a slow/failed fetch here
+    // shouldn't hold up related/recommended/links. Failures aren't cached so the next visit retries.
+    fun loadMediaTrailers(item: MediaItem, onFound: (List<TrailerEntry>) -> Unit) {
+        if (item.type != MediaType.Anime) return
+        val cache = detailCache(item.id, item.type)
+        cache.trailers?.let { if (it.isNotEmpty()) onFound(it); return }
+        val intId = item.id.toIntOrNull() ?: return
+        viewModelScope.launch {
+            runCatching { MalDetailScrapeApi().fetchTrailers(intId, item.type, item.title) }
+                .onSuccess { result ->
+                    cache.trailers = result
+                    if (result.isNotEmpty()) onFound(result)
+                }
         }
     }
 

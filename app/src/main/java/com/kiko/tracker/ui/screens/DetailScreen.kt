@@ -75,6 +75,7 @@ import com.kiko.tracker.data.model.RelatedEntry
 import com.kiko.tracker.data.model.ReviewEntry
 import com.kiko.tracker.data.model.ReviewVerdictTags
 import com.kiko.tracker.data.model.StatusDistribution
+import com.kiko.tracker.data.model.TrailerEntry
 import com.kiko.tracker.data.model.VoiceActorEntry
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayLabel
@@ -148,6 +149,7 @@ data class DetailScreenActions(
     val onLoadFeaturedArticles: (MediaItem, (List<FeaturedArticleEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onLoadLinks: (MediaItem, (List<Pair<String, String>>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onLoadFavorites: (MediaItem, (Int) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
+    val onLoadTrailers: (MediaItem, (List<TrailerEntry>) -> Unit) -> Unit = { _, _ -> },
     val onOpenTopic: (Int, String) -> Unit = { _, _ -> },
     val onOpenFeaturedArticle: (String, String) -> Unit = { _, _ -> },
     val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit, () -> Unit) -> Unit = { _, _, onDone, _ -> onDone() },
@@ -325,6 +327,9 @@ data class DetailScreenActions(
     // already uses for a
     var links by remember(item.id) { mutableStateOf(cachedSnapshot?.links ?: emptyList()) }
     LaunchedEffect(item.id) { actions.onLoadLinks(item, { links = it }, {}) }
+    // Trailers row (PV thumbnails under Links) — anime only, scraped from the /video subpage.
+    var trailers by remember(item.id) { mutableStateOf(cachedSnapshot?.trailers ?: emptyList()) }
+    LaunchedEffect(item.id) { actions.onLoadTrailers(item) { trailers = it } }
     // Favorites count (Statistics sidebar) — scraped-only, same backfill
     // shape as links above.
     var favorites by remember(item.id) { mutableStateOf(cachedSnapshot?.favorites) }
@@ -652,6 +657,20 @@ data class DetailScreenActions(
                                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             links.forEach { (label, url) ->
                                                 CompanyLinkChip(label, url, onClick = { runCatching { uriHandler.openUri(url) } })
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Trailers — PV thumbnails from MAL's /video page, styled like the
+                                // forum [yt] embeds (ForumVideo): thumbnail + play button, tap opens
+                                // the video on YouTube. Sits right under Links, above Details.
+                                key("trailers") {
+                                    if (trailers.isNotEmpty()) {
+                                        SectionTitle("Trailers", "", {})
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            itemsIndexed(trailers, key = { _, t -> t.videoId }) { _, t ->
+                                                TrailerCard(t.videoId, t.title, c)
                                             }
                                         }
                                     }

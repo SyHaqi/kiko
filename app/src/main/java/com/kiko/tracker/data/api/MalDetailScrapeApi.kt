@@ -17,6 +17,8 @@ import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.RelatedEntry
 import com.kiko.tracker.data.model.ReviewEntry
 import com.kiko.tracker.data.model.ScoreStats
+import com.kiko.tracker.data.model.TrailerEntry
+import com.kiko.tracker.ui.components.youTubeIdFrom
 import com.kiko.tracker.data.model.VoiceActorEntry
 
 private const val MAL = "https://myanimelist.net"
@@ -113,6 +115,37 @@ class MalDetailScrapeApi {
             val label = a.selectFirst("div.caption")?.text()?.trim().orEmpty()
             if (url.isBlank() || label.isBlank()) null else label to url
         }
+    }
+
+    // "Trailers" list from the title's /video subpage: div.video-block.promotional-video holds one
+    // div.video-list-outer per PV, each an <a class="video-list js-fancybox-video"> whose href is the
+    // YouTube embed URL and whose span.title is MAL's label for it. Episode videos (banned-icon
+    // thumbnails, no YouTube link) and Music Videos live in sibling blocks and are deliberately not
+    // read here. Anime only — manga has no /video page.
+    //
+    // Same slug-then-bare-id retry as fetchCharacters, since MAL's routing wants the slug on some
+    // titles. An empty-but-successful slugged page still tries the bare URL once (cheap, and a
+    // title with genuinely no trailers just comes back empty from both).
+    suspend fun fetchTrailers(id: Int, type: MediaType, title: String): List<TrailerEntry> = withContext(Dispatchers.IO) {
+        if (type != MediaType.Anime) return@withContext emptyList()
+        val slugged = runCatching { parseTrailers(client.fetchMalDocument("$MAL/anime/$id/${malSlug(title)}/video")) }
+        if ((slugged.getOrNull()?.size ?: 0) > 0) return@withContext slugged.getOrThrow()
+        val fallback = runCatching { parseTrailers(client.fetchMalDocument("$MAL/anime/$id/video")) }
+        fallback.getOrNull()?.let { return@withContext it }
+        slugged.getOrNull()?.let { return@withContext it }
+        throw slugged.exceptionOrNull() ?: fallback.exceptionOrNull()
+        ?: IOException("MAL videos request failed: anime/$id")
+    }
+
+    private fun parseTrailers(doc: Document): List<TrailerEntry> {
+        val block = doc.selectFirst("div.video-block.promotional-video") ?: return emptyList()
+        return block.select("a.video-list").mapNotNull { a ->
+            val videoId = youTubeIdFrom(a.attr("href")) ?: return@mapNotNull null
+            val label = a.selectFirst("span.title")?.text()?.trim()
+                ?: a.selectFirst("img[data-title]")?.attr("data-title")?.trim()
+                ?: ""
+            TrailerEntry(videoId, label.ifBlank { "Trailer" })
+        }.distinctBy { it.videoId }
     }
 
     // Sidebar Statistics block: a run of <div class="spaceit_pad"> rows,

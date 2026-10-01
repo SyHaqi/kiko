@@ -570,3 +570,8 @@ fun MediaItem.airTimerLabel(confirmed: AiringInfo? = null, is24Hour: Boolean = f
 // ("Not yet aired", "Not Yet Aired", "not_yet_published" after prettify...).
 fun MediaItem.upcomingLabel(): String? =
     if (airingBucket(airStatus) == "Upcoming") (if (type == MediaType.Anime) "Not Yet Aired" else "Not Yet Published") else null
+
+// One entry in a title's "Trailers" row on the detail page — a YouTube video id plus MAL's own
+// label for it ("PV March 2011 version", "Main Trailer", ...). Scraped from the title's /video
+// subpage (div.video-block.promotional-video); the thumbnail URL is derived from the id.
+data class TrailerEntry(val videoId: String, val title: String)

@@ -875,6 +875,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             onLoadFeaturedArticles = { forItem, onFound, onDone -> vm.loadDetailFeaturedArticles(context, forItem, onFound, onDone) },
                                             onLoadLinks = { forItem, onFound, onDone -> vm.loadDetailLinks(context, forItem, onFound, onDone) },
                                             onLoadFavorites = { forItem, onFound, onDone -> vm.loadDetailFavorites(context, forItem, onFound, onDone) },
+                                            onLoadTrailers = { forItem, onFound -> vm.loadMediaTrailers(forItem, onFound) },
                                             onOpenTopic = { id, title -> forumTopicOpen = id to title },
                                             onOpenFeaturedArticle = { url, articleTitle -> featuredArticleOpen = url to articleTitle },
                                             onLoadCharacters = { forItem, onFound, onDone, onError -> vm.loadCharacters(forItem, onFound, onDone, onError) },
