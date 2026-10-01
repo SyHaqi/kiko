@@ -76,6 +76,8 @@ import com.kiko.tracker.data.model.currentSeasonName
 import com.kiko.tracker.data.model.UserSearchFilters
 import com.kiko.tracker.data.model.UserSummary
 import com.kiko.tracker.data.model.WatchStatus
+import com.kiko.tracker.data.model.airTimerLabel
+import com.kiko.tracker.data.model.systemIs24Hour
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.data.model.localBroadcast
 import com.kiko.tracker.data.model.oneDecimal
@@ -93,6 +95,7 @@ import com.kiko.tracker.ui.components.Pill
 import com.kiko.tracker.ui.components.SearchField
 import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
+import com.kiko.tracker.ui.theme.accent
 import com.kiko.tracker.ui.theme.ListGridCardSkeleton
 import com.kiko.tracker.ui.theme.ListRowSkeletonGroup
 import com.kiko.tracker.ui.theme.LocalKikoColors
@@ -673,7 +676,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             StaggeredItem(index, staggerSeen) {
                                 Column {
                                     SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type, myStatus = result.id.toIntOrNull()?.let { myListStatus[it to result.type] })
-                                    if (index < resultsForList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                                 }
                             }
                         }
@@ -878,6 +880,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 @Composable fun SearchResultRow(item: MediaItem, loading: Boolean, onTap: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null) {
     val c = LocalKikoColors.current
+    val timer = item.airTimerLabel(null, systemIs24Hour())
+    // "TV · 23 ep, Spring 2018" — no progress bar here, so the format joins the episodes/year line.
+    val details = listOf(formatLabel(item), episodeAndYear(item)).filter { it.isNotBlank() }.joinToString(" · ")
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "searchResultSelectBg")
     val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "searchResultSelectPad")
     Row(
@@ -891,11 +896,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 onLongClick = onLongPress?.let { edit -> { edit() } },
             )
             .padding(horizontal = hPad, vertical = 14.dp),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Matches ListRow's cover size
-        // smaller than every other
-        Box(Modifier.width(92.dp).height(128.dp)) {
+        // Same 100x150 cover as ListRow so search results line up with My List.
+        Box(Modifier.size(width = 100.dp, height = 150.dp)) {
             Cover(item, Modifier.fillMaxSize(), showStatus = true, overrideStatus = myStatus, selected = isSelected)
             if (item.score > 0) {
                 Row(
@@ -912,18 +916,31 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 }
             }
         }
-        Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
-            Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Row(Modifier.padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (item.format.isNotBlank()) Pill(item.format, c.primaryContainer, c.onPrimaryContainer)
-                episodeAndYear(item).takeIf { it.isNotBlank() }?.let {
-                    Text(it, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 9.dp))
+        // Same structure as ListRow: title, then the "format · episodes, year" line right
+        // under it (and the air timer below that while airing), pinned to the top; the
+        // members count pinned to the bottom.
+        Column(
+            Modifier.weight(1f).height(150.dp).padding(start = 16.dp, end = 6.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column {
+                Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (details.isNotBlank()) {
+                    Text(details, color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                }
+                if (timer != null) {
+                    Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(14.dp))
+                        Text(timer, color = c.accent, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
+                    }
                 }
             }
-            if (item.listUsers > 0) {
-                Row(Modifier.padding(top = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Group, null, tint = c.muted, modifier = Modifier.size(13.dp))
-                    Text(formatExact(item.listUsers), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 5.dp))
+            Column {
+                if (item.listUsers > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Group, null, tint = c.muted, modifier = Modifier.size(13.dp))
+                        Text(formatExact(item.listUsers), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 5.dp))
+                    }
                 }
             }
         }

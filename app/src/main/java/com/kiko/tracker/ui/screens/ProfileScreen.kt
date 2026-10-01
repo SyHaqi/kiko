@@ -1021,7 +1021,6 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
                 StaggeredItem(index, staggerSeen) {
                     Column {
                         ListRow(it, onOpenDetail, showType = false)
-                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                     }
                 }
             }
@@ -1118,7 +1117,6 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
                     StaggeredItem(index, staggerSeen) {
                         Column {
                             ListRow(it, onOpenDetail, showType = false)
-                            if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                         }
                     }
                 }
@@ -1215,7 +1213,6 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
                 StaggeredItem(index, staggerSeen) {
                     Column {
                         ListRow(it, onOpenDetail, showType = false)
-                        if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                     }
                 }
             }
@@ -1293,7 +1290,6 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
                     StaggeredItem(index, staggerSeen) {
                         Column {
                             ListRow(it, onOpenDetail, showType = false)
-                            if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                         }
                     }
                 }

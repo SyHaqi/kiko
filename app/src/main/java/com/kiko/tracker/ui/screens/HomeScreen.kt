@@ -912,7 +912,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                         itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                             StaggeredItem(index, staggerSeen) {
                                 Column {
-                                    MyListRow(it, openItem, onIncrement, onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, vm = vm)
+                                    ListRow(it, openItem, onIncrement, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, vm = vm)
                                 }
                             }
                         }
@@ -1139,59 +1139,7 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
     else -> Icons.Default.FilterList
 }
 
-// vm is optional (and,
-// screens that don't pass
-@Composable fun ListRow(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, showType: Boolean = true, modifier: Modifier = Modifier, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, showChevron: Boolean = false, vm: LibraryViewModel? = null) {
-    val c = LocalKikoColors.current
-    if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
-    val confirmed = vm?.getCachedAiring(item.id)
-    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "rowSelectBg")
-    val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "rowSelectPad")
-    Row(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(kikoCorner(16.dp)))
-            .background(bg)
-            .kikoCombinedClickable(
-                onClick = { onOpenDetail(item) },
-                onLongClick = onLongPress?.let { edit -> { edit(item) } },
-            )
-            .padding(horizontal = hPad, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Cover(item, Modifier.size(width = 92.dp, height = 128.dp), selected = isSelected)
-        Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
-            Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(if (showType) "${item.type} · ${item.genre}" else item.genre, color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (item.myRating > 0) {
-                    Text("  ·  ", color = c.muted, fontSize = 13.sp)
-                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
-                    Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
-                }
-            }
-            if (item.total > 0) {
-                LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth(0.75f).padding(top = 9.dp).height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))), color = statusColor(item.status), trackColor = c.surfaceLow)
-            }
-            Text(progressLabel(item), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-            item.nextEpisodeLabel(confirmed)?.let { label ->
-                Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(12.dp))
-                    Text(label, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
-                }
-            }
-        }
-        if (onIncrement != null) {
-            IncrementPill(item, onIncrement)
-        } else if (showChevron) {
-            // No increment action here
-            // trailing slot instead of
-            Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(22.dp))
-        }
-    }
-}
-
-// The "+1" pill — shared by ListRow and MyListRow.
+// The "+1" pill used by ListRow.
 // Vertical pill (28x32dp) with a "+1" label, same shape/size as the Play Store expand button.
 // The outer Box keeps a 48dp-tall tap target around the smaller visible pill.
 @Composable private fun IncrementPill(
@@ -1229,17 +1177,19 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
     }
 }
 
-// My List row. Same look as ListRow, but the text column is exactly as tall as
-// the cover. Title (1-2 lines) with the info line directly under it pinned to
-// the top; progress bar -> counter pinned to the bottom. The info line is the
-// format ("TV", "Movie"...) normally, or "Ep. N airs on ..." while the title is
-// airing. Any slack sits in the middle, so the bar and counter never move.
-@Composable fun MyListRow(
+// Shared media row (My List, Profile lists). The text column is exactly as tall as
+// the cover. Title (1-2 lines), the format line, and (while airing) an
+// "Ep. N airs on ..." row are pinned to the top; progress bar -> counter pinned
+// to the bottom. Any slack sits in the middle, so the bar and counter never move.
+@Composable fun ListRow(
     item: MediaItem,
     onOpenDetail: (MediaItem) -> Unit,
-    onIncrement: (MediaItem) -> Unit,
-    onLongPress: (MediaItem) -> Unit,
+    onIncrement: ((MediaItem) -> Unit)? = null,
+    showType: Boolean = true,
+    modifier: Modifier = Modifier,
+    onLongPress: ((MediaItem) -> Unit)? = null,
     isSelected: Boolean = false,
+    showChevron: Boolean = false,
     vm: LibraryViewModel? = null,
 ) {
     val c = LocalKikoColors.current
@@ -1249,11 +1199,14 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "rowSelectBg")
     val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "rowSelectPad")
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(kikoCorner(16.dp)))
             .background(bg)
-            .kikoCombinedClickable(onClick = { onOpenDetail(item) }, onLongClick = { onLongPress(item) })
+            .kikoCombinedClickable(
+                onClick = { onOpenDetail(item) },
+                onLongClick = onLongPress?.let { edit -> { edit(item) } },
+            )
             .padding(horizontal = hPad, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1267,20 +1220,19 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
                     item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp,
                     color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
-                if (timer != null) {
-                    // Currently airing: the timer takes the format row's place.
+                Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (showType) "${item.type} · ${formatLabel(item)}" else formatLabel(item), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (item.myRating > 0) {
+                        Text("  ·  ", color = c.muted, fontSize = 13.sp)
+                        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                        Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+                    }
+                }
+                // Currently airing: the timer gets its own row under the format.
+                timer?.let { label ->
                     Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(14.dp))
-                        Text(timer, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
-                    }
-                } else {
-                    Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(formatLabel(item), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                        if (item.myRating > 0) {
-                            Text("  ·  ", color = c.muted, fontSize = 13.sp)
-                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
-                            Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
-                        }
+                        Text(label, color = c.accent, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
             }
@@ -1295,8 +1247,13 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
                 Text(progressLabel(item), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
             }
         }
-        // Default pill (28x32dp, 38x48dp tap target), vertically centered in the row.
-        IncrementPill(item, onIncrement)
+        if (onIncrement != null) {
+            // Default pill (28x32dp, 38x48dp tap target), vertically centered in the row.
+            IncrementPill(item, onIncrement)
+        } else if (showChevron) {
+            // No increment action here (e.g. a read-only list), so show a chevron in the trailing slot instead.
+            Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(22.dp))
+        }
     }
 }
 
