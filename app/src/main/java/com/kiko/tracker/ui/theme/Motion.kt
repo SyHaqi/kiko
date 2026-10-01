@@ -254,46 +254,15 @@ fun TopicRowSkeletonGroup(count: Int = 6) {
     }
 }
 
-/** Stand-in for [AiringNextCard]: mirrors its exact layout — fixed 146dp row height,
- *  cover flush against the card edges (no padding, aspectRatio(84/118) against the
- *  full height rather than a fixed size), and the text column's real padding/gaps
- *  (16/14/14/14, 3dp before genre, 8dp spacer before the time row). */
 @Composable
 fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
-    val c = LocalKikoColors.current
-    Box(
-        modifier
-            .clip(RoundedCornerShape(kikoCorner(22.dp)))
-            .background(c.surfaceContainer),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().height(146.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SkeletonBlock(Modifier.fillMaxHeight().aspectRatio(84f / 118f), shape = RoundedCornerShape(kikoCorner(16.dp)))
-            Column(Modifier.weight(1f).padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 14.dp)) {
-                SkeletonBlock(Modifier.fillMaxWidth(0.85f).height(14.dp))
-                SkeletonBlock(Modifier.padding(top = 3.dp).fillMaxWidth(0.4f).height(12.dp))
-                Spacer(Modifier.height(8.dp))
-                SkeletonBlock(Modifier.fillMaxWidth(0.5f).height(12.dp))
-            }
-        }
-    }
+    SkeletonBlock(modifier.height(200.dp), shape = RoundedCornerShape(kikoCorner(26.dp)))
 }
 
-/** A horizontally-scrolling row of */
 @Composable
 fun AiringNextRowSkeleton() {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(3) { i -> StaggeredItem(i) { AiringNextCardSkeleton(modifier = Modifier.fillParentMaxWidth(0.94f)) } }
-    }
-}
-
-/** Stand-in for [AiringNextBannerCard]: one */
-@Composable
-fun AiringNextBannerSkeleton() {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 34.dp)) {
-        SkeletonBlock(Modifier.fillMaxWidth().height(200.dp), shape = RoundedCornerShape(kikoCorner(26.dp)))
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(3) { i -> StaggeredItem(i) { AiringNextCardSkeleton(modifier = Modifier.fillParentMaxWidth(0.92f)) } }
     }
 }
 

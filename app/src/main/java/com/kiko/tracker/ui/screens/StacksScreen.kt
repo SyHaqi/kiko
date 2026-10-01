@@ -205,8 +205,8 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         // default 40dp touch target.
         Box(
             Modifier
-                .size(30.dp)
-                .clip(RoundedCornerShape(kikoCorner(10.dp)))
+                .size(width = 28.dp, height = 32.dp) // same size/shape as the "+1" pill
+                .clip(kikoPillShape())
                 .background(c.surfaceContainerHigh)
                 .kikoClickable(onClick = onSeeAll),
             contentAlignment = Alignment.Center,

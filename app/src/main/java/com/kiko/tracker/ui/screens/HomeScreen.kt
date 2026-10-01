@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -33,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.carousel.CarouselDefaults
 import androidx.compose.material3.carousel.CarouselItemScope
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
@@ -41,6 +43,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -94,6 +99,7 @@ import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.Cover
 import com.kiko.tracker.ui.components.ExpandableSearchHeader
 import com.kiko.tracker.ui.components.statusColor
+import com.kiko.tracker.ui.components.CoverStatusMark
 import com.kiko.tracker.ui.theme.AiringNextRowSkeleton
 import com.kiko.tracker.ui.theme.HistoryRowSkeletonGroup
 import com.kiko.tracker.ui.theme.HomeFeaturedArticleRowSkeleton
@@ -279,6 +285,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 state = carouselState,
                                 preferredItemWidth = 140.dp,
                                 itemSpacing = 10.dp,
+                                // Default is singleAdvance (max one item per swipe, stiff snap). multiBrowse
+                                // flings with the gesture's velocity and only snaps to the nearest item once
+                                // it slows down, which feels much more fluid on a row of small cards.
+                                flingBehavior = CarouselDefaults.multiBrowseFlingBehavior(state = carouselState),
                                 modifier = Modifier.fillMaxWidth().height(190.dp),
                             ) { index ->
                                 val genre = topGenres[index]
@@ -303,71 +313,105 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         )
     }
 }
-// Airing next row order
-
 @Composable fun AiringNextRow(items: List<MediaItem>, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit) {
-    // Each card takes almost
-    // with just a thin
-    // that the row scrolls.
-    // sliver proportional to the
-    // screens or invisible on
+    val rowState = rememberLazyListState()
     LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) { items(items, key = { it.id }) { AiringNextCard(it, vm, onOpenDetail, modifier = Modifier.fillParentMaxWidth(0.94f)) } }
+        state = rowState,
+        flingBehavior = rememberSnapFlingBehavior(rowState), // snap card-by-card
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) { items(items, key = { it.id }) { AiringNextCard(it, vm, onOpenDetail, modifier = Modifier.fillParentMaxWidth(0.92f)) } }
 }
-// Airing next card layout
-// radius, and padding) so
 
 @Composable fun AiringNextCard(item: MediaItem, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
-    // Best-effort AniList lookup for
-    // LibraryViewModel.loadAiringEpisode) — fires once
-    // date-math guess on screen
     LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
     val confirmed = vm.getCachedAiring(item.id)
     val time = item.nextAirDateTime(confirmed)?.toLocalTime()
+    val chipText = listOfNotNull(item.nextEpisodeLabel(confirmed), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · ")
+
+    // Corner-gap fix: the card used to be clip() + background(item.color) with the cover and scrim
+    // drawn on top. Each of those is anti-aliased separately at the rounded corners, so a fringe of
+    // the (bright) background colour leaked out where the scrim didn't fully cover it. Now the whole
+    // card is rendered into one offscreen layer and masked by the rounded shape ONCE; the
+    // background colour lives inside it, under the cover and scrim.
+    val cardShape = RoundedCornerShape(kikoCorner(26.dp))
     Box(
         modifier
-            .clip(RoundedCornerShape(kikoCorner(22.dp)))
-            .background(c.surfaceContainer)
+            .height(200.dp)
+            .graphicsLayer {
+                shape = cardShape
+                clip = true
+                compositingStrategy = CompositingStrategy.Offscreen
+            }
             .kikoClickable { onOpenDetail(item) },
     ) {
-        Row(
-            // Fixed height — same total as before (118dp cover + 14dp top/bottom
-            // padding = 146dp) — so every card in the row is the same size
-            // regardless of how much text a given item has. IntrinsicSize.Min
-            // was tried here instead but let short-content cards (no genre,
-            // one-line title) shrink the whole row and clip the episode/time
-            // line; a fixed height avoids that entirely.
-            Modifier.fillMaxWidth().height(146.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        // Full-bleed art + scrim. The scrim is painted by the SAME node as the image (drawWithContent)
+        // rather than a separate Box on top: during the overscroll "stretch" effect the card is
+        // scaled as a layer, and a separate scrim layer stopped short of the stretched edges
+        // (light gap on the left/bottom). Drawn together they scale as one, and it overdraws
+        // 2px past the bounds (the card's rounded clip trims it) so no hairline can show.
+        // TopCenter keeps faces/key art instead of cropping to the middle of a portrait cover.
+        Box(
+            Modifier.fillMaxSize().background(Color(item.color)).drawWithContent {
+                drawContent()
+                val h = 150.dp.toPx()
+                val top = size.height - h
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        0.5f to Color.Black.copy(alpha = .55f),
+                        1f to Color.Black.copy(alpha = .92f),
+                        startY = top,
+                        endY = size.height,
+                    ),
+                    topLeft = Offset(-2f, top),
+                    size = androidx.compose.ui.geometry.Size(size.width + 4f, h + 2f),
+                )
+            },
         ) {
-            // overrideStatus: airingNext is discoverNewSeason
-            // never merged with the
-            // lookup here is what
-            // and disappear immediately after
-            // whenever this row happens
-            // No padding here: the cover is flush against the card's
-            // left/top/bottom edges and fills the fixed row height above,
-            // so it reads as one piece with the card background.
-            Cover(item, Modifier.fillMaxHeight().aspectRatio(84f / 118f), showStatus = true, overrideStatus = vm.trackedStatus(item))
-            Column(Modifier.weight(1f).padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 14.dp)) {
-                Text(item.displayTitle(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (item.genre.isNotBlank()) {
-                    Text(item.genre, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
-                }
-                Spacer(Modifier.height(8.dp))
-                // Full card width now,
-                // one line instead of
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(13.dp))
-                    Text(
-                        listOfNotNull(item.nextEpisodeLabel(confirmed), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
-                        color = c.accent, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
-                    )
-                }
+            if (item.cover.isNotBlank()) {
+                AsyncImage(
+                    model = item.cover,
+                    contentDescription = item.displayTitle(),
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    alignment = Alignment.TopCenter,
+                    filterQuality = FilterQuality.High,
+                )
             }
+        }
+        // Tracked-status mark (same as the old card), top-start.
+        (vm.trackedStatus(item))?.let { CoverStatusMark(it, Modifier.align(Alignment.TopStart).padding(12.dp)) }
+        // Episode / time chip, top-end.
+        if (chipText.isNotBlank()) {
+            Row(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(kikoCorner(50.dp)))
+                    .background(c.primary)
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.Schedule, null, tint = c.onPrimary, modifier = Modifier.size(13.dp))
+                Text(chipText, color = c.onPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(start = 5.dp))
+            }
+        }
+        // Format (small, above) + title (below), bottom-start. White text with a soft shadow
+        // on top of the heavier scrim so it stays readable on bright covers too.
+        val textShadow = Shadow(Color.Black.copy(alpha = .7f), offset = Offset(0f, 2f), blurRadius = 8f)
+        Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 16.dp, vertical = 14.dp)) {
+            if (item.format.isNotBlank()) {
+                Text(
+                    item.format.uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, maxLines = 1,
+                    style = LocalTextStyle.current.copy(shadow = textShadow), modifier = Modifier.padding(bottom = 3.dp),
+                )
+            }
+            Text(
+                item.displayTitle(), color = Color.White, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium.copy(shadow = textShadow),
+            )
         }
     }
 }
@@ -390,6 +434,14 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val c = LocalKikoColors.current
     val context = LocalContext.current
     val hasCover = topItem?.cover?.isNotBlank() == true
+    // The largest the focused card gets is well under 300dp wide x 190dp tall; decode to that (in px)
+    // rather than the cover's full resolution, which was costly to decode as each card scrolled in.
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val coverRequest = remember(topItem?.cover, density.density) {
+        if (!hasCover) null else ImageRequest.Builder(context).data(topItem!!.cover)
+            .size(with(density) { Size(300.dp.roundToPx(), 400.dp.roundToPx()) })
+            .allowHardware(true).crossfade(false).build()
+    }
     Box(
         Modifier
             .fillMaxHeight()
@@ -399,7 +451,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     ) {
         if (hasCover) {
             AsyncImage(
-                model = ImageRequest.Builder(context).data(topItem!!.cover).size(Size.ORIGINAL).allowHardware(true).build(),
+                model = coverRequest,
                 contentDescription = genre,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
@@ -519,8 +571,8 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
             // is exactly what renders,
             Box(
                 Modifier
-                    .size(30.dp)
-                    .clip(RoundedCornerShape(kikoCorner(10.dp)))
+                    .size(width = 28.dp, height = 32.dp) // same size/shape as the "+1" pill
+                    .clip(kikoPillShape())
                     .background(c.surfaceContainerHigh)
                     .kikoClickable(onClick = click),
                 contentAlignment = Alignment.Center,
