@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.kiko.tracker.ui.screens
 
@@ -40,6 +40,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -577,28 +580,47 @@ data class DetailScreenActions(
                         if (meta.isNotEmpty()) Text(meta.joinToString("   ·   "), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
                     }
 
-                    // Detail tabs — Material3 secondary tabs (https://developer.android.com/develop/ui/compose/components/tabs).
-                    // Everything below the studio/season line is split across these five pages; only the
-                    // selected page is composed. The generic Tab overload is used (not the text= one) because
-                    // text= pads each label 16dp per side, which would clip "Related"/"Casts" once five equal-width
-                    // tabs share a phone-width row.
-                    val detailTabs = listOf("Info", "Casts", "Related", "Stats", "Forum")
-                    SecondaryTabRow(
-                        selectedTabIndex = selectedTab,
-                        modifier = Modifier.padding(top = 20.dp),
-                        containerColor = Color.Transparent,
-                        contentColor = c.primary,
+                    // Detail tabs — a Material 3 Expressive connected button group (single-select),
+                    // built exactly like the spec / Compose sample: a Row of icon-only ToggleButtons
+                    // spaced by ButtonGroupDefaults.ConnectedSpaceBetween (2dp), using the stock
+                    // connected leading / middle / trailing shapes (outer corners full, inner corners
+                    // small; pressed and checked buttons morph to a full pill). Colors follow the
+                    // default toggle button roles: unchecked = surfaceContainer + onSurfaceVariant,
+                    // checked = primary + onPrimary. 40dp / 20dp icon = the spec's "small" button size.
+                    // Labels are exposed to TalkBack through each icon's contentDescription.
+                    val detailTabs = listOf(
+                        "Info" to Icons.Default.Info,
+                        "Casts" to Icons.Default.Groups,
+                        "Related" to Icons.Default.AccountTree,
+                        "Stats" to Icons.Default.BarChart,
+                        "Forum" to Icons.Default.Forum,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
                     ) {
-                        detailTabs.forEachIndexed { index, label ->
-                            val selected = index == selectedTab
-                            Tab(
-                                selected = selected,
-                                onClick = { if (selectedTab != index) { selectedTab = index; actions.onSelectTab(index) } },
-                                modifier = Modifier.height(48.dp),
-                                selectedContentColor = c.primary,
-                                unselectedContentColor = c.muted,
+                        detailTabs.forEachIndexed { index, (label, icon) ->
+                            ToggleButton(
+                                checked = index == selectedTab,
+                                onCheckedChange = { if (selectedTab != index) { selectedTab = index; actions.onSelectTab(index) } },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .semantics { role = Role.RadioButton },
+                                shapes = when (index) {
+                                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                    detailTabs.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                },
+                                colors = ToggleButtonDefaults.toggleButtonColors(
+                                    containerColor = c.surfaceContainer,
+                                    contentColor = c.onSurfaceVariant,
+                                    checkedContainerColor = c.primary,
+                                    checkedContentColor = c.onPrimary,
+                                ),
+                                contentPadding = PaddingValues(horizontal = 0.dp),
                             ) {
-                                Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, softWrap = false)
+                                Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
                             }
                         }
                     }

@@ -71,7 +71,12 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("androidx.compose.ui:ui:1.12.1")
     implementation("androidx.compose.ui:ui-tooling-preview:1.12.1")
-    implementation("androidx.compose.material3:material3:1.4.0")
+    // material3 1.4.0 ships the expressive components (ToggleButton, ButtonGroup) but hides the
+    // @ExperimentalMaterial3ExpressiveApi opt-in annotation as `internal`, so they can't be used
+    // from an app ("it is internal in file"). The 1.5.0 alphas make the annotation public and have
+    // since promoted ToggleButton / ButtonGroup to stable. Used by the connected button group on
+    // the detail page's tab row (DetailScreen.kt).
+    implementation("androidx.compose.material3:material3:1.5.0-alpha26")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.foundation:foundation:1.12.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
