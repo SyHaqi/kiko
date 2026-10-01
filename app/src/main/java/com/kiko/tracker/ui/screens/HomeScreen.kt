@@ -83,6 +83,7 @@ import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayLabel
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.data.model.airTimerLabel
+import com.kiko.tracker.data.model.upcomingLabel
 import com.kiko.tracker.data.model.localizedTimeLabel
 import com.kiko.tracker.data.model.next
 import com.kiko.tracker.data.model.nextAirDateTime
@@ -1195,7 +1196,10 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
     val c = LocalKikoColors.current
     if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
     val confirmed = vm?.getCachedAiring(item.id)
-    val timer = item.airTimerLabel(confirmed, systemIs24Hour())
+    // Airing -> "Ep. N airs on ..."; not started yet -> "Not Yet Aired". Never both.
+    val timer = item.airTimerLabel(confirmed, systemIs24Hour()) ?: item.upcomingLabel()
+    // Accent for the live air timer, muted for the quieter "Not Yet Aired" label.
+    val timerTint = if (item.upcomingLabel() != null) c.muted else c.accent
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "rowSelectBg")
     val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "rowSelectPad")
     Row(
@@ -1228,11 +1232,11 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
                         Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
                     }
                 }
-                // Currently airing: the timer gets its own row under the format.
+                // Currently airing / not yet aired: the status gets its own row under the format.
                 timer?.let { label ->
                     Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(14.dp))
-                        Text(label, color = c.accent, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
+                        Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(14.dp))
+                        Text(label, color = timerTint, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
             }

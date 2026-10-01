@@ -564,3 +564,9 @@ fun MediaItem.airTimerLabel(confirmed: AiringInfo? = null, is24Hour: Boolean = f
     val time = localizedTimeLabel(next.toLocalTime(), is24Hour)
     return if (epNum != null) "Ep. $epNum airs on $day, $time" else "Airs on $day, $time"
 }
+
+// "Not Yet Aired" / "Not Yet Published" for titles that haven't started yet, else null.
+// Uses airingBucket() so it matches however the source spells the status
+// ("Not yet aired", "Not Yet Aired", "not_yet_published" after prettify...).
+fun MediaItem.upcomingLabel(): String? =
+    if (airingBucket(airStatus) == "Upcoming") (if (type == MediaType.Anime) "Not Yet Aired" else "Not Yet Published") else null
