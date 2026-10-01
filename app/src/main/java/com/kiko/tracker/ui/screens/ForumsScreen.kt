@@ -187,8 +187,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     item { TopicRowSkeletonGroup(5) }
                 }
                 // Grouped category board card
-                vm.forumCategories.forEach { category ->
-                    item { Text(category.title.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp)) }
+                vm.forumCategories.forEachIndexed { categoryIndex, category ->
+                    // First label: 9dp so content starts the same distance under the header as on the Seasonal screen.
+                    // Later labels keep 22dp as the spacing between category groups.
+                    item { Text(category.title.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = if (categoryIndex == 0) 9.dp else 22.dp, bottom = 9.dp)) }
                     item {
                         Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
                             Column {

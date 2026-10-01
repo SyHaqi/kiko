@@ -137,7 +137,8 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     Text(
                         if (vm.clubsQuery.isBlank()) "POPULAR CLUBS" else "RESULTS",
                         color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp,
-                        modifier = Modifier.padding(top = 22.dp, bottom = 9.dp),
+                        // 9dp (not 22dp) so content starts the same distance under the header as on the Seasonal screen.
+                        modifier = Modifier.padding(top = 9.dp, bottom = 9.dp),
                     )
                     if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp), color = c.primary, trackColor = c.surfaceLow)
                     error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 10.dp)) }
