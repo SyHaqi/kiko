@@ -588,6 +588,66 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     }
 }
 
+/**
+ * Play Store-style search bar: [back arrow] [flat borderless text field] [trailing action], on a
+ * 56dp bar with a hairline divider underneath. Arrow glyph sits 16dp from the edge (M3 small top app
+ * bar: 4dp bar padding + 48dp touch target). [modifier] goes on the bar row (not the divider), so
+ * its bounds are what the floating suggestions list anchors to.
+ */
+@Composable fun SearchTopBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    hint: String,
+    onSearch: () -> Unit,
+    onBack: () -> Unit,
+    focusRequester: androidx.compose.ui.focus.FocusRequester,
+    modifier: Modifier = Modifier,
+    trailing: @Composable RowScope.() -> Unit = {},
+) {
+    val c = LocalKikoColors.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Box(Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, end = 4.dp), contentAlignment = Alignment.CenterStart) {
+                if (value.isEmpty()) Text(hint, color = c.muted, fontSize = 16.sp, maxLines = 1)
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(color = c.ink, fontSize = 16.sp),
+                    cursorBrush = SolidColor(c.accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { onSearch(); focusManager.clearFocus(); keyboard?.hide() }),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                )
+            }
+            if (value.isNotEmpty()) {
+                IconButton(onClick = { onValueChange(""); focusManager.clearFocus(); keyboard?.hide() }) {
+                    Icon(Icons.Default.Close, "Clear search", tint = c.muted, modifier = Modifier.size(20.dp))
+                }
+            }
+            trailing()
+        }
+        HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+    }
+}
+
+/** Plain 48dp icon button for [SearchTopBar]'s trailing slot (where the Play Store has its mic). Turns primary-coloured with a dot when filters are applied. */
+@Composable fun SearchBarFilterButton(active: Boolean, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    IconButton(onClick = onClick) {
+        Box {
+            Icon(Icons.Default.Tune, "Advanced filters", tint = if (active) c.primary else c.ink, modifier = Modifier.size(24.dp))
+            if (active) Box(Modifier.size(8.dp).align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).clip(kikoCircleShape()).background(c.primary))
+        }
+    }
+}
+
 @Composable fun SearchField(value: String, change: (String) -> Unit, hint: String, onSearch: (() -> Unit)? = null, onClear: (() -> Unit)? = null, focusRequester: androidx.compose.ui.focus.FocusRequester? = null) {
     val c = LocalKikoColors.current
     val keyboard = LocalSoftwareKeyboardController.current

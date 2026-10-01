@@ -95,6 +95,8 @@ import com.kiko.tracker.ui.components.Cover
 import com.kiko.tracker.ui.components.FloatingSearchSuggestions
 import com.kiko.tracker.ui.components.Pill
 import com.kiko.tracker.ui.components.SearchField
+import com.kiko.tracker.ui.components.SearchTopBar
+import com.kiko.tracker.ui.components.SearchBarFilterButton
 import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.theme.accent
@@ -480,212 +482,203 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             }
     }
     Box(Modifier.fillMaxSize().onGloballyPositioned { containerBounds = it.boundsInRoot() }) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
-            item {
-                Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 19.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onExitResults, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back to Discover", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                    Text("Search & Discover", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+        Column(Modifier.fillMaxSize()) {
+            SearchTopBar(
+                value = query,
+                onValueChange = { query = it; if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") vm.fetchDiscoverSuggestions(context, it, vm.discoverTypeFilter) else vm.clearDiscoverSuggestions() },
+                hint = "Search in MAL",
+                onSearch = { vm.clearDiscoverSuggestions(); vm.selectDiscoverType(context, vm.discoverTypeFilter, query) },
+                onBack = onExitResults,
+                focusRequester = searchFocusRequester,
+                modifier = Modifier.onGloballyPositioned { searchBarBounds = it.boundsInRoot() },
+            ) {
+                // Advanced filters (format/genre/year/score) only apply to Anime/Manga; Users have
+                // their own sheet (location/age/gender). Characters/People/Companies have none.
+                if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
+                    SearchBarFilterButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true; vm.prewarmGenreLookup() })
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.height(IntrinsicSize.Min).onGloballyPositioned { searchBarBounds = it.boundsInRoot() },
-                ) {
-                    Box(Modifier.weight(1f)) {
-                        SearchField(
-                            query,
-                            { query = it; if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") vm.fetchDiscoverSuggestions(context, it, vm.discoverTypeFilter) else vm.clearDiscoverSuggestions() },
-                            "Search in MAL",
-                            onSearch = { vm.clearDiscoverSuggestions(); vm.selectDiscoverType(context, vm.discoverTypeFilter, query) },
-                            focusRequester = searchFocusRequester,
-                        )
-                    }
-                    // Advanced filters (format/genre/year/score) only
-                    if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
-                        FilterIconButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true; vm.prewarmGenreLookup() }, modifier = Modifier.padding(start = 10.dp))
-                    }
-                    // Users' own advanced filters (location/age/gender)
-                    // — a separate sheet from Anime/Manga's since none
-                    // of that one's genre/format/year facets apply here.
-                    if (vm.discoverTypeFilter == "Users") {
-                        FilterIconButton(active = vm.userFilters.isActive(), onClick = { userFilterSheetOpen = true }, modifier = Modifier.padding(start = 10.dp))
+                if (vm.discoverTypeFilter == "Users") {
+                    SearchBarFilterButton(active = vm.userFilters.isActive(), onClick = { userFilterSheetOpen = true })
+                }
+            }
+            // Fixes type/format mismatch
+            if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false; forceExpandGenre = false }, onApply = { filterSheetOpen = false; forceExpandGenre = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) }, forceExpandGenre = forceExpandGenre)
+            if (userFilterSheetOpen) UserAdvancedFilterSheet(vm.userFilters, onDismiss = { userFilterSheetOpen = false }, onApply = { userFilterSheetOpen = false; vm.runUserSearch(query, it) })
+            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                DiscoverTypeDropdown(current = vm.discoverTypeFilter, onSelect = { picked -> vm.selectDiscoverType(context, picked, query) })
+                if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ListViewModeToggle(vm.discoverViewMode) { vm.setDiscoverViewMode(context, it) }
+                        DiscoverSortMenu(current = vm.discoverSort, onSelect = { vm.selectDiscoverSort(context, it) })
                     }
                 }
-                // Fixes type/format mismatch
-                if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false; forceExpandGenre = false }, onApply = { filterSheetOpen = false; forceExpandGenre = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) }, forceExpandGenre = forceExpandGenre)
-                if (userFilterSheetOpen) UserAdvancedFilterSheet(vm.userFilters, onDismiss = { userFilterSheetOpen = false }, onApply = { userFilterSheetOpen = false; vm.runUserSearch(query, it) })
-
-                Row(Modifier.fillMaxWidth().padding(top = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    DiscoverTypeDropdown(current = vm.discoverTypeFilter, onSelect = { picked -> vm.selectDiscoverType(context, picked, query) })
-                    if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            ListViewModeToggle(vm.discoverViewMode) { vm.setDiscoverViewMode(context, it) }
-                            DiscoverSortMenu(current = vm.discoverSort, onSelect = { vm.selectDiscoverSort(context, it) })
+            }
+            LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+                item {
+                    when (vm.discoverTypeFilter) {
+                        "Characters" -> {
+                            if (vm.characterSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                            vm.characterError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                         }
+                        "People" -> {
+                            if (vm.personSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                            vm.personError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                        }
+                        "Companies" -> {
+                            if (vm.companySearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                            vm.companyError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                        }
+                        "Users" -> {
+                            if (vm.userSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                            vm.userError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                        }
+                        "Anime", "Manga" -> {
+                            if (vm.discoverSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                            vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                        }
+                        else -> {}
                     }
                 }
                 when (vm.discoverTypeFilter) {
                     "Characters" -> {
-                        if (vm.characterSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-                        vm.characterError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                        if (!vm.characterSearching && vm.characterResults.isEmpty() && vm.characterError == null) {
+                            val emptyMessage = if (vm.discoverQuery.isBlank()) "Search for a character." else "No characters for \"${vm.discoverQuery}\"."
+                            item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                        }
+                        val charResults = vm.characterResults
+                        if (vm.characterSearching && charResults.isEmpty()) {
+                            item { ListRowSkeletonGroup(6) }
+                        } else {
+                            itemsIndexed(charResults, key = { _, it -> "char_${it.malId}" }) { index, result ->
+                                StaggeredItem(index, staggerSeen) {
+                                    Column {
+                                        CharacterSearchResultRow(result, loading = vm.characterDetailLoadingId == result.malId, onTap = { openCharacterResult(result) })
+                                        if (index < charResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                                    }
+                                }
+                            }
+                        }
                     }
                     "People" -> {
-                        if (vm.personSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-                        vm.personError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                        if (!vm.personSearching && vm.personResults.isEmpty() && vm.personError == null) {
+                            val emptyMessage = if (vm.discoverQuery.isBlank()) "Search for a person." else "No people for \"${vm.discoverQuery}\"."
+                            item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                        }
+                        val peopleResults = vm.personResults
+                        if (vm.personSearching && peopleResults.isEmpty()) {
+                            item { ListRowSkeletonGroup(6) }
+                        } else {
+                            itemsIndexed(peopleResults, key = { _, it -> "person_${it.malId}" }) { index, result ->
+                                StaggeredItem(index, staggerSeen) {
+                                    Column {
+                                        PersonSearchResultRow(result, loading = vm.personDetailLoadingId == result.malId, onTap = { openPersonResult(result) })
+                                        if (index < peopleResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                                    }
+                                }
+                            }
+                        }
                     }
                     "Companies" -> {
-                        if (vm.companySearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-                        vm.companyError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                        if (!vm.companySearching && vm.companyResults.isEmpty() && vm.companyError == null) {
+                            val emptyMessage = if (vm.discoverQuery.isBlank()) "Search for a company." else "No companies for \"${vm.discoverQuery}\"."
+                            item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                        }
+                        val companyResultsList = vm.companyResults
+                        if (vm.companySearching && companyResultsList.isEmpty()) {
+                            item { ListRowSkeletonGroup(6) }
+                        } else {
+                            itemsIndexed(companyResultsList, key = { _, it -> "company_${it.malId}" }) { index, result ->
+                                StaggeredItem(index, staggerSeen) {
+                                    Column {
+                                        CompanySearchResultRow(result, loading = vm.companyDetailLoadingId == result.malId, onTap = { openCompanyResult(result) })
+                                        if (index < companyResultsList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                                    }
+                                }
+                            }
+                        }
                     }
                     "Users" -> {
-                        if (vm.userSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-                        vm.userError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
-                    }
-                    "Anime", "Manga" -> {
-                        if (vm.discoverSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
-                        vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
-                    }
-                    else -> {}
-                }
-            }
-            when (vm.discoverTypeFilter) {
-                "Characters" -> {
-                    if (!vm.characterSearching && vm.characterResults.isEmpty() && vm.characterError == null) {
-                        val emptyMessage = if (vm.discoverQuery.isBlank()) "Search for a character." else "No characters for \"${vm.discoverQuery}\"."
-                        item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-                    }
-                    val charResults = vm.characterResults
-                    if (vm.characterSearching && charResults.isEmpty()) {
-                        item { ListRowSkeletonGroup(6) }
-                    } else {
-                        itemsIndexed(charResults, key = { _, it -> "char_${it.malId}" }) { index, result ->
-                            StaggeredItem(index, staggerSeen) {
-                                Column {
-                                    CharacterSearchResultRow(result, loading = vm.characterDetailLoadingId == result.malId, onTap = { openCharacterResult(result) })
-                                    if (index < charResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                        if (!vm.userSearching && vm.userResults.isEmpty() && vm.userError == null) {
+                            val emptyMessage = if (vm.discoverQuery.isBlank() && !vm.userFilters.isActive()) "Search for a user." else "No users found."
+                            item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                        }
+                        val userResultsList = vm.userResults
+                        if (vm.userSearching && userResultsList.isEmpty()) {
+                            item { ListRowSkeletonGroup(6) }
+                        } else {
+                            itemsIndexed(userResultsList, key = { _, it -> "user_${it.username}" }) { index, result ->
+                                StaggeredItem(index, staggerSeen) {
+                                    Column {
+                                        UserSearchResultRow(result, onTap = { openUserResult(result) })
+                                        if (index < userResultsList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                                    }
                                 }
                             }
                         }
-                    }
-                }
-                "People" -> {
-                    if (!vm.personSearching && vm.personResults.isEmpty() && vm.personError == null) {
-                        val emptyMessage = if (vm.discoverQuery.isBlank()) "Search for a person." else "No people for \"${vm.discoverQuery}\"."
-                        item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-                    }
-                    val peopleResults = vm.personResults
-                    if (vm.personSearching && peopleResults.isEmpty()) {
-                        item { ListRowSkeletonGroup(6) }
-                    } else {
-                        itemsIndexed(peopleResults, key = { _, it -> "person_${it.malId}" }) { index, result ->
-                            StaggeredItem(index, staggerSeen) {
-                                Column {
-                                    PersonSearchResultRow(result, loading = vm.personDetailLoadingId == result.malId, onTap = { openPersonResult(result) })
-                                    if (index < peopleResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
-                                }
-                            }
+                        if (vm.userLoadingMore) {
+                            item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
                         }
                     }
-                }
-                "Companies" -> {
-                    if (!vm.companySearching && vm.companyResults.isEmpty() && vm.companyError == null) {
-                        val emptyMessage = if (vm.discoverQuery.isBlank()) "Search for a company." else "No companies for \"${vm.discoverQuery}\"."
-                        item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-                    }
-                    val companyResultsList = vm.companyResults
-                    if (vm.companySearching && companyResultsList.isEmpty()) {
-                        item { ListRowSkeletonGroup(6) }
-                    } else {
-                        itemsIndexed(companyResultsList, key = { _, it -> "company_${it.malId}" }) { index, result ->
-                            StaggeredItem(index, staggerSeen) {
-                                Column {
-                                    CompanySearchResultRow(result, loading = vm.companyDetailLoadingId == result.malId, onTap = { openCompanyResult(result) })
-                                    if (index < companyResultsList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
-                                }
-                            }
+                    else -> {
+                        if (!vm.discoverSearching && vm.visibleDiscoverResults.isEmpty() && vm.discoverError == null) {
+                            val emptyMessage = if (vm.discoverQuery.isBlank()) "No results match your filters." else "No results for \"${vm.discoverQuery}\"."
+                            item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
                         }
-                    }
-                }
-                "Users" -> {
-                    if (!vm.userSearching && vm.userResults.isEmpty() && vm.userError == null) {
-                        val emptyMessage = if (vm.discoverQuery.isBlank() && !vm.userFilters.isActive()) "Search for a user." else "No users found."
-                        item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-                    }
-                    val userResultsList = vm.userResults
-                    if (vm.userSearching && userResultsList.isEmpty()) {
-                        item { ListRowSkeletonGroup(6) }
-                    } else {
-                        itemsIndexed(userResultsList, key = { _, it -> "user_${it.username}" }) { index, result ->
-                            StaggeredItem(index, staggerSeen) {
-                                Column {
-                                    UserSearchResultRow(result, onTap = { openUserResult(result) })
-                                    if (index < userResultsList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                        // Keyed by id+type together,
+                        // spaces, so a search
+                        // an unrelated manga with
+                        // id. LazyColumn requires unique
+                        // ("Key ... was already
+                        val resultsForList = vm.visibleDiscoverResults
+                        if (vm.discoverSearching && resultsForList.isEmpty()) {
+                            if (isGrid) {
+                                repeat(3) { rowIndex ->
+                                    item(key = "discover_skeleton_row_$rowIndex") {
+                                        Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                                            repeat(3) { Box(Modifier.weight(1f)) { ListGridCardSkeleton() } }
+                                        }
+                                    }
                                 }
+                            } else {
+                                item { ListRowSkeletonGroup(6) }
                             }
-                        }
-                    }
-                    if (vm.userLoadingMore) {
-                        item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
-                    }
-                }
-                else -> {
-                    if (!vm.discoverSearching && vm.visibleDiscoverResults.isEmpty() && vm.discoverError == null) {
-                        val emptyMessage = if (vm.discoverQuery.isBlank()) "No results match your filters." else "No results for \"${vm.discoverQuery}\"."
-                        item { Text(emptyMessage, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-                    }
-                    // Keyed by id+type together,
-                    // spaces, so a search
-                    // an unrelated manga with
-                    // id. LazyColumn requires unique
-                    // ("Key ... was already
-                    val resultsForList = vm.visibleDiscoverResults
-                    if (vm.discoverSearching && resultsForList.isEmpty()) {
-                        if (isGrid) {
-                            repeat(3) { rowIndex ->
-                                item(key = "discover_skeleton_row_$rowIndex") {
+                        } else if (isGrid) {
+                            // LazyColumn (not LazyVerticalGrid) throughout this screen so the
+                            // header/filters/type-branches above stay single-column — grid mode
+                            // just chunks results into 3-wide rows instead of switching containers.
+                            val rows = resultsForList.chunked(3)
+                            itemsIndexed(rows, key = { rowIndex, row -> "discover_row_${row.firstOrNull()?.let { "${it.id}_${it.type}" } ?: rowIndex}" }) { rowIndex, rowItems ->
+                                StaggeredItem(rowIndex, staggerSeen) {
                                     Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                                        repeat(3) { Box(Modifier.weight(1f)) { ListGridCardSkeleton() } }
+                                        rowItems.forEach { result ->
+                                            Box(Modifier.weight(1f)) {
+                                                RecommendationGridCard(
+                                                    result, onOpenDetail = openResult,
+                                                    myStatus = result.id.toIntOrNull()?.let { myListStatus[it to result.type] },
+                                                    onLongPress = editResult,
+                                                    isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type,
+                                                )
+                                            }
+                                        }
+                                        // Keep the last, possibly-partial row's cards from stretching wide
+                                        repeat(3 - rowItems.size) { Box(Modifier.weight(1f)) }
                                     }
                                 }
                             }
                         } else {
-                            item { ListRowSkeletonGroup(6) }
-                        }
-                    } else if (isGrid) {
-                        // LazyColumn (not LazyVerticalGrid) throughout this screen so the
-                        // header/filters/type-branches above stay single-column — grid mode
-                        // just chunks results into 3-wide rows instead of switching containers.
-                        val rows = resultsForList.chunked(3)
-                        itemsIndexed(rows, key = { rowIndex, row -> "discover_row_${row.firstOrNull()?.let { "${it.id}_${it.type}" } ?: rowIndex}" }) { rowIndex, rowItems ->
-                            StaggeredItem(rowIndex, staggerSeen) {
-                                Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                                    rowItems.forEach { result ->
-                                        Box(Modifier.weight(1f)) {
-                                            RecommendationGridCard(
-                                                result, onOpenDetail = openResult,
-                                                myStatus = result.id.toIntOrNull()?.let { myListStatus[it to result.type] },
-                                                onLongPress = editResult,
-                                                isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type,
-                                            )
-                                        }
+                            itemsIndexed(resultsForList, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
+                                StaggeredItem(index, staggerSeen) {
+                                    Column {
+                                        SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type, myStatus = result.id.toIntOrNull()?.let { myListStatus[it to result.type] })
                                     }
-                                    // Keep the last, possibly-partial row's cards from stretching wide
-                                    repeat(3 - rowItems.size) { Box(Modifier.weight(1f)) }
-                                }
-                            }
-                        }
-                    } else {
-                        itemsIndexed(resultsForList, key = { _, it -> "${it.id}_${it.type}" }) { index, result ->
-                            StaggeredItem(index, staggerSeen) {
-                                Column {
-                                    SearchResultRow(result, loading = vm.discoverDetailLoadingId == result.id, onTap = { openResult(result) }, onLongPress = { editResult(result) }, isSelected = selectedItem?.id == result.id && selectedItem?.type == result.type, myStatus = result.id.toIntOrNull()?.let { myListStatus[it to result.type] })
                                 }
                             }
                         }
                     }
                 }
-            }
-            if (vm.discoverLoadingMore) {
-                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+                if (vm.discoverLoadingMore) {
+                    item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+                }
             }
         }
         GoToTopButton(
@@ -696,7 +689,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         // Floating title suggestions as
         // run that search; tapping
         FloatingSearchSuggestions(
-            anchorBounds = searchBarBounds,
+            anchorBounds = searchBarBounds?.let { b -> val inset = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }; Rect(b.left + inset, b.top, b.right - inset, b.bottom) },
             containerBounds = containerBounds,
             suggestions = if (query.isNotBlank()) vm.discoverSuggestions else emptyList(),
             onDismiss = vm::clearDiscoverSuggestions,
