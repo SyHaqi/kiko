@@ -4,6 +4,12 @@ package com.kiko.tracker.ui.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.ClickableText
@@ -107,29 +113,51 @@ import com.kiko.tracker.ui.theme.kikoPillShape
     // always runs either way.
     var lastTapDestination by remember { mutableStateOf<Destination?>(null) }
     var lastTapTime by remember { mutableStateOf(0L) }
-    NavigationBar(
-        containerColor = c.surfaceContainer,
-        contentColor = c.ink,
-        tonalElevation = 0.dp,
-    ) {
-        Destination.entries.forEach { d ->
-            NavigationBarItem(
-                selected = d == selected,
-                onClick = {
-                    val now = System.currentTimeMillis()
-                    if (d == Destination.Discover && lastTapDestination == d && now - lastTapTime < 300) onDoubleTapDiscover()
-                    lastTapDestination = d
-                    lastTapTime = now
-                    select(d)
-                },
-                icon = { Icon(d.icon, null) },
-                label = { Text(d.label) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = c.onSecondaryContainer, selectedTextColor = c.onSecondaryContainer,
-                    unselectedIconColor = c.muted, unselectedTextColor = c.muted,
-                    indicatorColor = c.secondaryContainer,
-                ),
-            )
+    // Compact bar modelled on the Play Store's: 64dp of content (vs. Material's
+    // 80dp), 56x32 pill, 12sp labels, tight 8/4/4dp vertical rhythm. Still sits
+    // above the system navigation bar via the standard insets.
+    Surface(color = c.surfaceContainer, contentColor = c.ink) {
+        Row(
+            Modifier.fillMaxWidth().windowInsetsPadding(NavigationBarDefaults.windowInsets).height(64.dp).selectableGroup(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Destination.entries.forEach { d ->
+                val isSelected = d == selected
+                val interaction = remember { MutableInteractionSource() }
+                val pressed by interaction.collectIsPressedAsState()
+                val pill by animateColorAsState(
+                    when {
+                        isSelected -> c.secondaryContainer
+                        pressed -> c.muted.copy(alpha = 0.14f)
+                        else -> Color.Transparent
+                    },
+                    label = "navPill",
+                )
+                val tint = if (isSelected) c.onSecondaryContainer else c.muted
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .selectable(selected = isSelected, interactionSource = interaction, indication = null, role = Role.Tab) {
+                            val now = System.currentTimeMillis()
+                            if (d == Destination.Discover && lastTapDestination == d && now - lastTapTime < 300) onDoubleTapDiscover()
+                            lastTapDestination = d
+                            lastTapTime = now
+                            select(d)
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Box(Modifier.size(width = 56.dp, height = 32.dp).clip(RoundedCornerShape(50)).background(pill), contentAlignment = Alignment.Center) {
+                        Icon(d.icon, null, tint = tint, modifier = Modifier.size(24.dp))
+                    }
+                    Text(
+                        d.label, color = tint, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
         }
     }
 }
@@ -366,7 +394,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 // saving vertical space while
 // any small option set
 // every "tap the big
-@Composable fun <T> SwitcherHeader(current: T, options: List<T>, labelFor: (T) -> String, onSelect: (T) -> Unit, horizontalPadding: Dp = 20.dp, switchDescription: String = "Switch section", action: @Composable () -> Unit = {}) {
+@Composable fun <T> SwitcherHeader(current: T, options: List<T>, labelFor: (T) -> String, onSelect: (T) -> Unit, horizontalPadding: Dp = 20.dp, switchDescription: String = "Switch section", minHeight: Dp = 72.dp, action: @Composable () -> Unit = {}) {
     val c = LocalKikoColors.current
     val density = LocalDensity.current
     var expanded by remember { mutableStateOf(false) }
@@ -374,7 +402,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     // shrink-wrapping to its own
     var anchorWidthPx by remember { mutableStateOf(0) }
     val arrowRotation by animateFloatAsState(if (expanded) 180f else 0f, label = "switcherArrowRotation")
-    Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = horizontalPadding, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(Modifier.fillMaxWidth().heightIn(min = minHeight).padding(horizontal = horizontalPadding, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Box {
             Row(
                 Modifier
@@ -411,7 +439,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 }
 
 @Composable fun TypeSwitcherHeader(current: MediaType, onSelect: (MediaType) -> Unit, horizontalPadding: Dp = 20.dp, action: @Composable () -> Unit = {}) =
-    SwitcherHeader(current, MediaType.entries.toList(), { if (it == MediaType.Anime) "Anime" else "Manga" }, onSelect, horizontalPadding, "Switch between Anime and Manga", action)
+    SwitcherHeader(current, MediaType.entries.toList(), { if (it == MediaType.Anime) "Anime" else "Manga" }, onSelect, horizontalPadding, "Switch between Anime and Manga", action = action)
 
 // Header for any screen
 // Forums/Clubs on Community, ...)
@@ -435,6 +463,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     hint: String = "Search",
     horizontalPadding: Dp = 20.dp,
     switchDescription: String = "Switch section",
+    minHeight: Dp = 72.dp,
     avatar: @Composable () -> Unit,
 ) {
     val c = LocalKikoColors.current
@@ -473,7 +502,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
         // Only composed while not
         if (progress < 1f) {
             Box(Modifier.graphicsLayer { alpha = 1f - progress }) {
-                SwitcherHeader(current, options, labelFor, onSelect, horizontalPadding, switchDescription) {
+                SwitcherHeader(current, options, labelFor, onSelect, horizontalPadding, switchDescription, minHeight) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Box(
                             Modifier
@@ -504,7 +533,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                         transformOrigin = TransformOrigin(pivotFraction, 0.5f)
                     },
             ) {
-                Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = horizontalPadding, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().heightIn(min = minHeight).padding(horizontal = horizontalPadding, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     HeaderSearchField(
                         value = query,
                         onValueChange = onQueryChange,
