@@ -552,3 +552,15 @@ fun MediaItem.nextAirDateTime(confirmed: AiringInfo? = null): java.time.LocalDat
     if (!airStatus.equals("Currently Airing", ignoreCase = true)) return null
     return confirmedAirDateTime(confirmed) ?: guessedAirDateTime()
 }
+
+// "Ep. 14 airs on Sat, 9:30 PM" for the My List row. Null unless the title is
+// currently airing and still has an episode to come. Lives here (not in the UI
+// layer) because it needs the private nextEpisodeNumber() fallback.
+fun MediaItem.airTimerLabel(confirmed: AiringInfo? = null, is24Hour: Boolean = false): String? {
+    val next = nextAirDateTime(confirmed) ?: return null
+    val epNum = confirmed?.episode ?: nextEpisodeNumber()
+    if (epNum != null && total > 0 && epNum > total) return null
+    val day = next.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+    val time = localizedTimeLabel(next.toLocalTime(), is24Hour)
+    return if (epNum != null) "Ep. $epNum airs on $day, $time" else "Airs on $day, $time"
+}

@@ -59,6 +59,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
@@ -81,6 +82,7 @@ import com.kiko.tracker.data.model.TitleLanguage
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayLabel
 import com.kiko.tracker.data.model.displayTitle
+import com.kiko.tracker.data.model.airTimerLabel
 import com.kiko.tracker.data.model.localizedTimeLabel
 import com.kiko.tracker.data.model.next
 import com.kiko.tracker.data.model.nextAirDateTime
@@ -910,8 +912,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                         itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                             StaggeredItem(index, staggerSeen) {
                                 Column {
-                                    ListRow(it, openItem, onIncrement, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, vm = vm)
-                                    if (index < filtered.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                                    MyListRow(it, openItem, onIncrement, onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, vm = vm)
                                 }
                             }
                         }
@@ -1181,40 +1182,121 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
             }
         }
         if (onIncrement != null) {
-            val atMax = item.total > 0 && item.progress >= item.total
-            // Vertical pill (28x32dp) with a "+1" label, same shape/size as the Play Store expand button.
-            // The outer Box keeps a 48dp-tall tap target around the smaller visible pill.
-            Box(
-                Modifier
-                    .size(width = 38.dp, height = 48.dp)
-                    .clip(kikoPillShape())
-                    .kikoClickable(enabled = !atMax) {
-                        val next = (item.progress + 1).let { p -> if (item.total > 0) minOf(p, item.total) else p }
-                        onIncrement(item.copy(progress = next))
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    Modifier
-                        .size(width = 28.dp, height = 32.dp)
-                        .clip(kikoPillShape())
-                        .background(if (atMax) c.surfaceContainerHigh else c.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    // "+1" label instead of a bare plus — small bold type so the two
-                    // characters sit comfortably inside the 28dp-wide pill.
-                    Text(
-                        "+1",
-                        color = if (atMax) c.muted else c.onPrimaryContainer,
-                        fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
-                    )
-                }
-            }
+            IncrementPill(item, onIncrement)
         } else if (showChevron) {
             // No increment action here
             // trailing slot instead of
             Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(22.dp))
         }
+    }
+}
+
+// The "+1" pill — shared by ListRow and MyListRow.
+// Vertical pill (28x32dp) with a "+1" label, same shape/size as the Play Store expand button.
+// The outer Box keeps a 48dp-tall tap target around the smaller visible pill.
+@Composable private fun IncrementPill(
+    item: MediaItem,
+    onIncrement: (MediaItem) -> Unit,
+    pillSize: DpSize = DpSize(28.dp, 32.dp),
+    tapSize: DpSize = DpSize(38.dp, 48.dp),
+    alignment: Alignment = Alignment.Center,
+) {
+    val c = LocalKikoColors.current
+    val atMax = item.total > 0 && item.progress >= item.total
+    Box(
+        Modifier
+            .size(tapSize)
+            .clip(kikoPillShape())
+            .kikoClickable(enabled = !atMax) {
+                val next = (item.progress + 1).let { p -> if (item.total > 0) minOf(p, item.total) else p }
+                onIncrement(item.copy(progress = next))
+            },
+        contentAlignment = alignment,
+    ) {
+        Box(
+            Modifier
+                .size(pillSize)
+                .clip(kikoPillShape())
+                .background(if (atMax) c.surfaceContainerHigh else c.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "+1",
+                color = if (atMax) c.muted else c.onPrimaryContainer,
+                fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+            )
+        }
+    }
+}
+
+// My List row. Same look as ListRow, but the text column is exactly as tall as
+// the cover. Title (1-2 lines) with the info line directly under it pinned to
+// the top; progress bar -> counter pinned to the bottom. The info line is the
+// format ("TV", "Movie"...) normally, or "Ep. N airs on ..." while the title is
+// airing. Any slack sits in the middle, so the bar and counter never move.
+@Composable fun MyListRow(
+    item: MediaItem,
+    onOpenDetail: (MediaItem) -> Unit,
+    onIncrement: (MediaItem) -> Unit,
+    onLongPress: (MediaItem) -> Unit,
+    isSelected: Boolean = false,
+    vm: LibraryViewModel? = null,
+) {
+    val c = LocalKikoColors.current
+    if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
+    val confirmed = vm?.getCachedAiring(item.id)
+    val timer = item.airTimerLabel(confirmed, systemIs24Hour())
+    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "rowSelectBg")
+    val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "rowSelectPad")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(16.dp)))
+            .background(bg)
+            .kikoCombinedClickable(onClick = { onOpenDetail(item) }, onLongClick = { onLongPress(item) })
+            .padding(horizontal = hPad, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Cover(item, Modifier.size(width = 100.dp, height = 150.dp), selected = isSelected)
+        Column(
+            Modifier.weight(1f).height(150.dp).padding(start = 16.dp, end = 6.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column {
+                Text(
+                    item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp,
+                    color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+                if (timer != null) {
+                    // Currently airing: the timer takes the format row's place.
+                    Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Schedule, null, tint = c.accent, modifier = Modifier.size(14.dp))
+                        Text(timer, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
+                    }
+                } else {
+                    Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(formatLabel(item), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        if (item.myRating > 0) {
+                            Text("  ·  ", color = c.muted, fontSize = 13.sp)
+                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                            Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+                        }
+                    }
+                }
+            }
+            Column {
+                // Always drawn, even when the total is unknown (e.g. a not-yet-aired
+                // "Plan to Watch" title): the track just stays empty until a total exists.
+                LinearProgressIndicator(
+                    progress = { if (item.total > 0) (item.progress.toFloat() / item.total).coerceIn(0f, 1f) else 0f },
+                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
+                    color = statusColor(item.status), trackColor = c.surfaceLow,
+                )
+                Text(progressLabel(item), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
+            }
+        }
+        // Default pill (28x32dp, 38x48dp tap target), vertically centered in the row.
+        IncrementPill(item, onIncrement)
     }
 }
 
