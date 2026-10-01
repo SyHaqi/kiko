@@ -914,71 +914,89 @@ sealed class BbToken {
     // stray nested BBCode tags,
     // around for whatever surfaces
     var errorDetail by remember(url) { mutableStateOf<String?>(null) }
+    // The loaded image's width/height ratio. Once known, the frame (border + rounded clip) is sized to
+    // exactly that ratio so it hugs the image instead of sitting at a fixed 90%-wide box with empty
+    // bars inside it (which happened for tall/narrow images capped at 340dp).
+    var aspect by remember(url) { mutableStateOf<Float?>(null) }
     // Back to showing the
     // it into a fixed
     // failure that turned out
     // URL itself is correct,
     Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
-        // BBCode [img] tags on
-        // to describe this with
-        // post entirely, as if
-        // reader user an image
-        SubcomposeAsyncImage(
-            // See the ImageLoader setup
-            // app that opts back
-            // reaction stickers decoding back-to-back,
-            // hardware bitmap pool and
-            model = ImageRequest.Builder(context).data(url).allowHardware(false).build(), contentDescription = "Image", contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-            onState = { state ->
-                if (state is AsyncImagePainter.State.Error) {
-                    isError = true
-                    val t = state.result.throwable
-                    errorDetail = "${t::class.simpleName}: ${t.message ?: "no message"}"
-                    // Also still logged under
-                    Log.e("ForumImage", "failed to load $url", t)
-                } else if (state is AsyncImagePainter.State.Success) {
-                    isError = false
-                    errorDetail = null
-                }
-            },
-            modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 340.dp).clip(RoundedCornerShape(kikoCorner(8.dp)))
-                .border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(kikoCorner(8.dp)))
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {
-                    if (isError) {
-                        // Try the browser custom
-                        // "open in browser" spot
-                        // reliable than LocalUriHandler on
-                        // fall back to the
-                        // if both fail, so
-                        val opened = runCatching { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) }
-                        if (opened.isFailure) {
-                            Log.e("ForumImage", "couldn't open $url via custom tab", opened.exceptionOrNull())
-                            val fallback = runCatching { uriHandler.openUri(url) }
-                            if (fallback.isFailure) {
-                                Log.e("ForumImage", "couldn't open $url in browser either", fallback.exceptionOrNull())
-                                android.widget.Toast.makeText(context, "Couldn't open image link", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    } else {
-                        onTap(url)
+        BoxWithConstraints(Modifier.fillMaxWidth(0.9f), contentAlignment = Alignment.Center) {
+            val maxFrameHeight = 340.dp
+            val ratio = aspect
+            val frameModifier = if (ratio != null) {
+                // Fill the available width, but never taller than maxFrameHeight — if it would be,
+                // shrink the WIDTH too so the frame stays the image's exact shape.
+                var w = maxWidth
+                var h = w / ratio
+                if (h > maxFrameHeight) { h = maxFrameHeight; w = maxFrameHeight * ratio }
+                Modifier.size(w, h)
+            } else Modifier.fillMaxWidth().heightIn(max = maxFrameHeight) // still loading / unknown size
+            // BBCode [img] tags on
+            // to describe this with
+            // post entirely, as if
+            // reader user an image
+            SubcomposeAsyncImage(
+                // See the ImageLoader setup
+                // app that opts back
+                // reaction stickers decoding back-to-back,
+                // hardware bitmap pool and
+                model = ImageRequest.Builder(context).data(url).allowHardware(false).build(), contentDescription = "Image", contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                onState = { state ->
+                    if (state is AsyncImagePainter.State.Error) {
+                        isError = true
+                        val t = state.result.throwable
+                        errorDetail = "${t::class.simpleName}: ${t.message ?: "no message"}"
+                        // Also still logged under
+                        Log.e("ForumImage", "failed to load $url", t)
+                    } else if (state is AsyncImagePainter.State.Success) {
+                        isError = false
+                        errorDetail = null
+                        val sz = state.painter.intrinsicSize
+                        if (sz.width.isFinite() && sz.height.isFinite() && sz.width > 0f && sz.height > 0f) aspect = sz.width / sz.height
                     }
                 },
-        ) {
-            when (painter.state) {
-                is AsyncImagePainter.State.Loading -> Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = c.primary, modifier = Modifier.size(26.dp), strokeWidth = 2.dp)
-                }
-                is AsyncImagePainter.State.Error -> Column(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Icon(Icons.Default.Warning, null, tint = c.muted, modifier = Modifier.size(22.dp))
-                    Text("Couldn't load image · tap to open", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-                    errorDetail?.let {
-                        Text(it, color = c.muted.copy(alpha = .7f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 2.dp))
+                modifier = frameModifier.clip(RoundedCornerShape(kikoCorner(8.dp)))
+                    .border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(kikoCorner(8.dp)))
+                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {
+                        if (isError) {
+                            // Try the browser custom
+                            // "open in browser" spot
+                            // reliable than LocalUriHandler on
+                            // fall back to the
+                            // if both fail, so
+                            val opened = runCatching { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(url)) }
+                            if (opened.isFailure) {
+                                Log.e("ForumImage", "couldn't open $url via custom tab", opened.exceptionOrNull())
+                                val fallback = runCatching { uriHandler.openUri(url) }
+                                if (fallback.isFailure) {
+                                    Log.e("ForumImage", "couldn't open $url in browser either", fallback.exceptionOrNull())
+                                    android.widget.Toast.makeText(context, "Couldn't open image link", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        } else {
+                            onTap(url)
+                        }
+                    },
+            ) {
+                when (painter.state) {
+                    is AsyncImagePainter.State.Loading -> Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = c.primary, modifier = Modifier.size(26.dp), strokeWidth = 2.dp)
                     }
+                    is AsyncImagePainter.State.Error -> Column(
+                        Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(Icons.Default.Warning, null, tint = c.muted, modifier = Modifier.size(22.dp))
+                        Text("Couldn't load image · tap to open", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                        errorDetail?.let {
+                            Text(it, color = c.muted.copy(alpha = .7f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 2.dp))
+                        }
+                    }
+                    else -> SubcomposeAsyncImageContent()
                 }
-                else -> SubcomposeAsyncImageContent()
             }
         }
     }
