@@ -228,6 +228,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             connected = true, profile = state.profile.stats, items = emptyList(), onConnect = {},
                             statsTab = statsTab, onStatsTabChange = { statsTab = it },
                             isOwnProfile = false,
+                            outerInset = 14.dp,
                             onOpenFriendsFavorites = { onOpenFriendsFavorites(username) },
                             onOpenFriend = onOpenFriend,
                             onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,

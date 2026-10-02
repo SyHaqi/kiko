@@ -40,6 +40,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -299,6 +300,9 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     // StatusLegendRow taps (one per status), which read as more interactive
     // than a read-only friend's list actually is.
     onOpenFriendList: (MediaType) -> Unit = {},
+    // Horizontal padding the CALLER already applies around this whole section (FriendProfileScreen
+    // wraps it in 14dp); added to this section's own 20dp so About Me still reaches the screen edge.
+    outerInset: androidx.compose.ui.unit.Dp = 0.dp,
 ) {    val c = LocalKikoColors.current
     val context = LocalContext.current
     // Friends/favorites aren't in MAL's official API — scraped off the
@@ -393,9 +397,9 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                 // friendsFavoritesLoading with Friends/Favorites below since
                 // it's scraped in the same round-trip (see loadProfileFriendsFavorites).
                 if (cachedAboutMe == null && friendsFavoritesLoading) {
-                    AboutMeCardSkeleton()
+                    AboutMeCardSkeleton(bleed = 20.dp + outerInset)
                 } else {
-                    cachedAboutMe?.let { AboutMeCard(it, onOpenTitle = onOpenFavoriteTitle) }
+                    cachedAboutMe?.let { AboutMeCard(it, onOpenTitle = onOpenFavoriteTitle, bleed = 20.dp + outerInset) }
                 }
                 if (hasFfSession) {
                     if (cachedFriends == null && friendsFavoritesLoading) {
@@ -651,7 +655,20 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
 // off the poster — it's reconstructed from a URL slug rather than
 // scraped page text (see MalAboutMeItem), so it's often not the title's
 // actual name; the poster art alone reads better than a wrong label.
-@Composable fun AboutMeCard(aboutMe: MalAboutMe, onOpenTitle: (Int, MediaType) -> Unit = { _, _ -> }, modifier: Modifier = Modifier) {
+// Lets a child grow past its parent's horizontal padding: measured `amount` wider on each side and
+// shifted left by `amount`, while still reporting the parent's own width so siblings don't move.
+// Used to run About Me edge-to-edge inside ProfileStatsSection's 20dp-padded column.
+private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modifier = if (amount <= 0.dp) this else this.layout { measurable, constraints ->
+    val extra = (amount * 2).roundToPx()
+    val width = constraints.maxWidth + extra
+    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+    layout(constraints.maxWidth, placeable.height) { placeable.place(-amount.roundToPx(), 0) }
+}
+
+// bleed > 0 runs the card edge-to-edge (no screen-edge margin, corners stay rounded); `bleed` is the total
+// horizontal inset above it that needs cancelling out. Its own content stays inset by 20dp to line
+// up with the rest of the page.
+@Composable fun AboutMeCard(aboutMe: MalAboutMe, onOpenTitle: (Int, MediaType) -> Unit = { _, _ -> }, modifier: Modifier = Modifier, bleed: androidx.compose.ui.unit.Dp = 0.dp) {
     if (aboutMe.isEmpty) return
     val c = LocalKikoColors.current
     // Falls back to Kiko's own card colors if a user's about-me somehow has
@@ -662,12 +679,17 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
     val header = aboutMe.headerTextColor?.let(::parseHexColor) ?: c.primary
     val muted = body.copy(alpha = 0.62f)
     val hasIntro = !aboutMe.displayName.isNullOrBlank() || !aboutMe.introText.isNullOrBlank()
+    val fullBleed = bleed > 0.dp
+    // Rounded either way: full-bleed only removes the side margins, the corners stay.
+    val cardShape = RoundedCornerShape(kikoCorner(32.dp))
+    val bannerShape = RoundedCornerShape(topStart = kikoCorner(32.dp), topEnd = kikoCorner(32.dp))
 
     Column(
         modifier
             .fillMaxWidth()
             .padding(top = 20.dp)
-            .clip(RoundedCornerShape(kikoCorner(32.dp)))
+            .bleedHorizontal(bleed)
+            .clip(cardShape)
             .background(bg),
     ) {
         // Banner spans the module edge-to-edge, same treatment MAL's
@@ -689,11 +711,11 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
                     if (d.intrinsicWidth > 0 && d.intrinsicHeight > 0) bannerAspect = d.intrinsicWidth.toFloat() / d.intrinsicHeight.toFloat()
                 },
                 modifier = Modifier.fillMaxWidth().aspectRatio(bannerAspect)
-                    .clip(RoundedCornerShape(topStart = kikoCorner(32.dp), topEnd = kikoCorner(32.dp)))
+                    .clip(bannerShape)
                     .background(bg),
             )
         }
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(horizontal = if (fullBleed) 20.dp else 16.dp, vertical = 16.dp)) {
             Text("ABOUT ME", color = muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
             if (hasIntro) {
                 aboutMe.displayName?.takeIf { it.isNotBlank() }?.let {
@@ -730,17 +752,19 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
 // 96.dp poster-shaped blocks (matching AboutMeCard's own entry width),
 // shown while loadProfileFriendsFavorites is still fetching, same
 // friendsFavoritesLoading gate FriendsRowSkeleton/FavoritesRowsSectionSkeleton use.
-@Composable fun AboutMeCardSkeleton() {
+@Composable fun AboutMeCardSkeleton(bleed: androidx.compose.ui.unit.Dp = 0.dp) {
     val c = LocalKikoColors.current
+    val fullBleed = bleed > 0.dp
     Column(
         Modifier
             .fillMaxWidth()
             .padding(top = 20.dp)
+            .bleedHorizontal(bleed)
             .clip(RoundedCornerShape(kikoCorner(32.dp)))
             .background(c.surfaceContainer),
     ) {
         SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(21f / 9f), shape = RoundedCornerShape(topStart = kikoCorner(32.dp), topEnd = kikoCorner(32.dp)))
-        Column(Modifier.padding(24.dp)) {
+        Column(Modifier.padding(horizontal = if (fullBleed) 20.dp else 24.dp, vertical = 24.dp)) {
             Text("ABOUT ME", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
             SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.5f).height(18.dp))
             SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth().height(13.dp))
