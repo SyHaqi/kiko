@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.kiko.tracker.ui.screens
 
@@ -36,6 +36,9 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -471,7 +474,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                 }
                 Column(Modifier.fillMaxWidth().padding(top = 36.dp)) {
                     Text("Stats", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(bottom = 16.dp))
-                    TypeToggle(statsTab, trackColor = c.surfaceContainerHigh) { onStatsTabChange(it) }
+                    StatsTypeButtonGroup(statsTab) { onStatsTabChange(it) }
                     Spacer(Modifier.height(20.dp))
                     // Basic cross-fade between the
                     // tab-switch transition used elsewhere
@@ -1523,3 +1526,41 @@ private fun formatCacheBytes(b: Long): String = when {
 }
 
 // App info page
+
+// Anime / Manga switch for the Stats card — a Material 3 Expressive connected button group
+// (single-select), same construction as the tab row on the detail page: ToggleButtons spaced by
+// ButtonGroupDefaults.ConnectedSpaceBetween with the stock leading / trailing connected shapes.
+// Unchecked = surfaceContainer, checked = primary.
+@Composable
+private fun StatsTypeButtonGroup(current: MediaType, onSelect: (MediaType) -> Unit) {
+    val c = LocalKikoColors.current
+    val types = MediaType.entries
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        types.forEachIndexed { index, t ->
+            ToggleButton(
+                checked = current == t,
+                onCheckedChange = { if (current != t) onSelect(t) },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .semantics { role = Role.RadioButton },
+                shapes = when (index) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    types.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+                colors = ToggleButtonDefaults.toggleButtonColors(
+                    containerColor = c.surfaceContainer,
+                    contentColor = c.onSurfaceVariant,
+                    checkedContainerColor = c.primary,
+                    checkedContentColor = c.onPrimary,
+                ),
+            ) {
+                Text(if (t == MediaType.Anime) "Anime" else "Manga", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+    }
+}
