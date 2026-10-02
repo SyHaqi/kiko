@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.kiko.tracker.ui.screens
 
@@ -27,6 +27,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,7 +76,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                     Text("Ranking", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
                 }
-                RankingTypeTabs(vm.rankingType) { vm.loadRanking(context, it, vm.rankingSort) }
+                RankingTypeButtonGroup(vm.rankingType) { vm.loadRanking(context, it, vm.rankingSort) }
                 // Score / Popularity / Favorites / Upcoming as one dropdown button (same pill look as My List's sort).
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
                     RankingSortMenu(vm.rankingSort, sorts) { vm.loadRanking(context, vm.rankingType, it) }
@@ -101,51 +104,39 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         )
     }
 }
-// Anime / Manga primary tabs — same strip look as My List's status tabs (indicator hugs the label),
-// but a plain two-tab row since the ranking list itself isn't swipeable.
-@Composable private fun RankingTypeTabs(current: MediaType, onSelect: (MediaType) -> Unit) {
+// Anime / Manga switch — a Material 3 Expressive connected button group (single-select), same
+// construction as the Stats switch on Profile: ToggleButtons spaced by
+// ButtonGroupDefaults.ConnectedSpaceBetween with the stock leading / trailing connected shapes.
+// Unchecked = surfaceContainer, checked = primary.
+@Composable private fun RankingTypeButtonGroup(current: MediaType, onSelect: (MediaType) -> Unit) {
     val c = LocalKikoColors.current
-    val density = LocalDensity.current
     val types = MediaType.entries
-    val selectedIndex = types.indexOf(current).coerceAtLeast(0)
-    val textWidths = remember { mutableStateMapOf<Int, Dp>() }
-    TabRow(
-        selectedTabIndex = selectedIndex,
-        containerColor = Color.Transparent,
-        contentColor = c.primary,
-        divider = { HorizontalDivider(color = c.outlineVariant) },
-        indicator = { tabPositions ->
-            if (selectedIndex < tabPositions.size) {
-                val pos = tabPositions[selectedIndex]
-                val labelWidth = textWidths[selectedIndex] ?: pos.width
-                val offset by animateDpAsState(pos.left + (pos.width - labelWidth) / 2, label = "rankingTabOffset")
-                val width by animateDpAsState(labelWidth, label = "rankingTabWidth")
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .wrapContentSize(Alignment.BottomStart)
-                        .offset(x = offset)
-                        .width(width)
-                        .height(3.dp)
-                        .background(c.primary, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)),
-                )
-            }
-        },
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
     ) {
         types.forEachIndexed { index, t ->
-            val selected = index == selectedIndex
-            Tab(
-                selected = selected,
-                onClick = { onSelect(t) },
-                selectedContentColor = c.primary,
-                unselectedContentColor = c.muted,
-                text = {
-                    Box(Modifier.onGloballyPositioned { coords ->
-                        val w = with(density) { coords.size.width.toDp() }
-                        if (textWidths[index] != w) textWidths[index] = w
-                    }) { KikoTabText(if (t == MediaType.Anime) "Anime" else "Manga", selected) }
+            ToggleButton(
+                checked = current == t,
+                onCheckedChange = { if (current != t) onSelect(t) },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .semantics { role = Role.RadioButton },
+                shapes = when (index) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    types.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                 },
-            )
+                colors = ToggleButtonDefaults.toggleButtonColors(
+                    containerColor = c.surfaceContainer,
+                    contentColor = c.onSurfaceVariant,
+                    checkedContainerColor = c.primary,
+                    checkedContentColor = c.onPrimary,
+                ),
+            ) {
+                Text(if (t == MediaType.Anime) "Anime" else "Manga", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
         }
     }
 }
