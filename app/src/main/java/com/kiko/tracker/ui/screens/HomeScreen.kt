@@ -266,7 +266,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 lastUpdated.forEachIndexed { index, (entry, cover) ->
                                     key(entry.type, entry.mediaId, entry.timeLabel) {
                                         HistoryRow(entry, cover.first, cover.second, showDay = false) { openHistoryDetail(entry, items, context, vm, trackedOpenDetail) }
-                                        if (index < lastUpdated.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 68.dp), thickness = 1.dp, color = c.outlineVariant)
+                                        if (index < lastUpdated.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
                                     }
                                 }
                             }

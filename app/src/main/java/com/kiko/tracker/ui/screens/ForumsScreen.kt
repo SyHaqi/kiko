@@ -197,14 +197,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 vm.forumCategories.forEachIndexed { categoryIndex, category ->
                     // First label: 9dp so content starts the same distance under the header as on the Seasonal screen.
                     // Later labels keep 22dp as the spacing between category groups.
-                    item { Text(category.title.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = if (categoryIndex == 0) 9.dp else 22.dp, bottom = 9.dp)) }
+                    // Same look as the Settings groups (Play Store style): a primary section title, then
+                    // separate rows with big outer / tight inner corners and a 2dp gap — no divider lines.
+                    item { Text(category.title, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(start = 20.dp, top = if (categoryIndex == 0) 9.dp else 24.dp, bottom = 10.dp)) }
                     item {
-                        Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                            Column {
-                                category.boards.forEachIndexed { index, board ->
-                                    ForumBoardRow(board) { saveScroll(); vm.openForumBoard(context, board) }
-                                    if (index < category.boards.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.outlineVariant)
-                                }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            category.boards.forEachIndexed { index, board ->
+                                ForumBoardRow(board, forumGroupShape(index, category.boards.size)) { saveScroll(); vm.openForumBoard(context, board) }
                             }
                         }
                     }
@@ -252,9 +251,21 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     else -> Icons.Default.Forum
 }
 
-@Composable fun ForumBoardRow(board: ForumBoard, onClick: () -> Unit) {
+// Same corner pattern as Settings' groups (settingsGroupShape in ProfileScreen): 28dp outer, 4dp inner.
+private fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape {
+    val outer = 28.dp
+    val inner = 4.dp
+    if (count == 1) return RoundedCornerShape(outer)
+    return when (index) {
+        0 -> RoundedCornerShape(topStart = outer, topEnd = outer, bottomStart = inner, bottomEnd = inner)
+        count - 1 -> RoundedCornerShape(topStart = inner, topEnd = inner, bottomStart = outer, bottomEnd = outer)
+        else -> RoundedCornerShape(inner)
+    }
+}
+
+@Composable fun ForumBoardRow(board: ForumBoard, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(kikoCorner(20.dp)), onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clip(shape).background(c.surfaceContainerHigh).kikoClickable(scale = 0.98f, onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.primaryContainer), contentAlignment = Alignment.Center) {
             Icon(forumBoardIcon(board), null, tint = c.primary, modifier = Modifier.size(20.dp))
         }
