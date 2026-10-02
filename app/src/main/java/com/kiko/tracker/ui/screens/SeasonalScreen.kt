@@ -157,37 +157,30 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
     // Same remember(...) reasoning used
     // re-filters and re-sorts on
-    val dayItems = remember(byDay, selectedDay) { byDay.filter { it.second == selectedDay }.sortedBy { it.third } }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 13.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Release Schedule", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
-        val dayListState = rememberLazyListState(initialFirstVisibleItemIndex = java.time.DayOfWeek.values().indexOf(initialDay))
-        val scope = rememberCoroutineScope()
-        // Opens pre-selected to "today"
-        // it immediately rather than
-        LaunchedEffect(Unit) { centerChip(dayListState, java.time.DayOfWeek.values().indexOf(initialDay)) }
-        LazyRow(state = dayListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 15.dp)) {
-            itemsIndexed(java.time.DayOfWeek.values().toList()) { index, day ->
-                val label = day.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-                FilterChip(
-                    selected = selectedDay == day,
-                    onClick = { selectedDay = day; scope.centerChip(dayListState, index) },
-                    label = { Text(label) },
-                    colors = kikoFilterChipColors(),
-                )
-            }
-        }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
-            if (dayItems.isEmpty()) {
-                item { Text("No releases on this day.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
-            }
-            itemsIndexed(dayItems, key = { _, it -> it.first.id }) { index, (item, _, time) ->
-                StaggeredItem(index) {
-                    Column {
-                        ScheduleRow(item, time, onOpenDetail, myStatus = vm.trackedStatus(item))
-                        if (index < dayItems.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+        // One page per weekday (Mon..Sun) — swipe left/right to move between days.
+        val days = remember { java.time.DayOfWeek.values().toList() }
+        KikoTabPager(
+            items = days,
+            selected = selectedDay,
+            onSelect = { selectedDay = it },
+            tab = { day, selected -> KikoTabText(day.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()), selected) },
+        ) { day ->
+            val dayItems = remember(byDay, day) { byDay.filter { it.second == day }.sortedBy { it.third } }
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
+                if (dayItems.isEmpty()) {
+                    item { Text("No releases on this day.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                }
+                itemsIndexed(dayItems, key = { _, it -> it.first.id }) { index, (item, _, time) ->
+                    StaggeredItem(index) {
+                        Column {
+                            ScheduleRow(item, time, onOpenDetail, myStatus = vm.trackedStatus(item))
+                            if (index < dayItems.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                        }
                     }
                 }
             }

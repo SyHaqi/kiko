@@ -224,6 +224,33 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // stack's detail page reuses
     LaunchedEffect(initialKind) { vm.setStacksBrowseKind(initialKind) }
     val activeKind = vm.stacksBrowseActiveKind ?: initialKind
+    val kinds = remember { StackBrowseKind.entries.toList() }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 13.dp, bottom = 17.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+        }
+        Column(Modifier.padding(horizontal = 14.dp)) {
+            SearchField(value = vm.stacksBrowseQuery, change = { vm.updateStacksBrowseQuery(it) }, hint = "Search stacks", onSearch = { vm.searchStacksBrowse() })
+        }
+        // One page per browse kind. The ViewModel holds a single result list for whichever
+        // kind is active, so only that page shows results; a neighbouring page mid-swipe
+        // shows a skeleton until the swipe settles and its kind loads.
+        KikoTabPager(
+            items = kinds,
+            selected = activeKind,
+            onSelect = { vm.setStacksBrowseKind(it) },
+            modifier = Modifier.padding(top = 4.dp),
+            tab = { k, selected -> KikoTabText(k.label, selected) },
+        ) { kind ->
+            if (kind == activeKind) StacksBrowseResults(vm, activeKind, onOpenStack)
+            else Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) { ListRowSkeletonGroup(6) }
+        }
+    }
+}
+// The active kind's results list (own scroll state, paging and go-to-top), split out of StacksScreen for the pager.
+@Composable private fun StacksBrowseResults(vm: LibraryViewModel, activeKind: StackBrowseKind, onOpenStack: (Int, String) -> Unit) {
+    val c = LocalKikoColors.current
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.stacksBrowseScrollIndex, initialFirstVisibleItemScrollOffset = vm.stacksBrowseScrollOffset)
     val staggerSeen = rememberStaggerMemory()
     val openStack: (StackSummary) -> Unit = { s -> vm.saveStacksBrowseScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenStack(s.id, s.title) }
@@ -235,54 +262,32 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .distinctUntilChanged()
             .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 6 && vm.stacksBrowseResults.isNotEmpty() && !vm.stacksBrowseLoading) vm.loadMoreStacksBrowse() }
     }
-
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 13.dp, bottom = 17.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
-        }
-        Column(Modifier.padding(horizontal = 14.dp)) {
-            SearchField(value = vm.stacksBrowseQuery, change = { vm.updateStacksBrowseQuery(it) }, hint = "Search stacks", onSearch = { vm.searchStacksBrowse() })
-        }
-        val kindListState = rememberLazyListState(initialFirstVisibleItemIndex = StackBrowseKind.entries.indexOf(activeKind).coerceAtLeast(0))
-        LaunchedEffect(Unit) { centerChip(kindListState, StackBrowseKind.entries.indexOf(activeKind).coerceAtLeast(0)) }
-        LazyRow(state = kindListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
-            itemsIndexed(StackBrowseKind.entries.toList()) { index, k ->
-                FilterChip(
-                    selected = activeKind == k,
-                    onClick = { vm.setStacksBrowseKind(k); scope.centerChip(kindListState, index) },
-                    label = { Text(k.label) },
-                    colors = kikoFilterChipColors(),
-                )
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+            if (vm.stacksBrowseResults.isEmpty() && !vm.stacksBrowseLoading) {
+                item { Text("No stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
             }
-        }
-        Box(Modifier.fillMaxSize()) {
-            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
-                if (vm.stacksBrowseResults.isEmpty() && !vm.stacksBrowseLoading) {
-                    item { Text("No stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-                }
-                if (vm.stacksBrowseLoading && vm.stacksBrowseResults.isEmpty()) {
-                    item { ListRowSkeletonGroup(6) }
-                } else {
-                    itemsIndexed(vm.stacksBrowseResults, key = { _, it -> it.id }) { index, s ->
-                        StaggeredItem(index, staggerSeen) {
-                            Column {
-                                StackListRow(s, vm) { openStack(s) }
-                                if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
-                            }
+            if (vm.stacksBrowseLoading && vm.stacksBrowseResults.isEmpty()) {
+                item { ListRowSkeletonGroup(6) }
+            } else {
+                itemsIndexed(vm.stacksBrowseResults, key = { _, it -> it.id }) { index, s ->
+                    StaggeredItem(index, staggerSeen) {
+                        Column {
+                            StackListRow(s, vm) { openStack(s) }
+                            if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                         }
                     }
                 }
-                if (vm.stacksBrowseLoading && vm.stacksBrowseResults.isNotEmpty()) {
-                    item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
-                }
             }
-            GoToTopButton(
-                visible = showGoToTop,
-                onClick = { scope.launch { listState.animateScrollToItem(0) } },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-            )
+            if (vm.stacksBrowseLoading && vm.stacksBrowseResults.isNotEmpty()) {
+                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+            }
         }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { listState.animateScrollToItem(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+        )
     }
 }
 // Up to 3 covers

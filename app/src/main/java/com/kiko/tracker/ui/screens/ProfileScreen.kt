@@ -1142,26 +1142,45 @@ private fun formatCacheBytes(b: Long): String = when {
 // Starts on the tapped
 @Composable fun ScoreFilterScreen(vm: LibraryViewModel, type: MediaType, initialScore: Int, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
-    val context = LocalContext.current
     BackHandler(onBack = onBack)
     var score by remember { mutableStateOf(initialScore) }
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
+    // Tab/page order: All, then 10 down to 1. Swipe left/right to move between scores.
+    val scoreOptions = remember { listOf(0) + (10 downTo 1).toList() }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text("Score Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+        }
+        KikoTabPager(
+            items = scoreOptions,
+            selected = score,
+            onSelect = { score = it },
+            tab = { s, selected ->
+                if (s == 0) KikoTabText("All", selected)
+                else Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                    Text(s.toString(), fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, modifier = Modifier.padding(start = 3.dp))
+                }
+            },
+        ) { pageScore -> ScoreFilterPage(vm, typeItems, pageScore, onOpenDetail) }
+    }
+}
+// One swipeable page of ScoreFilterScreen — the titles count/toggle/sort row plus the list or grid for one score.
+@Composable private fun ScoreFilterPage(vm: LibraryViewModel, typeItems: List<MediaItem>, score: Int, onOpenDetail: (MediaItem) -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
     val filtered = remember(typeItems, score, vm.scoreFilterSort, vm.titleLanguage) {
         typeItems.filter { it.myRating > 0 && (score == 0 || it.myRating == score) }.sortedWithListSort(vm.scoreFilterSort, vm.titleLanguage)
     }
     val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.scoreFilterViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Score Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
-        }
-        ScoreFilterRow(score) { score = it }
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ListViewModeToggle(vm.scoreFilterViewMode) { vm.setScoreFilterViewMode(context, it) }
                 SortMenu(vm.scoreFilterSort) { vm.setScoreFilterSort(context, it) }
+                ListViewModeToggle(vm.scoreFilterViewMode) { vm.setScoreFilterViewMode(context, it) }
             }
         }
     }
@@ -1188,37 +1207,6 @@ private fun formatCacheBytes(b: Long): String = when {
                 }
             }
             if (filtered.isEmpty()) item { Text("No titles at this score yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-        }
-    }
-}
-// Score chip row: "All"
-
-@Composable fun ScoreFilterRow(current: Int, set: (Int) -> Unit) {
-    val c = LocalKikoColors.current
-    val colors = kikoFilterChipColors()
-    val scores = remember { (10 downTo 1).toList() }
-    val initialIndex = remember { if (current == 0) 0 else scores.indexOf(current) + 1 }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
-    val scope = rememberCoroutineScope()
-    // Land already-scrolled near the
-    // chart opens this screen
-    // the way to center
-    // stays scrolled off past
-    LaunchedEffect(Unit) { centerChip(listState, initialIndex) }
-    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-        item { FilterChip(selected = current == 0, onClick = { set(0); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
-        itemsIndexed(scores, key = { _, s -> s }) { index, s ->
-            FilterChip(
-                selected = current == s,
-                onClick = { set(s); scope.centerChip(listState, index + 1) },
-                label = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Star, null, tint = if (current == s) c.onPrimary else Color(0xFFFFC107), modifier = Modifier.size(12.dp))
-                        Text(s.toString(), modifier = Modifier.padding(start = 3.dp))
-                    }
-                },
-                colors = colors,
-            )
         }
     }
 }
@@ -1255,8 +1243,8 @@ private fun formatCacheBytes(b: Long): String = when {
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ListViewModeToggle(vm.yearFilterViewMode) { vm.setYearFilterViewMode(context, it) }
                 SortMenu(vm.yearFilterSort) { vm.setYearFilterSort(context, it) }
+                ListViewModeToggle(vm.yearFilterViewMode) { vm.setYearFilterViewMode(context, it) }
             }
         }
     }
@@ -1333,27 +1321,40 @@ private fun formatCacheBytes(b: Long): String = when {
 // string instead of score
 @Composable fun FormatFilterScreen(vm: LibraryViewModel, type: MediaType, initialFormat: String, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
-    val context = LocalContext.current
     BackHandler(onBack = onBack)
     var format by remember { mutableStateOf(initialFormat) }
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
     val formats = remember(typeItems) { typeItems.map { it.format }.filter { it.isNotBlank() }.distinct().sorted() }
+    // Tab/page order: All (blank), then each format alphabetically.
+    val formatOptions = remember(formats) { listOf("") + formats }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text("Format Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+        }
+        KikoTabPager(
+            items = formatOptions,
+            selected = format,
+            onSelect = { format = it },
+            tab = { f, selected -> KikoTabText(f.ifBlank { "All" }, selected) },
+        ) { pageFormat -> FormatFilterPage(vm, typeItems, pageFormat, onOpenDetail) }
+    }
+}
+// One swipeable page of FormatFilterScreen — the titles count/toggle/sort row plus the list or grid for one format.
+@Composable private fun FormatFilterPage(vm: LibraryViewModel, typeItems: List<MediaItem>, format: String, onOpenDetail: (MediaItem) -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
     val filtered = remember(typeItems, format, vm.formatFilterSort, vm.titleLanguage) {
         typeItems.filter { it.format.isNotBlank() && (format.isBlank() || it.format == format) }.sortedWithListSort(vm.formatFilterSort, vm.titleLanguage)
     }
     val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.formatFilterViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Format Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
-        }
-        FormatFilterRow(formats, format) { format = it }
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ListViewModeToggle(vm.formatFilterViewMode) { vm.setFormatFilterViewMode(context, it) }
                 SortMenu(vm.formatFilterSort) { vm.setFormatFilterSort(context, it) }
+                ListViewModeToggle(vm.formatFilterViewMode) { vm.setFormatFilterViewMode(context, it) }
             }
         }
     }
@@ -1381,21 +1382,6 @@ private fun formatCacheBytes(b: Long): String = when {
             }
             if (filtered.isEmpty()) item { Text("No titles of this format yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
         }
-    }
-}
-// Format chip row: "All"
-// Manga/Manhua/Light Novel), alphabetical —
-
-@Composable fun FormatFilterRow(formats: List<String>, current: String, set: (String) -> Unit) {
-    val c = LocalKikoColors.current
-    val colors = kikoFilterChipColors()
-    val initialIndex = remember { if (current.isBlank()) 0 else formats.indexOf(current) + 1 }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { centerChip(listState, initialIndex) }
-    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 15.dp)) {
-        item { FilterChip(selected = current.isBlank(), onClick = { set(""); scope.centerChip(listState, 0) }, label = { Text("All") }, colors = colors) }
-        itemsIndexed(formats, key = { _, f -> f }) { index, f -> FilterChip(selected = current == f, onClick = { set(f); scope.centerChip(listState, index + 1) }, label = { Text(f) }, colors = colors) }
     }
 }
 // Opened by tapping a
