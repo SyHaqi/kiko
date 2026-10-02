@@ -256,7 +256,11 @@ fun TopicRowSkeletonGroup(count: Int = 6) {
 
 @Composable
 fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
-    SkeletonBlock(modifier.height(200.dp), shape = RoundedCornerShape(kikoCorner(26.dp)))
+    Column(modifier) {
+        SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(15f / 8f), shape = RoundedCornerShape(kikoCorner(24.dp)))
+        SkeletonBlock(Modifier.padding(top = 10.dp, start = 4.dp).fillMaxWidth(0.6f).height(16.dp))
+        SkeletonBlock(Modifier.padding(top = 6.dp, start = 4.dp).fillMaxWidth(0.35f).height(12.dp))
+    }
 }
 
 @Composable

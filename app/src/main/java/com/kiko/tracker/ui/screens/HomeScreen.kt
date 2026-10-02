@@ -98,6 +98,7 @@ import com.kiko.tracker.data.model.localizedTimeLabel
 import com.kiko.tracker.data.model.next
 import com.kiko.tracker.data.model.nextAirDateTime
 import com.kiko.tracker.data.model.nextEpisodeLabel
+import com.kiko.tracker.data.model.oneDecimal
 import com.kiko.tracker.data.model.systemIs24Hour
 import com.kiko.tracker.ui.components.AppHeader
 import com.kiko.tracker.ui.components.Avatar
@@ -336,45 +337,19 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val time = item.nextAirDateTime(confirmed)?.toLocalTime()
     val chipText = listOfNotNull(item.nextEpisodeLabel(confirmed), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · ")
 
-    // Corner-gap fix: the card used to be clip() + background(item.color) with the cover and scrim
-    // drawn on top. Each of those is anti-aliased separately at the rounded corners, so a fringe of
-    // the (bright) background colour leaked out where the scrim didn't fully cover it. Now the whole
-    // card is rendered into one offscreen layer and masked by the rounded shape ONCE; the
-    // background colour lives inside it, under the cover and scrim.
-    val cardShape = RoundedCornerShape(kikoCorner(26.dp))
-    Box(
-        modifier
-            .height(200.dp)
-            .graphicsLayer {
-                shape = cardShape
-                clip = true
-                compositingStrategy = CompositingStrategy.Offscreen
-            }
-            .kikoClickable { onOpenDetail(item) },
-    ) {
-        // Full-bleed art + scrim. The scrim is painted by the SAME node as the image (drawWithContent)
-        // rather than a separate Box on top: during the overscroll "stretch" effect the card is
-        // scaled as a layer, and a separate scrim layer stopped short of the stretched edges
-        // (light gap on the left/bottom). Drawn together they scale as one, and it overdraws
-        // 2px past the bounds (the card's rounded clip trims it) so no hairline can show.
-        // TopCenter keeps faces/key art instead of cropping to the middle of a portrait cover.
+    // Play Store-style featured banner: big rounded cover with the timer pill on top-left,
+    // and the title + format + score sitting below the cover (not over it).
+    // Concentric corners: banner radius (20dp) = pill radius (12dp, full round at 24dp tall) + the 8dp inset
+    // between them, so the pill's curve runs parallel to the banner's corner instead of fighting it.
+    val coverShape = RoundedCornerShape(kikoCorner(24.dp))
+    Column(modifier.kikoClickable { onOpenDetail(item) }) {
+        // Clip + background live on one node so the rounded corners are masked once (no colour fringe).
         Box(
-            Modifier.fillMaxSize().background(Color(item.color)).drawWithContent {
-                drawContent()
-                val h = 150.dp.toPx()
-                val top = size.height - h
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        0f to Color.Transparent,
-                        0.5f to Color.Black.copy(alpha = .55f),
-                        1f to Color.Black.copy(alpha = .92f),
-                        startY = top,
-                        endY = size.height,
-                    ),
-                    topLeft = Offset(-2f, top),
-                    size = androidx.compose.ui.geometry.Size(size.width + 4f, h + 2f),
-                )
-            },
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(15f / 8f)
+                .clip(coverShape)
+                .background(Color(item.color)),
         ) {
             if (item.cover.isNotBlank()) {
                 AsyncImage(
@@ -382,42 +357,45 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     contentDescription = item.displayTitle(),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    // TopCenter keeps faces/key art instead of cropping to the middle of a portrait cover.
                     alignment = Alignment.TopCenter,
                     filterQuality = FilterQuality.High,
                 )
             }
-        }
-        // Tracked-status mark (same as the old card), top-start.
-        (vm.trackedStatus(item))?.let { CoverStatusMark(it, Modifier.align(Alignment.TopStart).padding(12.dp)) }
-        // Episode / time chip, top-end.
-        if (chipText.isNotBlank()) {
-            Row(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(12.dp)
-                    .clip(RoundedCornerShape(kikoCorner(50.dp)))
-                    .background(c.primary)
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Default.Schedule, null, tint = c.onPrimary, modifier = Modifier.size(13.dp))
-                Text(chipText, color = c.onPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(start = 5.dp))
+            // Episode / time pill, top-start. Always light-on-dark, but tinted from the theme's primary
+            // so it follows the Kiko colour: a deep, translucent shade of primary behind a pale tint of it.
+            val pillBg = androidx.compose.ui.graphics.lerp(c.primary, Color.Black, .72f).copy(alpha = .78f)
+            val pillFg = androidx.compose.ui.graphics.lerp(c.primary, Color.White, .82f)
+            if (chipText.isNotBlank()) {
+                Row(
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .clip(com.kiko.tracker.ui.theme.kikoPillShape())
+                        .background(pillBg)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Schedule, null, tint = pillFg, modifier = Modifier.size(12.dp))
+                    Text(chipText, color = pillFg, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, modifier = Modifier.padding(start = 4.dp))
+                }
             }
+            // Tracked-status mark moves to top-end so it doesn't collide with the pill.
+            (vm.trackedStatus(item))?.let { CoverStatusMark(it, Modifier.align(Alignment.TopEnd).padding(8.dp)) }
         }
-        // Format (small, above) + title (below), bottom-start. White text with a soft shadow
-        // on top of the heavier scrim so it stays readable on bright covers too.
-        val textShadow = Shadow(Color.Black.copy(alpha = .7f), offset = Offset(0f, 2f), blurRadius = 8f)
-        Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 16.dp, vertical = 14.dp)) {
-            if (item.format.isNotBlank()) {
-                Text(
-                    item.format.uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, maxLines = 1,
-                    style = LocalTextStyle.current.copy(shadow = textShadow), modifier = Modifier.padding(bottom = 3.dp),
-                )
+        // Title, then format · score, below the cover.
+        Text(
+            item.displayTitle(), color = c.ink, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
+        )
+        Row(Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(formatLabel(item), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            if (item.score > 0) {
+                Text("  ·  ", color = c.muted, fontSize = 13.sp)
+                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
+                Text(item.score.oneDecimal(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
             }
-            Text(
-                item.displayTitle(), color = Color.White, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.titleMedium.copy(shadow = textShadow),
-            )
         }
     }
 }
@@ -772,7 +750,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     val c = LocalKikoColors.current
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
-    // Search only on submit
+    // Live search: submittedQuery follows query after a short debounce
     var submittedQuery by remember { mutableStateOf("") }
     // Search bar starts collapsed
     // the whole header row
@@ -844,11 +822,16 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 val closeSearch = { focusManager.clearFocus(); keyboard?.hide(); searchExpanded = false; query = ""; submittedQuery = "" }
                 BackHandler { closeSearch() }
                 LaunchedEffect(Unit) { focusRequester.requestFocus(); keyboard?.show() }
+                // Debounce so we don't re-filter/sort the list on every single keystroke.
+                LaunchedEffect(query) {
+                    if (query.isEmpty()) submittedQuery = ""
+                    else { kotlinx.coroutines.delay(250); submittedQuery = query }
+                }
                 // Same 72dp slot as the normal header so the tabs below don't jump.
                 Box(Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
                     SearchTopBar(
                         value = query,
-                        onValueChange = { query = it; if (it.isEmpty()) submittedQuery = "" },
+                        onValueChange = { query = it },
                         hint = "Search your list",
                         onSearch = { submittedQuery = query },
                         onBack = closeSearch,
