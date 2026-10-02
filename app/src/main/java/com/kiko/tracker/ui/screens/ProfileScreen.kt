@@ -410,7 +410,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                     } else {
                         cachedFriends?.takeIf { it.isNotEmpty() }?.let { friends ->
                             FriendsRow(
-                                friends, c, onSeeAll = onOpenFriendsFavorites, onOpenFriend = onOpenFriend,
+                                friends, c, onOpenFriend = onOpenFriend,
                                 initialScroll = friendsRowScroll, onScrollChange = onSaveFriendsRowScroll,
                             )
                         }
@@ -589,7 +589,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                 } else {
                     cachedFavorites?.let {
                         FavoritesRowsSection(
-                            it, c, onSeeAll = onOpenFriendsFavorites,
+                            it, c,
                             onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
                             onOpenFavoriteTitle = onOpenFavoriteTitle, loadingId = favoriteLoadingId,
                             getRowScroll = getFavoritesRowScroll, onSaveRowScroll = onSaveFavoritesRowScroll,
@@ -786,13 +786,12 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
 // their cover (avatar) with their name underneath; tapping one opens an
 // in-app FriendProfileScreen — a 1:1 mirror of this same Profile page, just
 // scraped for that friend's username (see MalProfileScrapeApi.fullProfile
-// and Navigation's friendProfileOpen). "See all" opens the full
-// FriendsFavoritesScreen. The row's own scroll position is hoisted
+// and Navigation's friendProfileOpen). The row's own scroll position is hoisted
 // out via initialScroll/onScrollChange — Profile itself gets torn down
 // while a favorite's detail page is on top, so without this the row would
 // reset to the start every time the user comes back.
 @Composable fun FriendsRow(
-    friends: List<MalFriend>, c: KikoColors, onSeeAll: () -> Unit, onOpenFriend: (MalFriend) -> Unit = {},
+    friends: List<MalFriend>, c: KikoColors, onOpenFriend: (MalFriend) -> Unit = {},
     initialScroll: Pair<Int, Int> = 0 to 0, onScrollChange: (Int, Int) -> Unit = { _, _ -> },
 ) {
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialScroll.first, initialFirstVisibleItemScrollOffset = initialScroll.second)
@@ -800,7 +799,6 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
     Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Friends", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
-            Text("See all", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.kikoClickable(onClick = onSeeAll))
         }
         Spacer(Modifier.height(16.dp))
         LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
@@ -851,11 +849,10 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
 // manga open their in-app detail page (fetched by id via
 // onOpenFavoriteTitle); characters/people/companies open via
 // parseMalProfileLink same as everywhere else in Kiko that renders MAL
-// links (forum posts, clubs, stacks). "See all" opens the full
-// FriendsFavoritesScreen. A plain section on the page background — no
+// links (forum posts, clubs, stacks). A plain section on the page background — no
 // boxed card — with each category introduced by its own small label.
 @Composable fun FavoritesRowsSection(
-    favorites: MalFavorites, c: KikoColors, onSeeAll: () -> Unit,
+    favorites: MalFavorites, c: KikoColors,
     onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {},
     onOpenFavoriteTitle: (Int, MediaType) -> Unit = { _, _ -> }, loadingId: Int? = null,
     getRowScroll: (String) -> Pair<Int, Int> = { 0 to 0 }, onSaveRowScroll: (String, Int, Int) -> Unit = { _, _, _ -> },
@@ -871,7 +868,6 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
     Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Favorites", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
-            Text("See all", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.kikoClickable(onClick = onSeeAll))
         }
         sections.forEachIndexed { index, (label, entries) ->
             Spacer(Modifier.height(if (index == 0) 18.dp else 26.dp))
@@ -968,11 +964,25 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
                         }
                     }
                 }
-                Text(entry.title, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-                entry.subtitle?.let { Text(it, color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                // minLines = 2 always reserves two title lines, so the format · year line below sits at the
+                // same height on every cover in the row instead of riding up under short titles.
+                Text(entry.title, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+
+                favoriteSubtitle(label, entry.subtitle)?.let { Text(it, color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp)) }
             }
         }
     }
+}
+
+// MAL hands anime/manga favorites back as a cramped "TV·2011" (format, middle dot, year with no
+// breathing room). Re-split it and re-join as "TV · 2011" like the rest of the app ("format · year");
+// a blank side (no format, or no year yet) just drops the dot. Characters carry the work title in
+// this slot, so those (and anything that doesn't look like format/year) pass through untouched.
+private fun favoriteSubtitle(label: String, raw: String?): String? {
+    val text = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    if (label != "Anime" && label != "Manga") return text
+    val parts = text.split('·', '\u2022', '|').map { it.trim() }.filter { it.isNotEmpty() }
+    return if (parts.size in 2..3 && parts.last().matches(Regex("""\d{4}|\?|TBA"""))) parts.joinToString(" · ") else text
 }
 
 // Settings list, grouped into titled sections with the same big-outer / tight-inner
