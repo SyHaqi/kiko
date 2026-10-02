@@ -33,7 +33,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -428,9 +434,10 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     // so it just raises this flag rather than referencing listState directly — a LaunchedEffect
     // near listState's own declaration consumes it.
     var pendingScrollToNewest by remember(topicId) { mutableStateOf(false) }
-    // Raised when Reply is tapped on a post: the compose box now lives under the last post, so
-    // bring it into view.
+    // Raised when Reply is tapped on a post: the reply bar is pinned at the bottom, so just
+    // focus its text field (which brings up the keyboard).
     var pendingScrollToComposer by remember(topicId) { mutableStateOf(false) }
+    val replyFocusRequester = remember { FocusRequester() }
     // Reads the topic's first page from the website directly rather than MalApi.forumTopic (the
     // official REST API) — see MalForumScrapeApi's doc comment for why: that REST endpoint has
     // shown real staleness on cold loads independent of anything this app does. Falls back to the
@@ -561,6 +568,18 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     // Restore per-topic scroll position
     val (initialIndex, initialOffset) = remember(topicId) { vm.forumTopicScrollFor(topicId) }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex, initialFirstVisibleItemScrollOffset = initialOffset)
+    // Messenger-style: the keyboard shrinks the list from the bottom, so scroll by the same amount
+    // to keep what you were reading in view (instead of the list being clipped like a sheet).
+    val density = LocalDensity.current
+    val imeRise = WindowInsets.ime.exclude(WindowInsets.navigationBars)
+    LaunchedEffect(listState) {
+        var last = imeRise.getBottom(density)
+        snapshotFlow { imeRise.getBottom(density) }.collect { now ->
+            val delta = now - last
+            last = now
+            if (delta != 0) listState.dispatchRawDelta(delta.toFloat())
+        }
+    }
     // Scrolls to the reply the user just sent, once it's actually in `posts` (see
     // pendingScrollToNewest above) — separate effect since sendReply() is declared before
     // listState exists.
@@ -573,7 +592,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     }
     LaunchedEffect(pendingScrollToComposer) {
         if (pendingScrollToComposer) {
-            listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
+            runCatching { replyFocusRequester.requestFocus() }
             pendingScrollToComposer = false
         }
     }
@@ -627,6 +646,9 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
                 }
             }
     }
+    // Jetchat-style: the screen itself is NOT inset by the keyboard (that's the filter-sheet
+    // behaviour). Only the reply bar takes imePadding(), and the list rides up with it (see the
+    // ime effect above), like a messaging app.
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
@@ -693,35 +715,6 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
                         }
                     }
                 }
-                // Reply box sits directly under the last post instead of being pinned to the
-                // screen. Only shown once the whole thread is loaded, so it is always
-                // literally under the last reply.
-                if (!loading && !hasMore && !loadingMore && posts.isNotEmpty()) {
-                    item(key = "reply-composer") {
-                        Column(Modifier.padding(top = 8.dp)) {
-                            HorizontalDivider(modifier = Modifier.padding(bottom = 4.dp), thickness = 1.dp, color = c.outlineVariant)
-                            ForumReplyBar(
-                                connected = connected,
-                                draftText = draftText,
-                                onDraftChange = { draftText = it },
-                                replyingTo = replyingTo,
-                                onCancelReply = {
-                                    // Strip the "@name " prefix back out if it's still exactly what was
-                                    // auto-inserted when Reply was tapped — leaves anything the user typed
-                                    // themselves (before, after, or instead of it) completely alone.
-                                    replyingTo?.author?.name?.trim()?.takeIf { it.isNotBlank() }?.let { name ->
-                                        if (draftText == "@$name ") draftText = ""
-                                    }
-                                    replyingTo = null
-                                },
-                                posting = posting,
-                                error = postError,
-                                onConnect = { showLogin = true },
-                                onSend = ::sendReply,
-                            )
-                        }
-                    }
-                }
             }
             GoToTopButton(
                 visible = showGoToTop,
@@ -729,13 +722,40 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
             )
         }
+        // Reply bar pinned under the list like a messaging app's compose bar. It alone takes the
+        // keyboard inset. The nav-bar inset is consumed first because the root Scaffold already
+        // pads for it — otherwise imePadding() would count it twice and leave a gap.
+        if (!loading && posts.isNotEmpty()) {
+            ForumReplyBar(
+                modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars).imePadding(),
+                connected = connected,
+                draftText = draftText,
+                onDraftChange = { draftText = it },
+                replyingTo = replyingTo,
+                onCancelReply = {
+                    // Strip the "@name " prefix back out if it's still exactly what was
+                    // auto-inserted when Reply was tapped — leaves anything the user typed
+                    // themselves (before, after, or instead of it) completely alone.
+                    replyingTo?.author?.name?.trim()?.takeIf { it.isNotBlank() }?.let { name ->
+                        if (draftText == "@$name ") draftText = ""
+                    }
+                    replyingTo = null
+                },
+                posting = posting,
+                error = postError,
+                onConnect = { showLogin = true },
+                onSend = ::sendReply,
+                focusRequester = replyFocusRequester,
+            )
+        }
     }
 }
-// Compose bar for posting to a topic (rendered under the last post) — mirrors
+// Compose bar for posting to a topic (pinned at the bottom, messaging-app style) — mirrors
 // FriendsFavoritesScreen's connect-then-retry shape when there's no session
 // cookie yet, otherwise a plain text field + send button, with an optional
 // "replying to X" chip above it when a specific post was targeted.
 @Composable fun ForumReplyBar(
+    modifier: Modifier = Modifier,
     connected: Boolean,
     draftText: String,
     onDraftChange: (String) -> Unit,
@@ -745,9 +765,10 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
     error: String?,
     onConnect: () -> Unit,
     onSend: () -> Unit,
+    focusRequester: FocusRequester = remember { FocusRequester() },
 ) {
     val c = LocalKikoColors.current
-    // Drop the text field's focus (cursor + focused border) as soon as the keyboard goes away,
+    // Drop the text field's focus (cursor) as soon as the keyboard goes away,
     // e.g. after the user dismisses it with the back gesture.
     val focusManager = LocalFocusManager.current
     val imeVisible = WindowInsets.isImeVisible
@@ -756,58 +777,71 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
         if (imeWasVisible && !imeVisible) focusManager.clearFocus()
         imeWasVisible = imeVisible
     }
-    // c.background (not c.surfaceContainer) so this bar blends into the
-    // screen instead of reading as a separate panel.
-    Surface(color = c.background, modifier = Modifier.fillMaxWidth()) {
-        if (!connected) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Forum, null, tint = c.muted, modifier = Modifier.size(18.dp))
-                Text("Connect your MAL account to reply", color = c.muted, fontSize = 13.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
-                TextButton(onClick = onConnect) { Text("Connect") }
+    // c.background so the bar blends into the screen; the hairline above it separates it from the posts.
+    Surface(color = c.background, modifier = modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth()) {
+            HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+            if (!connected) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Forum, null, tint = c.muted, modifier = Modifier.size(18.dp))
+                    Text("Connect your MAL account to reply", color = c.muted, fontSize = 13.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
+                    TextButton(onClick = onConnect) { Text("Connect") }
+                }
+                return@Surface
             }
-            return@Surface
-        }
-        Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-            replyingTo?.let { target ->
-                Row(
-                    Modifier.padding(bottom = 8.dp).clip(kikoPillShape()).background(c.surfaceLow).padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Replying to ${target.author.name.ifBlank { "Unknown" }}", color = c.muted, fontSize = 12.sp)
-                    IconButton(onClick = onCancelReply, modifier = Modifier.padding(start = 4.dp).size(20.dp)) {
-                        Icon(Icons.Default.Close, "Cancel reply", tint = c.muted, modifier = Modifier.size(14.dp))
+            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+                replyingTo?.let { target ->
+                    Row(
+                        Modifier.padding(start = 4.dp, bottom = 6.dp).clip(kikoPillShape()).background(c.surfaceLow).padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Replying to ${target.author.name.ifBlank { "Unknown" }}", color = c.muted, fontSize = 12.sp)
+                        IconButton(onClick = onCancelReply, modifier = Modifier.padding(start = 4.dp).size(20.dp)) {
+                            Icon(Icons.Default.Close, "Cancel reply", tint = c.muted, modifier = Modifier.size(14.dp))
+                        }
                     }
                 }
-            }
-            error?.let { Text(it, color = c.danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp)) }
-            // Full-width, taller box with a small send button tucked into its bottom-right corner.
-            Box(Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = draftText, onValueChange = onDraftChange,
-                    placeholder = { Text(if (replyingTo != null) "Write a reply…" else "Write a new post…", color = c.muted, fontSize = 13.sp) },
-                    textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                    minLines = 4, maxLines = 10,
-                    shape = RoundedCornerShape(kikoCorner(20.dp)),
-                    enabled = !posting,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outlineVariant),
-                )
-                // Plain Box instead of IconButton: IconButton silently enforces a 48dp minimum touch
-                // target, which is what made this button bigger than requested and pushed it into the
-                // box's border. 8dp inset + 12dp corner is concentric with the box's 20dp corner, so
-                // the button follows the same curve as the box and keeps an even gap on both sides.
+                error?.let { Text(it, color = c.danger, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)) }
+                // Google Messages-style compose pill: one rounded container holding a field that
+                // grows from one line up to six (then scrolls) with the send button at its right,
+                // bottom-aligned so it stays put as the field gets taller.
                 val canSend = !posting && draftText.isNotBlank()
-                Box(
-                    Modifier.align(Alignment.BottomEnd).padding(8.dp).size(40.dp)
-                        .clip(RoundedCornerShape(kikoCorner(12.dp)))
-                        .background(if (canSend) c.primary else c.surfaceLow)
-                        .clickable(enabled = canSend, onClick = onSend),
-                    contentAlignment = Alignment.Center,
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(26.dp))).background(c.surfaceContainerHigh).padding(start = 18.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.Bottom,
                 ) {
-                    if (posting) {
-                        CircularProgressIndicator(color = c.onPrimary, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-                    } else {
-                        Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = if (canSend) c.onPrimary else c.muted, modifier = Modifier.size(18.dp))
+                    BasicTextField(
+                        value = draftText,
+                        onValueChange = onDraftChange,
+                        enabled = !posting,
+                        minLines = 1, maxLines = 6,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 20.sp, color = c.ink),
+                        cursorBrush = SolidColor(c.primary),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        modifier = Modifier.weight(1f).focusRequester(focusRequester),
+                        decorationBox = { inner ->
+                            // Min height = the 40dp send button, text centred in it, so one line sits level with
+                            // the button and the pill has the same 4dp gap on top/bottom/end. Taller (multi-line)
+                            // text grows the box instead; the button stays bottom-aligned.
+                            Box(Modifier.heightIn(min = 40.dp).padding(vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
+                                if (draftText.isEmpty()) Text(if (replyingTo != null) "Write a reply…" else "Write a new post…", color = c.muted, fontSize = 15.sp, lineHeight = 20.sp)
+                                inner()
+                            }
+                        },
+                    )
+                    // Plain Box instead of IconButton so the 40dp circle isn't padded up to 48dp.
+                    Box(
+                        Modifier.padding(start = 6.dp).size(40.dp)
+                            .clip(kikoCircleShape())
+                            .background(if (canSend) c.primary else c.surfaceLow)
+                            .clickable(enabled = canSend, onClick = onSend),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (posting) {
+                            CircularProgressIndicator(color = c.onPrimary, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                        } else {
+                            Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = if (canSend) c.onPrimary else c.muted, modifier = Modifier.size(18.dp))
+                        }
                     }
                 }
             }

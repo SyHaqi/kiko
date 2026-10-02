@@ -179,7 +179,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     StaggeredItem(index) {
                         Column {
                             ScheduleRow(item, time, onOpenDetail, myStatus = vm.trackedStatus(item))
-                            if (index < dayItems.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
+                            if (index < dayItems.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
                         }
                     }
                 }
@@ -195,10 +195,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(kikoCorner(16.dp)))
             .kikoClickable { onOpenDetail(item) }
             .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         // overrideStatus: same live O(1)
         // also comes from the
@@ -214,7 +213,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 Text(localizedTimeLabel(time, is24Hour), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 5.dp))
             }
         }
-        Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(20.dp))
     }
 }
 // Seasonal browse filter sheet
