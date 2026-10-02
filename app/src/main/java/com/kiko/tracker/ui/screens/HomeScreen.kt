@@ -362,22 +362,20 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     filterQuality = FilterQuality.High,
                 )
             }
-            // Episode / time pill, top-start. Always light-on-dark, but tinted from the theme's primary
-            // so it follows the Kiko colour: a deep, translucent shade of primary behind a pale tint of it.
-            val pillBg = androidx.compose.ui.graphics.lerp(c.primary, Color.Black, .72f).copy(alpha = .78f)
-            val pillFg = androidx.compose.ui.graphics.lerp(c.primary, Color.White, .82f)
+            // Episode / time pill, top-start. Same colours as the timer pill on the release schedule rows
+            // (primaryContainer background, primary icon + text), so it follows the Kiko theme.
             if (chipText.isNotBlank()) {
                 Row(
                     Modifier
                         .align(Alignment.TopStart)
                         .padding(8.dp)
                         .clip(com.kiko.tracker.ui.theme.kikoPillShape())
-                        .background(pillBg)
+                        .background(c.primaryContainer)
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Default.Schedule, null, tint = pillFg, modifier = Modifier.size(12.dp))
-                    Text(chipText, color = pillFg, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, modifier = Modifier.padding(start = 4.dp))
+                    Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
+                    Text(chipText, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, modifier = Modifier.padding(start = 4.dp))
                 }
             }
             // Tracked-status mark moves to top-end so it doesn't collide with the pill.
