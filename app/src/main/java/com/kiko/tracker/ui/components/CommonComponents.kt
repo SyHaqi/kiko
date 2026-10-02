@@ -4,6 +4,7 @@ package com.kiko.tracker.ui.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -30,6 +31,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -58,6 +60,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -441,14 +444,14 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 @Composable fun TypeSwitcherHeader(current: MediaType, onSelect: (MediaType) -> Unit, horizontalPadding: Dp = 20.dp, action: @Composable () -> Unit = {}) =
     SwitcherHeader(current, MediaType.entries.toList(), { if (it == MediaType.Anime) "Anime" else "Manga" }, onSelect, horizontalPadding, "Switch between Anime and Manga", action = action)
 
-// Header for any screen
-// Forums/Clubs on Community, ...)
-// rounded-square style) sitting just
-// field out from the
-// point, not sliding in
-// out underneath. The field
-// so opening it never
-// same reason SwitcherHeader is
+// Header for any screen with a title switcher (Forums/Clubs on Community, ...) plus search icon
+// and avatar. Same behaviour as My List's header (ListScreen in HomeScreen.kt): tapping the icon
+// swaps the WHOLE header for the Play Store-style SearchTopBar (back arrow, flat text field, no
+// divider) in the same 72dp slot; back / system back restores it. Unlike My List there is no live
+// search: the query is only submitted from the keyboard's search action.
+// [edgeBleed] lets the header extend into a parent's horizontal content padding (the Community
+// lists pad their content 14dp) so the search bar sits flush like it does on My List; the
+// collapsed header is padded back in by the same amount so it doesn't move.
 @Composable fun <T> ExpandableSearchHeader(
     current: T,
     options: List<T>,
@@ -465,125 +468,49 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     switchDescription: String = "Switch section",
     minHeight: Dp = 72.dp,
     verticalPadding: Dp = 12.dp,
+    edgeBleed: Dp = 0.dp,
     avatar: @Composable () -> Unit,
 ) {
     val c = LocalKikoColors.current
-    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
-    val keyboard = LocalSoftwareKeyboardController.current
-    val focusManager = LocalFocusManager.current
-
-    BackHandler(enabled = expanded) { onExpandedChange(false) }
-
-    // Autofocus + pop the
-    LaunchedEffect(expanded) {
-        if (expanded) {
-            focusRequester.requestFocus()
-            keyboard?.show()
+    AnimatedContent(
+        targetState = expanded,
+        transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(120)) },
+        label = "expandableSearchHeader",
+        modifier = Modifier.layout { measurable, constraints ->
+            val extra = edgeBleed.roundToPx() * 2
+            val w = constraints.maxWidth + extra
+            val placeable = measurable.measure(constraints.copy(minWidth = w, maxWidth = w))
+            layout(constraints.maxWidth, placeable.height) { placeable.place(-extra / 2, 0) }
+        },
+    ) { isExpanded ->
+        if (!isExpanded) {
+            SwitcherHeader(current, options, labelFor, onSelect, horizontalPadding + edgeBleed, switchDescription, minHeight, verticalPadding) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
+                        Modifier.size(43.dp).clip(kikoCircleShape()).kikoClickable { onExpandedChange(true) },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Default.Search, hint, tint = c.ink, modifier = Modifier.size(24.dp)) }
+                    avatar()
+                }
+            }
         } else {
-            focusManager.clearFocus()
-        }
-    }
-
-    // Root-coordinate bounds of the
-    // work out what fraction
-    // icon's actual position, not
-    var containerBounds by remember { mutableStateOf<Rect?>(null) }
-    var iconBounds by remember { mutableStateOf<Rect?>(null) }
-    val pivotFraction = remember(containerBounds, iconBounds) {
-        val cb = containerBounds; val ib = iconBounds
-        if (cb == null || ib == null || cb.width <= 0f) 1f
-        else (((ib.left + ib.right) / 2f - cb.left) / cb.width).coerceIn(0f, 1f)
-    }
-    // Uses the critically-damped "effects"
-    // this is a scale/reveal,
-    val progress by animateFloatAsState(if (expanded) 1f else 0f, animationSpec = KikoMotion.effectsDefault(), label = "searchExpandProgress")
-
-    Box(Modifier.fillMaxWidth().onGloballyPositioned { containerBounds = it.boundsInRoot() }) {
-        // Title switcher + pill
-        // Only composed while not
-        if (progress < 1f) {
-            Box(Modifier.graphicsLayer { alpha = 1f - progress }) {
-                SwitcherHeader(current, options, labelFor, onSelect, horizontalPadding, switchDescription, minHeight, verticalPadding) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(
-                            Modifier
-                                .size(43.dp)
-                                .onGloballyPositioned { iconBounds = it.boundsInRoot() }
-                                .clip(kikoCircleShape())
-                                .kikoClickable { onExpandedChange(true) },
-                            contentAlignment = Alignment.Center,
-                        ) { Icon(Icons.Default.Search, hint, tint = c.ink, modifier = Modifier.size(24.dp)) }
-                        avatar()
-                    }
-                }
+            val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+            val keyboard = LocalSoftwareKeyboardController.current
+            BackHandler { onExpandedChange(false) }
+            LaunchedEffect(Unit) { focusRequester.requestFocus(); keyboard?.show() }
+            // Same fixed slot as the normal header so the content below doesn't jump.
+            Box(Modifier.fillMaxWidth().height(minHeight), contentAlignment = Alignment.Center) {
+                SearchTopBar(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    hint = hint,
+                    onSearch = onSearch,
+                    onBack = { onExpandedChange(false) },
+                    focusRequester = focusRequester,
+                    showDivider = false,
+                    onClear = onClear,
+                )
             }
-        }
-
-        // Search field — scales
-        // Mounted as soon as
-        // its focusRequester is attached
-        // to call requestFocus() on
-        // and crash with "FocusRequester
-        if (expanded || progress > 0f) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer {
-                        alpha = progress
-                        scaleX = progress.coerceAtLeast(0.0001f)
-                        transformOrigin = TransformOrigin(pivotFraction, 0.5f)
-                    },
-            ) {
-                Row(Modifier.fillMaxWidth().heightIn(min = minHeight).padding(horizontal = horizontalPadding, vertical = verticalPadding), verticalAlignment = Alignment.CenterVertically) {
-                    HeaderSearchField(
-                        value = query,
-                        onValueChange = onQueryChange,
-                        hint = hint,
-                        onSearch = onSearch,
-                        onBack = { onExpandedChange(false) },
-                        onClear = onClear,
-                        focusRequester = focusRequester,
-                    )
-                }
-            }
-        }
-    }
-}
-
-// Slim pill search field
-// height as the icon/avatar
-// (~56dp), so expanding the
-@Composable fun HeaderSearchField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    hint: String,
-    onSearch: () -> Unit,
-    onBack: () -> Unit,
-    onClear: () -> Unit,
-    focusRequester: androidx.compose.ui.focus.FocusRequester,
-) {
-    val c = LocalKikoColors.current
-    val keyboard = LocalSoftwareKeyboardController.current
-    Row(
-        Modifier.fillMaxWidth().height(43.dp).clip(kikoPillShape()).background(c.surfaceContainerHigh).padding(horizontal = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.ArrowBack, "Close search", tint = c.muted, modifier = Modifier.size(18.dp)) }
-        Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 6.dp), contentAlignment = Alignment.CenterStart) {
-            if (value.isEmpty()) Text(hint, color = c.muted, fontSize = 14.sp)
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(color = c.ink, fontSize = 14.sp),
-                cursorBrush = SolidColor(c.accent),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch(); keyboard?.hide() }),
-                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-            )
-        }
-        if (value.isNotEmpty()) {
-            IconButton(onClick = onClear, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Close, "Clear search", tint = c.muted, modifier = Modifier.size(16.dp)) }
         }
     }
 }
@@ -603,6 +530,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     focusRequester: androidx.compose.ui.focus.FocusRequester,
     modifier: Modifier = Modifier,
     showDivider: Boolean = true,
+    onClear: (() -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val c = LocalKikoColors.current
@@ -628,7 +556,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 )
             }
             if (value.isNotEmpty()) {
-                IconButton(onClick = { onValueChange(""); focusManager.clearFocus(); keyboard?.hide() }) {
+                IconButton(onClick = { if (onClear != null) onClear() else onValueChange(""); focusManager.clearFocus(); keyboard?.hide() }) {
                     Icon(Icons.Default.Close, "Clear search", tint = c.muted, modifier = Modifier.size(20.dp))
                 }
             }

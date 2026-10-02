@@ -131,6 +131,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     onExpandedChange = { expanded -> searchExpanded = expanded; if (!expanded) { query = vm.clubsQuery } },
                     hint = "Find clubs…",
                     horizontalPadding = 0.dp,
+                    edgeBleed = 14.dp,
                     switchDescription = "Switch between Forums and Clubs",
                 ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
                 if (vm.signedIn) {
