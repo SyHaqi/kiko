@@ -138,130 +138,116 @@ import com.kiko.tracker.util.AppUpdateInfo
     )
 }
 
-@Composable fun ThemeSheet(current: ThemeMode, onDismiss: () -> Unit, onSelect: (ThemeMode) -> Unit) {
+/** One radio row, shared by the settings dialogs: radio on the left, label + optional description. */
+@Composable private fun ChoiceRow(selected: Boolean, label: String, description: String?, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
-            Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Choose a theme", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
-            ThemeMode.entries.forEach { mode ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (mode == current) c.primaryContainer else Color.Transparent).kikoClickable { onSelect(mode) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(mode.label, fontWeight = FontWeight.Bold, color = c.ink)
-                        Text(when (mode) { ThemeMode.System -> "Matches your device setting"; ThemeMode.Light -> "Always light"; ThemeMode.Dark -> "Always dark" }, color = c.muted, fontSize = 12.sp)
-                    }
-                    if (mode == current) Icon(Icons.Default.Check, null, tint = c.primary)
-                }
-            }
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = c.primary, unselectedColor = c.muted))
+        Column(Modifier.padding(start = 14.dp)) {
+            Text(label, color = c.ink, fontSize = 16.sp)
+            if (description != null) Text(description, color = c.muted, fontSize = 13.sp)
         }
     }
 }
 
-@Composable fun ColorSourceSheet(current: ColorSource, customHex: String, onDismiss: () -> Unit, onSelect: (ColorSource) -> Unit, onCustomHexChange: (String) -> Unit) {
+/** Play Store-style single-choice dialog: rounded card, title, radio rows, Cancel. Picking a row applies it. */
+@Composable fun <T> ChoiceDialog(
+    title: String, options: List<T>, selected: T,
+    label: (T) -> String, description: ((T) -> String)? = null,
+    onSelect: (T) -> Unit, onDismiss: () -> Unit,
+) {
     val c = LocalKikoColors.current
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
-            Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Choose a color", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
-            ColorSource.entries.forEach { source ->
-                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (source == current) c.primaryContainer else Color.Transparent).animateContentSize()) {
-                    Row(
-                        Modifier.fillMaxWidth().kikoClickable { onSelect(source); if (source != ColorSource.Custom) onDismiss() }.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Column {
-                            Text(source.label, fontWeight = FontWeight.Bold, color = c.ink)
-                            Text(
-                                when (source) { ColorSource.AppDefault -> "Kiko's default indigo"; ColorSource.Dynamic -> "Matches your device wallpaper"; ColorSource.Custom -> "Pick your own hex color" },
-                                color = c.muted, fontSize = 12.sp,
-                            )
-                        }
-                        if (source == current) Icon(Icons.Default.Check, null, tint = c.primary)
-                    }
-                    // Expand only Custom row
-                    AnimatedVisibility(visible = source == ColorSource.Custom && current == ColorSource.Custom, enter = fadeIn(tween(180)), exit = fadeOut(tween(140))) {
-                        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                            val valid = parseHexColor(customHex) != null
-                            val liveColor = parseHexColor(customHex) ?: c.primary
-
-                            HsvColorPicker(
-                                color = liveColor,
-                                // Both the in-progress drag
-                                // into onCustomHexChange (-> vm.customColorHex
-                                // remember(..., vm.customColorHex, ...) that
-                                // color palette in Navigation.kt),
-                                // not just this sheet's
-                                // drag, instead of only
-                                // per-frame because Compose's snapshot
-                                // state writes within the
-                                // and setCustomColor already debounces
-                                // separately, so we're not
-                                // in-memory theme rebuild now
-                                onColorChange = { picked -> onCustomHexChange(String.format("%06X", 0xFFFFFF and picked.toArgb())) },
-                                onColorChangeFinished = { picked -> onCustomHexChange(String.format("%06X", 0xFFFFFF and picked.toArgb())) },
-                                modifier = Modifier.padding(bottom = 14.dp),
-                            )
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(22.dp).clip(RoundedCornerShape(kikoCorner(6.dp))).background(if (valid) liveColor else c.surfaceLow).border(1.dp, c.muted.copy(alpha = .4f), RoundedCornerShape(kikoCorner(6.dp))))
-                                OutlinedTextField(
-                                    value = customHex, onValueChange = { onCustomHexChange(it.take(7)) },
-                                    modifier = Modifier.weight(1f).padding(start = 12.dp),
-                                    singleLine = true, prefix = { Text("#", color = c.muted) },
-                                    isError = !valid,
-                                    supportingText = { if (!valid) Text("6-digit hex, e.g. 2E51A2", color = c.danger, fontSize = 11.sp) },
-                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
-                                )
-                            }
-                        }
-                    }
-                }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surfaceContainerHigh,
+        shape = RoundedCornerShape(28.dp),
+        title = { Text(title, color = c.ink) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                options.forEach { option -> ChoiceRow(option == selected, label(option), description?.invoke(option)) { onSelect(option) } }
             }
-        }
-    }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("Cancel") } },
+    )
 }
 
-@Composable fun PaletteStyleSheet(current: PaletteStyle, onDismiss: () -> Unit, onSelect: (PaletteStyle) -> Unit) {
+@Composable fun ThemeDialog(current: ThemeMode, onDismiss: () -> Unit, onSelect: (ThemeMode) -> Unit) {
+    ChoiceDialog(
+        title = "Choose theme", options = ThemeMode.entries, selected = current, label = { it.label },
+        description = { when (it) { ThemeMode.System -> "Matches your device setting"; ThemeMode.Light -> "Always light"; ThemeMode.Dark -> "Always dark" } },
+        onSelect = onSelect, onDismiss = onDismiss,
+    )
+}
+
+@Composable fun ColorSourceDialog(current: ColorSource, customHex: String, onDismiss: () -> Unit, onSelect: (ColorSource) -> Unit, onCustomHexChange: (String) -> Unit) {
     val c = LocalKikoColors.current
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
-            Text("Appearance", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Choose a color palette", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
-            PaletteStyle.entries.forEach { style ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (style == current) c.primaryContainer else Color.Transparent).kikoClickable { onSelect(style) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(style.label, fontWeight = FontWeight.Bold, color = c.ink)
-                        Text(
-                            when (style) {
-                                PaletteStyle.TonalSpot -> "Balanced, vivid accent color"
-                                PaletteStyle.Neutral -> "Softer, more muted colors"
-                                PaletteStyle.Monochrome -> "Greyscale — the same in every color"
-                            },
-                            color = c.muted, fontSize = 12.sp,
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surfaceContainerHigh,
+        shape = RoundedCornerShape(28.dp),
+        title = { Text("Choose color", color = c.ink) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()).animateContentSize()) {
+                ColorSource.entries.forEach { source ->
+                    ChoiceRow(
+                        selected = source == current, label = source.label,
+                        description = when (source) { ColorSource.AppDefault -> "Kiko's default indigo"; ColorSource.Dynamic -> "Matches your device wallpaper"; ColorSource.Custom -> "Pick your own color" },
+                    ) { onSelect(source); if (source != ColorSource.Custom) onDismiss() }
+                }
+                // Custom picker only shows while Custom is the active source.
+                AnimatedVisibility(visible = current == ColorSource.Custom, enter = fadeIn(tween(180)), exit = fadeOut(tween(140))) {
+                    Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                        val valid = parseHexColor(customHex) != null
+                        val liveColor = parseHexColor(customHex) ?: c.primary
+                        // Every drag frame and the final value both feed onCustomHexChange, so the whole app
+                        // re-themes live while dragging (setCustomColor debounces the disk write itself).
+                        HsvColorPicker(
+                            color = liveColor,
+                            onColorChange = { picked -> onCustomHexChange(String.format("%06X", 0xFFFFFF and picked.toArgb())) },
+                            onColorChangeFinished = { picked -> onCustomHexChange(String.format("%06X", 0xFFFFFF and picked.toArgb())) },
+                            modifier = Modifier.padding(bottom = 14.dp),
                         )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(22.dp).clip(RoundedCornerShape(kikoCorner(6.dp))).background(if (valid) liveColor else c.surfaceLow).border(1.dp, c.muted.copy(alpha = .4f), RoundedCornerShape(kikoCorner(6.dp))))
+                            OutlinedTextField(
+                                value = customHex, onValueChange = { onCustomHexChange(it.take(7)) },
+                                modifier = Modifier.weight(1f).padding(start = 12.dp),
+                                singleLine = true, prefix = { Text("#", color = c.muted) },
+                                isError = !valid,
+                                supportingText = { if (!valid) Text("6-digit hex, e.g. 2E51A2", color = c.danger, fontSize = 11.sp) },
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                            )
+                        }
                     }
-                    if (style == current) Icon(Icons.Default.Check, null, tint = c.primary)
                 }
             }
-        }
-    }
+        },
+        confirmButton = { TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("Done") } },
+    )
 }
 
-@Composable fun TitleLanguageSheet(current: TitleLanguage, onDismiss: () -> Unit, onSelect: (TitleLanguage) -> Unit) {
-    val c = LocalKikoColors.current
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
-            Text("Preferences", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Title language", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
-            TitleLanguage.entries.forEach { lang ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (lang == current) c.primaryContainer else Color.Transparent).kikoClickable { onSelect(lang) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(lang.label, fontWeight = FontWeight.Bold, color = c.ink)
-                        Text(when (lang) { TitleLanguage.Romaji -> "e.g. Sousou no Frieren"; TitleLanguage.English -> "e.g. Frieren: Beyond Journey's End" }, color = c.muted, fontSize = 12.sp)
-                    }
-                    if (lang == current) Icon(Icons.Default.Check, null, tint = c.primary)
-                }
+@Composable fun PaletteStyleDialog(current: PaletteStyle, onDismiss: () -> Unit, onSelect: (PaletteStyle) -> Unit) {
+    ChoiceDialog(
+        title = "Choose color palette", options = PaletteStyle.entries, selected = current, label = { it.label },
+        description = {
+            when (it) {
+                PaletteStyle.TonalSpot -> "Balanced, vivid accent color"
+                PaletteStyle.Neutral -> "Softer, more muted colors"
+                PaletteStyle.Monochrome -> "Greyscale — the same in every color"
             }
-        }
-    }
+        },
+        onSelect = onSelect, onDismiss = onDismiss,
+    )
+}
+
+@Composable fun TitleLanguageDialog(current: TitleLanguage, onDismiss: () -> Unit, onSelect: (TitleLanguage) -> Unit) {
+    ChoiceDialog(
+        title = "Title language", options = TitleLanguage.entries, selected = current, label = { it.label },
+        description = { when (it) { TitleLanguage.Romaji -> "e.g. Sousou no Frieren"; TitleLanguage.English -> "e.g. Frieren: Beyond Journey's End" } },
+        onSelect = onSelect, onDismiss = onDismiss,
+    )
 }

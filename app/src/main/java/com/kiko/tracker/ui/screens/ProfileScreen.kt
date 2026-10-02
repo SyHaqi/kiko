@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.browser.customtabs.CustomTabsIntent
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
+import com.kiko.tracker.ui.components.ChoiceDialog
 import com.kiko.tracker.BuildConfig
 import com.kiko.tracker.data.api.MalAboutMe
 import com.kiko.tracker.data.api.MalAboutMeItem
@@ -216,13 +218,16 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     }
 }
 
-// Full page for the
+// Full page for the app settings, laid out as Play Store-style sections.
 @Composable fun SettingsScreen(
     connected: Boolean, themeMode: ThemeMode, colorSource: ColorSource, paletteStyle: PaletteStyle, titleLanguage: TitleLanguage,
     nsfwEnabled: Boolean, onNsfwChange: (Boolean) -> Unit,
     amoledDark: Boolean, onAmoledDarkChange: (Boolean) -> Unit,
     onThemeClick: () -> Unit, onColorClick: () -> Unit, onPaletteClick: () -> Unit, onTitleLanguageClick: () -> Unit,
     updateInfo: AppUpdateInfo?, onAboutClick: () -> Unit, onBack: () -> Unit,
+    listViewMode: ListViewMode = ListViewMode.List, onListViewModeChange: (ListViewMode) -> Unit = {},
+    listSort: com.kiko.tracker.data.model.ListSort = com.kiko.tracker.data.model.ListSort.Title, onListSortChange: (com.kiko.tracker.data.model.ListSort) -> Unit = {},
+    onSignOut: (() -> Unit)? = null,
 ) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
@@ -238,6 +243,9 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                 amoledDark = amoledDark, onAmoledDarkChange = onAmoledDarkChange,
                 onThemeClick = onThemeClick, onColorClick = onColorClick, onPaletteClick = onPaletteClick, onTitleLanguageClick = onTitleLanguageClick,
                 updateInfo = updateInfo, onAboutClick = onAboutClick,
+                listViewMode = listViewMode, onListViewModeChange = onListViewModeChange,
+                listSort = listSort, onListSortChange = onListSortChange,
+                onSignOut = onSignOut,
             )
         }
     }
@@ -940,40 +948,167 @@ fun malIdFromFavoriteUrl(url: String): Int? = runCatching { Uri.parse(url).pathS
     }
 }
 
-// Settings list — theme,
-// Lives in the profile
-// (top-right of ProfileStatsScreen) —
+// Settings list, grouped into titled sections with the same big-outer / tight-inner
+// corner cards as the profile drawer (the Play Store settings look). Theme/colour/palette/
+// title-language rows only report taps (their dialogs live in Navigation); the new layout,
+// sort, cache and sign-out rows own their small dialogs here.
+private class SettingsItem(
+    val title: String,
+    val subtitle: String? = null,
+    val titleColor: Color? = null,
+    val subtitleColor: Color? = null,
+    val trailing: (@Composable () -> Unit)? = null,
+    val onClick: () -> Unit,
+)
+
+private fun settingsGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape {
+    val outer = 28.dp
+    val inner = 4.dp
+    if (count == 1) return RoundedCornerShape(outer)
+    return when (index) {
+        0 -> RoundedCornerShape(topStart = outer, topEnd = outer, bottomStart = inner, bottomEnd = inner)
+        count - 1 -> RoundedCornerShape(topStart = inner, topEnd = inner, bottomStart = outer, bottomEnd = outer)
+        else -> RoundedCornerShape(inner)
+    }
+}
+
+@Composable private fun SettingsGroup(title: String, items: List<SettingsItem>) {
+    val c = LocalKikoColors.current
+    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+        Text(title, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(start = 20.dp, bottom = 10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            items.forEachIndexed { i, item ->
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(settingsGroupShape(i, items.size)).background(c.surfaceContainerHigh)
+                        .kikoClickable(scale = 0.98f, onClick = item.onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(item.title, fontSize = 17.sp, color = item.titleColor ?: c.ink)
+                        item.subtitle?.let { Text(it, fontSize = 13.sp, color = item.subtitleColor ?: c.muted, modifier = Modifier.padding(top = 2.dp)) }
+                    }
+                    item.trailing?.let { trailing -> Box(Modifier.padding(start = 12.dp)) { trailing() } }
+                }
+            }
+        }
+    }
+}
+
+private fun formatCacheBytes(b: Long): String = when {
+    b >= (1L shl 20) -> "${(b * 10 / (1L shl 20)) / 10.0} MB"
+    b >= (1L shl 10) -> "${b shr 10} KB"
+    else -> "$b B"
+}
+
+@OptIn(coil.annotation.ExperimentalCoilApi::class)
 @Composable fun SettingsSection(
     connected: Boolean, themeMode: ThemeMode, colorSource: ColorSource, paletteStyle: PaletteStyle, titleLanguage: TitleLanguage,
     nsfwEnabled: Boolean, onNsfwChange: (Boolean) -> Unit,
     amoledDark: Boolean = false, onAmoledDarkChange: (Boolean) -> Unit = {},
     onThemeClick: () -> Unit, onColorClick: () -> Unit, onPaletteClick: () -> Unit, onTitleLanguageClick: () -> Unit,
     updateInfo: AppUpdateInfo? = null, onAboutClick: () -> Unit = {},
+    listViewMode: ListViewMode = ListViewMode.List, onListViewModeChange: (ListViewMode) -> Unit = {},
+    listSort: com.kiko.tracker.data.model.ListSort = com.kiko.tracker.data.model.ListSort.Title, onListSortChange: (com.kiko.tracker.data.model.ListSort) -> Unit = {},
+    onSignOut: (() -> Unit)? = null,
 ) {
     val c = LocalKikoColors.current
-    Column {
-        ListItem(headlineContent = { Text("Theme", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(themeMode.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Palette, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onThemeClick))
-        ListItem(headlineContent = { Text("Color", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(colorSource.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.ColorLens, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onColorClick))
-        ListItem(headlineContent = { Text("Color palette", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(paletteStyle.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Gradient, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onPaletteClick))
-        ListItem(headlineContent = { Text("Title language", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(titleLanguage.label, color = c.muted) }, leadingContent = { Icon(Icons.Default.Translate, null, tint = c.primary) }, trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent), modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onTitleLanguageClick))
-        // Pure-black backgrounds for OLED/AMOLED
-        ListItem(headlineContent = { Text("AMOLED black", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text("True black backgrounds in dark mode, saves battery on AMOLED screens", color = c.muted) }, leadingContent = { Icon(Icons.Default.DarkMode, null, tint = c.primary) }, trailingContent = { Switch(checked = amoledDark, onCheckedChange = onAmoledDarkChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
-        ListItem(headlineContent = { Text("Adult content", fontWeight = FontWeight.Bold, color = c.ink) }, supportingContent = { Text(if (nsfwEnabled) "Hentai-rated titles are shown" else "Hentai-rated titles are hidden", color = c.muted) }, leadingContent = { Icon(Icons.Default.VisibilityOff, null, tint = c.primary) }, trailingContent = { Switch(checked = nsfwEnabled, onCheckedChange = onNsfwChange, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
-        // Tap opens about page
-        ListItem(
-            headlineContent = { Text("About", fontWeight = FontWeight.Bold, color = c.ink) },
-            supportingContent = { Text(if (updateInfo != null) "Update available — ${updateInfo.version}" else "v${BuildConfig.VERSION_NAME}", color = if (updateInfo != null) c.primary else c.muted, fontWeight = if (updateInfo != null) FontWeight.Bold else FontWeight.Normal) },
-            leadingContent = {
-                Box {
-                    Icon(Icons.Default.Info, null, tint = c.primary)
-                    if (updateInfo != null) Box(Modifier.size(8.dp).align(Alignment.TopEnd).clip(kikoCircleShape()).background(c.danger))
-                }
-            },
-            trailingContent = { Icon(Icons.Default.ChevronRight, null, tint = c.muted) },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onAboutClick),
-        )
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var listViewDialog by remember { mutableStateOf(false) }
+    var listSortDialog by remember { mutableStateOf(false) }
+    var clearCacheDialog by remember { mutableStateOf(false) }
+    var signOutDialog by remember { mutableStateOf(false) }
+    // Coil's on-disk image cache (covers etc.). Re-measured after a clear.
+    var cacheBytes by remember { mutableStateOf<Long?>(null) }
+    var cacheTick by remember { mutableStateOf(0) }
+    LaunchedEffect(cacheTick) {
+        cacheBytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { coil.Coil.imageLoader(context).diskCache?.size }.getOrNull() }
     }
+    val switchColors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)
+
+    Column {
+        SettingsGroup("Appearance", listOf(
+            SettingsItem("Theme", themeMode.label, onClick = onThemeClick),
+            SettingsItem("Color", colorSource.label, onClick = onColorClick),
+            SettingsItem("Color palette", paletteStyle.label, onClick = onPaletteClick),
+            SettingsItem(
+                "AMOLED black", "True black backgrounds in dark mode, saves battery on AMOLED screens",
+                trailing = { Switch(checked = amoledDark, onCheckedChange = null, colors = switchColors) },
+                onClick = { onAmoledDarkChange(!amoledDark) },
+            ),
+        ))
+        SettingsGroup("Library", listOf(
+            SettingsItem("Title language", titleLanguage.label, onClick = onTitleLanguageClick),
+            SettingsItem("List layout", listViewMode.name, onClick = { listViewDialog = true }),
+            SettingsItem("List sort order", listSort.label, onClick = { listSortDialog = true }),
+        ))
+        SettingsGroup("Content", listOf(
+            SettingsItem(
+                "Adult content", if (nsfwEnabled) "Hentai-rated titles are shown" else "Hentai-rated titles are hidden",
+                trailing = { Switch(checked = nsfwEnabled, onCheckedChange = null, colors = switchColors) },
+                onClick = { onNsfwChange(!nsfwEnabled) },
+            ),
+        ))
+        SettingsGroup("Storage", listOf(
+            SettingsItem(
+                "Clear image cache",
+                cacheBytes?.let { "Covers and images saved on this device · ${formatCacheBytes(it)}" } ?: "Covers and images saved on this device",
+                onClick = { clearCacheDialog = true },
+            ),
+        ))
+        if (connected && onSignOut != null) {
+            SettingsGroup("Account", listOf(
+                SettingsItem("Sign out", "Disconnect your MyAnimeList account", titleColor = c.danger, onClick = { signOutDialog = true }),
+            ))
+        }
+        SettingsGroup("About", listOf(
+            SettingsItem(
+                "About Kiko",
+                if (updateInfo != null) "Update available — ${updateInfo.version}" else "v${BuildConfig.VERSION_NAME}",
+                subtitleColor = if (updateInfo != null) c.primary else null,
+                trailing = { if (updateInfo != null) Box(Modifier.size(8.dp).clip(kikoCircleShape()).background(c.danger)) },
+                onClick = onAboutClick,
+            ),
+        ))
+    }
+
+    if (listViewDialog) ChoiceDialog(
+        title = "List layout", options = ListViewMode.entries, selected = listViewMode, label = { it.name },
+        onSelect = { onListViewModeChange(it); listViewDialog = false }, onDismiss = { listViewDialog = false },
+    )
+    if (listSortDialog) ChoiceDialog(
+        title = "List sort order", options = com.kiko.tracker.data.model.ListSort.entries, selected = listSort, label = { it.label },
+        onSelect = { onListSortChange(it); listSortDialog = false }, onDismiss = { listSortDialog = false },
+    )
+    if (clearCacheDialog) AlertDialog(
+        onDismissRequest = { clearCacheDialog = false },
+        containerColor = c.surfaceContainerHigh,
+        shape = RoundedCornerShape(28.dp),
+        title = { Text("Clear image cache?", color = c.ink) },
+        text = { Text("Covers and images will be downloaded again the next time they're needed.", color = c.muted) },
+        confirmButton = {
+            TextButton(onClick = {
+                clearCacheDialog = false
+                scope.launch {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching { coil.Coil.imageLoader(context).diskCache?.clear() }
+                        runCatching { coil.Coil.imageLoader(context).memoryCache?.clear() }
+                    }
+                    cacheTick++
+                }
+            }, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("Clear") }
+        },
+        dismissButton = { TextButton(onClick = { clearCacheDialog = false }, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("Cancel") } },
+    )
+    if (signOutDialog) AlertDialog(
+        onDismissRequest = { signOutDialog = false },
+        containerColor = c.surfaceContainerHigh,
+        shape = RoundedCornerShape(28.dp),
+        title = { Text("Sign out?", color = c.ink) },
+        text = { Text("Your list stays on MyAnimeList. You can sign back in anytime.", color = c.muted) },
+        confirmButton = { TextButton(onClick = { signOutDialog = false; onSignOut?.invoke() }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Sign out") } },
+        dismissButton = { TextButton(onClick = { signOutDialog = false }, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("Cancel") } },
+    )
 }
 
 // Opened by tapping a

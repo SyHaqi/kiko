@@ -59,11 +59,11 @@ import com.kiko.tracker.data.model.prev
 import com.kiko.tracker.ui.components.AccountSheet
 import com.kiko.tracker.ui.components.BottomBar
 import com.kiko.tracker.ui.components.KikoNavigationRail
-import com.kiko.tracker.ui.components.ColorSourceSheet
+import com.kiko.tracker.ui.components.ColorSourceDialog
 import com.kiko.tracker.ui.components.ErrorDialog
-import com.kiko.tracker.ui.components.PaletteStyleSheet
-import com.kiko.tracker.ui.components.ThemeSheet
-import com.kiko.tracker.ui.components.TitleLanguageSheet
+import com.kiko.tracker.ui.components.PaletteStyleDialog
+import com.kiko.tracker.ui.components.ThemeDialog
+import com.kiko.tracker.ui.components.TitleLanguageDialog
 import com.kiko.tracker.ui.components.UpdateDialog
 import com.kiko.tracker.ui.screens.AboutScreen
 import com.kiko.tracker.ui.screens.CharacterDetailScreen
@@ -1053,6 +1053,9 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         amoledDark = vm.amoledDark, onAmoledDarkChange = { vm.setAmoledDark(context, it) },
                                         onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true },
                                         updateInfo = vm.updateInfo, onAboutClick = { aboutOpen = true },
+                                        listViewMode = vm.listViewMode, onListViewModeChange = { vm.setListViewMode(context, it) },
+                                        listSort = vm.listSort, onListSortChange = { vm.setListSort(context, it) },
+                                        onSignOut = onSignOut,
                                         onBack = { settingsPageOpen = false },
                                     )
                                     TopScreen.AccountSheet -> AccountSheet(
@@ -1143,10 +1146,10 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                     onOpenTopic = { id, title -> forumTopicOpen = id to title },
                 )
             }
-            if (themeOpen) ThemeSheet(vm.themeMode, onDismiss = { themeOpen = false }, onSelect = { vm.setTheme(context, it); themeOpen = false })
-            if (colorSourceOpen) ColorSourceSheet(vm.colorSource, vm.customColorHex, onDismiss = { colorSourceOpen = false }, onSelect = { vm.setColorSource(context, it) }, onCustomHexChange = { vm.setCustomColor(context, it) })
-            if (paletteStyleOpen) PaletteStyleSheet(vm.paletteStyle, onDismiss = { paletteStyleOpen = false }, onSelect = { vm.setPaletteStyle(context, it); paletteStyleOpen = false })
-            if (titleLangOpen) TitleLanguageSheet(vm.titleLanguage, onDismiss = { titleLangOpen = false }, onSelect = { vm.setTitleLanguage(context, it); titleLangOpen = false })
+            if (themeOpen) ThemeDialog(vm.themeMode, onDismiss = { themeOpen = false }, onSelect = { vm.setTheme(context, it); themeOpen = false })
+            if (colorSourceOpen) ColorSourceDialog(vm.colorSource, vm.customColorHex, onDismiss = { colorSourceOpen = false }, onSelect = { vm.setColorSource(context, it) }, onCustomHexChange = { vm.setCustomColor(context, it) })
+            if (paletteStyleOpen) PaletteStyleDialog(vm.paletteStyle, onDismiss = { paletteStyleOpen = false }, onSelect = { vm.setPaletteStyle(context, it); paletteStyleOpen = false })
+            if (titleLangOpen) TitleLanguageDialog(vm.titleLanguage, onDismiss = { titleLangOpen = false }, onSelect = { vm.setTitleLanguage(context, it); titleLangOpen = false })
             if (vm.updateDialogOpen) vm.updateInfo?.let { info ->
                 UpdateDialog(
                     info = info,
