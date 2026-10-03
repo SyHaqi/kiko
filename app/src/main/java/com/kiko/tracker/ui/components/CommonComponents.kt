@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.kiko.tracker.ui.components
 
@@ -111,57 +111,40 @@ import com.kiko.tracker.ui.theme.kikoPillShape
 // keep their order and affordance while their placement follows the window.
 @Composable fun BottomBar(selected: Destination, onDoubleTapDiscover: () -> Unit = {}, select: (Destination) -> Unit) {
     val c = LocalKikoColors.current
-    // NavigationBarItem has no built-in
-    // destination + its timestamp
-    // the window counts as
-    // always runs either way.
+    // Double-tap on Discover opens search. Track the last tapped destination
+    // and its timestamp; a second tap within 300ms counts as a double-tap.
+    // Selection still happens on every tap either way.
     var lastTapDestination by remember { mutableStateOf<Destination?>(null) }
     var lastTapTime by remember { mutableStateOf(0L) }
-    // Compact bar modelled on the Play Store's: 64dp of content (vs. Material's
-    // 80dp), 56x32 pill, 12sp labels, tight 8/4/4dp vertical rhythm. Still sits
-    // above the system navigation bar via the standard insets.
-    Surface(color = c.surfaceContainer, contentColor = c.ink) {
-        Row(
-            Modifier.fillMaxWidth().windowInsetsPadding(NavigationBarDefaults.windowInsets).height(64.dp).selectableGroup(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Destination.entries.forEach { d ->
-                val isSelected = d == selected
-                val interaction = remember { MutableInteractionSource() }
-                val pressed by interaction.collectIsPressedAsState()
-                val pill by animateColorAsState(
-                    when {
-                        isSelected -> c.secondaryContainer
-                        pressed -> c.muted.copy(alpha = 0.14f)
-                        else -> Color.Transparent
-                    },
-                    label = "navPill",
-                )
-                val tint = if (isSelected) c.onSecondaryContainer else c.muted
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .selectable(selected = isSelected, interactionSource = interaction, indication = null, role = Role.Tab) {
-                            val now = System.currentTimeMillis()
-                            if (d == Destination.Discover && lastTapDestination == d && now - lastTapTime < 300) onDoubleTapDiscover()
-                            lastTapDestination = d
-                            lastTapTime = now
-                            select(d)
-                        },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Box(Modifier.size(width = 56.dp, height = 32.dp).clip(RoundedCornerShape(50)).background(pill), contentAlignment = Alignment.Center) {
-                        Icon(d.icon, null, tint = tint, modifier = Modifier.size(24.dp))
-                    }
-                    Text(
-                        d.label, color = tint, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
-            }
+    // Material 3 Expressive short navigation bar (the Play Store style): shorter
+    // than the classic 80dp bar, pill indicator, and the system handles the
+    // press ripple, indicator animation and Tab semantics for us.
+    ShortNavigationBar(
+        containerColor = c.surfaceContainer,
+        contentColor = c.ink,
+    ) {
+        Destination.entries.forEach { d ->
+            ShortNavigationBarItem(
+                selected = d == selected,
+                onClick = {
+                    val now = System.currentTimeMillis()
+                    if (d == Destination.Discover && lastTapDestination == d && now - lastTapTime < 300) onDoubleTapDiscover()
+                    lastTapDestination = d
+                    lastTapTime = now
+                    select(d)
+                },
+                icon = { Icon(d.icon, contentDescription = null) },
+                label = { Text(d.label, maxLines = 1) },
+                iconPosition = NavigationItemIconPosition.Top,
+                colors = ShortNavigationBarItemDefaults.colors(
+                    selectedIconColor = c.onSecondaryContainer,
+                    selectedTextColorTopIconPosition = c.onSecondaryContainer,
+                    selectedTextColorStartIconPosition = c.onSecondaryContainer,
+                    selectedIndicatorColor = c.secondaryContainer,
+                    unselectedIconColor = c.muted,
+                    unselectedTextColor = c.muted,
+                ),
+            )
         }
     }
 }
