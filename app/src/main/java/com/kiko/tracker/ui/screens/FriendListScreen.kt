@@ -121,10 +121,11 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    // Grid/list + sort are kept above the per-friend `key()` below, so
+    // Sort is kept above the per-friend `key()` below, so
     // browsing from one friend's list to another keeps your last choice —
     // only the active status tab resets per friend.
-    var viewMode by remember { mutableStateOf(ListViewMode.List) }
+    // Grid/list comes from the global "List layout" setting.
+    val viewMode = vm.listViewMode
     var sort by remember { mutableStateOf(FriendListSort.Title) }
 
     fun load() {
@@ -205,7 +206,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
                 vm = vm, username = username,
                 entries = entries, loading = loading, error = error, type = type, initialStatus = initialStatus,
                 viewMode = viewMode, sort = sort,
-                onSetViewMode = { viewMode = it }, onSetSort = { sort = it },
+                onSetSort = { sort = it },
                 onRetry = ::load, onOpenTitle = onOpenTitle,
             )
         }
@@ -216,7 +217,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     vm: LibraryViewModel, username: String,
     entries: List<MalUserListEntry>?, loading: Boolean, error: String?, type: MediaType, initialStatus: WatchStatus?,
     viewMode: ListViewMode, sort: FriendListSort,
-    onSetViewMode: (ListViewMode) -> Unit, onSetSort: (FriendListSort) -> Unit,
+    onSetSort: (FriendListSort) -> Unit,
     onRetry: () -> Unit, onOpenTitle: (Int, MediaType) -> Unit,
 ) {
     val tabs = remember(type) { friendListStatusTabs(type) }
@@ -235,20 +236,20 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
         FriendListPage(
             vm = vm, username = username,
             entries = entries, loading = loading, error = error, tabStatus = tabs.getOrNull(page), type = type,
-            viewMode = viewMode, sort = sort, onSetViewMode = onSetViewMode, onSetSort = onSetSort,
+            viewMode = viewMode, sort = sort, onSetSort = onSetSort,
             onRetry = onRetry, onOpenTitle = onOpenTitle,
         )
     }
 }
 
-// One swipeable page — the title count/grid-toggle/sort row plus the grid
+// One swipeable page — the title count/sort row plus the grid
 // or list of a friend's titles for a single status filter. Mirrors My
 // List's StatusListPage in HomeScreen.kt.
 @Composable private fun FriendListPage(
     vm: LibraryViewModel, username: String,
     entries: List<MalUserListEntry>?, loading: Boolean, error: String?, tabStatus: WatchStatus?, type: MediaType,
     viewMode: ListViewMode, sort: FriendListSort,
-    onSetViewMode: (ListViewMode) -> Unit, onSetSort: (FriendListSort) -> Unit,
+    onSetSort: (FriendListSort) -> Unit,
     onRetry: () -> Unit, onOpenTitle: (Int, MediaType) -> Unit,
 ) {
     val c = LocalKikoColors.current
@@ -294,7 +295,6 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
             Text("${filtered.orEmpty().size} titles" + if (loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 FriendSortMenu(sort, onSetSort)
-                ListViewModeToggle(viewMode, onSetViewMode)
             }
         }
     }
@@ -354,7 +354,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
-            Modifier.height(30.dp).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
+            Modifier.height(30.dp).clip(FilterChipDefaults.shape).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))

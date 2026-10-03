@@ -703,7 +703,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
-            Modifier.height(30.dp).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
+            Modifier.height(30.dp).clip(FilterChipDefaults.shape).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
@@ -726,7 +726,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     var open by remember { mutableStateOf(false) }
     Box(modifier) {
         Row(
-            Modifier.height(30.dp).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
+            Modifier.height(30.dp).clip(FilterChipDefaults.shape).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
@@ -931,7 +931,6 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SortMenu(vm.listSort) { vm.setListSort(context, it) }
-                ListViewModeToggle(vm.listViewMode) { vm.setListViewMode(context, it) }
             }
         }
     }
@@ -992,26 +991,6 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             visible = showGoToTop,
             onClick = { scope.launch { if (isGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0) } },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-        )
-    }
-}
-// List/grid switcher
-
-@Composable fun ListViewModeToggle(current: ListViewMode, onSelect: (ListViewMode) -> Unit) {
-    val c = LocalKikoColors.current
-    Box(
-        Modifier
-            .height(30.dp)
-            .clip(RoundedCornerShape(kikoCorner(12.dp)))
-            .background(c.surfaceContainerHigh)
-            .kikoClickable { onSelect(if (current == ListViewMode.List) ListViewMode.Grid else ListViewMode.List) }
-            .padding(horizontal = 9.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            if (current == ListViewMode.List) Icons.Default.GridView else Icons.Default.ViewList,
-            contentDescription = if (current == ListViewMode.List) "Switch to grid view" else "Switch to list view",
-            tint = c.accent, modifier = Modifier.size(16.dp),
         )
     }
 }

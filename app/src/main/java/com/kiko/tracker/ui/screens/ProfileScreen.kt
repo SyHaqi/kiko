@@ -1184,13 +1184,12 @@ private fun formatCacheBytes(b: Long): String = when {
         typeItems.filter { it.myRating > 0 && (score == 0 || it.myRating == score) }.sortedWithListSort(vm.scoreFilterSort, vm.titleLanguage)
     }
     val staggerSeen = rememberStaggerMemory()
-    val isGrid = vm.scoreFilterViewMode == ListViewMode.Grid
+    val isGrid = vm.listViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SortMenu(vm.scoreFilterSort) { vm.setScoreFilterSort(context, it) }
-                ListViewModeToggle(vm.scoreFilterViewMode) { vm.setScoreFilterViewMode(context, it) }
             }
         }
     }
@@ -1240,7 +1239,7 @@ private fun formatCacheBytes(b: Long): String = when {
         typeItems.filter { val y = releaseYear(it); y != null && (year == 0 || y == year) }.sortedWithListSort(vm.yearFilterSort, vm.titleLanguage)
     }
     val staggerSeen = rememberStaggerMemory()
-    val isGrid = vm.yearFilterViewMode == ListViewMode.Grid
+    val isGrid = vm.listViewMode == ListViewMode.Grid
     // Year picker moved off
     // them scrolled out of
     // GenreFilterScreen below. See YearFilterFab/YearFilterSheet.
@@ -1254,7 +1253,6 @@ private fun formatCacheBytes(b: Long): String = when {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SortMenu(vm.yearFilterSort) { vm.setYearFilterSort(context, it) }
-                ListViewModeToggle(vm.yearFilterViewMode) { vm.setYearFilterViewMode(context, it) }
             }
         }
     }
@@ -1358,13 +1356,12 @@ private fun formatCacheBytes(b: Long): String = when {
         typeItems.filter { it.format.isNotBlank() && (format.isBlank() || it.format == format) }.sortedWithListSort(vm.formatFilterSort, vm.titleLanguage)
     }
     val staggerSeen = rememberStaggerMemory()
-    val isGrid = vm.formatFilterViewMode == ListViewMode.Grid
+    val isGrid = vm.listViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SortMenu(vm.formatFilterSort) { vm.setFormatFilterSort(context, it) }
-                ListViewModeToggle(vm.formatFilterViewMode) { vm.setFormatFilterViewMode(context, it) }
             }
         }
     }
@@ -1411,7 +1408,7 @@ private fun formatCacheBytes(b: Long): String = when {
         typeItems.filter { genre.isBlank() || it.genres.any { g -> g == genre } }.sortedWithListSort(vm.genreFilterSort, vm.titleLanguage)
     }
     val staggerSeen = rememberStaggerMemory()
-    val isGrid = vm.genreFilterViewMode == ListViewMode.Grid
+    val isGrid = vm.listViewMode == ListViewMode.Grid
     // Genre picker moved off
     // past 30-40 distinct tags,
     // see GenreFilterFab/GenreFilterSheet below.
@@ -1424,7 +1421,6 @@ private fun formatCacheBytes(b: Long): String = when {
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ListViewModeToggle(vm.genreFilterViewMode) { vm.setGenreFilterViewMode(context, it) }
                 SortMenu(vm.genreFilterSort) { vm.setGenreFilterSort(context, it) }
             }
         }

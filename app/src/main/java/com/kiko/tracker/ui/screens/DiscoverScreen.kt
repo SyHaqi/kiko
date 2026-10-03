@@ -403,7 +403,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // Grid only makes sense for Anime/Manga (the only types with poster-shaped
     // covers) — Characters/People/Companies always render as rows regardless
     // of the saved preference.
-    val isGrid = vm.discoverViewMode == ListViewMode.Grid && (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga")
+    val isGrid = vm.listViewMode == ListViewMode.Grid && (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga")
     val staggerSeen = rememberStaggerMemory()
     // Restore results scroll position
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.discoverScrollIndex, initialFirstVisibleItemScrollOffset = vm.discoverScrollOffset)
@@ -504,12 +504,11 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             // Fixes type/format mismatch
             if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false; forceExpandGenre = false }, onApply = { filterSheetOpen = false; forceExpandGenre = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) }, forceExpandGenre = forceExpandGenre)
             if (userFilterSheetOpen) UserAdvancedFilterSheet(vm.userFilters, onDismiss = { userFilterSheetOpen = false }, onApply = { userFilterSheetOpen = false; vm.runUserSearch(query, it) })
-            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 0.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 0.dp).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 DiscoverTypeDropdown(current = vm.discoverTypeFilter, onSelect = { picked -> vm.selectDiscoverType(context, picked, query) })
                 if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         DiscoverSortMenu(current = vm.discoverSort, onSelect = { vm.selectDiscoverSort(context, it) })
-                        ListViewModeToggle(vm.discoverViewMode) { vm.setDiscoverViewMode(context, it) }
                     }
                 }
             }
@@ -955,11 +954,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     var expanded by remember { mutableStateOf(false) }
     val options = listOf("Anime", "Manga", "Characters", "Companies", "People", "Users")
     Box {
+        // Sized to match the sort button beside it (30dp tall, 12sp label, 16dp icon).
         FilterChip(
+            modifier = Modifier.height(30.dp),
             selected = true,
             onClick = { expanded = true },
-            label = { Text(current) },
-            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(18.dp)) },
+            label = { Text(current, fontSize = 12.sp) },
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp)) },
             colors = kikoFilterChipColors(),
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = RoundedCornerShape(kikoCorner(16.dp)), containerColor = c.surfaceContainer) {
