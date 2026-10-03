@@ -1328,6 +1328,18 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
     val rewatchWord = if (item.type == MediaType.Anime) "Rewatch" else "Reread"
     val rewatchedWord = if (item.type == MediaType.Anime) "rewatched" else "reread"
     var confirmDelete by remember { mutableStateOf(false) }
+    // Delete tapped on an entry that was never added — nothing to remove, so say so instead of
+    // asking to confirm a removal that would do nothing.
+    var notInListNotice by remember { mutableStateOf(false) }
+    if (notInListNotice) {
+        AlertDialog(
+            onDismissRequest = { notInListNotice = false },
+            containerColor = c.surfaceContainerHigh,
+            title = { Text("Not in your list", color = c.ink) },
+            text = { Text("\"${item.title}\" hasn't been added to your list yet, so there's nothing to delete. Pick a status and tap Save to add it.", color = c.muted) },
+            confirmButton = { TextButton(onClick = { notInListNotice = false }, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("OK") } },
+        )
+    }
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -1354,7 +1366,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
         // and that workaround isn't needed anymore.
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState()).imePadding()) {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = { confirmDelete = true }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Delete") }
+                TextButton(onClick = { if (item.inUserList) confirmDelete = true else notInListNotice = true }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Delete") }
                 Button(
                     onClick = { onSave(item.copy(status = status, progress = progress, myRating = rating, watchStartDate = startDate, watchEndDate = endDate, isRewatching = rewatching, timesRewatched = timesRewatched, rewatchValue = rewatchValue, priority = priority, notes = notes, comments = comments)) },
                     colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
@@ -1398,6 +1410,10 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                                     status = s
                                     // Auto-fill progress to the
                                     if (s == WatchStatus.Completed && item.total > 0) progress = item.total
+                                    // Auto-fill finish date to today when marking Completed, unless one is already set.
+                                    if (s == WatchStatus.Completed && endDate.isBlank()) {
+                                        endDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+                                    }
                                     // Auto-fill start date to
                                     // an already-set date is
                                     if ((s == WatchStatus.Watching || s == WatchStatus.Reading) && startDate.isBlank()) {
