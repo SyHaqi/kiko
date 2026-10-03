@@ -2,7 +2,6 @@
 
 package com.kiko.tracker.ui.screens
 
-import com.kiko.tracker.ui.components.CoverScoreMark
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -911,7 +910,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         // Same 100x150 cover as ListRow so search results line up with My List.
         Box(Modifier.size(width = 100.dp, height = 150.dp)) {
             Cover(item, Modifier.fillMaxSize(), showStatus = true, overrideStatus = myStatus, selected = isSelected)
-            if (item.score > 0) CoverScoreMark(item.score.twoDecimals(), Modifier.align(Alignment.BottomStart).padding(6.dp))
             if (loading) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
                     KikoLoadingIndicator(color = Color.White, size = 28.dp)
@@ -938,10 +936,18 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 }
             }
             Column {
-                if (item.listUsers > 0) {
+                if (item.listUsers > 0 || item.score > 0) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Group, null, tint = c.muted, modifier = Modifier.size(13.dp))
-                        Text(formatExact(item.listUsers), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 5.dp))
+                        if (item.score > 0) {
+                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
+                            Text(item.score.twoDecimals(), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 4.dp))
+                        }
+                        if (item.listUsers > 0) {
+                            // Members count to the right of the MAL score, separated by a dot.
+                            if (item.score > 0) Text("·", color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                            Icon(Icons.Default.Group, null, tint = c.muted, modifier = Modifier.size(13.dp))
+                            Text(formatExact(item.listUsers), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 5.dp))
+                        }
                     }
                 }
             }

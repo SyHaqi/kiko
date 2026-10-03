@@ -362,9 +362,9 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 @Composable fun CoverStatusMark(status: WatchStatus, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(kikoCorner(10.dp))
     Box(
-        modifier.size(24.dp).shadow(elevation = 4.dp, shape = shape).clip(shape).background(statusColor(status)),
+        modifier.size(28.dp).shadow(elevation = 4.dp, shape = shape).clip(shape).background(statusColor(status)),
         contentAlignment = Alignment.Center,
-    ) { Icon(status.badgeIcon(), status.label, tint = Color.White, modifier = Modifier.size(15.dp)) }
+    ) { Icon(status.badgeIcon(), status.label, tint = Color.White, modifier = Modifier.size(18.dp)) }
 }
 // User's score, pinned to the cover's bottom-end corner. Same construction as CoverStatusMark:
 // rounded-square tonal container (theme surface container, no outline) on a neutral elevation
@@ -378,7 +378,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     val shape = RoundedCornerShape(kikoCorner(10.dp))
     Row(
         modifier
-            .heightIn(min = 24.dp)
+            .heightIn(min = 28.dp)
             .shadow(elevation = 4.dp, shape = shape)
             .clip(shape)
             .background(c.surfaceContainerHigh)
