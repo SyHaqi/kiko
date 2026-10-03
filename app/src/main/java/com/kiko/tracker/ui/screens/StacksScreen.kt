@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -69,12 +70,10 @@ import com.kiko.tracker.ui.components.CoverStatusMark
 import com.kiko.tracker.ui.components.Pill
 import com.kiko.tracker.ui.components.rememberBelowAnchorTooltipPositionProvider
 import com.kiko.tracker.ui.components.SearchField
-import com.kiko.tracker.ui.components.SkeletonBlock
 import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.components.statusColor
 import com.kiko.tracker.ui.theme.KikoColors
-import com.kiko.tracker.ui.theme.ListRowSkeletonGroup
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.accent
@@ -147,7 +146,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 }
             }
             if (vm.stacksHomeLoading) {
-                item { ListRowSkeletonGroup(4) }
+                item { KikoSectionLoading() }
             }
             if (vm.stacksHomeSpotlight.isNotEmpty()) {
                 // Spotlight row — the
@@ -245,7 +244,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             tab = { k, selected -> KikoTabText(k.label, selected) },
         ) { kind ->
             if (kind == activeKind) StacksBrowseResults(vm, activeKind, onOpenStack)
-            else Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) { ListRowSkeletonGroup(6) }
+            else Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) { KikoSectionLoading() }
         }
     }
 }
@@ -269,7 +268,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 item { Text("No stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
             }
             if (vm.stacksBrowseLoading && vm.stacksBrowseResults.isEmpty()) {
-                item { ListRowSkeletonGroup(6) }
+                item { KikoSectionLoading() }
             } else {
                 itemsIndexed(vm.stacksBrowseResults, key = { _, it -> it.id }) { index, s ->
                     StaggeredItem(index, staggerSeen) {
@@ -512,7 +511,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     item { Text("No interest stacks found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
                 }
                 if (vm.mediaStacksLoading && vm.mediaStacksResults.isEmpty()) {
-                    item { ListRowSkeletonGroup(6) }
+                    item { KikoSectionLoading() }
                 } else {
                     itemsIndexed(vm.mediaStacksResults, key = { _, it -> it.id }) { index, s ->
                         StaggeredItem(index, staggerSeen) {
@@ -620,7 +619,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     item { Text(emptyLabel, color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
                 }
                 if (loading && results.isEmpty()) {
-                    item { ListRowSkeletonGroup(6) }
+                    item { KikoSectionLoading() }
                 } else {
                     itemsIndexed(results, key = { _, it -> it.id }) { index, s ->
                         StaggeredItem(index, staggerSeen) {
@@ -767,7 +766,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                     Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 6.dp))
                     if (detail == null && !loadFailed) {
-                        StackDetailHeaderSkeleton()
+                        KikoSectionLoading()
                     } else if (loadFailed) {
                         Text("Couldn't load this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center)
                     }
@@ -788,10 +787,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         Spacer(Modifier.height(4.dp))
                     }
                 }
-            }
-            if (detail == null && !loadFailed) {
-                // Skeletal grid placeholder while
-                items(9) { i -> StaggeredItem(i) { StackEntryGridCardSkeleton() } }
             }
             detail?.let { d ->
                 if (d.entries.isEmpty() && !loadFailed) {
@@ -850,39 +845,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // entries are still being
 // rather than blank-then-pop. Shape
 
-@Composable fun StackDetailHeaderSkeleton() {
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            SkeletonBlock(Modifier.width(64.dp).height(22.dp), shape = kikoPillShape())
-            SkeletonBlock(Modifier.padding(start = 9.dp).width(96.dp).height(13.dp))
-        }
-        Column(Modifier.padding(top = 12.dp)) {
-            SkeletonBlock(Modifier.fillMaxWidth().height(13.dp))
-            SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.7f).height(13.dp))
-        }
-        Box(Modifier.padding(top = 14.dp)) { SkeletonBlock(Modifier.width(140.dp).height(12.dp)) }
-        Column(Modifier.padding(top = 18.dp)) {
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                SkeletonBlock(Modifier.width(90.dp).height(11.dp))
-                SkeletonBlock(Modifier.width(70.dp).height(11.dp))
-            }
-            SkeletonBlock(Modifier.padding(top = 10.dp).fillMaxWidth().height(8.dp), shape = kikoPillShape())
-        }
-        Spacer(Modifier.height(4.dp))
-    }
-}
 // Loading placeholder for a
 // + two text bars,
 
-@Composable fun StackEntryGridCardSkeleton() {
-    Column(Modifier.fillMaxWidth()) {
-        Box(Modifier.fillMaxWidth().aspectRatio(0.72f)) {
-            SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(kikoCorner(16.dp)))
-        }
-        SkeletonBlock(Modifier.padding(top = 7.dp).fillMaxWidth(0.85f).height(12.dp))
-        SkeletonBlock(Modifier.padding(top = 5.dp).fillMaxWidth(0.4f).height(11.dp))
-    }
-}
 // Grid card for a
 // title, and format/score meta,
 

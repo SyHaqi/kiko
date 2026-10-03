@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.util.openInBrowser
@@ -48,10 +49,8 @@ import com.kiko.tracker.data.model.next
 import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.ExpandableSearchHeader
 import com.kiko.tracker.ui.components.Pill
-import com.kiko.tracker.ui.theme.ListRowSkeletonGroup
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
-import com.kiko.tracker.ui.theme.TopicRowSkeletonGroup
 import com.kiko.tracker.ui.theme.kikoCircleShape
 import com.kiko.tracker.ui.theme.kikoClickable
 import com.kiko.tracker.ui.theme.kikoCorner
@@ -152,7 +151,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 item { Text("No clubs found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
             }
             if (loading && visibleClubs.isEmpty()) {
-                item { ListRowSkeletonGroup(6) }
+                item { KikoSectionLoading() }
             } else {
                 itemsIndexed(visibleClubs, key = { _, club -> club.id }) { index, club ->
                     StaggeredItem(index) {
@@ -363,7 +362,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
 @Composable private fun ClubCabinetSection(club: MalClub, loading: Boolean, onOpenBrowser: (String) -> Unit) {
     val c = LocalKikoColors.current
     when {
-        loading && club.staff.isEmpty() -> TopicRowSkeletonGroup(5)
+        loading && club.staff.isEmpty() -> KikoSectionLoading()
         club.staff.isEmpty() -> Text("No staff listed for this club.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
         else -> Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
             Column {
@@ -404,7 +403,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
     }
     Column {
         when {
-            loading -> TopicRowSkeletonGroup(5)
+            loading -> KikoSectionLoading()
             error != null -> Text(error!!, color = c.danger, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
             members.isEmpty() -> Text("No members listed for this club.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
             else -> {

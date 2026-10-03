@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingScreen
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -57,9 +58,7 @@ import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.sortedForDiscover
 import com.kiko.tracker.ui.components.LinkifiedText
 import com.kiko.tracker.ui.components.FavoriteHeartButton
-import com.kiko.tracker.ui.components.SkeletonBlock
 import com.kiko.tracker.ui.components.kikoFilterChipColors
-import com.kiko.tracker.ui.theme.ListGridCardSkeleton
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.accent
@@ -89,33 +88,6 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
 // initialScroll on entry, saved
 // AnimatedContent tears this composable
 
-// Loading placeholder shaped like
-// set but companyDetailOpen hasn't
-@Composable fun CompanyDetailScreenSkeleton(onBack: () -> Unit) {
-    val c = LocalKikoColors.current
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            }
-            Column(Modifier.padding(horizontal = 14.dp)) {
-                SkeletonBlock(Modifier.size(110.dp), shape = RoundedCornerShape(kikoCorner(24.dp)))
-                SkeletonBlock(Modifier.padding(top = 18.dp).width(96.dp).height(12.dp))
-                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.6f).height(26.dp))
-                SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.3f).height(14.dp))
-                SkeletonBlock(Modifier.padding(top = 26.dp).width(140.dp).height(18.dp))
-                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth().height(96.dp), shape = RoundedCornerShape(kikoCorner(20.dp)))
-                SkeletonBlock(Modifier.padding(top = 26.dp).width(90.dp).height(18.dp))
-                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    repeat(4) { SkeletonBlock(Modifier.width(64.dp).height(32.dp), shape = RoundedCornerShape(kikoCorner(16.dp))) }
-                }
-                Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                    repeat(3) { ListGridCardSkeleton(Modifier.weight(1f)) }
-                }
-            }
-        }
-    }
-}
 
 private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", "Music")
 
@@ -137,7 +109,7 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
     // Same instant-navigate-then-fill reasoning as
     // — see companyDetailOpenId's doc
     if (company == null) {
-        CompanyDetailScreenSkeleton(onBack = onBack)
+        KikoLoadingScreen(onBack = onBack)
         return
     }
     val c = LocalKikoColors.current

@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
@@ -50,7 +51,6 @@ import com.kiko.tracker.ui.components.Cover
 import com.kiko.tracker.ui.components.TypeToggle
 import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
-import com.kiko.tracker.ui.theme.ListRowSkeletonGroup
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.accent
@@ -82,11 +82,11 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
                     RankingSortMenu(vm.rankingSort, sorts) { vm.loadRanking(context, vm.rankingType, it) }
                 }
-                if (vm.rankingLoading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), color = c.primary)
+                if (vm.rankingLoading && vm.visibleRankingResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), color = c.primary)
                 vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
             }
             if (vm.rankingLoading && vm.visibleRankingResults.isEmpty()) {
-                item { ListRowSkeletonGroup(6) }
+                item { KikoSectionLoading() }
             } else {
                 itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it ->
                     StaggeredItem(index, staggerSeen) {

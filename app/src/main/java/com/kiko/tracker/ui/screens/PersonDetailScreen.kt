@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingScreen
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.util.openInBrowser
@@ -47,60 +48,12 @@ import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.PersonDetail
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayTitle
-import com.kiko.tracker.ui.components.SkeletonBlock
 import com.kiko.tracker.ui.components.FavoriteHeartButton
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
 
-// Person (voice actor/staff) detail
-// its own blank-canvas layout
-// a person has no
-// Structure, top to bottom:
-// Acting Roles / Anime
-// (DetailRowCard, SectionTitle) the anime/manga
-//
-// Voice Acting Roles reuses
-// they already read elsewhere
-// = a muted line
-// label is the "Main"/"Supporting"
-// tapping opens the anime
-// in this app. Anime
-// (MalPeopleApi.fetchCreditedWorks), so those two
-// again, keyed off item.displayTitle()/format/startDate
-//
-// Scroll position (this page's
-// same way CharacterDetailScreen persists
-// — seeded from initialScroll/initial*Scroll
-// on the way out,
-// rebuilds it on every
-// Loading placeholder shaped like
-// CharacterDetailScreenSkeleton in CharacterDetailScreen.kt, just
-// (portrait + eyebrow +
-// personDetailOpenId is set but
-@Composable fun PersonDetailScreenSkeleton(onBack: () -> Unit) {
-    val c = LocalKikoColors.current
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            }
-            Column(Modifier.padding(horizontal = 14.dp)) {
-                SkeletonBlock(Modifier.width(128.dp).aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(16.dp)))
-                SkeletonBlock(Modifier.padding(top = 18.dp).width(84.dp).height(12.dp))
-                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.6f).height(26.dp))
-                SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.3f).height(14.dp))
-                SkeletonBlock(Modifier.padding(top = 26.dp).width(90.dp).height(18.dp))
-                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth().height(120.dp), shape = RoundedCornerShape(kikoCorner(24.dp)))
-                SkeletonBlock(Modifier.padding(top = 26.dp).width(140.dp).height(18.dp))
-                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    repeat(3) { SkeletonBlock(Modifier.width(92.dp).height(128.dp), shape = RoundedCornerShape(kikoCorner(14.dp))) }
-                }
-            }
-        }
-    }
-}
 
 @Composable fun PersonDetailScreen(
     malId: Int,
@@ -125,7 +78,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     // Same instant-navigate-then-fill reasoning as
     // characterDetailOpenId's doc comment in
     if (person == null) {
-        PersonDetailScreenSkeleton(onBack = onBack)
+        KikoLoadingScreen(onBack = onBack)
         return
     }
     val c = LocalKikoColors.current

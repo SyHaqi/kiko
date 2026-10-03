@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeEnd
@@ -114,7 +115,6 @@ import com.kiko.tracker.ui.components.parseBBCode
 import com.kiko.tracker.ui.theme.KikoColors
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
-import com.kiko.tracker.ui.theme.TopicRowSkeletonGroup
 import com.kiko.tracker.ui.theme.kikoCircleShape
 import com.kiko.tracker.ui.theme.kikoClickable
 import com.kiko.tracker.ui.theme.kikoCorner
@@ -166,7 +166,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val saveScroll = { vm.saveForumBoardsScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
-    KikoPullToRefreshBox(isRefreshing = vm.forumBoardsLoading, onRefresh = { vm.loadForumBoards(context, force = true) }, modifier = Modifier.fillMaxSize()) {
+    KikoPullToRefreshBox(isRefreshing = vm.forumBoardsLoading, onRefresh = { vm.loadForumBoards(context, force = true) }, modifier = Modifier.fillMaxSize(), onlyWhenPulled = true) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 ExpandableSearchHeader(
@@ -193,7 +193,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     vm.forumBoardsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                 }
                 if (vm.forumBoardsLoading && vm.forumCategories.isEmpty()) {
-                    item { TopicRowSkeletonGroup(5) }
+                    item { KikoSectionLoading() }
                 }
                 // Grouped category board card
                 vm.forumCategories.forEachIndexed { categoryIndex, category ->
@@ -329,14 +329,14 @@ private fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphic
                         itemsIndexed(vm.forumSubboards, key = { _, it -> it.id }) { index, sub -> FilterChip(selected = vm.forumSubboardId == sub.id, onClick = { vm.openForumSubboard(context, sub.id); scope.centerChip(subboardListState, index + 1) }, label = { Text(sub.title) }, colors = kikoFilterChipColors()) }
                     }
                 }
-                if (vm.forumTopicsLoading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
+                if (vm.forumTopicsLoading && vm.forumTopics.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                 vm.forumTopicsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
             }
             if (!vm.forumTopicsLoading && vm.forumTopics.isEmpty() && vm.forumTopicsError == null) {
                 item { Text("No topics found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
             }
             if (vm.forumTopicsLoading && vm.forumTopics.isEmpty()) {
-                item { TopicRowSkeletonGroup(6) }
+                item { KikoSectionLoading() }
             } else {
                 itemsIndexed(vm.forumTopics, key = { _, it -> it.id }) { index, topic ->
                     StaggeredItem(index) {

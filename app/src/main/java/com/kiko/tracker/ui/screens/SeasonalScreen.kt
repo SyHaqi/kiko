@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -61,7 +62,6 @@ import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.Cover
 import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
-import com.kiko.tracker.ui.theme.ListGridCardSkeleton
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.kikoClickable
@@ -112,13 +112,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         "${vm.seasonalSeason.label} ${vm.seasonalYear}" + if (isCurrentSeason) " · Current" else "",
                         color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp),
                     )
-                    if (vm.seasonalLoading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), color = c.primary)
+                    if (vm.seasonalLoading && vm.visibleSeasonalResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), color = c.primary)
                     vm.seasonalError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) }
                     Spacer(Modifier.height(14.dp))
                 }
             }
             if (vm.seasonalLoading && vm.visibleSeasonalResults.isEmpty()) {
-                items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
+                item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
             } else {
                 itemsIndexed(vm.visibleSeasonalResults, key = { _, it -> it.id }) { index, it -> StaggeredItem(index, staggerSeen) { SeasonalGridCard(it, openTitle, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, myStatus = vm.trackedStatus(it)) } }
             }
@@ -338,7 +338,7 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
             // transition. Same fix as
             .padding(pad)
     ) {
-        // Height matches ListGridCardSkeleton's cover
+        // Height matches the grid card cover
         // real card don't jump
         // overrideStatus: seasonal results are
         // LibraryViewModel.itemsByKey), never merged with

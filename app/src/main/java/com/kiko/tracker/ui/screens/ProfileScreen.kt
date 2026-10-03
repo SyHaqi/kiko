@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -89,7 +90,6 @@ import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.oneDecimal
 import com.kiko.tracker.data.model.twoDecimals
 import com.kiko.tracker.ui.components.Pill
-import com.kiko.tracker.ui.components.SkeletonBlock
 import com.kiko.tracker.ui.components.TypeToggle
 import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
@@ -409,14 +409,13 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                 // friendsFavoritesLoading with Friends/Favorites below since
                 // it's scraped in the same round-trip (see loadProfileFriendsFavorites).
                 if (cachedAboutMe == null && friendsFavoritesLoading) {
-                    AboutMeCardSkeleton(bleed = 14.dp + outerInset)
+                    KikoSectionLoading()
                 } else {
                     cachedAboutMe?.let { AboutMeCard(it, onOpenTitle = onOpenFavoriteTitle, bleed = 14.dp + outerInset) }
                 }
                 if (hasFfSession) {
                     if (cachedFriends == null && friendsFavoritesLoading) {
-                        SectionDivider(14.dp + outerInset)
-                        FriendsRowSkeleton()
+                        // The About me loader above covers this same fetch.
                     } else {
                         cachedFriends?.takeIf { it.isNotEmpty() }?.let { friends ->
                             SectionDivider(14.dp + outerInset)
@@ -592,8 +591,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
             // distribution charts above.
             if (connected && hasFfSession) {
                 if (cachedFavorites == null && friendsFavoritesLoading) {
-                    SectionDivider(14.dp + outerInset)
-                    FavoritesRowsSectionSkeleton()
+                    // The About me loader above covers this same fetch.
                 } else {
                     cachedFavorites?.takeIf { it.anime.isNotEmpty() || it.manga.isNotEmpty() || it.characters.isNotEmpty() || it.people.isNotEmpty() || it.companies.isNotEmpty() }?.let {
                         SectionDivider(14.dp + outerInset)
@@ -755,7 +753,7 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
             // Sized to the banner's own aspect ratio once it's loaded
             // (MAL lets users upload any size/shape image here) rather
             // than forcing every banner into the same fixed crop.
-            // Starts at the same 21:9 fallback AboutMeCardSkeleton uses
+            // Starts at a 21:9 fallback
             // so there's no layout jump before the real size is known;
             // Crop still applies during that brief window, but has
             // nothing to crop once bannerAspect matches the image.
@@ -798,36 +796,6 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
                             )
                         }
                     }
-                }
-            }
-        }
-    }
-}
-// Loading placeholder for AboutMeCard — same module shape/padding, a mock
-// banner + a couple of text-line blocks for the intro, and one row of
-// 96.dp poster-shaped blocks (matching AboutMeCard's own entry width),
-// shown while loadProfileFriendsFavorites is still fetching, same
-// friendsFavoritesLoading gate FriendsRowSkeleton/FavoritesRowsSectionSkeleton use.
-@Composable fun AboutMeCardSkeleton(bleed: androidx.compose.ui.unit.Dp = 0.dp) {
-    val c = LocalKikoColors.current
-    val fullBleed = bleed > 0.dp
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 20.dp)
-            .bleedHorizontal(bleed)
-            .clip(RoundedCornerShape(kikoCorner(32.dp)))
-            .background(c.surfaceContainer),
-    ) {
-        SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(21f / 9f), shape = RoundedCornerShape(topStart = kikoCorner(32.dp), topEnd = kikoCorner(32.dp)))
-        Column(Modifier.padding(horizontal = if (fullBleed) 20.dp else 24.dp, vertical = 24.dp)) {
-            Text("ABOUT ME", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
-            SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.5f).height(18.dp))
-            SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth().height(13.dp))
-            SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.7f).height(13.dp))
-            Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                repeat(3) {
-                    SkeletonBlock(Modifier.width(96.dp).aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(12.dp)))
                 }
             }
         }
@@ -876,27 +844,6 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
         }
     }
 }
-// Loading placeholder for FriendsRow — same 64.dp avatar/70.dp column
-// sizing, shown in its place while loadProfileFriendsFavorites is still
-// fetching (see friendsFavoritesLoading in ProfileStatsSection) so the
-// section doesn't just sit blank until the scrape finishes.
-@Composable fun FriendsRowSkeleton() {
-    val c = LocalKikoColors.current
-    Column(Modifier.fillMaxWidth().padding(top = 24.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Friends", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
-        }
-        Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            repeat(5) {
-                Column(Modifier.width(70.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    SkeletonBlock(Modifier.size(64.dp), shape = kikoCircleShape())
-                    SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.7f).height(11.dp))
-                }
-            }
-        }
-    }
-}
 // Favorites, split into rows per category (anime/manga/characters/people/
 // companies) — each its own horizontally-scrollable row of covers. Anime/
 // manga open their in-app detail page (fetched by id via
@@ -932,31 +879,6 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
                     onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
                     onOpenFavoriteTitle = onOpenFavoriteTitle, loadingId = loadingId,
                 )
-            }
-        }
-    }
-}
-// Loading placeholder for FavoritesRowsSection — same header, with two mock
-// category rows of 96.dp poster-shaped blocks (the common case is Anime +
-// Manga) shown in its place while loadProfileFriendsFavorites is still
-// fetching, so the section doesn't just sit blank until it resolves.
-@Composable fun FavoritesRowsSectionSkeleton() {
-    val c = LocalKikoColors.current
-    Column(Modifier.fillMaxWidth().padding(top = 24.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Favorites", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
-        }
-        repeat(2) { rowIndex ->
-            Spacer(Modifier.height(if (rowIndex == 0) 18.dp else 26.dp))
-            SkeletonBlock(Modifier.width(70.dp).height(11.dp), shape = RoundedCornerShape(kikoCorner(4.dp)))
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                repeat(3) {
-                    Column(Modifier.width(96.dp)) {
-                        SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(12.dp)))
-                        SkeletonBlock(Modifier.padding(top = 4.dp).fillMaxWidth(0.8f).height(12.dp))
-                    }
-                }
             }
         }
     }

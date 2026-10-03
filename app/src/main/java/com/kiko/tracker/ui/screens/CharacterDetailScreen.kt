@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingScreen
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.util.openInBrowser
@@ -47,69 +48,12 @@ import com.kiko.tracker.data.model.CharacterDetail
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayTitle
-import com.kiko.tracker.ui.components.SkeletonBlock
 import com.kiko.tracker.ui.components.FavoriteHeartButton
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
 
-// Character detail page. Deliberately
-// character has no synopsis,
-// is built as its
-// it (see CharacterModels.kt). Structure,
-// name, kanji name, bio
-// Mangaography rows — same
-// the anime/manga detail page
-//
-// Animeography/Mangaography specifically are treated
-// page's own Related/Recommended rows:
-// (onOpenWork) instead of a
-// in flight (workLoadingId), and
-// — a character's animeography/mangaography
-// MAL account, so there's
-// Titles in those two
-// DetailScreen's own title does
-//
-// Scroll position (this page's
-// rows) is persisted the
-// Recommended row scroll: seeded
-// on entry, saved via
-// Without this, tapping an
-// down via Navigation.kt's AnimatedContent,
-// DetailScreen) and backing out
-// it. Voice Actors deliberately
-// tab rather than navigating
-// there's nothing to lose.
-// Loading placeholder shaped like
-// Details card + one
-// tapped, before the fetch
-// in Navigation.kt), so the
-// leaving the user parked
-// same reasoning as DetailScreenSkeleton
-// without a backdrop banner,
-@Composable fun CharacterDetailScreenSkeleton(onBack: () -> Unit) {
-    val c = LocalKikoColors.current
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            }
-            Column(Modifier.padding(horizontal = 14.dp)) {
-                SkeletonBlock(Modifier.width(128.dp).aspectRatio(2f / 3f), shape = RoundedCornerShape(kikoCorner(16.dp)))
-                SkeletonBlock(Modifier.padding(top = 18.dp).width(84.dp).height(12.dp))
-                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.6f).height(26.dp))
-                SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.3f).height(14.dp))
-                SkeletonBlock(Modifier.padding(top = 26.dp).width(90.dp).height(18.dp))
-                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth().height(120.dp), shape = RoundedCornerShape(kikoCorner(24.dp)))
-                SkeletonBlock(Modifier.padding(top = 26.dp).width(120.dp).height(18.dp))
-                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    repeat(3) { SkeletonBlock(Modifier.width(92.dp).height(128.dp), shape = RoundedCornerShape(kikoCorner(14.dp))) }
-                }
-            }
-        }
-    }
-}
 
 @Composable fun CharacterDetailScreen(
     malId: Int,
@@ -138,7 +82,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     // character is null for
     // out before touching anything
     if (character == null) {
-        CharacterDetailScreenSkeleton(onBack = onBack)
+        KikoLoadingScreen(onBack = onBack)
         return
     }
     val c = LocalKikoColors.current

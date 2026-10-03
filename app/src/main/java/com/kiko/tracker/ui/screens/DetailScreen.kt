@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingScreen
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.util.openInBrowser
 import android.content.Intent
@@ -97,7 +98,6 @@ import com.kiko.tracker.ui.components.CoverStatusMark
 import com.kiko.tracker.ui.components.FavoriteHeartButton
 import com.kiko.tracker.ui.components.GenreChip
 import com.kiko.tracker.ui.components.LinkifiedText
-import com.kiko.tracker.ui.components.SkeletonBlock
 import com.kiko.tracker.ui.components.StatBlock
 import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
@@ -210,45 +210,6 @@ data class DetailScreenActions(
     val onSelectTab: (Int) -> Unit = {},
 )
 
-// Loading placeholder shaped like
-// poster + title block
-// spinner while cover/related/themes are
-// "this detail page is
-// the whole time so
-@Composable fun DetailScreenSkeleton(onBack: () -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Box(Modifier.fillMaxWidth()) {
-                Box(Modifier.fillMaxWidth().height(248.dp).clip(RoundedCornerShape(bottomStart = kikoCorner(32.dp), bottomEnd = kikoCorner(32.dp)))) {
-                    SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(0.dp))
-                    // Plain 24dp icon floating on the banner (no backing chip), 48dp touch target.
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 13.dp),
-                    ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White, modifier = Modifier.size(24.dp)) }
-                }
-                Box(Modifier.padding(start = 14.dp, top = 96.dp).width(128.dp).aspectRatio(2f / 3f).shadow(10.dp, RoundedCornerShape(kikoCorner(16.dp)))) {
-                    SkeletonBlock(Modifier.fillMaxSize(), shape = RoundedCornerShape(kikoCorner(16.dp)))
-                }
-            }
-            Column(Modifier.padding(horizontal = 14.dp)) {
-                SkeletonBlock(Modifier.padding(top = 18.dp).width(96.dp).height(12.dp))
-                SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth(0.75f).height(26.dp))
-                SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.4f).height(14.dp))
-                SkeletonBlock(Modifier.padding(top = 18.dp).fillMaxWidth(0.55f).height(14.dp))
-                Row(Modifier.padding(top = 20.dp)) {
-                    repeat(3) { i -> SkeletonBlock(Modifier.padding(end = 8.dp).width(if (i == 1) 78.dp else 64.dp).height(28.dp), shape = RoundedCornerShape(kikoCorner(10.dp))) }
-                }
-                SkeletonBlock(Modifier.padding(top = 26.dp).width(90.dp).height(18.dp))
-                Column(Modifier.padding(top = 12.dp)) {
-                    SkeletonBlock(Modifier.fillMaxWidth().height(13.dp))
-                    SkeletonBlock(Modifier.padding(top = 9.dp).fillMaxWidth().height(13.dp))
-                    SkeletonBlock(Modifier.padding(top = 9.dp).fillMaxWidth(0.65f).height(13.dp))
-                }
-            }
-        }
-    }
-}
 
 @Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, castLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, initialCharactersScroll: Pair<Int, Int> = 0 to 0, initialReviewsScroll: Pair<Int, Int> = 0 to 0, initialTab: Int = 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null, airingInfo: AiringInfo? = null, favorited: Boolean = false) {
     LaunchedEffect(item.id) { actions.onLoadAiringEpisode(item) }
@@ -390,7 +351,7 @@ data class DetailScreenActions(
     BackHandler(onBack = actions.onBack)
     // Load all sections upfront
     if (!coverReady || !relatedDone || !themesDone || !recommendedDone) {
-        DetailScreenSkeleton(onBack = actions.onBack)
+        KikoLoadingScreen(onBack = actions.onBack)
         return
     }
     Box(Modifier.fillMaxSize()) {

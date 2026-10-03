@@ -38,6 +38,7 @@ import androidx.compose.material3.carousel.CarouselDefaults
 import androidx.compose.material3.carousel.CarouselItemScope
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
+import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -107,13 +108,7 @@ import com.kiko.tracker.ui.components.SearchTopBar
 import com.kiko.tracker.ui.components.SwitcherHeader
 import com.kiko.tracker.ui.components.statusColor
 import com.kiko.tracker.ui.components.CoverStatusMark
-import com.kiko.tracker.ui.theme.AiringNextRowSkeleton
-import com.kiko.tracker.ui.theme.HistoryRowSkeletonGroup
-import com.kiko.tracker.ui.theme.HomeFeaturedArticleRowSkeleton
-import com.kiko.tracker.ui.theme.ListGridCardSkeleton
-import com.kiko.tracker.ui.theme.ListRowSkeletonGroup
 import com.kiko.tracker.ui.theme.LocalKikoColors
-import com.kiko.tracker.ui.theme.SnapshotsGridSkeleton
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.accent
 import com.kiko.tracker.ui.theme.kikoClickable
@@ -182,6 +177,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     KikoPullToRefreshBox(
         isRefreshing = vm.loading,
+        onlyWhenPulled = true,
         onRefresh = { vm.load(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeFeaturedArticles(force = true); vm.malProfile?.name?.let { vm.loadHistory(context, it, force = true) } },
         modifier = Modifier.fillMaxSize(),
     ) {
@@ -212,7 +208,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             AiringNextRow(airingNext, vm, trackedOpenDetail)
                         } else if (vm.discoverBrowseLoading) {
                             SectionTitle("Airing next", "See all", click = { onSchedule(today) })
-                            AiringNextRowSkeleton()
+                            KikoSectionLoading()
                         }
                     }
                     // Home recent news row
@@ -228,7 +224,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         } else if (vm.newsSnapshotsLoading) {
                             SectionTitle("Snapshots", "See news", onSeeNews)
                             Spacer(Modifier.height(8.dp))
-                            SnapshotsGridSkeleton()
+                            KikoSectionLoading()
                         }
                     }
                     // Top 3 MAL homepage
@@ -247,7 +243,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             }
                         } else if (vm.homeFeaturedArticlesLoading) {
                             SectionTitle("Featured Articles", "View more", onSeeFeaturedArticles)
-                            HomeFeaturedArticleRowSkeleton()
+                            KikoSectionLoading()
                         }
                     }
                     // Last 5 episode/chapter updates, newest first, scraped
@@ -272,7 +268,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             }
                         } else if (vm.historyLoading) {
                             SectionTitle("Last Updated List", "See more", onSeeHistory)
-                            HistoryRowSkeletonGroup(5)
+                            KikoSectionLoading()
                         }
                     }
                     // Top 10 genres + top 5 themes MAL-wide, rank-badged cards
@@ -902,7 +898,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 ) {
                     item(span = { GridItemSpan(maxLineSpan) }) { countRow() }
                     if (vm.loading && filtered.isEmpty()) {
-                        items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
+                        item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
                     } else {
                         itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, openItem, onIncrement, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) } }
                     }
@@ -912,7 +908,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = bottomInset)) {
                     item { countRow() }
                     if (vm.loading && filtered.isEmpty()) {
-                        item { ListRowSkeletonGroup(6) }
+                        item { KikoSectionLoading() }
                     } else {
                         itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                             StaggeredItem(index, staggerSeen) {
@@ -955,7 +951,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             // transition. Same fix as
             .padding(pad)
     ) {
-        // Height matches ListGridCardSkeleton's cover
+        // Height matches the grid card cover
         // real card don't jump
         Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, showRating = true, selected = isSelected)
         // Fixed to 2 lines

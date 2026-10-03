@@ -25,7 +25,6 @@ import com.kiko.tracker.data.api.MalApi
 import com.kiko.tracker.data.api.NetworkClient
 import com.kiko.tracker.navigation.KikoApp
 import com.kiko.tracker.ui.components.CrashDialog
-import com.kiko.tracker.ui.components.SkeletonPhaseProvider
 import com.kiko.tracker.util.AppUpdateChecker
 import com.kiko.tracker.util.AppUpdateInfo
 import com.kiko.tracker.util.copyCrashLogToClipboard
@@ -160,17 +159,14 @@ class MainActivity : ComponentActivity() {
                     callback = null
                 }
             }
-            // Single shared shimmer clock
-            // see SkeletonPhaseProvider in CommonComponents.kt.
-            SkeletonPhaseProvider {
-                KikoApp(
-                    vm,
-                    onSignIn = { if (BuildConfig.MAL_CLIENT_ID.isBlank()) vm.error = "Add your MAL Client ID to local.properties first" else CustomTabsIntent.Builder().build().launchUrl(this@MainActivity, Uri.parse(MalApi(this@MainActivity).authUrl())) },
-                    onSignOut = { vm.signOut(this@MainActivity) },
-                    malLink = malLink,
-                    onMalLinkHandled = { malLink = null },
-                )
-            }
+            KikoApp(
+                vm,
+                onSignIn = { if (BuildConfig.MAL_CLIENT_ID.isBlank()) vm.error = "Add your MAL Client ID to local.properties first" else CustomTabsIntent.Builder().build().launchUrl(this@MainActivity, Uri.parse(MalApi(this@MainActivity).authUrl())) },
+                onSignOut = { vm.signOut(this@MainActivity) },
+                malLink = malLink,
+                onMalLinkHandled = { malLink = null },
+            )
+
             // Shows once, right after
             // trace is one tap
             crashText?.let { text ->

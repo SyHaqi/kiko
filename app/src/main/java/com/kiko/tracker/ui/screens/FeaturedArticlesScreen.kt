@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeEnd
@@ -49,7 +50,6 @@ import com.kiko.tracker.data.model.FeaturedTag
 import com.kiko.tracker.ui.components.LinkifiedText
 import com.kiko.tracker.ui.components.Pill
 import com.kiko.tracker.ui.components.SearchField
-import com.kiko.tracker.ui.components.SkeletonBlock
 import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
@@ -149,14 +149,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     vm.featuredArticlesError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp)) }
                 }
                 if (vm.featuredArticlesLoading && vm.featuredArticles.isEmpty()) {
-                    items(6, key = { "skeleton_$it" }) { i ->
-                        StaggeredItem(i) {
-                            Column {
-                                FeaturedArticleListRowSkeleton()
-                                if (i < 5) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
-                            }
-                        }
-                    }
+                    item { KikoSectionLoading() }
                 } else if (vm.featuredArticles.isEmpty() && vm.featuredArticlesError == null) {
                     item(key = "empty") { Text("No articles found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
                 } else {
@@ -315,16 +308,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
 }
 
-@Composable fun FeaturedArticleListRowSkeleton() {
-    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
-        SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(16f / 9f), shape = RoundedCornerShape(kikoCorner(14.dp)))
-        SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth().height(16.dp))
-        SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.7f).height(16.dp))
-        SkeletonBlock(Modifier.padding(top = 10.dp).fillMaxWidth().height(13.dp))
-        SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.5f).height(13.dp))
-        SkeletonBlock(Modifier.padding(top = 10.dp).width(90.dp).height(14.dp))
-    }
-}
 
 // Single article reader — fetches MalDetailScrapeApi.fetchFeaturedArticle
 // directly in a LaunchedEffect, same "no ViewModel round-trip for content,
@@ -385,9 +368,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             Text(content?.title?.ifBlank { title } ?: title, style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 18.dp))
             if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.primary)
             error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
-            if (loading && content == null) {
-                FeaturedArticleReaderSkeleton()
-            }
             content?.let { data ->
                 if (data.author.isNotBlank() || data.date.isNotBlank() || data.views.isNotBlank()) {
                     Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -455,14 +435,3 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
 }
 
-@Composable fun FeaturedArticleReaderSkeleton() {
-    Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        SkeletonBlock(Modifier.fillMaxWidth().height(200.dp), shape = RoundedCornerShape(kikoCorner(16.dp)))
-        SkeletonBlock(Modifier.padding(top = 16.dp).fillMaxWidth().height(14.dp))
-        SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth().height(14.dp))
-        SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.7f).height(14.dp))
-        SkeletonBlock(Modifier.padding(top = 20.dp).fillMaxWidth(0.5f).height(16.dp))
-        SkeletonBlock(Modifier.padding(top = 12.dp).fillMaxWidth().height(14.dp))
-        SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.85f).height(14.dp))
-    }
-}

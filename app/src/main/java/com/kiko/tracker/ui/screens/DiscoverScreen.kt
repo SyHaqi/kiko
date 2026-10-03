@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -102,8 +103,6 @@ import com.kiko.tracker.ui.components.SearchBarFilterButton
 import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.theme.accent
-import com.kiko.tracker.ui.theme.ListGridCardSkeleton
-import com.kiko.tracker.ui.theme.ListRowSkeletonGroup
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.kikoCircleShape
@@ -525,23 +524,23 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 item {
                     when (vm.discoverTypeFilter) {
                         "Characters" -> {
-                            if (vm.characterSearching) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
+                            if (vm.characterSearching && vm.characterResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                             vm.characterError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                         }
                         "People" -> {
-                            if (vm.personSearching) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
+                            if (vm.personSearching && vm.personResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                             vm.personError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                         }
                         "Companies" -> {
-                            if (vm.companySearching) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
+                            if (vm.companySearching && vm.companyResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                             vm.companyError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                         }
                         "Users" -> {
-                            if (vm.userSearching) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
+                            if (vm.userSearching && vm.userResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                             vm.userError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                         }
                         "Anime", "Manga" -> {
-                            if (vm.discoverSearching) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
+                            if (vm.discoverSearching && vm.visibleDiscoverResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                             vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                         }
                         else -> {}
@@ -555,7 +554,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         }
                         val charResults = vm.characterResults
                         if (vm.characterSearching && charResults.isEmpty()) {
-                            item { ListRowSkeletonGroup(6) }
+                            item { KikoSectionLoading() }
                         } else {
                             itemsIndexed(charResults, key = { _, it -> "char_${it.malId}" }) { index, result ->
                                 StaggeredItem(index, staggerSeen) {
@@ -574,7 +573,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         }
                         val peopleResults = vm.personResults
                         if (vm.personSearching && peopleResults.isEmpty()) {
-                            item { ListRowSkeletonGroup(6) }
+                            item { KikoSectionLoading() }
                         } else {
                             itemsIndexed(peopleResults, key = { _, it -> "person_${it.malId}" }) { index, result ->
                                 StaggeredItem(index, staggerSeen) {
@@ -593,7 +592,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         }
                         val companyResultsList = vm.companyResults
                         if (vm.companySearching && companyResultsList.isEmpty()) {
-                            item { ListRowSkeletonGroup(6) }
+                            item { KikoSectionLoading() }
                         } else {
                             itemsIndexed(companyResultsList, key = { _, it -> "company_${it.malId}" }) { index, result ->
                                 StaggeredItem(index, staggerSeen) {
@@ -612,7 +611,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         }
                         val userResultsList = vm.userResults
                         if (vm.userSearching && userResultsList.isEmpty()) {
-                            item { ListRowSkeletonGroup(6) }
+                            item { KikoSectionLoading() }
                         } else {
                             itemsIndexed(userResultsList, key = { _, it -> "user_${it.username}" }) { index, result ->
                                 StaggeredItem(index, staggerSeen) {
@@ -639,17 +638,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         // ("Key ... was already
                         val resultsForList = vm.visibleDiscoverResults
                         if (vm.discoverSearching && resultsForList.isEmpty()) {
-                            if (isGrid) {
-                                repeat(3) { rowIndex ->
-                                    item(key = "discover_skeleton_row_$rowIndex") {
-                                        Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                                            repeat(3) { Box(Modifier.weight(1f)) { ListGridCardSkeleton() } }
-                                        }
-                                    }
-                                }
-                            } else {
-                                item { ListRowSkeletonGroup(6) }
-                            }
+                            item { KikoSectionLoading() }
                         } else if (isGrid) {
                             // LazyColumn (not LazyVerticalGrid) throughout this screen so the
                             // header/filters/type-branches above stay single-column — grid mode
@@ -1217,7 +1206,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
                 }
             }
             if (vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
-                items(9) { i -> StaggeredItem(i) { ListGridCardSkeleton() } }
+                item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
             } else {
                 itemsIndexed(vm.visibleRecommendations, key = { _, it -> it.id }) { index, item ->
                     StaggeredItem(index, staggerSeen) {
@@ -1259,7 +1248,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
             // wrapping every card in
             .padding(pad)
     ) {
-        // Height matches ListGridCardSkeleton's cover
+        // Height matches the grid card cover
         // real card don't jump
         Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, overrideStatus = myStatus, selected = isSelected)
         Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
