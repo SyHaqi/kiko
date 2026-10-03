@@ -7,9 +7,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -104,6 +101,8 @@ import com.kiko.tracker.ui.components.StatBlock
 import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.components.statusColor
+import com.kiko.tracker.ui.components.badgeIcon
+import com.kiko.tracker.ui.components.rememberBelowAnchorTooltipPositionProvider
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.kikoCircleShape
@@ -592,11 +591,14 @@ data class DetailScreenActions(
                         if (meta.isNotEmpty()) Text(meta.joinToString("   ·   "), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
                     }
 
-                    // Detail tabs — Material 3 primary tabs. The selected tab shows icon + label, the
-                    // rest are icon-only (labels still reach TalkBack through contentDescription). The
-                    // row lives inside the LazyColumn item, so it scrolls away with the header
-                    // instead of pinning, and the page below has no fixed height. It sits outside the
-                    // 14dp margins so the divider runs edge to edge.
+                    // Detail tabs — a Material 3 Expressive connected button group (single-select),
+                    // built exactly like the spec / Compose sample: a Row of icon-only ToggleButtons
+                    // spaced by ButtonGroupDefaults.ConnectedSpaceBetween (2dp), using the stock
+                    // connected leading / middle / trailing shapes (outer corners full, inner corners
+                    // small; pressed and checked buttons morph to a full pill). Colors follow the
+                    // default toggle button roles: unchecked = surfaceContainer + onSurfaceVariant,
+                    // checked = primary + onPrimary. Size is the library default (40dp min height) with a 20dp icon = the spec's "small" button.
+                    // Labels are exposed to TalkBack through each icon's contentDescription.
                     val detailTabs = listOf(
                         "Info" to Icons.Default.Info,
                         "Casts" to Icons.Default.Groups,
@@ -604,37 +606,31 @@ data class DetailScreenActions(
                         "Stats" to Icons.Default.BarChart,
                         "Forum" to Icons.Default.Forum,
                     )
-                    PrimaryTabRow(
-                        selectedTabIndex = selectedTab,
-                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
-                        containerColor = Color.Transparent,
-                        contentColor = c.primary,
-                        divider = { HorizontalDivider(color = c.outlineVariant) },
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
                     ) {
                         detailTabs.forEachIndexed { index, (label, icon) ->
-                            val isSelected = index == selectedTab
-                            Tab(
-                                selected = isSelected,
-                                onClick = { if (selectedTab != index) { selectedTab = index; actions.onSelectTab(index) } },
-                                modifier = Modifier.height(48.dp),
-                                selectedContentColor = c.primary,
-                                unselectedContentColor = c.muted,
+                            ToggleButton(
+                                checked = index == selectedTab,
+                                onCheckedChange = { if (selectedTab != index) { selectedTab = index; actions.onSelectTab(index) } },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .semantics { role = Role.RadioButton },
+                                shapes = when (index) {
+                                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                    detailTabs.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                },
+                                colors = ToggleButtonDefaults.toggleButtonColors(
+                                    containerColor = c.surfaceContainer,
+                                    contentColor = c.onSurfaceVariant,
+                                    checkedContainerColor = c.primary,
+                                    checkedContentColor = c.onPrimary,
+                                ),
+                                contentPadding = PaddingValues(horizontal = 0.dp),
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
-                                    AnimatedVisibility(
-                                        visible = isSelected,
-                                        enter = fadeIn(tween(180)) + expandHorizontally(tween(220)),
-                                        exit = fadeOut(tween(90)) + shrinkHorizontally(tween(180)),
-                                    ) {
-                                        Text(
-                                            label,
-                                            modifier = Modifier.padding(start = 4.dp),
-                                            fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                                            maxLines = 1, softWrap = false,
-                                        )
-                                    }
-                                }
+                                Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
@@ -1365,7 +1361,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
         // visibility. With the order fixed, the sheet's anchors never move
         // and that workaround isn't needed anymore.
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState()).imePadding()) {
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 22.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { confirmDelete = true }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Delete") }
                 Button(
                     onClick = { onSave(item.copy(status = status, progress = progress, myRating = rating, watchStartDate = startDate, watchEndDate = endDate, isRewatching = rewatching, timesRewatched = timesRewatched, rewatchValue = rewatchValue, priority = priority, notes = notes, comments = comments)) },
@@ -1373,28 +1369,67 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                 ) { Text("Save change") }
             }
 
+            // Which entry is being edited: media type + title.
+            Text(
+                item.type.name.uppercase(),
+                color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
+                modifier = Modifier,
+            )
+            Text(
+                item.displayTitle(),
+                color = c.ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 24.sp,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp, bottom = 22.dp),
+            )
+
             Text("Status", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink)
             val statusOptions = remember(item.type) { WatchStatus.entries.filterNot { it == if (item.type == MediaType.Anime) WatchStatus.Reading else WatchStatus.Watching } }
-            val statusListState = rememberLazyListState()
-            val statusScope = rememberCoroutineScope()
-            LazyRow(state = statusListState, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 9.dp)) {
-                itemsIndexed(statusOptions) { index, s ->
-                    FilterChip(
-                        selected = status == s,
-                        onClick = {
-                            status = s
-                            // Auto-fill progress to the
-                            if (s == WatchStatus.Completed && item.total > 0) progress = item.total
-                            // Auto-fill start date to
-                            // an already-set date is
-                            if ((s == WatchStatus.Watching || s == WatchStatus.Reading) && startDate.isBlank()) {
-                                startDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+            // Icon-only connected button group (single-select); long-press an icon for its name.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+                horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+            ) {
+                statusOptions.forEachIndexed { index, s ->
+                    val statusLabel = s.displayLabel(item.type)
+                    // weight() has to be on a direct child of the Row — TooltipBox wraps its anchor in
+                    // its own Box, so a weight passed to TooltipBox is ignored and the first button
+                    // swallowed the whole row. This Box takes the weighted slot instead.
+                    Box(Modifier.weight(1f)) {
+                        TooltipBox(
+                            positionProvider = rememberBelowAnchorTooltipPositionProvider(),
+                            tooltip = { PlainTooltip { Text(statusLabel) } },
+                            state = rememberTooltipState(),
+                        ) {
+                            ToggleButton(
+                                checked = status == s,
+                                onCheckedChange = {
+                                    status = s
+                                    // Auto-fill progress to the
+                                    if (s == WatchStatus.Completed && item.total > 0) progress = item.total
+                                    // Auto-fill start date to
+                                    // an already-set date is
+                                    if ((s == WatchStatus.Watching || s == WatchStatus.Reading) && startDate.isBlank()) {
+                                        startDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().semantics { role = Role.RadioButton },
+                                shapes = when (index) {
+                                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                    statusOptions.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                },
+                                colors = ToggleButtonDefaults.toggleButtonColors(
+                                    containerColor = c.surfaceContainer,
+                                    contentColor = c.onSurfaceVariant,
+                                    checkedContainerColor = c.primary,
+                                    checkedContentColor = c.onPrimary,
+                                ),
+                                contentPadding = PaddingValues(horizontal = 0.dp),
+                            ) {
+                                Icon(s.badgeIcon(), contentDescription = statusLabel, modifier = Modifier.size(20.dp))
                             }
-                            statusScope.centerChip(statusListState, index)
-                        },
-                        label = { Text(s.displayLabel(item.type)) },
-                        colors = kikoFilterChipColors(),
-                    )
+                        }
+                    }
                 }
             }
 
