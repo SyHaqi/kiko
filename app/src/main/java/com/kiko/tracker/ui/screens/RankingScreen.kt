@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.CoverScoreMark
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
@@ -193,15 +194,7 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
         // edit/delete made elsewhere shows up here immediately.
         Box(Modifier.size(width = 100.dp, height = 150.dp)) {
             Cover(item, Modifier.fillMaxSize(), showStatus = true, overrideStatus = myStatus)
-            if (item.score > 0) {
-                Row(
-                    Modifier.align(Alignment.BottomStart).padding(6.dp).clip(RoundedCornerShape(kikoCorner(8.dp))).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 6.dp, vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
-                    Text(item.score.twoDecimals(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
-                }
-            }
+            if (item.score > 0) CoverScoreMark(item.score.twoDecimals(), Modifier.align(Alignment.BottomStart).padding(6.dp))
         }
         // Text column is as tall as the cover: title starts at the cover's top edge, the
         // details/timer lines follow it, and the members count + rank number are pinned to the

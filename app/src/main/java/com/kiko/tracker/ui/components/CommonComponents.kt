@@ -47,6 +47,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
@@ -318,7 +319,7 @@ fun SkeletonPhaseProvider(content: @Composable () -> Unit) {
         // items that weren't sourced
         if (showStatus) (overrideStatus ?: trackedBadgeStatus(item))?.let { CoverStatusMark(it, Modifier.align(statusAlignment).padding(6.dp)) }
         // User's own score, bottom-right
-        if (showRating && item.myRating > 0) CoverRatingMark(item.myRating, Modifier.align(Alignment.BottomEnd).padding(6.dp))
+        if (showRating && item.myRating > 0) CoverRatingMark(item.myRating, Modifier.align(Alignment.BottomStart).padding(6.dp))
         // Long-press selection — tint
         AnimatedVisibility(
             visible = selected,
@@ -353,27 +354,39 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     WatchStatus.Dropped -> Icons.Default.Close
     WatchStatus.Plan -> Icons.Default.Bookmark
 }
-// Small color coded dot
+// Status tag: M3-style rounded-square container in the status colour (no outline), lifted off
+// the cover with a standard neutral elevation shadow. The corner radius is the cover's 16dp
+// corner minus the 6dp inset callers place it at, so the corners stay concentric. The shadow
+// belongs to the mark itself, so it only exists on covers that have a tag.
 
 @Composable fun CoverStatusMark(status: WatchStatus, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(kikoCorner(10.dp))
     Box(
-        modifier.size(22.dp).clip(kikoCircleShape()).background(statusColor(status)).border(1.5.dp, Color.White.copy(alpha = .9f), kikoCircleShape()),
+        modifier.size(24.dp).shadow(elevation = 4.dp, shape = shape).clip(shape).background(statusColor(status)),
         contentAlignment = Alignment.Center,
-    ) { Icon(status.badgeIcon(), status.label, tint = Color.White, modifier = Modifier.size(13.dp)) }
+    ) { Icon(status.badgeIcon(), status.label, tint = Color.White, modifier = Modifier.size(15.dp)) }
 }
-// User's score, pinned to
+// User's score, pinned to the cover's bottom-end corner. Same construction as CoverStatusMark:
+// rounded-square tonal container (theme surface container, no outline) on a neutral elevation
+// shadow, corner radius concentric with the cover's corner at the 6dp inset.
 
-@Composable fun CoverRatingMark(rating: Int, modifier: Modifier = Modifier) {
+@Composable fun CoverRatingMark(rating: Int, modifier: Modifier = Modifier) = CoverScoreMark(rating.toString(), modifier)
+
+// Same tag for any score text (the user's own score, or MAL's score on search / ranking covers).
+@Composable fun CoverScoreMark(text: String, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    val shape = RoundedCornerShape(kikoCorner(10.dp))
     Row(
         modifier
-            .clip(RoundedCornerShape(kikoCorner(7.dp)))
-            .background(Color.Black.copy(alpha = .6f))
-            .border(1.dp, Color.White.copy(alpha = .9f), RoundedCornerShape(kikoCorner(7.dp)))
-            .padding(horizontal = 6.dp, vertical = 3.dp),
+            .heightIn(min = 24.dp)
+            .shadow(elevation = 4.dp, shape = shape)
+            .clip(shape)
+            .background(c.surfaceContainerHigh)
+            .padding(horizontal = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
-        Text(rating.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
+        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
+        Text(text, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 3.dp))
     }
 }
 

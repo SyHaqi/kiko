@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.CoverScoreMark
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -910,15 +911,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         // Same 100x150 cover as ListRow so search results line up with My List.
         Box(Modifier.size(width = 100.dp, height = 150.dp)) {
             Cover(item, Modifier.fillMaxSize(), showStatus = true, overrideStatus = myStatus, selected = isSelected)
-            if (item.score > 0) {
-                Row(
-                    Modifier.align(Alignment.BottomStart).padding(6.dp).clip(RoundedCornerShape(kikoCorner(8.dp))).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 6.dp, vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
-                    Text(item.score.twoDecimals(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
-                }
-            }
+            if (item.score > 0) CoverScoreMark(item.score.twoDecimals(), Modifier.align(Alignment.BottomStart).padding(6.dp))
             if (loading) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
                     KikoLoadingIndicator(color = Color.White, size = 28.dp)

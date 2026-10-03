@@ -392,7 +392,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
             // Same icon+border badge as Cover()'s showStatus, top-start.
             CoverStatusMark(entry.status, Modifier.align(Alignment.TopStart).padding(6.dp))
             // Same pill badge as Cover()'s showRating, bottom-end.
-            if (entry.score > 0) CoverRatingMark(entry.score, Modifier.align(Alignment.BottomEnd).padding(6.dp))
+            if (entry.score > 0) CoverRatingMark(entry.score, Modifier.align(Alignment.BottomStart).padding(6.dp))
         }
         Text(
             entry.title, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, color = c.ink,
