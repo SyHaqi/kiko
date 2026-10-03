@@ -7,6 +7,9 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -589,14 +592,11 @@ data class DetailScreenActions(
                         if (meta.isNotEmpty()) Text(meta.joinToString("   ·   "), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
                     }
 
-                    // Detail tabs — a Material 3 Expressive connected button group (single-select),
-                    // built exactly like the spec / Compose sample: a Row of icon-only ToggleButtons
-                    // spaced by ButtonGroupDefaults.ConnectedSpaceBetween (2dp), using the stock
-                    // connected leading / middle / trailing shapes (outer corners full, inner corners
-                    // small; pressed and checked buttons morph to a full pill). Colors follow the
-                    // default toggle button roles: unchecked = surfaceContainer + onSurfaceVariant,
-                    // checked = primary + onPrimary. Size is the library default (40dp min height) with a 20dp icon = the spec's "small" button.
-                    // Labels are exposed to TalkBack through each icon's contentDescription.
+                    // Detail tabs — Material 3 primary tabs. The selected tab shows icon + label, the
+                    // rest are icon-only (labels still reach TalkBack through contentDescription). The
+                    // row lives inside the LazyColumn item, so it scrolls away with the header
+                    // instead of pinning, and the page below has no fixed height. It sits outside the
+                    // 14dp margins so the divider runs edge to edge.
                     val detailTabs = listOf(
                         "Info" to Icons.Default.Info,
                         "Casts" to Icons.Default.Groups,
@@ -604,31 +604,37 @@ data class DetailScreenActions(
                         "Stats" to Icons.Default.BarChart,
                         "Forum" to Icons.Default.Forum,
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                    PrimaryTabRow(
+                        selectedTabIndex = selectedTab,
+                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                        containerColor = Color.Transparent,
+                        contentColor = c.primary,
+                        divider = { HorizontalDivider(color = c.outlineVariant) },
                     ) {
                         detailTabs.forEachIndexed { index, (label, icon) ->
-                            ToggleButton(
-                                checked = index == selectedTab,
-                                onCheckedChange = { if (selectedTab != index) { selectedTab = index; actions.onSelectTab(index) } },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .semantics { role = Role.RadioButton },
-                                shapes = when (index) {
-                                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                    detailTabs.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                                },
-                                colors = ToggleButtonDefaults.toggleButtonColors(
-                                    containerColor = c.surfaceContainer,
-                                    contentColor = c.onSurfaceVariant,
-                                    checkedContainerColor = c.primary,
-                                    checkedContentColor = c.onPrimary,
-                                ),
-                                contentPadding = PaddingValues(horizontal = 0.dp),
+                            val isSelected = index == selectedTab
+                            Tab(
+                                selected = isSelected,
+                                onClick = { if (selectedTab != index) { selectedTab = index; actions.onSelectTab(index) } },
+                                modifier = Modifier.height(48.dp),
+                                selectedContentColor = c.primary,
+                                unselectedContentColor = c.muted,
                             ) {
-                                Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+                                    AnimatedVisibility(
+                                        visible = isSelected,
+                                        enter = fadeIn(tween(180)) + expandHorizontally(tween(220)),
+                                        exit = fadeOut(tween(90)) + shrinkHorizontally(tween(180)),
+                                    ) {
+                                        Text(
+                                            label,
+                                            modifier = Modifier.padding(start = 4.dp),
+                                            fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                            maxLines = 1, softWrap = false,
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
