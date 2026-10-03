@@ -656,12 +656,20 @@ data class DetailScreenActions(
                                         }
                                         if (details.isNotEmpty()) {
                                             SectionTitle("Details", "", {})
-                                            Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                                                Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
-                                                    details.forEachIndexed { i, (label, value) ->
-                                                        val isCreatorRow = (label == "Studio" || label == "Author") && item.creator.isNotBlank()
-                                                        InfoRow(label, value, onClick = if (isCreatorRow) { { actions.onCreatorClick(item.creator) } } else null)
-                                                        if (i != details.lastIndex) HorizontalDivider(color = c.outlineVariant)
+                                            // Same grouped tonal rows as Settings: big outer corners, tight inner
+                                            // corners, a thin gap between rows instead of dividers.
+                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                details.forEachIndexed { i, (label, value) ->
+                                                    val isCreatorRow = (label == "Studio" || label == "Author") && item.creator.isNotBlank()
+                                                    DetailGroupRow(i, details.size, onClick = if (isCreatorRow) { { actions.onCreatorClick(item.creator) } } else null) {
+                                                        Text(label, color = c.muted, fontSize = 14.sp)
+                                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).padding(start = 16.dp), horizontalArrangement = Arrangement.End) {
+                                                            Text(
+                                                                value, color = if (isCreatorRow) c.primary else c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp,
+                                                                textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                                            )
+                                                            if (isCreatorRow) Icon(Icons.Default.ChevronRight, null, tint = c.primary, modifier = Modifier.size(18.dp).padding(start = 2.dp))
+                                                        }
                                                     }
                                                 }
                                             }
@@ -669,13 +677,10 @@ data class DetailScreenActions(
 
                                         if (item.synonyms.isNotEmpty()) {
                                             SectionTitle("Alternative titles", "", {})
-                                            Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                                                SelectionContainer {
-                                                    Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
-                                                        item.synonyms.forEachIndexed { i, name ->
-                                                            Text(name, color = c.ink, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 11.dp))
-                                                            if (i != item.synonyms.lastIndex) HorizontalDivider(color = c.outlineVariant)
-                                                        }
+                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                item.synonyms.forEachIndexed { i, name ->
+                                                    DetailGroupRow(i, item.synonyms.size) {
+                                                        SelectionContainer(Modifier.weight(1f)) { Text(name, color = c.ink, fontSize = 14.sp) }
                                                     }
                                                 }
                                             }
@@ -686,36 +691,28 @@ data class DetailScreenActions(
                                             SectionTitle("Theme songs", "", {})
                                             val visibleThemes = if (themesExpanded) themes else themes.take(4)
                                             val themesArrowRotation by animateFloatAsState(if (themesExpanded) 180f else 0f, label = "themesArrowRotation")
-                                            Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                                                Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).animateContentSize()) {
-                                                    visibleThemes.forEachIndexed { i, (kind, text) ->
-                                                        Row(
-                                                            Modifier.fillMaxWidth().kikoClickable { uriHandler.openUri(youtubeSearchUrl("$text $itemDisplayTitle")) }.padding(vertical = 11.dp),
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                        ) {
-                                                            Text(kind, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.width(28.dp))
-                                                            Text(text, color = c.ink, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
-                                                            Icon(Icons.Default.PlayArrow, "Search on YouTube", tint = c.muted, modifier = Modifier.size(18.dp))
-                                                        }
-                                                        if (i != visibleThemes.lastIndex || themes.size > 4) HorizontalDivider(color = c.outlineVariant)
+                                            val themeRowCount = visibleThemes.size + if (themes.size > 4) 1 else 0
+                                            Column(Modifier.animateContentSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                visibleThemes.forEachIndexed { i, (kind, text) ->
+                                                    DetailGroupRow(i, themeRowCount, onClick = { uriHandler.openUri(youtubeSearchUrl("$text $itemDisplayTitle")) }) {
+                                                        Text(kind, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.width(32.dp))
+                                                        Text(text, color = c.ink, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
+                                                        Icon(Icons.Default.PlayArrow, "Search on YouTube", tint = c.muted, modifier = Modifier.size(20.dp))
                                                     }
-                                                    if (themes.size > 4) {
-                                                        Row(
-                                                            Modifier.fillMaxWidth().kikoClickable { themesExpanded = !themesExpanded }.padding(vertical = 11.dp),
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                        ) {
-                                                            Text(
-                                                                if (themesExpanded) "Show less" else "Show ${themes.size - 4} more",
-                                                                color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                                                                modifier = Modifier.weight(1f),
-                                                            )
-                                                            Icon(
-                                                                Icons.Default.KeyboardArrowDown,
-                                                                contentDescription = if (themesExpanded) "Show less" else "Show more",
-                                                                tint = c.muted,
-                                                                modifier = Modifier.size(20.dp).rotate(themesArrowRotation),
-                                                            )
-                                                        }
+                                                }
+                                                if (themes.size > 4) {
+                                                    DetailGroupRow(themeRowCount - 1, themeRowCount, onClick = { themesExpanded = !themesExpanded }) {
+                                                        Text(
+                                                            if (themesExpanded) "Show less" else "Show ${themes.size - 4} more",
+                                                            color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                                                            modifier = Modifier.weight(1f),
+                                                        )
+                                                        Icon(
+                                                            Icons.Default.KeyboardArrowDown,
+                                                            contentDescription = if (themesExpanded) "Show less" else "Show more",
+                                                            tint = c.primary,
+                                                            modifier = Modifier.size(22.dp).rotate(themesArrowRotation),
+                                                        )
                                                     }
                                                 }
                                             }
@@ -1022,6 +1019,31 @@ data class DetailScreenActions(
             }
         }
     }
+}
+
+/** Corner shape for row [index] of [count] in a grouped list: large outer corners on the first/last row,
+ * tight inner corners between rows. Same scale as the Settings page. */
+private fun detailGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape {
+    val outer = 28.dp
+    val inner = 4.dp
+    if (count == 1) return RoundedCornerShape(outer)
+    return when (index) {
+        0 -> RoundedCornerShape(topStart = outer, topEnd = outer, bottomStart = inner, bottomEnd = inner)
+        count - 1 -> RoundedCornerShape(topStart = inner, topEnd = inner, bottomStart = outer, bottomEnd = outer)
+        else -> RoundedCornerShape(inner)
+    }
+}
+
+/** One tonal row of a grouped list (Details / Alternative titles / Theme songs). */
+@Composable private fun DetailGroupRow(index: Int, count: Int, onClick: (() -> Unit)? = null, content: @Composable RowScope.() -> Unit) {
+    val c = LocalKikoColors.current
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(detailGroupShape(index, count)).background(c.surfaceContainer)
+            .let { if (onClick != null) it.kikoClickable(scale = 0.98f, onClick = onClick) else it }
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
 }
 
 @Composable fun InfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
