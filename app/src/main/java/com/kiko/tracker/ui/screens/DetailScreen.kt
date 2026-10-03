@@ -591,14 +591,11 @@ data class DetailScreenActions(
                         if (meta.isNotEmpty()) Text(meta.joinToString("   ·   "), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
                     }
 
-                    // Detail tabs — a Material 3 Expressive connected button group (single-select),
-                    // built exactly like the spec / Compose sample: a Row of icon-only ToggleButtons
-                    // spaced by ButtonGroupDefaults.ConnectedSpaceBetween (2dp), using the stock
-                    // connected leading / middle / trailing shapes (outer corners full, inner corners
-                    // small; pressed and checked buttons morph to a full pill). Colors follow the
-                    // default toggle button roles: unchecked = surfaceContainer + onSurfaceVariant,
-                    // checked = primary + onPrimary. Size is the library default (40dp min height) with a 20dp icon = the spec's "small" button.
-                    // Labels are exposed to TalkBack through each icon's contentDescription.
+                    // Detail tabs — stock Material 3 primary tabs, icon only (stock 48dp icon-only
+                    // height); long-press an icon for its name. The row lives
+                    // inside the LazyColumn item, so it scrolls away with the header instead of
+                    // pinning, and the page below has no fixed height. It sits outside the 14dp
+                    // margins so the divider runs edge to edge.
                     val detailTabs = listOf(
                         "Info" to Icons.Default.Info,
                         "Casts" to Icons.Default.Groups,
@@ -606,31 +603,26 @@ data class DetailScreenActions(
                         "Stats" to Icons.Default.BarChart,
                         "Forum" to Icons.Default.Forum,
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                    PrimaryTabRow(
+                        selectedTabIndex = selectedTab,
+                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                        containerColor = Color.Transparent,
+                        contentColor = c.primary,
+                        divider = { HorizontalDivider(color = c.outlineVariant) },
                     ) {
                         detailTabs.forEachIndexed { index, (label, icon) ->
-                            ToggleButton(
-                                checked = index == selectedTab,
-                                onCheckedChange = { if (selectedTab != index) { selectedTab = index; actions.onSelectTab(index) } },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .semantics { role = Role.RadioButton },
-                                shapes = when (index) {
-                                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                    detailTabs.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                                },
-                                colors = ToggleButtonDefaults.toggleButtonColors(
-                                    containerColor = c.surfaceContainer,
-                                    contentColor = c.onSurfaceVariant,
-                                    checkedContainerColor = c.primary,
-                                    checkedContentColor = c.onPrimary,
-                                ),
-                                contentPadding = PaddingValues(horizontal = 0.dp),
+                            TooltipBox(
+                                positionProvider = rememberBelowAnchorTooltipPositionProvider(),
+                                tooltip = { PlainTooltip { Text(label) } },
+                                state = rememberTooltipState(),
                             ) {
-                                Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+                                Tab(
+                                    selected = index == selectedTab,
+                                    onClick = { if (selectedTab != index) { selectedTab = index; actions.onSelectTab(index) } },
+                                    selectedContentColor = c.primary,
+                                    unselectedContentColor = c.muted,
+                                    icon = { Icon(icon, contentDescription = label) },
+                                )
                             }
                         }
                     }
