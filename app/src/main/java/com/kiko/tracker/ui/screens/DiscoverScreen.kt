@@ -440,6 +440,17 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val myListStatus = remember(vm.items) { vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap() }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    // A new search (typed query, type switch, sort/filter change) must jump back to the first
+    // result and reveal the loading indicator at the top of the list; otherwise, if you had
+    // scrolled down, the search ran off-screen with nothing to show for it.
+    val searchingNow = when (vm.discoverTypeFilter) {
+        "Characters" -> vm.characterSearching
+        "People" -> vm.personSearching
+        "Companies" -> vm.companySearching
+        "Users" -> vm.userSearching
+        else -> vm.discoverSearching
+    }
+    LaunchedEffect(searchingNow) { if (searchingNow) listState.scrollToItem(0) }
     // Bounds (in root coordinates)
     // the suggestions list directly
     var containerBounds by remember { mutableStateOf<Rect?>(null) }
