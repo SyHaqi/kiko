@@ -61,6 +61,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import kotlin.math.roundToInt
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -171,8 +172,8 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
         // than another tile in a stack of cards. Everything below the hero
         // applies its own horizontal inset instead.
         Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 13.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = exitProfile, modifier = Modifier.headerEdgeStart(20.dp)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 13.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = exitProfile, modifier = Modifier.headerEdgeStart(14.dp)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                 // "Profile" moved down to a small eyebrow label above the
                 // username in the avatar/name row below (ProfileStatsSection),
                 // matching DetailScreen's small-label-above-title pattern —
@@ -184,7 +185,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                 // shown once connected, since both items need a MAL session.
                 if (connected) {
                     var moreOpen by remember { mutableStateOf(false) }
-                    Box(Modifier.headerEdgeEnd(20.dp)) {
+                    Box(Modifier.headerEdgeEnd(14.dp)) {
                         IconButton(onClick = { moreOpen = true }) {
                             Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
                         }
@@ -352,58 +353,53 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     Column {
         // Body content sits on the plain page background, same margin as
         // everywhere else — no tonal banner setting the header apart.
-        Column(Modifier.padding(horizontal = 20.dp)) {
+        Column(Modifier.padding(horizontal = 14.dp)) {
             if (connected && profile != null) {
-                // ---- Header: avatar left, name right -------------------------
-                // Same rounded-square avatar shape as the app header's Avatar()
-                // (RoundedCornerShape, not a circle), just larger — reads as
-                // the same avatar language used everywhere else in Kiko.
-                Row(Modifier.fillMaxWidth().padding(top = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (profile.picture.isNotBlank()) {
-                        AsyncImage(
-                            model = profile.picture, contentDescription = profile.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            modifier = Modifier.size(72.dp).clip(RoundedCornerShape(kikoCorner(28.dp))).background(c.warm),
-                        )
-                    } else {
-                        Box(Modifier.size(72.dp).clip(RoundedCornerShape(kikoCorner(28.dp))).background(c.warm), contentAlignment = Alignment.Center) {
-                            Text(profile.name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 26.sp, color = c.ink)
+                // ---- Header: circular avatar, the name, and detail chips (M3); sections are separated by whitespace, not cards.
+                Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        if (profile.picture.isNotBlank()) {
+                            AsyncImage(
+                                model = profile.picture, contentDescription = profile.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.size(80.dp).clip(kikoCircleShape()).background(c.warm),
+                            )
+                        } else {
+                            Box(Modifier.size(80.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
+                                Text(profile.name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 26.sp, color = c.ink)
+                            }
+                        }
+                        Column(Modifier.padding(start = 16.dp).weight(1f)) {
+                            // Small "PROFILE" eyebrow label above the username.
+                            Text("PROFILE", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp)
+                            Text(
+                                profile.name.ifBlank { "MyAnimeList" }, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                                color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
+                            )
                         }
                     }
-                    Column(Modifier.padding(start = 16.dp).weight(1f)) {
-                        // Small "PROFILE" eyebrow label above the username —
-                        // same treatment DetailScreen gives its type/format
-                        // label above the title (color c.primary, bold,
-                        // uppercase, letterSpacing) — now that the header
-                        // row's own "Profile" text is gone.
-                        Text("PROFILE", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp)
-                        Text(
-                            profile.name.ifBlank { "MyAnimeList" }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
-                            color = c.ink, modifier = Modifier.padding(top = 2.dp),
-                        )
-                    }
-                }
-                // "Open in browser" / sign out live in the 3-dot menu up in
-                // the Profile header (ProfileStatsScreen) instead of here.
-                val details = detailsPills ?: listOfNotNull(
-                    profile.location.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.LocationOn, it) },
-                    profile.gender.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.Person, it) },
-                    profile.birthday.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Cake, formatFullDate(it)) },
-                    // Was a plain "Joined ..." line next to the name
-                    // above — moved down here as a pill (same ISO-date
-                    // formatting via formatFullDate) so it matches
-                    // FriendProfileScreen's Online/Gender/Born/Joined
-                    // pill row instead of looking like a different
-                    // pattern on your own profile. Own icon (Event,
-                    // vs. birthday's Cake) so the two dates read
-                    // differently at a glance.
-                    profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Event, formatFullDate(it)) },
-                )
-                if (details.isNotEmpty()) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(top = 14.dp),
-                    ) {
-                        details.forEach { Pill(it.text, c.surfaceLow, c.muted, icon = it.icon) }
+                    // "Open in browser" / sign out live in the 3-dot menu up in
+                    // the Profile header (ProfileStatsScreen) instead of here.
+                    val details = detailsPills ?: listOfNotNull(
+                        profile.location.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.LocationOn, it) },
+                        profile.gender.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.Person, it) },
+                        profile.birthday.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Cake, formatFullDate(it)) },
+                        // Was a plain "Joined ..." line next to the name
+                        // above — moved down here as a pill (same ISO-date
+                        // formatting via formatFullDate) so it matches
+                        // FriendProfileScreen's Online/Gender/Born/Joined
+                        // pill row instead of looking like a different
+                        // pattern on your own profile. Own icon (Event,
+                        // vs. birthday's Cake) so the two dates read
+                        // differently at a glance.
+                        profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Event, formatFullDate(it)) },
+                    )
+                    if (details.isNotEmpty()) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(top = 16.dp),
+                        ) {
+                            details.forEach { Pill(it.text, c.secondaryContainer, c.onSecondaryContainer, icon = it.icon) }
+                        }
                     }
                 }
                 // Right under the header — MAL's own mobile webview puts About Me
@@ -412,15 +408,17 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                 // friendsFavoritesLoading with Friends/Favorites below since
                 // it's scraped in the same round-trip (see loadProfileFriendsFavorites).
                 if (cachedAboutMe == null && friendsFavoritesLoading) {
-                    AboutMeCardSkeleton(bleed = 20.dp + outerInset)
+                    AboutMeCardSkeleton(bleed = 14.dp + outerInset)
                 } else {
-                    cachedAboutMe?.let { AboutMeCard(it, onOpenTitle = onOpenFavoriteTitle, bleed = 20.dp + outerInset) }
+                    cachedAboutMe?.let { AboutMeCard(it, onOpenTitle = onOpenFavoriteTitle, bleed = 14.dp + outerInset) }
                 }
                 if (hasFfSession) {
                     if (cachedFriends == null && friendsFavoritesLoading) {
+                        SectionDivider(14.dp + outerInset)
                         FriendsRowSkeleton()
                     } else {
                         cachedFriends?.takeIf { it.isNotEmpty() }?.let { friends ->
+                            SectionDivider(14.dp + outerInset)
                             FriendsRow(
                                 friends, c, onOpenFriend = onOpenFriend,
                                 initialScroll = friendsRowScroll, onScrollChange = onSaveFriendsRowScroll,
@@ -441,7 +439,6 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                         Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(20.dp))
                     }
                 }
-                HorizontalDivider(color = c.outlineVariant, thickness = 1.dp, modifier = Modifier.padding(top = 12.dp))
             }
 
             // Tabbed anime/manga stats card
@@ -476,16 +473,14 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
             val mangaChaptersDisplay = if (hasScrapedMangaStats) profile!!.mangaChaptersRead else mangaChaptersRead
             if (connected && ((profile?.animeTotalEntries ?: 0) > 0 || mangaItems.isNotEmpty())) {
                 if (animeDaysWatched > 0 || mangaDaysDisplay > 0) {
-                    Column(Modifier.fillMaxWidth().padding(top = 28.dp)) {
-                        Text("OVERVIEW", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 14.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            HeroStat(Modifier.weight(1f), Icons.Default.PlayCircle, "Days watched", animeDaysWatched.oneDecimal(), c.lavender, c.primary)
-                            HeroStat(Modifier.weight(1f), Icons.Default.MenuBook, if (hasScrapedMangaStats) "Days read" else "Days read (est.)", mangaDaysDisplay.oneDecimal(), c.primaryContainer, c.onPrimaryContainer)
-                        }
+                    Row(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OverviewTile(Modifier.weight(1f), Icons.Default.PlayCircle, "Days watched", animeDaysWatched.oneDecimal(), c.primaryContainer, c.onPrimaryContainer)
+                        OverviewTile(Modifier.weight(1f), Icons.Default.MenuBook, if (hasScrapedMangaStats) "Days read" else "Days read (est.)", mangaDaysDisplay.oneDecimal(), c.secondaryContainer, c.onSecondaryContainer)
                     }
                 }
-                Column(Modifier.fillMaxWidth().padding(top = 36.dp)) {
-                    Text("Stats", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(bottom = 16.dp))
+                SectionDivider(14.dp + outerInset)
+                Column(Modifier.fillMaxWidth().padding(top = 24.dp)) {
+                    Text("Stats", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.padding(bottom = 16.dp))
                     StatsTypeButtonGroup(statsTab) { onStatsTabChange(it) }
                     Spacer(Modifier.height(20.dp))
                     // Basic cross-fade between the
@@ -529,16 +524,16 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                                 }
                                 if (animeItems.isNotEmpty()) {
                                     Spacer(Modifier.height(24.dp))
-                                    Text("GENRE BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                                    GenreBreakdownChart(animeItems, c, onGenreClick = { onGenreClick(MediaType.Anime, it) })
+                                    Text("Genre breakdown", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
+                                    GenreRankedBars(animeItems, c, onGenreClick = { onGenreClick(MediaType.Anime, it) })
                                     Spacer(Modifier.height(24.dp))
-                                    Text("SCORE DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    Text("Score distribution", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
                                     ScoreDistributionChart(animeItems, c, onScoreClick = { onScoreClick(MediaType.Anime, it) })
                                     Spacer(Modifier.height(24.dp))
-                                    Text("FORMAT BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    Text("Format breakdown", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
                                     FormatBreakdownChart(animeItems, c, onFormatClick = { onFormatClick(MediaType.Anime, it) })
                                     Spacer(Modifier.height(24.dp))
-                                    Text("YEAR DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    Text("Year distribution", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
                                     YearDistributionChart(animeItems, c, onYearClick = { onYearClick(MediaType.Anime, it) })
                                 }
                             } else {
@@ -574,32 +569,33 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                                 }
                                 if (mangaItems.isNotEmpty()) {
                                     Spacer(Modifier.height(24.dp))
-                                    Text("GENRE BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
-                                    GenreBreakdownChart(mangaItems, c, onGenreClick = { onGenreClick(MediaType.Manga, it) })
+                                    Text("Genre breakdown", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
+                                    GenreRankedBars(mangaItems, c, onGenreClick = { onGenreClick(MediaType.Manga, it) })
                                     Spacer(Modifier.height(24.dp))
-                                    Text("SCORE DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    Text("Score distribution", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
                                     ScoreDistributionChart(mangaItems, c, onScoreClick = { onScoreClick(MediaType.Manga, it) })
                                     Spacer(Modifier.height(24.dp))
-                                    Text("FORMAT BREAKDOWN", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    Text("Format breakdown", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
                                     FormatBreakdownChart(mangaItems, c, onFormatClick = { onFormatClick(MediaType.Manga, it) })
                                     Spacer(Modifier.height(24.dp))
-                                    Text("YEAR DISTRIBUTION", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+                                    Text("Year distribution", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
                                     YearDistributionChart(mangaItems, c, onYearClick = { onYearClick(MediaType.Manga, it) })
                                 }
                             }
                         }
                     }
                 }
-                HorizontalDivider(color = c.outlineVariant, thickness = 1.dp, modifier = Modifier.padding(top = 32.dp))
             }
 
             // Favorites, split by anime/manga/etc., right below the year
             // distribution charts above.
             if (connected && hasFfSession) {
                 if (cachedFavorites == null && friendsFavoritesLoading) {
+                    SectionDivider(14.dp + outerInset)
                     FavoritesRowsSectionSkeleton()
                 } else {
-                    cachedFavorites?.let {
+                    cachedFavorites?.takeIf { it.anime.isNotEmpty() || it.manga.isNotEmpty() || it.characters.isNotEmpty() || it.people.isNotEmpty() || it.companies.isNotEmpty() }?.let {
+                        SectionDivider(14.dp + outerInset)
                         FavoritesRowsSection(
                             it, c,
                             onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
@@ -627,6 +623,50 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                 }
             }
         }
+    }
+}
+
+// Genre breakdown as ranked, tappable rows: each genre is a rounded track whose tinted fill shows its
+// share relative to the top genre, with a color dot, the name, the count and the % of the list.
+@Composable private fun GenreRankedBars(items: List<MediaItem>, c: KikoColors, onGenreClick: ((String) -> Unit)? = null) {
+    val total = items.size
+    // Skip junk genre tags (same filter the old chart used)
+    val counts = items.flatMap { it.genres }.filter { it.isNotBlank() && it.trim().split(" ").size <= 3 && it.length <= 24 }
+        .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(6)
+    if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
+    val top = counts.first().value.coerceAtLeast(1)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        counts.forEachIndexed { index, (genre, count) ->
+            val color = chartColor(c, index)
+            val base = Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)
+            Box(if (onGenreClick != null) base.kikoClickable(scale = 0.98f) { onGenreClick(genre) } else base) {
+                Box(Modifier.fillMaxWidth(count.toFloat() / top).fillMaxHeight().background(color.copy(alpha = .30f)))
+                Row(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(8.dp).clip(kikoCircleShape()).background(color))
+                    Text(genre, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 10.dp).weight(1f))
+                    Text(count.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    if (total > 0) Text("${(count * 100f / total).roundToInt()}%", color = c.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp).widthIn(min = 32.dp), textAlign = TextAlign.End)
+                }
+            }
+        }
+    }
+}
+
+// Full-bleed M3 divider between main sections: spans the whole screen width, edge to edge.
+@Composable private fun SectionDivider(edgeInset: androidx.compose.ui.unit.Dp) {
+    val c = LocalKikoColors.current
+    HorizontalDivider(color = c.outlineVariant, thickness = 1.dp, modifier = Modifier.padding(top = 24.dp).bleedHorizontal(edgeInset))
+}
+
+// Overview tile: tonal container, icon in a tinted circle, big value over a small label.
+@Composable private fun OverviewTile(modifier: Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String, container: Color, content: Color) {
+    Column(modifier.clip(RoundedCornerShape(kikoCorner(24.dp))).background(container).padding(16.dp)) {
+        Box(Modifier.size(36.dp).clip(kikoCircleShape()).background(content.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = content, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = content)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = content.copy(alpha = .8f))
     }
 }
 
@@ -808,9 +848,9 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
 ) {
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialScroll.first, initialFirstVisibleItemScrollOffset = initialScroll.second)
     DisposableEffect(Unit) { onDispose { onScrollChange(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) } }
-    Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 24.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Friends", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
+            Text("Friends", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
         }
         Spacer(Modifier.height(16.dp))
         LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
@@ -819,10 +859,10 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
                     if (!friend.avatarUrl.isNullOrBlank()) {
                         AsyncImage(
                             model = friend.avatarUrl, contentDescription = friend.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh),
+                            modifier = Modifier.size(64.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh),
                         )
                     } else {
-                        Box(Modifier.size(64.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(64.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
                             Text(friend.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = c.ink)
                         }
                     }
@@ -841,15 +881,15 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
 // section doesn't just sit blank until the scrape finishes.
 @Composable fun FriendsRowSkeleton() {
     val c = LocalKikoColors.current
-    Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 24.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Friends", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
+            Text("Friends", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             repeat(5) {
                 Column(Modifier.width(70.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    SkeletonBlock(Modifier.size(64.dp), shape = RoundedCornerShape(kikoCorner(18.dp)))
+                    SkeletonBlock(Modifier.size(64.dp), shape = kikoCircleShape())
                     SkeletonBlock(Modifier.padding(top = 6.dp).fillMaxWidth(0.7f).height(11.dp))
                 }
             }
@@ -877,13 +917,13 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
         favorites.companies.takeIf { it.isNotEmpty() }?.let { "Companies" to it },
     )
     if (sections.isEmpty()) return
-    Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 24.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Favorites", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
+            Text("Favorites", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
         }
         sections.forEachIndexed { index, (label, entries) ->
             Spacer(Modifier.height(if (index == 0) 18.dp else 26.dp))
-            Text(label.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
+            Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.onSurfaceVariant, modifier = Modifier.padding(bottom = 10.dp))
             key(label) {
                 FavoritesCategoryRow(
                     label, entries, c,
@@ -901,9 +941,9 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
 // fetching, so the section doesn't just sit blank until it resolves.
 @Composable fun FavoritesRowsSectionSkeleton() {
     val c = LocalKikoColors.current
-    Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 24.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Favorites", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
+            Text("Favorites", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
         }
         repeat(2) { rowIndex ->
             Spacer(Modifier.height(if (rowIndex == 0) 18.dp else 26.dp))
