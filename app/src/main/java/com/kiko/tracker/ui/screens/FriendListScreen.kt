@@ -2,6 +2,8 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
+import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
 import androidx.activity.compose.BackHandler
@@ -164,7 +166,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
                     if (verifyingLogin) {
                         Box(Modifier.fillMaxSize().background(c.surface.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(color = c.primary)
+                                KikoLoadingIndicator(color = c.primary)
                                 Text("Confirming your MAL login…", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
                             }
                         }
@@ -196,7 +198,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
                 Text(username, color = c.muted, fontSize = 12.sp)
             }
         }
-        if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
+        if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent)
 
         // Keyed on username/type: switching to a different friend (or
         // switching anime/manga) should land back on "All" rather than
@@ -286,7 +288,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
         return
     }
     if (loading && entries == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, modifier = Modifier.padding(top = 40.dp)) }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { KikoLoadingIndicator(modifier = Modifier.padding(top = 40.dp), color = c.primary) }
         return
     }
 

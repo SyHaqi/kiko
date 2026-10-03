@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
@@ -47,7 +48,7 @@ import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.outlined.Logout as LogoutOutlined
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
@@ -165,7 +166,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     }
     // Restore scroll position on
     val scrollState = rememberScrollState(initial = scrollOffset)
-    PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
+    KikoPullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         // No blanket horizontal padding here anymore — the hero panel inside
         // ProfileStatsSection now runs edge-to-edge (full-bleed, no card
         // margin around it), the way a page header does on a website rather
@@ -1012,7 +1013,7 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
                     }
                     if (isLoading) {
                         Box(Modifier.matchParentSize().clip(RoundedCornerShape(kikoCorner(12.dp))).background(Color.Black.copy(alpha = .35f)), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                            KikoLoadingIndicator(color = Color.White, size = 26.dp)
                         }
                     }
                 }

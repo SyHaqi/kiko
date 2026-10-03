@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
 import android.net.Uri
@@ -102,7 +103,7 @@ import com.kiko.tracker.util.AppUpdateInfo
                     if (updateInfo != null) Box(Modifier.size(8.dp).align(Alignment.TopEnd).clip(kikoCircleShape()).background(c.danger))
                 }
             },
-            trailingContent = { if (updateChecking) CircularProgressIndicator(Modifier.size(18.dp), color = c.primary, strokeWidth = 2.dp) else Icon(Icons.Default.ChevronRight, null, tint = c.muted) },
+            trailingContent = { if (updateChecking) KikoLoadingIndicator(color = c.primary, size = 24.dp) else Icon(Icons.Default.ChevronRight, null, tint = c.muted) },
             colors = ListItemDefaults.colors(containerColor = c.surfaceContainer),
             modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !updateChecking, onClick = onCheckForUpdate),
         )

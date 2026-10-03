@@ -2,6 +2,8 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
+import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.util.openInBrowser
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -21,7 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,7 +117,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         onOpenClub(club)
     }
 
-    PullToRefreshBox(isRefreshing = loading, onRefresh = { runSearch(vm.clubsQuery) }, modifier = Modifier.fillMaxSize()) {
+    KikoPullToRefreshBox(isRefreshing = loading, onRefresh = { runSearch(vm.clubsQuery) }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 ExpandableSearchHeader(
@@ -141,7 +143,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         // 9dp (not 22dp) so content starts the same distance under the header as on the Seasonal screen.
                         modifier = Modifier.padding(top = 9.dp, bottom = 9.dp),
                     )
-                    if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 10.dp), color = c.primary, trackColor = c.surfaceLow)
                     error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 10.dp)) }
                 }
             }
@@ -166,7 +167,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 item {
                     Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
                         if (loadingMore) {
-                            CircularProgressIndicator(color = c.primary, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                            KikoLoadingIndicator(color = c.primary, size = 28.dp)
                         } else {
                             TextButton(onClick = { showMore() }, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("See more") }
                         }
@@ -267,7 +268,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                     )
                 }
                 Column(Modifier.padding(horizontal = 14.dp)) {
-                    if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), color = c.primary, trackColor = c.surfaceLow)
+                    if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), color = c.primary)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 16.dp)) {
                         Pill("${formatExact(full.members)} members", c.surfaceLow, c.muted)
                         if (full.category.isNotBlank()) Pill(full.category, c.surfaceLow, c.muted)
@@ -321,7 +322,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
         }
         Text("COUCH", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
         when {
-            loading -> Box(Modifier.fillMaxWidth().padding(top = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, modifier = Modifier.size(24.dp), strokeWidth = 2.dp) }
+            loading -> Box(Modifier.fillMaxWidth().padding(top = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 30.dp) }
             error != null -> Text(error!!, color = c.danger, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 10.dp), textAlign = TextAlign.Center)
             posts.isEmpty() -> {
                 Text("Couldn't find any Couch posts here — the layout may not have matched what we expected.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp))
@@ -428,7 +429,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                 if (hasMore) {
                     Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
                         if (loadingMore) {
-                            CircularProgressIndicator(color = c.primary, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                            KikoLoadingIndicator(color = c.primary, size = 28.dp)
                         } else {
                             TextButton(onClick = {
                                 loadingMore = true

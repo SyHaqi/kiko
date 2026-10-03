@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
 import androidx.activity.compose.BackHandler
@@ -81,7 +82,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
                     RankingSortMenu(vm.rankingSort, sorts) { vm.loadRanking(context, vm.rankingType, it) }
                 }
-                if (vm.rankingLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), color = c.primary, trackColor = c.surfaceLow)
+                if (vm.rankingLoading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), color = c.primary)
                 vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
             }
             if (vm.rankingLoading && vm.visibleRankingResults.isEmpty()) {

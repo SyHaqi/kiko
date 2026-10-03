@@ -2,6 +2,8 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
+import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
@@ -46,7 +48,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -164,7 +166,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val saveScroll = { vm.saveForumBoardsScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
-    PullToRefreshBox(isRefreshing = vm.forumBoardsLoading, onRefresh = { vm.loadForumBoards(context, force = true) }, modifier = Modifier.fillMaxSize()) {
+    KikoPullToRefreshBox(isRefreshing = vm.forumBoardsLoading, onRefresh = { vm.loadForumBoards(context, force = true) }, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
                 ExpandableSearchHeader(
@@ -188,7 +190,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 item { Text("Sign in from Profile to browse the MAL forums", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
             } else {
                 item {
-                    if (vm.forumBoardsLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
                     vm.forumBoardsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                 }
                 if (vm.forumBoardsLoading && vm.forumCategories.isEmpty()) {
@@ -328,7 +329,7 @@ private fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphic
                         itemsIndexed(vm.forumSubboards, key = { _, it -> it.id }) { index, sub -> FilterChip(selected = vm.forumSubboardId == sub.id, onClick = { vm.openForumSubboard(context, sub.id); scope.centerChip(subboardListState, index + 1) }, label = { Text(sub.title) }, colors = kikoFilterChipColors()) }
                     }
                 }
-                if (vm.forumTopicsLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                if (vm.forumTopicsLoading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                 vm.forumTopicsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
             }
             if (!vm.forumTopicsLoading && vm.forumTopics.isEmpty() && vm.forumTopicsError == null) {
@@ -347,7 +348,7 @@ private fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphic
                 }
             }
             if (vm.forumLoadingMore) {
-                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 28.dp) } }
             }
         }
         GoToTopButton(
@@ -621,7 +622,7 @@ private fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphic
             if (verifyingLogin) {
                 Box(Modifier.fillMaxSize().background(c.surface.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = c.primary)
+                        KikoLoadingIndicator(color = c.primary)
                         Text("Confirming your MAL login…", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
                     }
                 }
@@ -676,7 +677,7 @@ private fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphic
                         }
                     }
                     Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 18.dp))
-                    if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                    if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                     error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                     // Distinguishes "still loading" from
                     // topic's posts yet" —
@@ -723,7 +724,7 @@ private fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphic
                 if (loadingMore) {
                     item {
                         Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                            KikoLoadingIndicator(color = c.primary, size = 28.dp)
                         }
                     }
                 }
@@ -850,7 +851,7 @@ private fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphic
                         contentAlignment = Alignment.Center,
                     ) {
                         if (posting) {
-                            CircularProgressIndicator(color = c.onPrimary, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                            KikoLoadingIndicator(color = c.onPrimary, size = 24.dp)
                         } else {
                             Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = if (canSend) c.onPrimary else c.muted, modifier = Modifier.size(18.dp))
                         }
@@ -1030,7 +1031,7 @@ sealed class BbToken {
             ) {
                 when (painter.state) {
                     is AsyncImagePainter.State.Loading -> Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = c.primary, modifier = Modifier.size(26.dp), strokeWidth = 2.dp)
+                        KikoLoadingIndicator(color = c.primary, size = 32.dp)
                     }
                     is AsyncImagePainter.State.Error -> Column(
                         Modifier.fillMaxWidth().padding(16.dp),
@@ -1141,7 +1142,7 @@ sealed class BbToken {
                     },
             ) {
                 when (painter.state) {
-                    is AsyncImagePainter.State.Loading -> CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(32.dp))
+                    is AsyncImagePainter.State.Loading -> KikoLoadingIndicator(color = Color.White, size = 40.dp)
                     is AsyncImagePainter.State.Error -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.Warning, null, tint = Color.White.copy(alpha = .8f), modifier = Modifier.size(28.dp))
                         Text("Couldn't load image · tap to open", color = Color.White.copy(alpha = .8f), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
@@ -1207,7 +1208,7 @@ private fun openForumLink(url: String, uriHandler: androidx.compose.ui.platform.
                         modifier = Modifier.fillMaxWidth().clickable { runCatching { uriHandler.openUri(block.url) } },
                     )
                     resolved == null -> Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = c.primary, modifier = Modifier.size(26.dp), strokeWidth = 2.dp)
+                        KikoLoadingIndicator(color = c.primary, size = 32.dp)
                     }
                     else -> ForumImage(resolved!!, c, onImageTap)
                 }

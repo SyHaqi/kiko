@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
 import androidx.activity.compose.BackHandler
@@ -108,7 +109,7 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = c.primary)
+                        KikoLoadingIndicator(color = c.primary)
                         Text("Confirming your MAL login…", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
                     }
                 }
@@ -152,7 +153,7 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
         }
 
         when {
-            loading && friends == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, modifier = Modifier.padding(top = 40.dp)) }
+            loading && friends == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { KikoLoadingIndicator(modifier = Modifier.padding(top = 40.dp), color = c.primary) }
             error != null -> Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(error!!, color = c.muted, fontSize = 13.sp)
                 TextButton(onClick = { load() }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }

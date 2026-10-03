@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
 import androidx.activity.compose.BackHandler
@@ -14,7 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,7 +70,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
 
     Box(Modifier.fillMaxSize()) {
-        PullToRefreshBox(
+        KikoPullToRefreshBox(
             isRefreshing = vm.historyLoading && vm.history.isNotEmpty(),
             onRefresh = { vm.malProfile?.name?.let { vm.loadHistory(context, it, force = true) } },
             modifier = Modifier.fillMaxSize(),
@@ -84,7 +85,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 if (vm.historyLoading && vm.history.isEmpty()) {
                     item(key = "loading") {
                         Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = c.primary)
+                            KikoLoadingIndicator(color = c.primary)
                         }
                     }
                 } else if (vm.history.isEmpty()) {

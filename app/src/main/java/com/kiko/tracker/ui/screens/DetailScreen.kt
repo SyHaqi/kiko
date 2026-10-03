@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.util.openInBrowser
 import android.content.Intent
 import android.net.Uri
@@ -1193,7 +1194,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
             }
             if (loading) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .45f)), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(spinnerSize))
+                    KikoLoadingIndicator(color = Color.White, size = spinnerSize)
                 }
             }
             // Own tracking mark
@@ -1243,7 +1244,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
             }
             if (loading) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .45f)), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                    KikoLoadingIndicator(color = Color.White, size = 24.dp)
                 }
             }
         }

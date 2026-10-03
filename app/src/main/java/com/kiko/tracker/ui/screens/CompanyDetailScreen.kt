@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.util.openInBrowser
@@ -311,7 +312,7 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
                                             Box(
                                                 Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(Color.Black.copy(alpha = .45f)),
                                                 contentAlignment = Alignment.Center,
-                                            ) { CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp)) }
+                                            ) { KikoLoadingIndicator(color = Color.White, size = 26.dp) }
                                         }
                                     }
                                 }

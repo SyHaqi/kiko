@@ -2,6 +2,8 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
+import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
 import android.content.Context
@@ -110,7 +112,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         "${vm.seasonalSeason.label} ${vm.seasonalYear}" + if (isCurrentSeason) " · Current" else "",
                         color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp),
                     )
-                    if (vm.seasonalLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), color = c.primary, trackColor = c.surfaceLow)
+                    if (vm.seasonalLoading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), color = c.primary)
                     vm.seasonalError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) }
                     Spacer(Modifier.height(14.dp))
                 }
@@ -126,7 +128,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             if (vm.seasonalLoadingMore) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                        KikoLoadingIndicator(color = c.primary, size = 28.dp)
                     }
                 }
             }

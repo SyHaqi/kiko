@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
@@ -280,7 +281,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 }
             }
             if (vm.stacksBrowseLoading && vm.stacksBrowseResults.isNotEmpty()) {
-                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 28.dp) } }
             }
         }
         GoToTopButton(
@@ -523,7 +524,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                 }
                 if (vm.mediaStacksLoading && vm.mediaStacksResults.isNotEmpty()) {
-                    item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+                    item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 28.dp) } }
                 }
             }
             GoToTopButton(
@@ -923,7 +924,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopEnd).padding(6.dp)) }
             if (loading) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .35f)), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                    KikoLoadingIndicator(color = Color.White, size = 26.dp)
                 }
             }
             // Long-press selection — same

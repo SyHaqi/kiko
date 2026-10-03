@@ -38,7 +38,7 @@ import androidx.compose.material3.carousel.CarouselDefaults
 import androidx.compose.material3.carousel.CarouselItemScope
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -180,7 +180,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val trackedOpenTopic: (Int, String) -> Unit = onOpenTopic
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
-    PullToRefreshBox(
+    KikoPullToRefreshBox(
         isRefreshing = vm.loading,
         onRefresh = { vm.load(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeFeaturedArticles(force = true); vm.malProfile?.name?.let { vm.loadHistory(context, it, force = true) } },
         modifier = Modifier.fillMaxSize(),
@@ -779,7 +779,6 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                 }
             }
         }
-        if (vm.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent, trackColor = c.surfaceLow)
         // Status switcher — Material3 scrollable tabs
         // (replaces the old bottom-right filter FAB)
         // Header is the standard 72dp (same as Discover, so it doesn't jump between
@@ -884,7 +883,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     val showGoToTop by remember(isGrid) { derivedStateOf { if (isGrid) gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 else listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     // Go-to-top, bottom-right
     val bottomInset = 90.dp
-    PullToRefreshBox(isRefreshing = vm.loading, onRefresh = { vm.load(context) }, modifier = Modifier.fillMaxSize()) {
+    KikoPullToRefreshBox(isRefreshing = vm.loading, onRefresh = { vm.load(context) }, modifier = Modifier.fillMaxSize()) {
         // Basic cross-fade when switching
         // transition used elsewhere in
         AnimatedContent(

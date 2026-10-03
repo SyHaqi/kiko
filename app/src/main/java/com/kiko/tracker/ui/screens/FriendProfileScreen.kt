@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
@@ -24,7 +25,7 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -106,7 +107,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             if (verifyingLogin) {
                 Box(Modifier.fillMaxSize().background(c.surface.copy(alpha = 0.92f)), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = c.primary)
+                        KikoLoadingIndicator(color = c.primary)
                         Text("Confirming your MAL login…", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
                     }
                 }
@@ -149,7 +150,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // rebuilt on return — see FriendProfileState.scrollOffset's doc
     // comment in LibraryViewModel.
     DisposableEffect(username) { onDispose { vm.saveFriendProfileScroll(username, scrollState.value) } }
-    PullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refreshFriendProfile(context, username) }, modifier = Modifier.fillMaxSize()) {
+    KikoPullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refreshFriendProfile(context, username) }, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart(20.dp)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
@@ -201,7 +202,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         AsyncImage(model = avatarHint, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(64.dp).clip(kikoCircleShape()).background(c.warm))
                         Spacer(Modifier.height(16.dp))
                     }
-                    CircularProgressIndicator(color = c.primary)
+                    KikoLoadingIndicator(color = c.primary)
                 }
                 state.error != null && state.profile == null -> Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(state.error, color = c.muted, fontSize = 13.sp)

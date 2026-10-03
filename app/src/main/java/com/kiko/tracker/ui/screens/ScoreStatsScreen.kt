@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -56,7 +57,7 @@ import com.kiko.tracker.ui.theme.kikoCorner
             Text(item.title, style = MaterialTheme.typography.headlineSmall, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp, bottom = 20.dp))
             when {
                 loading && stats == null -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                    KikoLoadingIndicator(color = c.primary, size = 28.dp)
                 }
                 stats == null || stats!!.total == 0 -> Text("No score data yet.", color = c.muted, fontSize = 12.sp)
                 else -> {
@@ -120,7 +121,7 @@ import com.kiko.tracker.ui.theme.kikoCorner
             Text(item.title, style = MaterialTheme.typography.headlineSmall, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
             when {
                 loading && reviews.isEmpty() -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                    KikoLoadingIndicator(color = c.primary, size = 28.dp)
                 }
                 reviews.isEmpty() -> Text("No reviews yet.", color = c.muted, fontSize = 12.sp)
                 else -> Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -171,7 +172,7 @@ import com.kiko.tracker.ui.theme.kikoCorner
             }
             when {
                 loading && topics.isEmpty() -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                    KikoLoadingIndicator(color = c.primary, size = 28.dp)
                 }
                 topics.isEmpty() -> Text("No topics yet.", color = c.muted, fontSize = 12.sp)
                 else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

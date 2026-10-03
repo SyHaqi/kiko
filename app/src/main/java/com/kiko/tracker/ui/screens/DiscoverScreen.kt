@@ -2,6 +2,8 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoLoadingIndicator
+import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
 import android.content.Context
@@ -324,11 +326,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 // Loading and error states
                 if (vm.discoverBrowseLoading) {
                     item {
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                            color = c.primary,
-                            trackColor = c.surfaceLow
-                        )
+                        KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                     }
                 }
                 vm.discoverBrowseError?.let { error ->
@@ -516,23 +514,23 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 item {
                     when (vm.discoverTypeFilter) {
                         "Characters" -> {
-                            if (vm.characterSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                            if (vm.characterSearching) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                             vm.characterError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                         }
                         "People" -> {
-                            if (vm.personSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                            if (vm.personSearching) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                             vm.personError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                         }
                         "Companies" -> {
-                            if (vm.companySearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                            if (vm.companySearching) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                             vm.companyError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                         }
                         "Users" -> {
-                            if (vm.userSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                            if (vm.userSearching) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                             vm.userError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                         }
                         "Anime", "Manga" -> {
-                            if (vm.discoverSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary, trackColor = c.surfaceLow)
+                            if (vm.discoverSearching) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                             vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                         }
                         else -> {}
@@ -615,7 +613,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             }
                         }
                         if (vm.userLoadingMore) {
-                            item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+                            item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 28.dp) } }
                         }
                     }
                     else -> {
@@ -676,7 +674,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                 }
                 if (vm.discoverLoadingMore) {
-                    item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(22.dp)) } }
+                    item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 28.dp) } }
                 }
             }
         }
@@ -912,7 +910,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             }
             if (loading) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                    KikoLoadingIndicator(color = Color.White, size = 28.dp)
                 }
             }
         }
@@ -995,7 +993,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             }
             if (loading) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                    KikoLoadingIndicator(color = Color.White, size = 28.dp)
                 }
             }
         }
@@ -1028,7 +1026,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             }
             if (loading) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                    KikoLoadingIndicator(color = Color.White, size = 28.dp)
                 }
             }
         }
@@ -1059,7 +1057,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             }
             if (loading) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                    KikoLoadingIndicator(color = Color.White, size = 28.dp)
                 }
             }
         }
