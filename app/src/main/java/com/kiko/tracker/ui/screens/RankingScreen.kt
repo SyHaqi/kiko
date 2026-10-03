@@ -155,7 +155,7 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
-            Modifier.height(30.dp).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
+            Modifier.height(30.dp).clip(FilterChipDefaults.shape).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(rankingIcon(current), "Ranking type", tint = c.accent, modifier = Modifier.size(16.dp))
