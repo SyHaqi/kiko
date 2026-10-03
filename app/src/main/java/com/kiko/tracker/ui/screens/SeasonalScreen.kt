@@ -53,6 +53,7 @@ import com.kiko.tracker.data.model.localizedTimeLabel
 import com.kiko.tracker.data.model.stepSeason
 import com.kiko.tracker.data.model.systemIs24Hour
 import com.kiko.tracker.data.model.twoDecimals
+import com.kiko.tracker.data.model.upcomingLabel
 import com.kiko.tracker.ui.components.AppHeader
 import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.Cover
@@ -205,12 +206,21 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
             Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text("${formatLabel(item)} · ${item.genre}", color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
-            Row(
-                Modifier.padding(top = 9.dp).clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
-                Text(localizedTimeLabel(time, is24Hour), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 5.dp))
+            Row(Modifier.padding(top = 9.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
+                    Text(localizedTimeLabel(time, is24Hour), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 5.dp))
+                }
+                // Extra pill for titles that haven't premiered yet.
+                item.upcomingLabel()?.let { label ->
+                    Text(
+                        label, color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1,
+                        modifier = Modifier.clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.surfaceContainerHigh).padding(horizontal = 9.dp, vertical = 5.dp),
+                    )
+                }
             }
         }
     }
