@@ -9,14 +9,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Login
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Login
+import androidx.compose.material.icons.outlined.People
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -60,7 +60,7 @@ import com.kiko.tracker.ui.theme.kikoClickable
             Box(
                 Modifier.size(44.dp).clip(kikoCircleShape()).kikoClickable { onClose() },
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Default.Close, "Close", tint = c.ink, modifier = Modifier.size(26.dp)) }
+            ) { Icon(Icons.Outlined.Close, "Close", tint = c.ink, modifier = Modifier.size(26.dp)) }
         }
 
         Column(
@@ -69,9 +69,9 @@ import com.kiko.tracker.ui.theme.kikoClickable
         ) {
             // Profile card
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(36.dp)).background(c.primaryContainer)
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(c.surfaceContainer)
                     .kikoClickable(scale = 0.98f) { if (connected) onOpenProfile() else onSignIn?.invoke() }
-                    .padding(horizontal = 18.dp, vertical = 18.dp),
+                    .padding(start = 18.dp, end = 22.dp, top = 16.dp, bottom = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (profile?.picture?.isNotBlank() == true) {
@@ -84,32 +84,32 @@ import com.kiko.tracker.ui.theme.kikoClickable
                 Column(Modifier.weight(1f).padding(start = 16.dp)) {
                     Text(
                         profile?.name?.ifBlank { "MyAnimeList" } ?: (if (connected) "MyAnimeList" else "Not signed in"),
-                        fontWeight = FontWeight.Medium, fontSize = 22.sp, color = c.onPrimaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        fontWeight = FontWeight.Medium, fontSize = 20.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         if (connected) "View profile & stats" else "Sign in to see your stats",
-                        color = c.onPrimaryContainer.copy(alpha = 0.75f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
+                        color = c.muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
                     )
                 }
-                Box(Modifier.size(width = 44.dp, height = 44.dp).clip(RoundedCornerShape(50)).background(c.onPrimaryContainer.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.ChevronRight, null, tint = c.onPrimaryContainer, modifier = Modifier.size(24.dp))
+                Box(Modifier.size(width = 44.dp, height = 48.dp).clip(RoundedCornerShape(16.dp)).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.ChevronRight, null, tint = c.ink, modifier = Modifier.size(24.dp))
                 }
             }
 
             // Stand-alone pill rows
             if (updateVersion != null && onOpenUpdate != null) {
-                MenuRow(Icons.Default.SystemUpdate, "Update available", subtitle = "Version $updateVersion", shape = RoundedCornerShape(50), container = c.tertiaryContainer, content = c.onTertiaryContainer, iconTint = c.onTertiaryContainer) { onOpenUpdate() }
+                MenuRow(Icons.Outlined.SystemUpdate, "Update available", subtitle = "Version $updateVersion", shape = RoundedCornerShape(50), container = c.tertiaryContainer, content = c.onTertiaryContainer, iconTint = c.onTertiaryContainer) { onOpenUpdate() }
             }
             if (!connected && onSignIn != null) {
-                MenuRow(Icons.Default.Login, "Sign in to MyAnimeList", shape = RoundedCornerShape(50), container = c.secondaryContainer, content = c.onSecondaryContainer, iconTint = c.onSecondaryContainer) { onSignIn() }
+                MenuRow(Icons.Outlined.Login, "Sign in to MyAnimeList", shape = RoundedCornerShape(50), container = c.secondaryContainer, content = c.onSecondaryContainer, iconTint = c.onSecondaryContainer) { onSignIn() }
             }
 
             Spacer(Modifier.height(4.dp))
 
             // Group 1 — library pages
             val pages = buildList<Triple<ImageVector, String, () -> Unit>> {
-                if (onOpenHistory != null) add(Triple(Icons.Default.History, "History", onOpenHistory))
-                if (connected && onOpenFriends != null) add(Triple(Icons.Default.People, "Friends & favorites", onOpenFriends))
+                if (onOpenHistory != null) add(Triple(Icons.Outlined.History, "History", onOpenHistory))
+                if (connected && onOpenFriends != null) add(Triple(Icons.Outlined.People, "Friends & favorites", onOpenFriends))
             }
             if (pages.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -121,8 +121,8 @@ import com.kiko.tracker.ui.theme.kikoClickable
 
             // Group 2 — app
             val app = buildList<Triple<ImageVector, String, () -> Unit>> {
-                add(Triple(Icons.Default.Settings, "Settings", onOpenSettings))
-                if (onOpenAbout != null) add(Triple(Icons.Default.Info, "About", onOpenAbout))
+                add(Triple(Icons.Outlined.Settings, "Settings", onOpenSettings))
+                if (onOpenAbout != null) add(Triple(Icons.Outlined.Info, "About", onOpenAbout))
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 app.forEachIndexed { i, (icon, label, action) ->
@@ -150,19 +150,19 @@ private fun groupShape(index: Int, count: Int): Shape {
     title: String,
     shape: Shape,
     subtitle: String? = null,
-    container: Color = LocalKikoColors.current.surfaceContainerHigh,
+    container: Color = LocalKikoColors.current.surfaceContainer,
     content: Color = LocalKikoColors.current.ink,
     iconTint: Color = LocalKikoColors.current.primary,
     onClick: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(shape).background(container)
+        Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(shape).background(container)
             .kikoClickable(scale = 0.98f, onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = iconTint, modifier = Modifier.size(26.dp))
-        Column(Modifier.weight(1f).padding(start = 18.dp)) {
-            Text(title, fontSize = 17.sp, color = content, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Icon(icon, null, tint = iconTint, modifier = Modifier.size(24.dp))
+        Column(Modifier.weight(1f).padding(start = 16.dp)) {
+            Text(title, fontSize = 16.sp, color = content, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (subtitle != null) Text(subtitle, fontSize = 13.sp, color = content.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }

@@ -33,7 +33,19 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.ColorLens
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.material.icons.outlined.Sort
+import androidx.compose.material.icons.outlined.Translate
+import androidx.compose.material.icons.outlined.ViewAgenda
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.outlined.Logout as LogoutOutlined
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.semantics.role
@@ -995,6 +1007,7 @@ private class SettingsItem(
     val titleColor: Color? = null,
     val subtitleColor: Color? = null,
     val trailing: (@Composable () -> Unit)? = null,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     val onClick: () -> Unit,
 )
 
@@ -1016,12 +1029,13 @@ private fun settingsGroupShape(index: Int, count: Int): androidx.compose.ui.grap
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             items.forEachIndexed { i, item ->
                 Row(
-                    Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(settingsGroupShape(i, items.size)).background(c.surfaceContainerHigh)
+                    Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(settingsGroupShape(i, items.size)).background(c.surfaceContainer)
                         .kikoClickable(scale = 0.98f, onClick = item.onClick).padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(item.title, fontSize = 17.sp, color = item.titleColor ?: c.ink)
+                    item.icon?.let { Icon(it, null, tint = item.titleColor ?: c.primary, modifier = Modifier.size(24.dp)) }
+                    Column(Modifier.weight(1f).padding(start = if (item.icon != null) 16.dp else 0.dp)) {
+                        Text(item.title, fontSize = 16.sp, color = item.titleColor ?: c.ink)
                         item.subtitle?.let { Text(it, fontSize = 13.sp, color = item.subtitleColor ?: c.muted, modifier = Modifier.padding(top = 2.dp)) }
                     }
                     item.trailing?.let { trailing -> Box(Modifier.padding(start = 12.dp)) { trailing() } }
@@ -1065,24 +1079,26 @@ private fun formatCacheBytes(b: Long): String = when {
 
     Column {
         SettingsGroup("Appearance", listOf(
-            SettingsItem("Theme", themeMode.label, onClick = onThemeClick),
-            SettingsItem("Color", colorSource.label, onClick = onColorClick),
-            SettingsItem("Color palette", paletteStyle.label, onClick = onPaletteClick),
+            SettingsItem("Theme", themeMode.label, icon = Icons.Outlined.DarkMode, onClick = onThemeClick),
+            SettingsItem("Color", colorSource.label, icon = Icons.Outlined.Palette, onClick = onColorClick),
+            SettingsItem("Color palette", paletteStyle.label, icon = Icons.Outlined.ColorLens, onClick = onPaletteClick),
             SettingsItem(
                 "AMOLED black", "True black backgrounds in dark mode, saves battery on AMOLED screens",
                 trailing = { Switch(checked = amoledDark, onCheckedChange = null, colors = switchColors) },
+                icon = Icons.Outlined.Smartphone,
                 onClick = { onAmoledDarkChange(!amoledDark) },
             ),
         ))
         SettingsGroup("Library", listOf(
-            SettingsItem("Title language", titleLanguage.label, onClick = onTitleLanguageClick),
-            SettingsItem("List layout", listViewMode.name, onClick = { listViewDialog = true }),
-            SettingsItem("List sort order", listSort.label, onClick = { listSortDialog = true }),
+            SettingsItem("Title language", titleLanguage.label, icon = Icons.Outlined.Translate, onClick = onTitleLanguageClick),
+            SettingsItem("List layout", listViewMode.name, icon = Icons.Outlined.ViewAgenda, onClick = { listViewDialog = true }),
+            SettingsItem("List sort order", listSort.label, icon = Icons.Outlined.Sort, onClick = { listSortDialog = true }),
         ))
         SettingsGroup("Content", listOf(
             SettingsItem(
                 "Adult content", if (nsfwEnabled) "Hentai-rated titles are shown" else "Hentai-rated titles are hidden",
                 trailing = { Switch(checked = nsfwEnabled, onCheckedChange = null, colors = switchColors) },
+                icon = if (nsfwEnabled) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
                 onClick = { onNsfwChange(!nsfwEnabled) },
             ),
         ))
@@ -1090,12 +1106,13 @@ private fun formatCacheBytes(b: Long): String = when {
             SettingsItem(
                 "Clear image cache",
                 cacheBytes?.let { "Covers and images saved on this device · ${formatCacheBytes(it)}" } ?: "Covers and images saved on this device",
+                icon = Icons.Outlined.Image,
                 onClick = { clearCacheDialog = true },
             ),
         ))
         if (connected && onSignOut != null) {
             SettingsGroup("Account", listOf(
-                SettingsItem("Sign out", "Disconnect your MyAnimeList account", titleColor = c.danger, onClick = { signOutDialog = true }),
+                SettingsItem("Sign out", "Disconnect your MyAnimeList account", titleColor = c.danger, icon = Icons.AutoMirrored.Outlined.LogoutOutlined, onClick = { signOutDialog = true }),
             ))
         }
         SettingsGroup("About", listOf(
@@ -1104,6 +1121,7 @@ private fun formatCacheBytes(b: Long): String = when {
                 if (updateInfo != null) "Update available — ${updateInfo.version}" else "v${BuildConfig.VERSION_NAME}",
                 subtitleColor = if (updateInfo != null) c.primary else null,
                 trailing = { if (updateInfo != null) Box(Modifier.size(8.dp).clip(kikoCircleShape()).background(c.danger)) },
+                icon = Icons.Outlined.Info,
                 onClick = onAboutClick,
             ),
         ))
