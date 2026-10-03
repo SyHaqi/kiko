@@ -329,73 +329,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     ) { items(items, key = { it.id }) { AiringNextCard(it, vm, onOpenDetail, modifier = Modifier.fillParentMaxWidth(0.92f)) } }
 }
 
+// Same row as Discover's search results (SearchResultRow); the only difference is that
+// these sit side by side in the snapping LazyRow above instead of stacked in a column.
 @Composable fun AiringNextCard(item: MediaItem, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, modifier: Modifier = Modifier) {
-    val c = LocalKikoColors.current
-    val is24Hour = systemIs24Hour()
-    LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
-    val confirmed = vm.getCachedAiring(item.id)
-    val time = item.nextAirDateTime(confirmed)?.toLocalTime()
-    val chipText = listOfNotNull(item.nextEpisodeLabel(confirmed), time?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · ")
-
-    // Play Store-style featured banner: big rounded cover with the timer pill on top-left,
-    // and the title + format + score sitting below the cover (not over it).
-    // Concentric corners: banner radius (20dp) = pill radius (12dp, full round at 24dp tall) + the 8dp inset
-    // between them, so the pill's curve runs parallel to the banner's corner instead of fighting it.
-    val coverShape = RoundedCornerShape(kikoCorner(24.dp))
-    Column(modifier.kikoClickable { onOpenDetail(item) }) {
-        // Clip + background live on one node so the rounded corners are masked once (no colour fringe).
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .aspectRatio(15f / 8f)
-                .clip(coverShape)
-                .background(Color(item.color)),
-        ) {
-            if (item.cover.isNotBlank()) {
-                AsyncImage(
-                    model = item.cover,
-                    contentDescription = item.displayTitle(),
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    // TopCenter keeps faces/key art instead of cropping to the middle of a portrait cover.
-                    alignment = Alignment.TopCenter,
-                    filterQuality = FilterQuality.High,
-                )
-            }
-            // Episode / time pill, top-start. Same colours as the timer pill on the release schedule rows
-            // (primaryContainer background, primary icon + text), so it follows the Kiko theme.
-            if (chipText.isNotBlank()) {
-                Row(
-                    Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                        .clip(com.kiko.tracker.ui.theme.kikoPillShape())
-                        .background(c.primaryContainer)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
-                    Text(chipText, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, modifier = Modifier.padding(start = 4.dp))
-                }
-            }
-            // Tracked-status mark moves to top-end so it doesn't collide with the pill.
-            (vm.trackedStatus(item))?.let { CoverStatusMark(it, Modifier.align(Alignment.TopEnd).padding(8.dp)) }
-        }
-        // Title, then format · score, below the cover.
-        Text(
-            item.displayTitle(), color = c.ink, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
-        )
-        Row(Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(formatLabel(item), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            if (item.score > 0) {
-                Text("  ·  ", color = c.muted, fontSize = 13.sp)
-                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
-                Text(item.score.oneDecimal(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
-            }
-        }
-    }
+    SearchResultRow(
+        item, loading = false, onTap = { onOpenDetail(item) },
+        myStatus = vm.trackedStatus(item), modifier = modifier, vm = vm,
+    )
 }
 // Rank-badged genre card for the Home "Top Genres" carousel — full-bleed
 // cover with the icon + genre name overlaid at the bottom instead of

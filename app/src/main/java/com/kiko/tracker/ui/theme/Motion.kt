@@ -254,12 +254,16 @@ fun TopicRowSkeletonGroup(count: Int = 6) {
     }
 }
 
+/** Stand-in for an Airing next card: mirrors SearchResultRow (100x150 cover, 150dp text column). */
 @Composable
 fun AiringNextCardSkeleton(modifier: Modifier = Modifier) {
-    Column(modifier) {
-        SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(15f / 8f), shape = RoundedCornerShape(kikoCorner(24.dp)))
-        SkeletonBlock(Modifier.padding(top = 10.dp, start = 4.dp).fillMaxWidth(0.6f).height(16.dp))
-        SkeletonBlock(Modifier.padding(top = 6.dp, start = 4.dp).fillMaxWidth(0.35f).height(12.dp))
+    Row(modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        SkeletonBlock(Modifier.size(width = 100.dp, height = 150.dp), shape = RoundedCornerShape(kikoCorner(16.dp)))
+        Column(Modifier.padding(start = 16.dp, end = 6.dp).weight(1f).height(150.dp)) {
+            SkeletonBlock(Modifier.fillMaxWidth(0.8f).height(16.dp))
+            SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.5f).height(12.dp))
+            SkeletonBlock(Modifier.padding(top = 8.dp).fillMaxWidth(0.65f).height(12.dp))
+        }
     }
 }
 

@@ -872,10 +872,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 }
 // Discover search result row
 
-@Composable fun SearchResultRow(item: MediaItem, loading: Boolean, onTap: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null) {
+@Composable fun SearchResultRow(item: MediaItem, loading: Boolean, onTap: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null, modifier: Modifier = Modifier, vm: LibraryViewModel? = null) {
     val c = LocalKikoColors.current
+    // Optional vm (Home's Airing next row): use the confirmed episode air time, same as ListRow.
+    if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
+    val confirmed = vm?.getCachedAiring(item.id)
     // Airing -> "Ep. N airs on ..."; not started yet -> "Not Yet Aired". Never both.
-    val timer = item.airTimerLabel(null, systemIs24Hour()) ?: item.upcomingLabel()
+    val timer = item.airTimerLabel(confirmed, systemIs24Hour()) ?: item.upcomingLabel()
     // Accent for the live air timer, muted for the quieter "Not Yet Aired" label.
     val timerTint = if (item.upcomingLabel() != null) c.muted else c.accent
     // "TV · 23 ep, Spring 2018" — no progress bar here, so the format joins the episodes/year line.
@@ -883,7 +886,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "searchResultSelectBg")
     val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "searchResultSelectPad")
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(kikoCorner(16.dp)))
             .background(bg)
