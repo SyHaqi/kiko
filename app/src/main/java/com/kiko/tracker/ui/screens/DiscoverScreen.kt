@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -45,7 +46,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
@@ -397,10 +400,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         }
     }
     BackHandler(onBack = onExitResults)
-    // Grid only makes sense for Anime/Manga (the only types with poster-shaped
-    // covers) — Characters/People/Companies always render as rows regardless
-    // of the saved preference.
-    val isGrid = vm.listViewMode == ListViewMode.Grid && (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga")
+    // Every search type (Anime/Manga/Characters/People/Companies/Users) honours the saved
+    // List layout preference; each type has its own grid tile.
+    val isGrid = vm.listViewMode == ListViewMode.Grid
     val staggerSeen = rememberStaggerMemory()
     // Restore results scroll position
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.discoverScrollIndex, initialFirstVisibleItemScrollOffset = vm.discoverScrollOffset)
@@ -555,6 +557,16 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         val charResults = vm.characterResults
                         if (vm.characterSearching && charResults.isEmpty()) {
                             item { KikoSectionLoading() }
+                        } else if (isGrid) {
+                            entityGridRows(charResults, { "char_${it.malId}" }, staggerSeen) { result ->
+                                EntityGridCard(
+                                    title = result.name,
+                                    subtitle = result.altName.ifBlank { result.relatedWorks.firstOrNull().orEmpty() },
+                                    imageUrl = result.image,
+                                    loading = vm.characterDetailLoadingId == result.malId,
+                                    onTap = { openCharacterResult(result) },
+                                )
+                            }
                         } else {
                             itemsIndexed(charResults, key = { _, it -> "char_${it.malId}" }) { index, result ->
                                 StaggeredItem(index, staggerSeen) {
@@ -573,6 +585,16 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         val peopleResults = vm.personResults
                         if (vm.personSearching && peopleResults.isEmpty()) {
                             item { KikoSectionLoading() }
+                        } else if (isGrid) {
+                            entityGridRows(peopleResults, { "person_${it.malId}" }, staggerSeen) { result ->
+                                EntityGridCard(
+                                    title = result.name,
+                                    subtitle = result.altName,
+                                    imageUrl = result.image,
+                                    loading = vm.personDetailLoadingId == result.malId,
+                                    onTap = { openPersonResult(result) },
+                                )
+                            }
                         } else {
                             itemsIndexed(peopleResults, key = { _, it -> "person_${it.malId}" }) { index, result ->
                                 StaggeredItem(index, staggerSeen) {
@@ -591,6 +613,17 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         val companyResultsList = vm.companyResults
                         if (vm.companySearching && companyResultsList.isEmpty()) {
                             item { KikoSectionLoading() }
+                        } else if (isGrid) {
+                            entityGridRows(companyResultsList, { "company_${it.malId}" }, staggerSeen) { result ->
+                                EntityGridCard(
+                                    title = result.name,
+                                    subtitle = result.japanese,
+                                    imageUrl = result.image,
+                                    loading = vm.companyDetailLoadingId == result.malId,
+                                    fit = true, square = true,
+                                    onTap = { openCompanyResult(result) },
+                                )
+                            }
                         } else {
                             itemsIndexed(companyResultsList, key = { _, it -> "company_${it.malId}" }) { index, result ->
                                 StaggeredItem(index, staggerSeen) {
@@ -609,6 +642,17 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         val userResultsList = vm.userResults
                         if (vm.userSearching && userResultsList.isEmpty()) {
                             item { KikoSectionLoading() }
+                        } else if (isGrid) {
+                            entityGridRows(userResultsList, { "user_${it.username}" }, staggerSeen) { result ->
+                                // MAL prints "Mar 9, 2010 3:27 AM"; drop the time so it fits a 3-wide tile.
+                                val joinedDate = result.joined.replace(Regex("\\s+\\d{1,2}:\\d{2}\\s*[AP]M$", RegexOption.IGNORE_CASE), "")
+                                EntityGridCard(
+                                    title = result.username,
+                                    subtitle = if (joinedDate.isNotBlank()) "Joined $joinedDate" else "",
+                                    imageUrl = result.avatarUrl,
+                                    onTap = { openUserResult(result) },
+                                )
+                            }
                         } else {
                             itemsIndexed(userResultsList, key = { _, it -> "user_${it.username}" }) { index, result ->
                                 StaggeredItem(index, staggerSeen) {
@@ -860,8 +904,33 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         // this row's old fixed
         // Crop was cutting off
         Cover(item, Modifier.fillMaxWidth().aspectRatio(84f / 118f), showStatus = true, overrideStatus = myStatus, selected = isSelected)
-        Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 16.sp, modifier = Modifier.padding(top = 7.dp))
-        Text(subtitle ?: (if (item.score > 0) "★ ${item.score.oneDecimal()}" else item.genre), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 15.sp, modifier = Modifier.padding(top = 7.dp))
+        if (subtitle != null) {
+            Text(subtitle, color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        } else {
+            ScoreLine(item.score, decimals = 1)
+        }
+    }
+}
+
+// Score line under the Discover-tab row cards (BrowseCard). Always renders a star + value, or
+// "N/A" when there's no score, at a fixed 16dp height so the line is identical on every card.
+// (Grid tiles use SeasonalGridCard's own score row instead.)
+// A real Icon + explicit lineHeight is used instead of a text "★" glyph, which fell back to a
+// different font than plain text and shifted the line height.
+@Composable fun ScoreLine(score: Double, decimals: Int = 1, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier.padding(top = 2.dp).height(16.dp)) {
+        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+        val label = if (score > 0) (if (decimals == 2) score.twoDecimals() else score.oneDecimal()) else "N/A"
+        // Center + Trim.None pins the glyphs in the middle of the 16sp line box. The default
+        // (Proportional + Trim.Both) splits/trims the extra line height unevenly for a single
+        // line, which left the number sitting off-center next to the star.
+        Text(
+            label, color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 16.sp, maxLines = 1,
+            style = TextStyle(lineHeightStyle = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.None)),
+            modifier = Modifier.padding(start = 3.dp),
+        )
     }
 }
 // Discover search result row
@@ -1223,38 +1292,48 @@ fun formatExact(n: Int): String = "%,d".format(n)
         )
     }
 }
-// Recommendations grid tile —
-
+// Recommendations / search-result grid tile — now just the Seasonal screen's tile
+// (SeasonalGridCard) so every anime/manga grid in the app looks identical: 160dp cover, bold
+// 2-line title, star + score row and members row (both "N/A" when missing). Kept as a wrapper so
+// existing call sites don't change.
 @Composable fun RecommendationGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
+    SeasonalGridCard(item, onOpenDetail, onLongPress = onLongPress, isSelected = isSelected, myStatus = myStatus)
+}
+
+// Grid tile for Characters / People / Companies / Users search results, laid out like the
+// Seasonal tile: 160dp cover, bold 2-line title (always reserved), then one muted info line that's
+// also always reserved (even when blank) so every tile in a row has the same height.
+@Composable fun EntityGridCard(title: String, subtitle: String, imageUrl: String, loading: Boolean = false, fit: Boolean = false, square: Boolean = false, onTap: () -> Unit) {
     val c = LocalKikoColors.current
-    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "recommendationSelectBg")
-    val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "recommendationSelectPad")
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(kikoCorner(14.dp)))
-            .background(bg)
-            .kikoCombinedClickable(
-                onClick = { onOpenDetail(item) },
-                onLongClick = onLongPress?.let { edit -> { edit(item) } },
-            )
-            // animateDpAsState on `pad` above
-            // value frame-by-frame, so the
-            // animateContentSize() here was a
-            // wrapping every card in
-            .padding(pad)
-    ) {
-        // Height matches the grid card cover
-        // real card don't jump
-        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, overrideStatus = myStatus, selected = isSelected)
-        Text(item.displayTitle(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
-        if (item.score > 0) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
-                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
-                Text(item.score.twoDecimals(), color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, modifier = Modifier.padding(start = 3.dp))
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).kikoClickable(enabled = !loading, onClick = onTap)) {
+        // square = true gives a 1:1 cover (used for Company logos); everything else keeps the 160dp-tall cover.
+        Box((if (square) Modifier.fillMaxWidth().aspectRatio(1f) else Modifier.fillMaxWidth().height(160.dp)).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
+            if (imageUrl.isNotBlank()) {
+                AsyncImage(model = imageUrl, contentDescription = title, modifier = Modifier.fillMaxSize(), contentScale = if (fit) ContentScale.Fit else ContentScale.Crop)
+            } else {
+                Text(title.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 30.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }
-        } else if (item.genre.isNotBlank()) {
-            Text(item.genre, color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+            if (loading) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
+                    KikoLoadingIndicator(color = Color.White, size = 24.dp)
+                }
+            }
+        }
+        Text(title, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
+        Text(subtitle.ifBlank { " " }, color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+    }
+}
+
+// Chunks results into 3-wide rows inside the screen's single LazyColumn (same approach the
+// Anime/Manga grid uses), padding the last partial row so its tiles don't stretch.
+private fun <T> LazyListScope.entityGridRows(items: List<T>, keyOf: (T) -> String, seen: MutableSet<Int>, card: @Composable (T) -> Unit) {
+    val rows = items.chunked(3)
+    itemsIndexed(rows, key = { i, row -> "grid_row_${row.firstOrNull()?.let(keyOf) ?: i}" }) { rowIndex, rowItems ->
+        StaggeredItem(rowIndex, seen) {
+            Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                rowItems.forEach { Box(Modifier.weight(1f)) { card(it) } }
+                repeat(3 - rowItems.size) { Box(Modifier.weight(1f)) }
+            }
         }
     }
 }
