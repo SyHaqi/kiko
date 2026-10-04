@@ -26,7 +26,9 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInNew
@@ -147,77 +149,36 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
             item {
-                Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                    Spacer(Modifier.weight(1f))
-                    // Favorite sits right beside the 3-dot menu in the header row.
-                    FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 48.dp, iconSize = 24.dp, background = androidx.compose.ui.graphics.Color.Transparent, modifier = Modifier.headerEdgeEnd())
-                    var moreOpen by remember(company.malId) { mutableStateOf(false) }
-                    Box(Modifier.headerEdgeEnd()) {
-                        IconButton(
-                            onClick = { moreOpen = true },
-                        ) { Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                        DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
-                            DropdownMenuItem(
-                                text = { Text("Share") },
-                                leadingIcon = { Icon(Icons.Default.Share, null) },
-                                onClick = {
-                                    moreOpen = false
-                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_TEXT, "https://myanimelist.net/anime/producer/${company.malId}")
-                                    }
-                                    context.startActivity(Intent.createChooser(sendIntent, company.name))
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Open in browser") },
-                                leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                                onClick = { moreOpen = false; context.openInBrowser("https://myanimelist.net/anime/producer/${company.malId}") },
-                            )
-                        }
-                    }
-                }
+                DetailHeader(
+                    eyebrow = "COMPANY", title = company.name,
+                    shareUrl = "https://myanimelist.net/anime/producer/${company.malId}",
+                    favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite,
+                )
                 Column(Modifier.padding(horizontal = 14.dp)) {
-                    // Square logo, not a
-                    // are actually shaped, unlike
-                    // Favorite now lives in the header row beside "open in browser".
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                        val logoInteraction = remember { MutableInteractionSource() }
-                        Box(
-                            Modifier.size(110.dp)
-                                .clip(RoundedCornerShape(kikoCorner(24.dp))).background(c.surfaceContainerHigh)
-                                .let { m -> if (company.image.isNotBlank()) m.clickable(indication = null, interactionSource = logoInteraction) { showFullImage = true } else m },
-                        ) {
-                            if (company.image.isNotBlank()) {
-                                AsyncImage(model = company.image, contentDescription = company.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                            } else {
-                                Text(company.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 40.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
-                            }
-                        }
+                    val established = company.bioFields.firstOrNull { it.first.contains("establish", ignoreCase = true) }?.second?.takeIf { it.isNotBlank() }
+                    val facts = buildList {
+                        if (company.favorites > 0) add(DetailFact(Icons.Default.Favorite, c.danger, "${formatCount(company.favorites)} favorites"))
+                        if (company.works.isNotEmpty()) add(DetailFact(Icons.Default.Tv, c.primary, "${company.works.size} anime"))
+                        established?.let { add(DetailFact(Icons.Default.CalendarMonth, c.primary, it)) }
                     }
-
-                    Text("COMPANY", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp, modifier = Modifier.padding(top = 18.dp))
-                    SelectionContainer {
-                        Text(company.name, style = MaterialTheme.typography.displaySmall, color = c.ink, modifier = Modifier.padding(top = 7.dp))
-                    }
-                    if (company.favorites > 0) {
-                        Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Favorite, null, tint = c.danger, modifier = Modifier.size(14.dp))
-                            Text("${formatCount(company.favorites)} favorites", color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
+                    val logoInteraction = remember { MutableInteractionSource() }
+                    // Square logo (110dp) rather than a 2:3 poster — company logos are shaped that way.
+                    DetailCoverRow(
+                        coverWidth = 110.dp, coverHeight = 110.dp, coverCorner = 24.dp, facts = facts,
+                        modifier = Modifier.padding(top = 16.dp),
+                        coverModifier = Modifier.background(c.surfaceContainerHigh)
+                            .let { m -> if (company.image.isNotBlank()) m.clickable(indication = null, interactionSource = logoInteraction) { showFullImage = true } else m },
+                    ) {
+                        if (company.image.isNotBlank()) {
+                            AsyncImage(model = company.image, contentDescription = company.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                        } else {
+                            Text(company.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 40.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
                         }
                     }
 
                     if (company.bioFields.isNotEmpty()) {
                         SectionTitle("Details", "", {})
-                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
-                                company.bioFields.forEachIndexed { i, (label, value) ->
-                                    InfoRow(label, value)
-                                    if (i != company.bioFields.lastIndex) HorizontalDivider(color = c.outlineVariant)
-                                }
-                            }
-                        }
+                        DetailFieldRows(company.bioFields)
                     }
 
                     if (company.about.isNotBlank()) {

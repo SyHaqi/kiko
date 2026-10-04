@@ -1053,7 +1053,7 @@ private fun detailGroupShape(index: Int, count: Int): androidx.compose.ui.graphi
 }
 
 /** Copies a title to the clipboard. Android 13+ shows its own "Copied" confirmation; older versions get a toast. */
-private fun copyTitleToClipboard(context: android.content.Context, text: String) {
+internal fun copyTitleToClipboard(context: android.content.Context, text: String) {
     val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Title", text))
     if (android.os.Build.VERSION.SDK_INT < 33) {
@@ -1062,7 +1062,7 @@ private fun copyTitleToClipboard(context: android.content.Context, text: String)
 }
 
 /** One tonal row of a grouped list (Details / Alternative titles / Theme songs). */
-@Composable private fun DetailGroupRow(index: Int, count: Int, onClick: (() -> Unit)? = null, onLongClick: (() -> Unit)? = null, content: @Composable RowScope.() -> Unit) {
+@Composable internal fun DetailGroupRow(index: Int, count: Int, onClick: (() -> Unit)? = null, onLongClick: (() -> Unit)? = null, content: @Composable RowScope.() -> Unit) {
     val c = LocalKikoColors.current
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(detailGroupShape(index, count)).background(c.surfaceContainer)
@@ -1078,7 +1078,7 @@ private fun copyTitleToClipboard(context: android.content.Context, text: String)
 
 /** One tonal info row beside the cover on the detail header. Rows share the column height equally;
  * first/last get larger outer corners, middle rows tight ones (same grouped-list look as Settings). */
-@Composable private fun ColumnScope.DetailInfoRow(index: Int, count: Int, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, text: String) {
+@Composable internal fun ColumnScope.DetailInfoRow(index: Int, count: Int, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, text: String) {
     val c = LocalKikoColors.current
     val outer = kikoCorner(16.dp)
     val inner = 4.dp

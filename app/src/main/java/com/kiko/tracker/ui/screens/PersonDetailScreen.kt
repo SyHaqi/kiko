@@ -24,7 +24,11 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
@@ -109,77 +113,37 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
             item {
-                Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                    Spacer(Modifier.weight(1f))
-                    // Favorite sits right beside the 3-dot menu in the header row.
-                    FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 48.dp, iconSize = 24.dp, background = androidx.compose.ui.graphics.Color.Transparent, modifier = Modifier.headerEdgeEnd())
-                    var moreOpen by remember(person.malId) { mutableStateOf(false) }
-                    Box(Modifier.headerEdgeEnd()) {
-                        IconButton(
-                            onClick = { moreOpen = true },
-                        ) { Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                        DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
-                            DropdownMenuItem(
-                                text = { Text("Share") },
-                                leadingIcon = { Icon(Icons.Default.Share, null) },
-                                onClick = {
-                                    moreOpen = false
-                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_TEXT, "https://myanimelist.net/people/${person.malId}")
-                                    }
-                                    context.startActivity(Intent.createChooser(sendIntent, person.name))
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Open in browser") },
-                                leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                                onClick = { moreOpen = false; context.openInBrowser("https://myanimelist.net/people/${person.malId}") },
-                            )
-                        }
-                    }
-                }
+                DetailHeader(
+                    eyebrow = "PERSON", title = person.name,
+                    shareUrl = "https://myanimelist.net/people/${person.malId}",
+                    favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite,
+                )
                 Column(Modifier.padding(horizontal = 14.dp)) {
-                    // No backdrop banner —
-                    // same fallback-letter treatment as
-                    // Favorite now lives in the header row beside "open in browser".
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                        val posterInteraction = remember { MutableInteractionSource() }
-                        Box(
-                            Modifier.width(128.dp).aspectRatio(2f / 3f)
-                                .clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)
-                                .let { m -> if (person.image.isNotBlank()) m.clickable(indication = null, interactionSource = posterInteraction) { showFullImage = true } else m },
-                        ) {
-                            if (person.image.isNotBlank()) {
-                                AsyncImage(model = person.image, contentDescription = person.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                            } else {
-                                Text(person.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 44.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
-                            }
-                        }
+                    val birthday = person.bioFields.firstOrNull { it.first.contains("birth", ignoreCase = true) }?.second?.takeIf { it.isNotBlank() }
+                    val facts = buildList {
+                        if (person.favorites > 0) add(DetailFact(Icons.Default.Favorite, c.danger, "${formatCount(person.favorites)} favorites"))
+                        birthday?.let { add(DetailFact(Icons.Default.Cake, c.primary, it)) }
+                        if (person.voiceActingRoles.isNotEmpty()) add(DetailFact(Icons.Default.Mic, c.primary, countLabel(person.voiceActingRoles.size, "voice role")))
+                        if (person.staffCredits.isNotEmpty()) add(DetailFact(Icons.Default.Groups, c.primary, countLabel(person.staffCredits.size, "staff position")))
+                        if (person.publishedManga.isNotEmpty()) add(DetailFact(Icons.Default.MenuBook, c.primary, countLabel(person.publishedManga.size, "manga", "manga")))
                     }
-
-                    Text("PERSON", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp, modifier = Modifier.padding(top = 18.dp))
-                    SelectionContainer {
-                        Text(person.name, style = MaterialTheme.typography.displaySmall, color = c.ink, modifier = Modifier.padding(top = 7.dp))
-                    }
-                    if (person.favorites > 0) {
-                        Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Favorite, null, tint = c.danger, modifier = Modifier.size(14.dp))
-                            Text("${formatCount(person.favorites)} favorites", color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
+                    val posterInteraction = remember { MutableInteractionSource() }
+                    DetailCoverRow(
+                        coverWidth = 128.dp, coverHeight = 192.dp, coverCorner = 16.dp, facts = facts,
+                        modifier = Modifier.padding(top = 16.dp),
+                        coverModifier = Modifier.background(c.surfaceContainerHigh)
+                            .let { m -> if (person.image.isNotBlank()) m.clickable(indication = null, interactionSource = posterInteraction) { showFullImage = true } else m },
+                    ) {
+                        if (person.image.isNotBlank()) {
+                            AsyncImage(model = person.image, contentDescription = person.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                        } else {
+                            Text(person.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 44.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
                         }
                     }
 
                     if (person.bioFields.isNotEmpty()) {
                         SectionTitle("Details", "", {})
-                        Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
-                                person.bioFields.forEachIndexed { i, (label, value) ->
-                                    InfoRow(label, value)
-                                    if (i != person.bioFields.lastIndex) HorizontalDivider(color = c.outlineVariant)
-                                }
-                            }
-                        }
+                        DetailFieldRows(person.bioFields)
                     }
 
                     if (person.about.isNotBlank()) {
