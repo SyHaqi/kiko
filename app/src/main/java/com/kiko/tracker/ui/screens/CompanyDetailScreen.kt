@@ -65,6 +65,7 @@ import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.accent
 import com.kiko.tracker.ui.theme.kikoClickable
+import com.kiko.tracker.ui.theme.kikoCircleShape
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
 
@@ -273,7 +274,7 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
                 )
                 IconButton(
                     onClick = { showFullImage = false },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.White.copy(alpha = .15f)),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(kikoCircleShape()).background(Color.White.copy(alpha = .15f)),
                 ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
             }
         }

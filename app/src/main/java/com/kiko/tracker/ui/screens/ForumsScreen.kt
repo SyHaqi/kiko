@@ -1007,7 +1007,6 @@ sealed class BbToken {
                     }
                 },
                 modifier = frameModifier.clip(RoundedCornerShape(kikoCorner(8.dp)))
-                    .border(1.dp, c.primary.copy(alpha = .5f), RoundedCornerShape(kikoCorner(8.dp)))
                     .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {
                         if (isError) {
                             // Try the browser custom
@@ -1064,7 +1063,6 @@ sealed class BbToken {
     Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
         Box(
             Modifier.fillMaxWidth(0.9f).aspectRatio(16f / 9f).clip(shape).background(Color.Black)
-                .border(1.dp, c.primary.copy(alpha = .5f), shape)
                 .clickable {
                     val url = "https://www.youtube.com/watch?v=$videoId"
                     if (runCatching { uriHandler.openUri(url) }.isFailure) {
@@ -1152,7 +1150,7 @@ sealed class BbToken {
             }
             IconButton(
                 onClick = onDismiss,
-                modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.White.copy(alpha = .15f)),
+                modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(kikoCircleShape()).background(Color.White.copy(alpha = .15f)),
             ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
         }
     }

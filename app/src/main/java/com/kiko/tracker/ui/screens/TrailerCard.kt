@@ -1,7 +1,6 @@
 package com.kiko.tracker.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +36,7 @@ import com.kiko.tracker.ui.theme.kikoCircleShape
 import com.kiko.tracker.ui.theme.kikoCorner
 
 // Fixed-width variant of ForumVideo for horizontal rows (detail page "Trailers"): same thumbnail
-// fallback, border, play button and tap-to-open, plus MAL's label for the PV under the thumbnail.
+// fallback, play button and tap-to-open (no outline, like Play Store screenshots), plus MAL's label for the PV under the thumbnail.
 @Composable fun TrailerCard(videoId: String, title: String, c: KikoColors) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
@@ -49,7 +48,6 @@ import com.kiko.tracker.ui.theme.kikoCorner
     Column(Modifier.width(240.dp)) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(shape).background(Color.Black)
-                .border(1.dp, c.primary.copy(alpha = .5f), shape)
                 .clickable {
                     val url = "https://www.youtube.com/watch?v=$videoId"
                     if (runCatching { uriHandler.openUri(url) }.isFailure) {
