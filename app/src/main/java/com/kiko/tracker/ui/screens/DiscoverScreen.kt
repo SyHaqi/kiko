@@ -560,7 +560,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 StaggeredItem(index, staggerSeen) {
                                     Column {
                                         CharacterSearchResultRow(result, loading = vm.characterDetailLoadingId == result.malId, onTap = { openCharacterResult(result) })
-                                        if (index < charResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                                     }
                                 }
                             }
@@ -579,7 +578,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 StaggeredItem(index, staggerSeen) {
                                     Column {
                                         PersonSearchResultRow(result, loading = vm.personDetailLoadingId == result.malId, onTap = { openPersonResult(result) })
-                                        if (index < peopleResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                                     }
                                 }
                             }
@@ -598,7 +596,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 StaggeredItem(index, staggerSeen) {
                                     Column {
                                         CompanySearchResultRow(result, loading = vm.companyDetailLoadingId == result.malId, onTap = { openCompanyResult(result) })
-                                        if (index < companyResultsList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                                     }
                                 }
                             }
@@ -617,7 +614,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 StaggeredItem(index, staggerSeen) {
                                     Column {
                                         UserSearchResultRow(result, onTap = { openUserResult(result) })
-                                        if (index < userResultsList.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                                     }
                                 }
                             }
@@ -984,7 +980,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.width(92.dp).height(128.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(width = 100.dp, height = 150.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (entry.image.isNotBlank()) {
                 AsyncImage(model = entry.image, contentDescription = entry.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
@@ -1017,7 +1013,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.width(92.dp).height(128.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(width = 100.dp, height = 150.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (entry.image.isNotBlank()) {
                 AsyncImage(model = entry.image, contentDescription = entry.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
@@ -1048,7 +1044,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.size(92.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(100.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (entry.image.isNotBlank()) {
                 AsyncImage(model = entry.image, contentDescription = entry.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
             } else {
@@ -1080,7 +1076,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onTap).padding(vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.size(92.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(100.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (entry.avatarUrl.isNotBlank()) {
                 AsyncImage(model = entry.avatarUrl, contentDescription = entry.username, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
