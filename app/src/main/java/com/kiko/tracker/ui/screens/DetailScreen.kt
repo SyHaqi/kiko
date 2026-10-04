@@ -20,6 +20,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -33,7 +35,6 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -108,6 +109,7 @@ import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.kikoCircleShape
 import com.kiko.tracker.ui.theme.kikoClickable
+import com.kiko.tracker.ui.theme.kikoCombinedClickable
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.ui.theme.pressScale
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
@@ -359,91 +361,108 @@ data class DetailScreenActions(
             item {
                 // Tap cover opens fullscreen
                 var showFullCover by remember(item.id) { mutableStateOf(false) }
+                // Full-title dialog, opened by tapping the banner title when it's truncated.
+                var showFullTitle by remember(item.id) { mutableStateOf(false) }
                 val displayTitle = item.displayTitle()
-                // Unclipped wrapper for poster
-                Box(Modifier.fillMaxWidth()) {
-                    Box(Modifier.fillMaxWidth().height(248.dp).clip(RoundedCornerShape(bottomStart = kikoCorner(32.dp), bottomEnd = kikoCorner(32.dp)))) {
-                        // Backdrop from second picture
-                        // own composable-lambda scope) rather
-                        // `covers` backfills asynchronously after
-                        // (see the LaunchedEffect above),
-                        // body ties the ENTIRE
-                        // that state, so the
-                        // lands, often while the
-                        // Box redraws.
-                        val backdropUrl = covers.getOrNull(1)
-                        if (backdropUrl != null) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(context).data(backdropUrl).allowHardware(true).build(), contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            )
-                        } else {
-                            Box(Modifier.fillMaxSize().background(Color(item.color)))
-                        }
-                        // Shadow instead of blur
-                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .5f), .4f to Color.Transparent)))
-                        // General darkening overlay
-                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .32f), Color.Black.copy(alpha = .7f)))))
-                        // Plain 24dp icons floating on the banner (no backing chip), 48dp touch targets.
-                        IconButton(
-                            onClick = actions.onBack,
-                            modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 13.dp),
-                        ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White, modifier = Modifier.size(24.dp)) }
-                        var moreOpen by remember(item.id) { mutableStateOf(false) }
-                        Row(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                            // Favorite sits to the left of the 3-dot menu, in the same header row.
-                            FavoriteHeartButton(
-                                favorited = favorited,
-                                onClick = actions.onToggleFavorite,
-                                size = 48.dp,
-                                iconSize = 24.dp,
-                                background = Color.Transparent,
-                                outlineTint = Color.White,
-                            )
-                            Box {
-                                IconButton(
-                                    onClick = { moreOpen = true },
-                                ) { Icon(Icons.Default.MoreVert, "More options", tint = Color.White, modifier = Modifier.size(24.dp)) }
-                                DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp))) {
-                                    DropdownMenuItem(
-                                        text = { Text("Share") },
-                                        leadingIcon = { Icon(Icons.Default.Share, null) },
-                                        onClick = {
-                                            moreOpen = false
-                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                                type = "text/plain"
-                                                putExtra(Intent.EXTRA_TEXT, malUrl(item))
-                                            }
-                                            context.startActivity(Intent.createChooser(sendIntent, displayTitle))
-                                        },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Open in browser") },
-                                        leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                                        onClick = { moreOpen = false; context.openInBrowser(malUrl(item)) },
-                                    )
-                                }
+                // Play Store-style header: backdrop with the format line + title overlaid at the bottom.
+                // The cover and the info rows now live in the section below the banner.
+                Box(
+                    Modifier.fillMaxWidth().heightIn(min = 190.dp)
+                        .clip(RoundedCornerShape(bottomStart = kikoCorner(32.dp), bottomEnd = kikoCorner(32.dp))),
+                ) {
+                    // Backdrop from second picture (own scope so a late `covers` backfill only redraws this).
+                    val backdropUrl = covers.getOrNull(1)
+                    if (backdropUrl != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context).data(backdropUrl).allowHardware(true).build(), contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        )
+                    } else {
+                        Box(Modifier.matchParentSize().background(Color(item.color)))
+                    }
+                    // Shadow at the top so the icons stay readable
+                    Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .5f), .4f to Color.Transparent)))
+                    // Darkening overlay, much heavier at the bottom where the title sits (keeps it readable on bright art)
+                    Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .3f), .3f to Color.Black.copy(alpha = .5f), .65f to Color.Black.copy(alpha = .75f), 1f to Color.Black.copy(alpha = .92f))))
+                    // Plain 24dp icons floating on the banner (no backing chip), 48dp touch targets.
+                    IconButton(
+                        onClick = actions.onBack,
+                        modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 13.dp),
+                    ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White, modifier = Modifier.size(24.dp)) }
+                    var moreOpen by remember(item.id) { mutableStateOf(false) }
+                    Row(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                        // Favorite sits to the left of the 3-dot menu, in the same header row.
+                        FavoriteHeartButton(
+                            favorited = favorited,
+                            onClick = actions.onToggleFavorite,
+                            size = 48.dp,
+                            iconSize = 24.dp,
+                            background = Color.Transparent,
+                            outlineTint = Color.White,
+                        )
+                        Box {
+                            IconButton(
+                                onClick = { moreOpen = true },
+                            ) { Icon(Icons.Default.MoreVert, "More options", tint = Color.White, modifier = Modifier.size(24.dp)) }
+                            DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp))) {
+                                DropdownMenuItem(
+                                    text = { Text("Share") },
+                                    leadingIcon = { Icon(Icons.Default.Share, null) },
+                                    onClick = {
+                                        moreOpen = false
+                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, malUrl(item))
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, displayTitle))
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Open in browser") },
+                                    leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                                    onClick = { moreOpen = false; context.openInBrowser(malUrl(item)) },
+                                )
                             }
                         }
                     }
-                    // Poster position below header buttons. Favorite now lives in the header
-                    // row (to the left of the 3-dot menu), so this row is just the poster.
-                    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 96.dp), verticalAlignment = Alignment.Bottom) {
-                        val posterInteraction = remember { MutableInteractionSource() }
-                        Box(
-                            Modifier.width(128.dp).aspectRatio(2f / 3f)
-                                .shadow(10.dp, RoundedCornerShape(kikoCorner(16.dp))).clip(RoundedCornerShape(kikoCorner(16.dp))).background(Color(item.color))
-                                .pressScale(posterInteraction, scale = 0.94f)
-                                .clickable(indication = null, interactionSource = posterInteraction) { showFullCover = true },
-                        ) {
-                            if (item.cover.isNotBlank()) {
-                                Image(painter = coverPainter, contentDescription = displayTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-                            } else {
-                                Text(displayTitle.take(1), fontWeight = FontWeight.Bold, fontSize = 44.sp, color = Color.White.copy(.85f), modifier = Modifier.align(Alignment.Center))
-                            }
-                        }
+                    // Format line + title, bottom-left (the "Mojang" / "Minecraft" spot in the Play Store header).
+                    // The alternative/secondary title now lives in the Info tab's "Alternative titles" list.
+                    val textShadow = androidx.compose.ui.graphics.Shadow(color = Color.Black.copy(alpha = .85f), offset = androidx.compose.ui.geometry.Offset(0f, 2f), blurRadius = 20f)
+                    Column(
+                        Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 62.dp, bottom = 16.dp),
+                    ) {
+                        Text(
+                            "${item.type.name.uppercase()}${if (item.format.isNotBlank()) " · ${item.format}" else ""}",
+                            color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
+                            style = androidx.compose.ui.text.TextStyle(shadow = textShadow),
+                        )
+                        // Tap opens the full title (only when it's cut off by the 3-line cap); long-press copies it
+                        // straight away, so no text-selection handles are needed.
+                        var titleOverflows by remember(item.id, displayTitle) { mutableStateOf(false) }
+                        Text(
+                            displayTitle, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 28.sp,
+                            maxLines = 3, overflow = TextOverflow.Ellipsis,
+                            onTextLayout = { titleOverflows = it.hasVisualOverflow },
+                            style = androidx.compose.ui.text.TextStyle(shadow = textShadow),
+                            modifier = Modifier.padding(top = 4.dp).pointerInput(titleOverflows, displayTitle) {
+                                detectTapGestures(
+                                    onTap = { if (titleOverflows) showFullTitle = true },
+                                    onLongPress = { copyTitleToClipboard(context, displayTitle) },
+                                )
+                            },
+                        )
                     }
+                }
+                if (showFullTitle) {
+                    AlertDialog(
+                        onDismissRequest = { showFullTitle = false },
+                        containerColor = c.surfaceContainerHigh,
+                        title = { Text("Full title", color = c.ink) },
+                        text = { Text(displayTitle, color = c.ink, fontSize = 16.sp, lineHeight = 22.sp, modifier = Modifier.verticalScroll(rememberScrollState())) },
+                        confirmButton = { TextButton(onClick = { showFullTitle = false }, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("Close") } },
+                        dismissButton = { TextButton(onClick = { copyTitleToClipboard(context, displayTitle) }, colors = ButtonDefaults.textButtonColors(contentColor = c.muted)) { Text("Copy") } },
+                    )
                 }
                 if (showFullCover && item.cover.isNotBlank()) {
                     // Fallback to single cover
@@ -491,35 +510,35 @@ data class DetailScreenActions(
                     // Header keeps the 14dp page margins; the tab row below is deliberately outside them so
                     // its divider line runs edge to edge (content under it re-applies the margins).
                     Column(Modifier.padding(horizontal = 14.dp)) {
-                        Text(
-                            "${item.type.name.uppercase()}${if (item.format.isNotBlank()) " · ${item.format}" else ""}",
-                            color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp,
-                            modifier = Modifier.padding(top = 18.dp),
-                        )
-                        SelectionContainer {
-                            Column {
-                                Text(itemDisplayTitle, style = MaterialTheme.typography.displaySmall, color = c.ink, modifier = Modifier.padding(top = 7.dp))
-                                val secondary = item.secondaryTitle()
-                                if (secondary.isNotBlank()) {
-                                    Text(secondary, color = c.muted, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                        // Cover (same 128dp size as before) with one tonal row per fact beside it. The rows
+                        // column is exactly as tall as the cover and the rows split that height evenly.
+                        val infoRows = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, Color, String>> {
+                            item.airStatus.takeIf { it.isNotBlank() }?.let { add(Triple(Icons.Default.Sensors, c.primary, it)) }
+                            if (item.total > 0) add(Triple(
+                                if (item.type == MediaType.Anime) Icons.Default.Tv else Icons.Default.MenuBook, c.primary,
+                                "${item.total} ${if (item.type == MediaType.Anime) "episodes" else "chapters"}",
+                            ))
+                            if (item.score > 0) add(Triple(Icons.Default.Star, Color(0xFFFFC107), item.score.twoDecimals()))
+                            favorites?.takeIf { it > 0 }?.let { add(Triple(Icons.Default.Favorite, c.danger, "${formatCount(it)} favorites")) }
+                            aired.takeIf { it.isNotBlank() }?.let { add(Triple(Icons.Default.CalendarMonth, c.primary, it)) }
+                        }
+                        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            val posterInteraction = remember { MutableInteractionSource() }
+                            Box(
+                                Modifier.size(width = 128.dp, height = 192.dp)
+                                    .shadow(6.dp, RoundedCornerShape(kikoCorner(16.dp))).clip(RoundedCornerShape(kikoCorner(16.dp))).background(Color(item.color))
+                                    .pressScale(posterInteraction, scale = 0.94f)
+                                    .clickable(indication = null, interactionSource = posterInteraction) { showFullCover = true },
+                            ) {
+                                if (item.cover.isNotBlank()) {
+                                    Image(painter = coverPainter, contentDescription = displayTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                                } else {
+                                    Text(displayTitle.take(1), fontWeight = FontWeight.Bold, fontSize = 44.sp, color = Color.White.copy(.85f), modifier = Modifier.align(Alignment.Center))
                                 }
                             }
-                        }
-
-                        // Status line below title
-                        val statusMeta = listOfNotNull(
-                            item.airStatus.takeIf { it.isNotBlank() },
-                            if (item.total > 0) "${item.total} ${if (item.type == MediaType.Anime) "episodes" else "chapters"}" else null,
-                        )
-                        if (statusMeta.isNotEmpty() || item.score > 0) {
-                            Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                if (statusMeta.isNotEmpty()) {
-                                    Text(statusMeta.joinToString("   ·   "), color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                }
-                                if (item.score > 0) {
-                                    if (statusMeta.isNotEmpty()) Text("   ·   ", color = c.muted, fontSize = 13.sp)
-                                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(14.dp))
-                                    Text(item.score.twoDecimals(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+                            Column(Modifier.weight(1f).height(192.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                infoRows.forEachIndexed { i, (icon, tint, text) ->
+                                    DetailInfoRow(i, infoRows.size, icon, tint, text)
                                 }
                             }
                         }
@@ -527,19 +546,12 @@ data class DetailScreenActions(
                         item.nextEpisodeLabel(airingInfo)?.let { label ->
                             val is24Hour = systemIs24Hour()
                             val airTime = item.nextAirDateTime(airingInfo)?.toLocalTime()
-                            Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(14.dp))
                                 Text(
                                     listOfNotNull(label, airTime?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
                                     color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp),
                                 )
-                            }
-                        }
-
-                        favorites?.takeIf { it > 0 }?.let { fav ->
-                            Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Favorite, null, tint = c.danger, modifier = Modifier.size(14.dp))
-                                Text("${formatCount(fav)} favorites", color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
                             }
                         }
 
@@ -549,7 +561,7 @@ data class DetailScreenActions(
                                 item.genres.forEach { g -> GenreChip(g, onClick = { actions.onGenreClick(g) }) }
                             }
                         }
-                        val meta = listOfNotNull(item.creator.takeIf { it.isNotBlank() }, aired.takeIf { it.isNotBlank() })
+                        val meta = listOfNotNull(item.creator.takeIf { it.isNotBlank() })
                         if (meta.isNotEmpty()) Text(meta.joinToString("   ·   "), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
                     }
 
@@ -675,12 +687,18 @@ data class DetailScreenActions(
                                             }
                                         }
 
-                                        if (item.synonyms.isNotEmpty()) {
+                                        // The title shown in the banner is the user's preferred language; the other one
+                                        // (English <-> Romaji, via the language setting) leads this list, then synonyms.
+                                        val secondaryTitle = item.secondaryTitle()
+                                        val altTitles = (listOf(secondaryTitle) + item.synonyms)
+                                            .filter { it.isNotBlank() && !it.equals(itemDisplayTitle, ignoreCase = true) }
+                                            .distinctBy { it.lowercase() }
+                                        if (altTitles.isNotEmpty()) {
                                             SectionTitle("Alternative titles", "", {})
                                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                item.synonyms.forEachIndexed { i, name ->
-                                                    DetailGroupRow(i, item.synonyms.size) {
-                                                        SelectionContainer(Modifier.weight(1f)) { Text(name, color = c.ink, fontSize = 14.sp) }
+                                                altTitles.forEachIndexed { i, name ->
+                                                    DetailGroupRow(i, altTitles.size, onLongClick = { copyTitleToClipboard(context, name) }) {
+                                                        Text(name, color = c.ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
                                                     }
                                                 }
                                             }
@@ -1034,16 +1052,49 @@ private fun detailGroupShape(index: Int, count: Int): androidx.compose.ui.graphi
     }
 }
 
+/** Copies a title to the clipboard. Android 13+ shows its own "Copied" confirmation; older versions get a toast. */
+private fun copyTitleToClipboard(context: android.content.Context, text: String) {
+    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Title", text))
+    if (android.os.Build.VERSION.SDK_INT < 33) {
+        android.widget.Toast.makeText(context, "Title copied", android.widget.Toast.LENGTH_SHORT).show()
+    }
+}
+
 /** One tonal row of a grouped list (Details / Alternative titles / Theme songs). */
-@Composable private fun DetailGroupRow(index: Int, count: Int, onClick: (() -> Unit)? = null, content: @Composable RowScope.() -> Unit) {
+@Composable private fun DetailGroupRow(index: Int, count: Int, onClick: (() -> Unit)? = null, onLongClick: (() -> Unit)? = null, content: @Composable RowScope.() -> Unit) {
     val c = LocalKikoColors.current
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(detailGroupShape(index, count)).background(c.surfaceContainer)
-            .let { if (onClick != null) it.kikoClickable(scale = 0.98f, onClick = onClick) else it }
+            .let {
+                if (onLongClick != null) it.kikoCombinedClickable(scale = 0.98f, onLongClick = onLongClick, onClick = onClick ?: {})
+                else if (onClick != null) it.kikoClickable(scale = 0.98f, onClick = onClick) else it
+            }
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
     )
+}
+
+/** One tonal info row beside the cover on the detail header. Rows share the column height equally;
+ * first/last get larger outer corners, middle rows tight ones (same grouped-list look as Settings). */
+@Composable private fun ColumnScope.DetailInfoRow(index: Int, count: Int, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, text: String) {
+    val c = LocalKikoColors.current
+    val outer = kikoCorner(16.dp)
+    val inner = 4.dp
+    val shape = when {
+        count == 1 -> RoundedCornerShape(outer)
+        index == 0 -> RoundedCornerShape(topStart = outer, topEnd = outer, bottomStart = inner, bottomEnd = inner)
+        index == count - 1 -> RoundedCornerShape(topStart = inner, topEnd = inner, bottomStart = outer, bottomEnd = outer)
+        else -> RoundedCornerShape(inner)
+    }
+    Row(
+        Modifier.fillMaxWidth().weight(1f).clip(shape).background(c.surfaceContainer).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
+        Text(text, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 10.dp))
+    }
 }
 
 @Composable fun InfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
