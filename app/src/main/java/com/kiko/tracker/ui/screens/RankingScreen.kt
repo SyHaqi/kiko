@@ -215,14 +215,13 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    if (item.listUsers > 0 || item.score > 0) {
-                        if (item.score > 0) {
-                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
-                            Text(item.score.twoDecimals(), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 4.dp))
-                        }
+                    run {
+                        // Star always shows; unrated titles read "N/A" instead of the rating vanishing.
+                        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
+                        Text(if (item.score > 0) item.score.twoDecimals() else "N/A", color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 4.dp))
                         if (item.listUsers > 0) {
                             // Members count to the right of the MAL score, separated by a dot.
-                            if (item.score > 0) Text("·", color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                            Text("·", color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(horizontal = 6.dp))
                             Icon(Icons.Default.Group, null, tint = c.muted, modifier = Modifier.size(13.dp))
                             Text(formatExact(item.listUsers), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 5.dp))
                         }
