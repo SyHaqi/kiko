@@ -1251,6 +1251,15 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    // Resolve a studio (anime) / author (manga) name from a detail page to its MAL company/person id.
+    // Null when MAL has no confident match.
+    fun resolveCreatorId(type: MediaType, name: String, onResult: (Int?) -> Unit) {
+        viewModelScope.launch {
+            val id = if (type == MediaType.Manga) malPeopleApi.searchPerson(name) else malCompanyApi.searchCompany(name)
+            onResult(id)
+        }
+    }
+
     // Run a people search
     // rule.
     fun runPersonSearch(query: String) {

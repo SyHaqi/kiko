@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -176,6 +177,9 @@ data class DetailScreenActions(
     val onOpenReviewList: (MediaItem) -> Unit = {},
     val onGenreClick: (String) -> Unit = {},
     val onCreatorClick: (String) -> Unit = {},
+    // Studio/author chip: resolves the name to its company/person page and opens it. [onDone] is called
+    // once the lookup finishes (success or not) so the chip can stop showing its spinner.
+    val onOpenCreator: (name: String, onDone: () -> Unit) -> Unit = { _, onDone -> onDone() },
     // Opens a Characters-row entry's
     // CharacterDetailScreen) — a fetch-then-open
     // above, since CharacterEntry only
@@ -368,7 +372,11 @@ data class DetailScreenActions(
                 // The cover and the info rows now live in the section below the banner.
                 Box(
                     Modifier.fillMaxWidth().heightIn(min = 190.dp)
-                        .clip(RoundedCornerShape(bottomStart = kikoCorner(32.dp), bottomEnd = kikoCorner(32.dp))),
+                        .clip(RoundedCornerShape(bottomStart = kikoCorner(32.dp), bottomEnd = kikoCorner(32.dp)))
+                        // Composite image + scrims into one offscreen layer first, so the rounded clip is
+                        // anti-aliased once on the finished pixels. Without this each layer is clipped
+                        // separately and the bright image bleeds through the scrim along the curved corners.
+                        .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen },
                 ) {
                     // Backdrop from second picture (own scope so a late `covers` backfill only redraws this).
                     val backdropUrl = covers.getOrNull(1)
@@ -561,8 +569,26 @@ data class DetailScreenActions(
                                 item.genres.forEach { g -> GenreChip(g, onClick = { actions.onGenreClick(g) }) }
                             }
                         }
-                        val meta = listOfNotNull(item.creator.takeIf { it.isNotBlank() })
-                        if (meta.isNotEmpty()) Text(meta.joinToString("   ·   "), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
+                        // Studio (anime) / author (manga) as a chip under the genres, with the same small
+                        // label as GENRES. Tapping resolves the name to its MAL page and opens it.
+                        if (item.creator.isNotBlank()) {
+                            var creatorResolving by remember(item.id) { mutableStateOf(false) }
+                            Text(
+                                if (item.type == MediaType.Anime) "COMPANY" else "AUTHOR",
+                                color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp,
+                                modifier = Modifier.padding(top = 18.dp, bottom = 9.dp),
+                            )
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                CreatorChip(
+                                    text = item.creator,
+                                    loading = creatorResolving,
+                                    onClick = {
+                                        creatorResolving = true
+                                        actions.onOpenCreator(item.creator) { creatorResolving = false }
+                                    },
+                                )
+                            }
+                        }
                     }
 
                     // Detail tabs — stock Material 3 primary tabs, icon only (stock 48dp icon-only
@@ -1641,3 +1667,16 @@ fun formatUserDate(raw: String): String {
     } catch (e: Exception) { raw }
 }
 // Update available dialog sheet
+/** Same outline look as [GenreChip], with a small loading indicator while the studio/author page is being looked up. */
+@Composable
+private fun CreatorChip(text: String, loading: Boolean, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    val shape = RoundedCornerShape(kikoCorner(10.dp))
+    Row(
+        Modifier.clip(shape).border(1.dp, c.outlineVariant, shape).kikoClickable(enabled = !loading, onClick = onClick).padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text, color = c.ink, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+        if (loading) KikoLoadingIndicator(modifier = Modifier.padding(start = 8.dp), color = c.primary, size = 16.dp)
+    }
+}

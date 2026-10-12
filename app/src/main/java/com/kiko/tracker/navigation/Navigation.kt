@@ -895,6 +895,17 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             onCreatorClick = { creator ->
                                                 jumpToDiscover(screen.item, if (screen.item.type == MediaType.Manga) "Manga" else "Anime", DiscoverFilters(creator = creator))
                                             },
+                                            onOpenCreator = { creator, onDone ->
+                                                val isManga = screen.item.type == MediaType.Manga
+                                                vm.resolveCreatorId(screen.item.type, creator) { id ->
+                                                    onDone()
+                                                    when {
+                                                        id == null -> android.widget.Toast.makeText(context, "Couldn't find ${if (isManga) "author" else "company"} page", android.widget.Toast.LENGTH_SHORT).show()
+                                                        isManga -> openPerson(id, castOnTop = true)
+                                                        else -> openCompany(id, castOnTop = true)
+                                                    }
+                                                }
+                                            },
                                             onLoadAiringEpisode = { forItem -> vm.loadAiringEpisode(forItem) },
                                             onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) },
                                             onOpenPerson = { malId -> openPerson(malId, castOnTop = true) },
