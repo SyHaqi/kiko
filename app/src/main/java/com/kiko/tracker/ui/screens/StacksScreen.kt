@@ -416,7 +416,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         modifier = modifier.width(250.dp).pressScale(interactionSource),
     ) {
         Column(Modifier.fillMaxHeight()) {
-            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(topStart = kikoCorner(22.dp), topEnd = kikoCorner(22.dp))))
+            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(kikoCorner(22.dp))))
             // weight(1f) lets this text
             // gave the card (see
             // stats row to the
