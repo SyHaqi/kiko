@@ -23,6 +23,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.FlowRow
@@ -81,6 +82,7 @@ import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.RelatedEntry
 import com.kiko.tracker.data.model.ReviewEntry
+import com.kiko.tracker.data.model.ReviewReactionEmojis
 import com.kiko.tracker.data.model.ReviewVerdictTags
 import com.kiko.tracker.data.model.StatusDistribution
 import com.kiko.tracker.data.model.TrailerEntry
@@ -920,8 +922,15 @@ data class DetailScreenActions(
                                             if (reviews.isNotEmpty()) {
                                                 val previewReviews = reviews.take(3)
                                                 SectionTitle("Reviews", if (reviews.size > 3) "See more" else "", { actions.onOpenReviewList(item) })
-                                                LazyRow(state = reviewsListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                                    itemsIndexed(previewReviews, key = { _, it -> it.malId }) { i, rev -> StaggeredItem(i, reviewsSeen) { ReviewCard(rev, onClick = { actions.onOpenReview(rev) }) } }
+                                                // A plain scrolling Row (only 3 previews) instead of a LazyRow so IntrinsicSize.Max can
+                                                // make every card as tall as the tallest one.
+                                                Row(
+                                                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).height(IntrinsicSize.Max),
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                ) {
+                                                    previewReviews.forEachIndexed { i, rev ->
+                                                        key(rev.malId) { StaggeredItem(i, reviewsSeen, Modifier.fillMaxHeight()) { ReviewCard(rev, Modifier.fillMaxHeight(), onClick = { actions.onOpenReview(rev) }) } }
+                                                    }
                                                 }
                                             }
                                         }
@@ -1332,10 +1341,10 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
 }
 // Review card opens full
 
-@Composable fun ReviewCard(entry: ReviewEntry, onClick: () -> Unit) {
+@Composable fun ReviewCard(entry: ReviewEntry, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Column(
-        Modifier.width(260.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh).kikoClickable(onClick = onClick).padding(14.dp),
+        modifier.width(260.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh).kikoClickable(onClick = onClick).padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (entry.userImage.isNotBlank()) {
@@ -1370,6 +1379,22 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
             maxLines = 5, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
+        // MAL reactions: the three most-used emojis, then the total number of reactions.
+        val topEmojis: List<String> = entry.reactionCounts
+            .mapIndexed { i, n -> Pair(i, n) }
+            .filter { it.second > 0 }
+            .sortedByDescending { it.second }
+            .take(3)
+            .mapNotNull { ReviewReactionEmojis.getOrNull(it.first) }
+        val totalReactions = if (entry.reactionCounts.isNotEmpty()) entry.reactionCounts.sum() else entry.reactionScore
+        if (topEmojis.isNotEmpty() && totalReactions > 0) {
+            // Pushes the reactions to the very bottom of the (equal-height) card.
+            Spacer(Modifier.weight(1f))
+            Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(topEmojis.joinToString(""), fontSize = 13.sp)
+                Text(totalReactions.toString(), color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
+            }
+        }
     }
 }
 

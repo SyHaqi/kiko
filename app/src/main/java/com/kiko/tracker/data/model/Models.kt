@@ -187,9 +187,14 @@ data class CharacterEntry(val malId: Int, val name: String, val image: String, v
 
 // Reviews row entry
 
-data class ReviewEntry(val malId: Int, val username: String, val userImage: String, val review: String, val score: Int, val tags: List<String> = emptyList(), val reactionScore: Int = 0, val isSpoiler: Boolean = false, val url: String = "")
-// MAL's three recommendation verdicts
+data class ReviewEntry(val malId: Int, val username: String, val userImage: String, val review: String, val score: Int, val tags: List<String> = emptyList(), val reactionScore: Int = 0, val isSpoiler: Boolean = false, val url: String = "",
+    // Per-reaction counts in MAL's fixed order (see ReviewReactionEmojis); empty when unknown. [date] is MAL's "Jun 19, 2026".
+                       val reactionCounts: List<Int> = emptyList(), val date: String = "")
+// MAL's seven review reactions, in the order of data-reactions' "count" array:
+// Nice, Love it, Funny, Confusing, Informative, Well-written, Creative.
+val ReviewReactionEmojis = listOf("\uD83D\uDC4D", "\u2764\uFE0F", "\uD83D\uDE02", "\uD83E\uDD28", "\uD83D\uDCA1", "\uD83D\uDCDD", "\uD83C\uDFA8")
 
+// MAL's three recommendation verdicts
 val ReviewVerdictTags = setOf("Recommended", "Mixed Feelings", "Not Recommended")
 
 fun ReviewEntry.verdict(): String? = tags.firstOrNull { it in ReviewVerdictTags }

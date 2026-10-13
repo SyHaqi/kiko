@@ -387,6 +387,12 @@ class MalDetailScrapeApi {
             val (tags, spoiler) = parseReviewTags(el.selectFirst("div.tags"))
             val url = el.selectFirst("div.open a")?.attr("href").orEmpty()
             val reactionScore = Regex("\"num\":(\\d+)").find(el.attr("data-reactions"))?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            // data-reactions is {"icon":[..],"num":N,"count":["26","48",...]} — count has one entry per reaction.
+            val reactionCounts = runCatching {
+                val arr = org.json.JSONObject(el.attr("data-reactions")).optJSONArray("count")
+                if (arr == null) emptyList() else (0 until arr.length()).map { arr.optString(it).toIntOrNull() ?: 0 }
+            }.getOrDefault(emptyList())
+            val date = el.selectFirst("div.update_at")?.text()?.trim().orEmpty()
             ReviewEntry(
                 malId = url.substringAfterLast("id=").toIntOrNull() ?: -(index + 1),
                 username = username,
@@ -397,6 +403,8 @@ class MalDetailScrapeApi {
                 reactionScore = reactionScore,
                 isSpoiler = spoiler,
                 url = url,
+                reactionCounts = reactionCounts,
+                date = date,
             )
         }
 
