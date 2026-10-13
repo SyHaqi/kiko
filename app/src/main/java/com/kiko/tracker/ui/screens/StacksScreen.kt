@@ -456,7 +456,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         modifier = Modifier.width(210.dp).pressScale(interactionSource),
     ) {
         Column {
-            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp))))
+            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp), bottomStart = kikoCorner(20.dp), bottomEnd = kikoCorner(20.dp))))
             Column(Modifier.padding(13.dp)) {
                 // minLines/always-rendered author line/fixed-height stats box
                 // below all exist so every card in the row lands on the same

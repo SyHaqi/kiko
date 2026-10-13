@@ -569,7 +569,7 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
                 Modifier
                     .fillMaxWidth()
                     .height(120.dp)
-                    .clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp)))
+                    .clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp), bottomStart = kikoCorner(20.dp), bottomEnd = kikoCorner(20.dp)))
                     .background(c.surfaceContainerHigh),
             ) {
                 if (article.image.isNotBlank()) {

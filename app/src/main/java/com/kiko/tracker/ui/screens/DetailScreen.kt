@@ -1240,13 +1240,15 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
     labelFontSize: TextUnit = 9.sp, labelLineHeight: TextUnit = 11.sp,
     titleFontSize: TextUnit = 11.sp, titleLineHeight: TextUnit = 13.sp, titleMinLines: Int = 2, titleMaxLines: Int = 2,
     subtitleFontSize: TextUnit = 9.sp,
+    // Rounds the cover's bottom corners (Play Store-style); 0 keeps the flat edge against the text block.
+    coverBottomCorner: Dp = 0.dp,
 ) {
     val c = LocalKikoColors.current
     Column(
         Modifier.width(cardWidth).clip(RoundedCornerShape(kikoCorner(cornerRadius))).background(c.surfaceContainerHigh)
             .let { m -> onClick?.let { m.kikoClickable(enabled = !loading, onClick = it) } ?: m },
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(topStart = kikoCorner(cornerRadius), topEnd = kikoCorner(cornerRadius))).background(c.surfaceLow)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(topStart = kikoCorner(cornerRadius), topEnd = kikoCorner(cornerRadius), bottomStart = kikoCorner(coverBottomCorner), bottomEnd = kikoCorner(coverBottomCorner))).background(c.surfaceLow)) {
             if (imageUrl.isNotBlank()) {
                 AsyncImage(model = imageUrl, contentDescription = title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
@@ -1271,7 +1273,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
 
 @Composable fun RelatedCard(entry: RelatedEntry, loading: Boolean = false, myStatus: WatchStatus? = null, onClick: () -> Unit) {
     val title = entry.displayTitle()
-    DetailRowCard(imageUrl = entry.cover, fallbackLetter = title.take(1), title = title, label = entry.relation, loading = loading, myStatus = myStatus, onClick = onClick)
+    DetailRowCard(imageUrl = entry.cover, fallbackLetter = title.take(1), title = title, label = entry.relation, loading = loading, myStatus = myStatus, onClick = onClick, coverBottomCorner = 14.dp)
 }
 
 // Recommended card same style
@@ -1286,7 +1288,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
         else -> "Recommended"
     }
     val title = entry.displayTitle()
-    DetailRowCard(imageUrl = entry.cover, fallbackLetter = title.take(1), title = title, subtitle = subtitle, loading = loading, myStatus = myStatus, onClick = onClick)
+    DetailRowCard(imageUrl = entry.cover, fallbackLetter = title.take(1), title = title, subtitle = subtitle, loading = loading, myStatus = myStatus, onClick = onClick, coverBottomCorner = 14.dp)
 }
 // Compact card for characters/voice-actor
 
