@@ -596,7 +596,7 @@ class MalApi(private val context: Context) {
                 "related_manga{node{id,title,main_picture,alternative_titles{en}},relation_type}," +
                 "recommendations{node{id,title,main_picture,alternative_titles{en}},num_recommendations}"
         val kindSpecific = if (kind == "anime") {
-            "num_episodes,studios,source,rating,start_season,opening_themes,ending_themes,broadcast"
+            "num_episodes,studios,source,rating,start_season,opening_themes,ending_themes,broadcast,average_episode_duration"
         } else {
             "num_chapters,num_volumes,authors{first_name,last_name},source"
         }
@@ -756,6 +756,7 @@ class MalApi(private val context: Context) {
             source = prettifySource(n.optString("source")),
             rating = prettifyRating(n.optString("rating")),
             volumes = n.optInt("num_volumes", 0),
+            durationMin = n.optInt("average_episode_duration", 0) / 60,
             titleEnglish = titleEnglish,
             startDateFull = n.optString("start_date"),
             endDateFull = n.optString("end_date"),

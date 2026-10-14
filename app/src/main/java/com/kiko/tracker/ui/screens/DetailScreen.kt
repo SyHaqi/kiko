@@ -524,13 +524,12 @@ data class DetailScreenActions(
                         // column is exactly as tall as the cover and the rows split that height evenly.
                         val infoRows = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, Color, String>> {
                             item.airStatus.takeIf { it.isNotBlank() }?.let { add(Triple(Icons.Default.Sensors, c.primary, it)) }
-                            if (item.total > 0) add(Triple(
-                                if (item.type == MediaType.Anime) Icons.Default.Tv else Icons.Default.MenuBook, c.primary,
-                                "${item.total} ${if (item.type == MediaType.Anime) "episodes" else "chapters"}",
-                            ))
                             if (item.score > 0) add(Triple(Icons.Default.Star, Color(0xFFFFC107), item.score.twoDecimals()))
                             favorites?.takeIf { it > 0 }?.let { add(Triple(Icons.Default.Favorite, c.danger, "${formatCount(it)} favorites")) }
-                            aired.takeIf { it.isNotBlank() }?.let { add(Triple(Icons.Default.CalendarMonth, c.primary, it)) }
+                            // Anime: minutes per episode. Manga has no duration, so it keeps the published-year row.
+                            if (item.type == MediaType.Anime) {
+                                if (item.durationMin > 0) add(Triple(Icons.Default.Timer, c.primary, durationLabel(item.durationMin)))
+                            } else aired.takeIf { it.isNotBlank() }?.let { add(Triple(Icons.Default.CalendarMonth, c.primary, it)) }
                         }
                         Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             val posterInteraction = remember { MutableInteractionSource() }
@@ -565,30 +564,13 @@ data class DetailScreenActions(
                             }
                         }
 
+                        // Genre chips (no "GENRES" label needed any more).
                         if (item.genres.isNotEmpty()) {
-                            Text("GENRES", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(top = 18.dp),
+                            ) {
                                 item.genres.forEach { g -> GenreChip(g, onClick = { actions.onGenreClick(g) }) }
-                            }
-                        }
-                        // Studio (anime) / author (manga) as a chip under the genres, with the same small
-                        // label as GENRES. Tapping resolves the name to its MAL page and opens it.
-                        if (item.creator.isNotBlank()) {
-                            var creatorResolving by remember(item.id) { mutableStateOf(false) }
-                            Text(
-                                if (item.type == MediaType.Anime) "COMPANY" else "AUTHOR",
-                                color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp,
-                                modifier = Modifier.padding(top = 18.dp, bottom = 9.dp),
-                            )
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                CreatorChip(
-                                    text = item.creator,
-                                    loading = creatorResolving,
-                                    onClick = {
-                                        creatorResolving = true
-                                        actions.onOpenCreator(item.creator) { creatorResolving = false }
-                                    },
-                                )
                             }
                         }
                     }
@@ -698,17 +680,18 @@ data class DetailScreenActions(
                                             SectionTitle("Details", "", {})
                                             // Same grouped tonal rows as Settings: big outer corners, tight inner
                                             // corners, a thin gap between rows instead of dividers.
+                                            var creatorResolving by remember(item.id) { mutableStateOf(false) }
                                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                                 details.forEachIndexed { i, (label, value) ->
                                                     val isCreatorRow = (label == "Studio" || label == "Author") && item.creator.isNotBlank()
-                                                    DetailGroupRow(i, details.size, onClick = if (isCreatorRow) { { actions.onCreatorClick(item.creator) } } else null) {
+                                                    DetailGroupRow(i, details.size, onClick = if (isCreatorRow && !creatorResolving) { { creatorResolving = true; actions.onOpenCreator(item.creator) { creatorResolving = false } } } else null) {
                                                         Text(label, color = c.muted, fontSize = 14.sp)
                                                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).padding(start = 16.dp), horizontalArrangement = Arrangement.End) {
                                                             Text(
                                                                 value, color = if (isCreatorRow) c.primary else c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp,
                                                                 textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis,
                                                             )
-                                                            if (isCreatorRow) Icon(Icons.Default.ChevronRight, null, tint = c.primary, modifier = Modifier.size(18.dp).padding(start = 2.dp))
+                                                            if (isCreatorRow) { if (creatorResolving) KikoLoadingIndicator(modifier = Modifier.padding(start = 6.dp), color = c.primary, size = 16.dp) else Icon(Icons.Default.ChevronRight, null, tint = c.primary, modifier = Modifier.size(18.dp).padding(start = 2.dp)) }
                                                         }
                                                     }
                                                 }
@@ -1155,6 +1138,9 @@ fun formatCount(n: Int): String = when {
     else -> n.toString()
 }
 // Format season and year
+
+/** "24 min" / "1 hr 30 min" for the per-episode duration row. */
+fun durationLabel(min: Int): String = if (min >= 60) "${min / 60} hr" + (if (min % 60 > 0) " ${min % 60} min" else "") else "$min min"
 
 fun seasonYear(season: String, year: String): String = listOf(season, year).filter { it.isNotBlank() }.joinToString(" ")
 // Format ISO date display
@@ -1694,16 +1680,3 @@ fun formatUserDate(raw: String): String {
     } catch (e: Exception) { raw }
 }
 // Update available dialog sheet
-/** Same outline look as [GenreChip], with a small loading indicator while the studio/author page is being looked up. */
-@Composable
-private fun CreatorChip(text: String, loading: Boolean, onClick: () -> Unit) {
-    val c = LocalKikoColors.current
-    val shape = RoundedCornerShape(kikoCorner(10.dp))
-    Row(
-        Modifier.clip(shape).border(1.dp, c.outlineVariant, shape).kikoClickable(enabled = !loading, onClick = onClick).padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(text, color = c.ink, fontWeight = FontWeight.Medium, fontSize = 12.sp)
-        if (loading) KikoLoadingIndicator(modifier = Modifier.padding(start = 8.dp), color = c.primary, size = 16.dp)
-    }
-}

@@ -354,6 +354,12 @@ class TenraiApi {
             source = normalizeSource(n.optString("source")),
             rating = normalizeRating(n.optString("rating")),
             volumes = n.optInt("volumes", 0),
+            // Jikan gives "24 min per ep" / "1 hr 52 min" / "Unknown"
+            durationMin = n.optString("duration").let { d ->
+                val h = Regex("(\\d+)\\s*hr").find(d)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                val m = Regex("(\\d+)\\s*min").find(d)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                h * 60 + m
+            },
             titleEnglish = titleEnglish,
             startDateFull = startDateFull,
             endDateFull = endDateFull,

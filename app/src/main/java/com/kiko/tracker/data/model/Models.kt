@@ -73,6 +73,8 @@ data class MediaItem(
     val startDate: String = "", val season: String = "",
     val format: String = "", val airStatus: String = "", val source: String = "", val rating: String = "",
     val volumes: Int = 0, val titleEnglish: String = "",
+    // Anime only: average minutes per episode (0 = unknown)
+    val durationMin: Int = 0,
     // Extra detail metadata
     val startDateFull: String = "", val endDateFull: String = "",
     val synonyms: List<String> = emptyList(),
