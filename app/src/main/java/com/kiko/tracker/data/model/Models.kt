@@ -535,7 +535,42 @@ fun localizedTimeLabel(time: java.time.LocalTime, is24Hour: Boolean): String =
     time.format(java.time.format.DateTimeFormatter.ofPattern(if (is24Hour) "HH:mm" else "h:mm a", java.util.Locale.getDefault()))
 // Read device time format
 
-@Composable fun systemIs24Hour(): Boolean = android.text.format.DateFormat.is24HourFormat(LocalContext.current)
+@Composable fun systemIs24Hour(): Boolean {
+    val context = LocalContext.current
+    // Every air-timer call site reads this first, so it doubles as the one place the countdown pref gets loaded.
+    AirTimerPrefs.ensureLoaded(context)
+    return android.text.format.DateFormat.is24HourFormat(context)
+}
+
+// Settings > "Air timer style". Compose state so every visible timer flips as soon as the switch does.
+object AirTimerPrefs {
+    private const val KEY = "air_timer_countdown"
+    var countdown by mutableStateOf(false); private set
+    private var loaded = false
+    fun ensureLoaded(context: android.content.Context) {
+        if (loaded) return
+        loaded = true
+        countdown = com.kiko.tracker.util.settingsPrefs(context).getBoolean(KEY, false)
+    }
+    fun set(context: android.content.Context, value: Boolean) {
+        loaded = true
+        countdown = value
+        com.kiko.tracker.util.settingsPrefs(context).edit().putBoolean(KEY, value).apply()
+    }
+}
+
+// "in 2d 3h" / "in 2h 15m" / "in 45m" until [next].
+private fun countdownText(next: java.time.LocalDateTime): String? {
+    val mins = java.time.Duration.between(java.time.LocalDateTime.now(), next).toMinutes()
+    if (mins < 0) return null
+    val d = mins / (24 * 60); val h = (mins / 60) % 24; val m = mins % 60
+    return when {
+        d > 0 -> "in ${d}d" + if (h > 0) " ${h}h" else ""
+        h > 0 -> "in ${h}h" + if (m > 0) " ${m}m" else ""
+        mins > 0 -> "in ${m}m"
+        else -> "in <1m"
+    }
+}
 // AniList's confirmed airingAt (UTC
 // the authoritative counterpart to
 private fun MediaItem.confirmedAirDateTime(confirmed: AiringInfo?): java.time.LocalDateTime? {
@@ -567,6 +602,9 @@ fun MediaItem.airTimerLabel(confirmed: AiringInfo? = null, is24Hour: Boolean = f
     val next = nextAirDateTime(confirmed) ?: return null
     val epNum = confirmed?.episode ?: nextEpisodeNumber()
     if (epNum != null && total > 0 && epNum > total) return null
+    if (AirTimerPrefs.countdown) {
+        countdownText(next)?.let { return if (epNum != null) "Ep. $epNum airs $it" else "Airs $it" }
+    }
     val time = localizedTimeLabel(next.toLocalTime(), is24Hour)
     // Airing today -> just the time ("Ep. 14 airs at 9:30 PM"); the weekday only appears for another day.
     if (next.toLocalDate() == java.time.LocalDate.now()) return if (epNum != null) "Ep. $epNum airs at $time" else "Airs at $time"

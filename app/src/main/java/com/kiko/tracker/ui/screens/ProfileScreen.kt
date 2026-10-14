@@ -43,6 +43,8 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.material.icons.outlined.Sort
 import androidx.compose.material.icons.outlined.Translate
+import androidx.compose.material.icons.outlined.Timer
+import com.kiko.tracker.data.model.AirTimerPrefs
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -1029,6 +1031,7 @@ private fun formatCacheBytes(b: Long): String = when {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var listViewDialog by remember { mutableStateOf(false) }
+    var airTimerDialog by remember { mutableStateOf(false) }
     var listSortDialog by remember { mutableStateOf(false) }
     var clearCacheDialog by remember { mutableStateOf(false) }
     var signOutDialog by remember { mutableStateOf(false) }
@@ -1054,6 +1057,7 @@ private fun formatCacheBytes(b: Long): String = when {
         ))
         SettingsGroup("Library", listOf(
             SettingsItem("Title language", titleLanguage.label, icon = Icons.Outlined.Translate, onClick = onTitleLanguageClick),
+            SettingsItem("Air timer style", if (AirTimerPrefs.countdown) "Countdown" else "Air time", icon = Icons.Outlined.Timer, onClick = { airTimerDialog = true }),
             SettingsItem("List layout", listViewMode.name, icon = Icons.Outlined.ViewAgenda, onClick = { listViewDialog = true }),
             SettingsItem("List sort order", listSort.label, icon = Icons.Outlined.Sort, onClick = { listSortDialog = true }),
         ))
@@ -1090,6 +1094,12 @@ private fun formatCacheBytes(b: Long): String = when {
         ))
     }
 
+    if (airTimerDialog) ChoiceDialog(
+        title = "Air timer style", options = listOf(false, true), selected = AirTimerPrefs.countdown,
+        label = { if (it) "Countdown" else "Air time" },
+        description = { if (it) "e.g. Ep. 2 airs in 2h" else "e.g. Ep. 2 airs at 22:46" },
+        onSelect = { AirTimerPrefs.set(context, it); airTimerDialog = false }, onDismiss = { airTimerDialog = false },
+    )
     if (listViewDialog) ChoiceDialog(
         title = "List layout", options = ListViewMode.entries, selected = listViewMode, label = { it.name },
         onSelect = { onListViewModeChange(it); listViewDialog = false }, onDismiss = { listViewDialog = false },
