@@ -295,10 +295,13 @@ class MalApi(private val context: Context) {
     // Deliberately requests minimal fields
     // and just returns plain
     // autofill the search field
-    suspend fun suggestTitles(query: String, type: MediaType?, limit: Int = 5): List<String> = withContext(Dispatchers.IO) {
+    // preferEnglish follows the app's Title Language setting: when true each
+    // suggestion is MAL's English title (alternative_titles.en), falling back
+    // to the romaji title for entries that don't have one.
+    suspend fun suggestTitles(query: String, type: MediaType?, limit: Int = 5, preferEnglish: Boolean = false): List<String> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
         val kinds = if (type == null) listOf("anime", "manga") else listOf(if (type == MediaType.Anime) "anime" else "manga")
-        val results = coroutineScope { kinds.map { kind -> async { suggestKind(query, kind, limit) } }.awaitAll().flatten() }
+        val results = coroutineScope { kinds.map { kind -> async { suggestKind(query, kind, limit, preferEnglish) } }.awaitAll().flatten() }
         val q = query.trim().lowercase()
         // Titles starting with the
         results.distinctBy { it.lowercase() }
@@ -306,11 +309,16 @@ class MalApi(private val context: Context) {
             .take(limit)
     }
 
-    private suspend fun suggestKind(query: String, kind: String, limit: Int): List<String> = withContext(Dispatchers.IO) {
+    private suspend fun suggestKind(query: String, kind: String, limit: Int, preferEnglish: Boolean): List<String> = withContext(Dispatchers.IO) {
         val encoded = URLEncoder.encode(clampMalQuery(query), "UTF-8")
-        val body = runCatching { authorized { get("$API/$kind?q=$encoded&limit=$limit&nsfw=true&fields=id,title") } }.getOrElse { return@withContext emptyList() }
+        val fields = if (preferEnglish) "id,title,alternative_titles{en}" else "id,title"
+        val body = runCatching { authorized { get("$API/$kind?q=$encoded&limit=$limit&nsfw=true&fields=$fields") } }.getOrElse { return@withContext emptyList() }
         val arr = JSONObject(body).optJSONArray("data") ?: return@withContext emptyList()
-        (0 until arr.length()).mapNotNull { arr.getJSONObject(it).optJSONObject("node")?.safeTitle()?.takeIf { t -> t.isNotBlank() } }
+        (0 until arr.length()).mapNotNull { i ->
+            val node = arr.getJSONObject(i).optJSONObject("node") ?: return@mapNotNull null
+            val english = if (preferEnglish) node.optJSONObject("alternative_titles")?.safeTitle("en").orEmpty() else ""
+            english.ifBlank { node.safeTitle() }.takeIf { t -> t.isNotBlank() }
+        }
     }
 
     // Current season anime list — sorted by members (same default as the Seasonal tab)

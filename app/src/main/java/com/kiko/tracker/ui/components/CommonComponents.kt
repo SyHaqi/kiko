@@ -536,43 +536,51 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     )
 }
 
-// Google-style "search this" suggestions
-// types. Plain title rows
-// fills the search bar
-@Composable fun SearchSuggestionsList(suggestions: List<String>, onSelect: (String) -> Unit) {
+// Play Store-style search suggestions: plain full-width rows on the screen background (no card, no
+// dividers) — a small round tonal icon, the title, and a north-west arrow that copies the suggestion
+// into the search field without running it ([onFill]). Tapping the row itself searches it.
+@Composable fun SearchSuggestionsList(suggestions: List<String>, onSelect: (String) -> Unit, onFill: ((String) -> Unit)? = null) {
     val c = LocalKikoColors.current
     if (suggestions.isEmpty()) return
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh),
-    ) {
-        suggestions.forEachIndexed { index, title ->
+    Column(Modifier.fillMaxWidth()) {
+        suggestions.forEach { title ->
             Row(
-                Modifier.fillMaxWidth().kikoClickable { onSelect(title) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
+                    .kikoClickable(scale = 1f) { onSelect(title) }
+                    .padding(start = 20.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.Search, null, tint = c.muted, modifier = Modifier.size(16.dp))
-                Text(title, color = c.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 14.dp).weight(1f))
+                Box(Modifier.size(32.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Search, null, tint = c.ink, modifier = Modifier.size(18.dp))
+                }
+                Text(title, color = c.ink, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 16.dp, end = 8.dp).weight(1f))
+                if (onFill != null) {
+                    IconButton(onClick = { onFill(title) }) { Icon(Icons.Default.NorthWest, "Use in search", tint = c.muted, modifier = Modifier.size(22.dp)) }
+                }
             }
-            if (index < suggestions.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant, modifier = Modifier.padding(start = 46.dp))
         }
     }
 }
 
-// Floats the suggestion list
-// search row. Also lays
-// the suggestions and drop
-// for the search row
-// `anchorBounds`/`containerBounds` are captured via
-// search row and the
-// space, so they stay
+// Shows the suggestions as a panel that fills the screen below the search bar (opaque, like the Play
+// Store's), so they read as part of the page rather than a floating card. Tapping the empty part of
+// the panel or the area above the bar dismisses it. `anchorBounds`/`containerBounds` come from
+// onGloballyPositioned on the search bar and the screen's root container; only the bar's bottom edge
+// is used. Keeps showing the last non-empty list while it fades out.
 @Composable fun BoxScope.FloatingSearchSuggestions(
     anchorBounds: Rect?,
     containerBounds: Rect?,
     suggestions: List<String>,
     onDismiss: () -> Unit,
+    onFill: ((String) -> Unit)? = null,
     onSelect: (String) -> Unit,
 ) {
-    if (suggestions.isEmpty() || anchorBounds == null || containerBounds == null) return
+    val c = LocalKikoColors.current
+    var held by remember { mutableStateOf(suggestions) }
+    if (suggestions.isNotEmpty() && suggestions != held) held = suggestions
+    if (anchorBounds == null || containerBounds == null) return
     val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -580,12 +588,10 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 
     val relTop = anchorBounds.top - containerBounds.top
     val relBottom = anchorBounds.bottom - containerBounds.top
-    val relLeft = anchorBounds.left - containerBounds.left
-    val widthPx = anchorBounds.width
     val remainingHeightPx = (containerBounds.height - relBottom).coerceAtLeast(0f)
 
-    // Scrim above the anchor
-    if (relTop > 0f) {
+    // Scrim above the bar (taps there just dismiss)
+    if (suggestions.isNotEmpty() && relTop > 0f) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -593,23 +599,25 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 .pointerInput(Unit) { detectTapGestures { dismiss() } }
         )
     }
-    // Scrim below the anchor,
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(with(density) { remainingHeightPx.toDp() })
-            .offset { IntOffset(0, relBottom.roundToInt()) }
-            .pointerInput(Unit) { detectTapGestures { dismiss() } }
-    )
-    // The floating suggestion list
-    // taps register as selections
-    Box(
-        Modifier
-            .offset { IntOffset(relLeft.roundToInt(), (relBottom + with(density) { 8.dp.toPx() }).roundToInt()) }
-            .width(with(density) { widthPx.toDp() })
-            .shadow(10.dp, RoundedCornerShape(kikoCorner(18.dp))),
+    AnimatedVisibility(
+        visible = suggestions.isNotEmpty(),
+        modifier = Modifier.offset { IntOffset(0, relBottom.roundToInt()) },
+        enter = fadeIn(KikoMotion.effectsDefault()),
+        exit = fadeOut(KikoMotion.effectsFast()),
     ) {
-        SearchSuggestionsList(suggestions) { picked -> dismiss(); onSelect(picked) }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(with(density) { remainingHeightPx.toDp() })
+                .background(c.background)
+                .pointerInput(Unit) { detectTapGestures { dismiss() } },
+        ) {
+            SearchSuggestionsList(
+                held,
+                onSelect = { picked -> dismiss(); onSelect(picked) },
+                onFill = onFill,
+            )
+        }
     }
 }
 

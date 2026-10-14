@@ -456,6 +456,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // the suggestions list directly
     var containerBounds by remember { mutableStateOf<Rect?>(null) }
     var searchBarBounds by remember { mutableStateOf<Rect?>(null) }
+    var typeRowBounds by remember { mutableStateOf<Rect?>(null) }
     // Bumped by the search
     // Discover bottom-nav tab) via
     // and pop the keyboard
@@ -514,15 +515,19 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             // Fixes type/format mismatch
             if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false; forceExpandGenre = false }, onApply = { filterSheetOpen = false; forceExpandGenre = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) }, forceExpandGenre = forceExpandGenre)
             if (userFilterSheetOpen) UserAdvancedFilterSheet(vm.userFilters, onDismiss = { userFilterSheetOpen = false }, onApply = { userFilterSheetOpen = false; vm.runUserSearch(query, it) })
-            Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 2.dp, bottom = 0.dp).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                DiscoverTypeDropdown(current = vm.discoverTypeFilter, onSelect = { picked -> vm.selectDiscoverType(context, picked, query) })
-                if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DiscoverSortMenu(current = vm.discoverSort, onSelect = { vm.selectDiscoverSort(context, it) })
+            LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+                // Type dropdown + sort scroll away with the results. Its bounds are tracked so the
+                // floating suggestions can start below it while it's on screen.
+                item {
+                    Row(Modifier.fillMaxWidth().padding(top = 2.dp).heightIn(min = 48.dp).onGloballyPositioned { typeRowBounds = it.boundsInRoot() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        DiscoverTypeDropdown(current = vm.discoverTypeFilter, onSelect = { picked -> vm.selectDiscoverType(context, picked, query) })
+                        if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                DiscoverSortMenu(current = vm.discoverSort, onSelect = { vm.selectDiscoverSort(context, it) })
+                            }
+                        }
                     }
                 }
-            }
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
                 item {
                     when (vm.discoverTypeFilter) {
                         "Characters" -> {
@@ -726,10 +731,18 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         // Floating title suggestions as
         // run that search; tapping
         FloatingSearchSuggestions(
-            anchorBounds = searchBarBounds?.let { b -> val inset = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }; Rect(b.left + inset, b.top, b.right - inset, b.bottom) },
+            // Suggestions start below the bar's divider line, and below the type/sort row while that row is
+            // visible (item 0 of the list), so neither is covered.
+            anchorBounds = searchBarBounds?.let { b ->
+                val dividerPx = with(androidx.compose.ui.platform.LocalDensity.current) { 1.dp.toPx() }
+                val rowBottom = if (listState.firstVisibleItemIndex == 0) typeRowBounds?.bottom ?: 0f else 0f
+                Rect(b.left, b.top, b.right, maxOf(b.bottom + dividerPx, rowBottom))
+            },
             containerBounds = containerBounds,
             suggestions = if (query.isNotBlank()) vm.discoverSuggestions else emptyList(),
             onDismiss = vm::clearDiscoverSuggestions,
+            // Arrow on a suggestion: copy it into the field and refine from there (suggestions refresh).
+            onFill = { picked -> query = picked; vm.fetchDiscoverSuggestions(context, picked, vm.discoverTypeFilter) },
         ) { picked ->
             query = picked
             vm.selectDiscoverType(context, vm.discoverTypeFilter, picked)

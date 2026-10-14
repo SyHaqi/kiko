@@ -1589,7 +1589,7 @@ class LibraryViewModel : ViewModel() {
         discoverSuggestJob = viewModelScope.launch {
             delay(100) // debounce so we're not
             val t = when (type) { "Anime" -> MediaType.Anime; "Manga" -> MediaType.Manga; else -> null }
-            runCatching { api.suggestTitles(query, t) }
+            runCatching { api.suggestTitles(query, t, preferEnglish = titleLanguage == TitleLanguage.English) }
                 .onSuccess { discoverSuggestions = it }
                 .onFailure { discoverSuggestions = emptyList() }
         }

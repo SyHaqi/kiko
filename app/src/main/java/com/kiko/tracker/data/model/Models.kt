@@ -246,7 +246,9 @@ enum class PaletteStyle(val label: String) { TonalSpot("Tonal Spot"), Neutral("N
 
 // ViewModel section
 
-enum class DiscoverMode { Browse, Results }
+// Browse = Discover landing page, Search = the search page (recent searches / live
+// suggestions, nothing is searched yet), Results = the result list for a submitted search.
+enum class DiscoverMode { Browse, Search, Results }
 // Discover advanced filters
 
 data class DiscoverFilters(
