@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -42,6 +43,10 @@ class MalCompanyApi {
     // into names (a small,
     // anything, so this doesn't
     private val tenrai = TenraiApi()
+
+    // Start the genre/theme lookup as soon as anything company-related is touched (the Companies
+    // search, a studio tap), so it is usually already cached by the time a company page is opened.
+    init { tenrai.warmFacetIdMaps("anime") }
 
     private fun fetchDoc(url: String): Document = client.fetchMalDocument(url)
 
@@ -105,13 +110,16 @@ class MalCompanyApi {
     // trips back to back
     // both fire together and
     suspend fun detail(id: Int): CompanyDetail = withContext(Dispatchers.IO) {
-        coroutineScope {
-            val docDeferred = async { fetchDoc("https://myanimelist.net/anime/producer/$id") }
-            val facetsDeferred = async { runCatching { tenrai.facetIdMaps("anime") }.getOrNull() }
-            val doc = docDeferred.await()
-            val works = runCatching { parseWorks(doc, "", facetsDeferred.await()) }.getOrElse { emptyList() }
-            parseDetail(id, doc, works)
-        }
+        // The genre/theme lookup (4 Tenrai requests, rate-limited and retried) used to be awaited
+        // here, so the first company opened after app start sat behind it, while later ones were
+        // instant: the "sometimes slow, sometimes fast" load. It only fills in genre labels, which
+        // the company page doesn't show, so it now runs in the background and the page waits at
+        // most FACET_WAIT_MS for it. If it isn't ready, the grid is built without genre labels.
+        val facetsDeferred = tenrai.facetIdMapsAsync("anime")
+        val doc = fetchDoc("https://myanimelist.net/anime/producer/$id")
+        val facets = tenrai.peekFacetIdMaps("anime") ?: withTimeoutOrNull(FACET_WAIT_MS) { facetsDeferred.await() }
+        val works = runCatching { parseWorks(doc, "", facets) }.getOrElse { emptyList() }
+        parseDetail(id, doc, works)
     }
 
     // Scrape a resolved studio's
@@ -228,6 +236,12 @@ class MalCompanyApi {
         return CompanyNews(topicId = topicId, title = title, image = image, snippet = snippet, date = date)
     }
 
+    private companion object {
+        const val FACET_WAIT_MS = 1_500L
+        // MAL's "Hentai" genre id: keeps the NSFW flag correct even when the facet lookup wasn't ready.
+        const val HENTAI_GENRE_ID = 12
+    }
+
     private val typeFormats = mapOf(1 to "TV", 2 to "OVA", 3 to "Movie", 4 to "Special", 5 to "ONA", 6 to "Music")
 
     private fun parseTile(tile: Element, creator: String, allCreators: String, facets: TenraiApi.FacetIdMaps?): MediaItem? {
@@ -278,7 +292,7 @@ class MalCompanyApi {
             season = season,
             format = format,
             startDateFull = startDateFull,
-            nsfw = if (genres.any { it.equals("Hentai", ignoreCase = true) }) "black" else "white",
+            nsfw = if (HENTAI_GENRE_ID in genreIds || genres.any { it.equals("Hentai", ignoreCase = true) }) "black" else "white",
             inUserList = false,
             unknownFacets = unknown,
         )

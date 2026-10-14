@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import kotlinx.coroutines.flow.distinctUntilChanged
 import com.kiko.tracker.R
 import com.kiko.tracker.data.model.CompanyDetail
 import com.kiko.tracker.data.model.CompanyNews
@@ -93,6 +94,8 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
 
 
 private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", "Music")
+// How many works the Anime grid reveals at a time (3 rows of 3).
+private const val CompanyPageSize = 9
 
 @Composable fun CompanyDetailScreen(
     malId: Int,
@@ -144,7 +147,27 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
         val byFormat = if (selectedFormat == "All") company.works else company.works.filter { it.format == selectedFormat }
         byFormat.sortedForDiscover(selectedSort, titleLanguage)
     }
-    val gridRows = remember(filteredWorks) { filteredWorks.chunked(3) }
+    // Paged like Discover's search results: show 9 titles (3 rows) first, then reveal 9 more each
+    // time the list is scrolled to the end. Filtering/sorting still runs on the full list, so the
+    // counts and sort order stay correct. Returning to the page restores enough rows for the saved
+    // scroll position to land where the user left.
+    var visibleCount by remember(company.malId) { mutableIntStateOf(maxOf(CompanyPageSize, initialScroll.first * 3 + CompanyPageSize)) }
+    var lastFilter by remember(company.malId) { mutableStateOf(selectedFormat to selectedSort) }
+    LaunchedEffect(selectedFormat, selectedSort) {
+        val key = selectedFormat to selectedSort
+        if (key != lastFilter) { lastFilter = key; visibleCount = CompanyPageSize }
+    }
+    val hasMoreWorks = visibleCount < filteredWorks.size
+    val gridRows = remember(filteredWorks, visibleCount) { filteredWorks.take(visibleCount).chunked(3) }
+    LaunchedEffect(listState, filteredWorks.size) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
+            .distinctUntilChanged()
+            .collect { (lastVisible, total) ->
+                if (lastVisible != null && total > 0 && lastVisible >= total - 1 && visibleCount < filteredWorks.size) {
+                    visibleCount = minOf(visibleCount + CompanyPageSize, filteredWorks.size)
+                }
+            }
+    }
     val gridSeen = rememberStaggerMemory()
 
     Box(Modifier.fillMaxSize()) {
@@ -252,6 +275,13 @@ private val CompanyFormatOrder = listOf("TV", "Movie", "OVA", "ONA", "Special", 
                                 }
                                 // Pad the last row
                                 repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
+                            }
+                        }
+                    }
+                    if (hasMoreWorks) {
+                        item(key = "loading-more") {
+                            Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
+                                KikoLoadingIndicator(size = 24.dp)
                             }
                         }
                     }

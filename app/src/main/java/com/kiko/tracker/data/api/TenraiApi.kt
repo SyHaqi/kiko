@@ -1,6 +1,8 @@
 package com.kiko.tracker.data.api
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -153,21 +155,43 @@ class TenraiApi {
     // once), not a search
     // list rather than going
     data class FacetIdMaps(val genres: Map<Int, String>, val explicitGenres: Map<Int, String>, val themes: Map<Int, String>, val demographics: Map<Int, String>)
-    private object IdCache { val byKind = mutableMapOf<String, FacetIdMaps>() }
+    private object IdCache {
+        val byKind = java.util.concurrent.ConcurrentHashMap<String, FacetIdMaps>()
+        val inFlight = java.util.concurrent.ConcurrentHashMap<String, Deferred<FacetIdMaps>>()
+    }
 
-    suspend fun facetIdMaps(kind: String): FacetIdMaps {
-        IdCache.byKind[kind]?.let { return it }
-        val result = withContext(Dispatchers.IO) {
+    suspend fun facetIdMaps(kind: String): FacetIdMaps = facetIdMapsAsync(kind).await()
+
+    // Already-resolved maps, or null if they haven't finished loading yet. Never blocks.
+    fun peekFacetIdMaps(kind: String): FacetIdMaps? = IdCache.byKind[kind]
+
+    // Kick the lookup off in the background so it can finish before a page needs it.
+    fun warmFacetIdMaps(kind: String) { facetIdMapsAsync(kind) }
+
+    // Starts (or joins) the 4-request facet lookup on TenraiApi's own background scope, so it keeps
+    // running even if the caller stops waiting (e.g. a page that only waits briefly for it) and a
+    // later caller picks up the same in-flight work instead of starting a second round of requests.
+    // Only a fully successful lookup is cached: before, one failed/rate-limited request cached an
+    // empty map for the rest of the session.
+    fun facetIdMapsAsync(kind: String): Deferred<FacetIdMaps> {
+        IdCache.byKind[kind]?.let { return CompletableDeferred(it) }
+        val d = Cache.scope.async(start = CoroutineStart.LAZY) {
             coroutineScope {
-                val g = async { runCatching { fetchGenreFacetById(kind, "genres") }.getOrElse { emptyMap() } }
-                val eg = async { runCatching { fetchGenreFacetById(kind, "explicit_genres") }.getOrElse { emptyMap() } }
-                val th = async { runCatching { fetchGenreFacetById(kind, "themes") }.getOrElse { emptyMap() } }
-                val dm = async { runCatching { fetchGenreFacetById(kind, "demographics") }.getOrElse { emptyMap() } }
-                FacetIdMaps(g.await(), eg.await(), th.await(), dm.await())
+                val g = async { runCatching { fetchGenreFacetById(kind, "genres") }.getOrNull() }
+                val eg = async { runCatching { fetchGenreFacetById(kind, "explicit_genres") }.getOrNull() }
+                val th = async { runCatching { fetchGenreFacetById(kind, "themes") }.getOrNull() }
+                val dm = async { runCatching { fetchGenreFacetById(kind, "demographics") }.getOrNull() }
+                val gm = g.await(); val egm = eg.await(); val thm = th.await(); val dmm = dm.await()
+                val maps = FacetIdMaps(gm.orEmpty(), egm.orEmpty(), thm.orEmpty(), dmm.orEmpty())
+                if (gm != null && egm != null && thm != null && dmm != null) IdCache.byKind[kind] = maps
+                maps
             }
         }
-        IdCache.byKind[kind] = result
-        return result
+        val existing = IdCache.inFlight.putIfAbsent(kind, d)
+        if (existing != null) return existing
+        d.invokeOnCompletion { IdCache.inFlight.remove(kind, d) }
+        d.start()
+        return d
     }
 
     private suspend fun fetchGenreFacetById(kind: String, facet: String): Map<Int, String> {
