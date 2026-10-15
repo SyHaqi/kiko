@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontFamily
 import androidx.core.graphics.ColorUtils
 import kotlin.math.roundToInt
@@ -93,6 +94,24 @@ fun seedHue(seed: Color): Float {
     return hsl[0]
 }
 
+// WCAG contrast ratio (1..21) between two opaque colors.
+private fun contrastRatio(a: Color, b: Color): Float {
+    val la = a.luminance(); val lb = b.luminance()
+    return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
+}
+
+// Light palettes only. The accent roles used one fixed lightness for every hue, but how bright a
+// color *looks* varies a lot by hue: at the same lightness blue/purple/red are dark enough for
+// white text, while yellow/green/cyan (a custom color, or Dynamic color from a wallpaper) come out
+// pastel — white-on-primary buttons and primary-colored titles drop to ~2.2:1. This walks the
+// lightness down from [maxLightness] until the color reaches [minContrast] against [against].
+// Hues that already pass (the default blue) come back unchanged.
+private fun accentLightness(hue: Float, saturation: Float, maxLightness: Float, against: Color, minContrast: Float = 4.5f): Float {
+    var l = maxLightness
+    while (l > 0.2f && contrastRatio(hslColor(hue, saturation, l), against) < minContrast) l -= 0.01f
+    return l
+}
+
 /** Generates a full Expressive */
 fun themedPalette(seed: Color, style: PaletteStyle, dark: Boolean): KikoColors {
     val hue = seedHue(seed)
@@ -107,26 +126,33 @@ fun themedPalette(seed: Color, style: PaletteStyle, dark: Boolean): KikoColors {
     val tertiaryHue = hue + 60f
 
     return if (!dark) run {
-        val mutedColor = hslColor(hue, neutralSat, 0.45f)
+        // Secondary text used to be lightness .45, which is only ~4.1:1 on the tonal rows
+        // (surfaceContainerHigh) and ~3.8:1 on surfaceContainerHighest — under the 4.5:1 that
+        // small text needs. .38 clears it on every surface in the ladder.
+        val mutedColor = hslColor(hue, neutralSat, 0.38f)
         val onSurfaceVariant = hslColor(hue, neutralSat, 0.32f)
+        val lightBackground = hslColor(hue, neutralSat, 0.985f)
+        val primaryL = accentLightness(hue, accentSat, 0.46f, lightBackground)
+        val secondaryL = accentLightness(hue, secondarySat, 0.40f, lightBackground)
+        val tertiaryL = accentLightness(tertiaryHue, accentSat * 0.8f, 0.42f, lightBackground)
         KikoColors(
             ink = hslColor(hue, neutralSat, 0.12f),
             onPrimary = Color.White,
-            primary = hslColor(hue, accentSat, 0.46f),
+            primary = hslColor(hue, accentSat, primaryL),
             primaryContainer = hslColor(hue, containerSat, 0.88f),
             onPrimaryContainer = hslColor(hue, accentSat, 0.16f),
-            background = hslColor(hue, neutralSat, 0.985f),
+            background = lightBackground,
             surface = hslColor(hue, neutralSat * 0.6f, 0.995f),
             surfaceLow = hslColor(hue, neutralSat, 0.95f),
             muted = mutedColor,
             lavender = hslColor(hue + 40f, containerSat, 0.93f),
             warm = hslColor(hue - 150f, containerSat, 0.87f),
             danger = Color(0xFFB3261E),
-            secondary = hslColor(hue, secondarySat, 0.40f),
+            secondary = hslColor(hue, secondarySat, secondaryL),
             onSecondary = Color.White,
             secondaryContainer = hslColor(hue, secondaryContainerSat, 0.90f),
             onSecondaryContainer = hslColor(hue, secondarySat, 0.16f),
-            tertiary = hslColor(tertiaryHue, accentSat * 0.8f, 0.42f),
+            tertiary = hslColor(tertiaryHue, accentSat * 0.8f, tertiaryL),
             onTertiary = Color.White,
             tertiaryContainer = hslColor(tertiaryHue, containerSat, 0.89f),
             onTertiaryContainer = hslColor(tertiaryHue, accentSat * 0.8f, 0.16f),
@@ -147,7 +173,7 @@ fun themedPalette(seed: Color, style: PaletteStyle, dark: Boolean): KikoColors {
             scrim = Color.Black,
             // See below — same
             // instead of a fixed
-            cardBorder = mutedColor.copy(alpha = 0.16f),
+            cardBorder = hslColor(hue, neutralSat, 0.45f).copy(alpha = 0.16f), // tone it always had; not the darker muted
         )
     } else run {
         val mutedColor = hslColor(hue, neutralSat, 0.68f)

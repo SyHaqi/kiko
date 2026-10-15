@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.layout
@@ -220,10 +221,23 @@ import com.kiko.tracker.ui.theme.kikoPillShape
     }
 }
 
+/**
+ * Light theme only: lifts cover art off the near-white background with a real Material 3 elevation
+ * shadow, so pale covers (white manga pages, light logos) don't melt into it. Defaults to M3
+ * elevation level 1 (1dp, the resting level of an elevated card); level 2 is 3dp, level 3 is 6dp.
+ * Dark themes already contrast with the artwork and get nothing. Apply BEFORE .clip(shape) —
+ * clipping first would cut the shadow off.
+ */
+@Composable fun Modifier.coverElevation(shape: Shape, elevation: Dp = 1.dp): Modifier {
+    val c = LocalKikoColors.current
+    return if (c.background.luminance() > 0.5f) this.shadow(elevation, shape, clip = false) else this
+}
+
 @Composable fun Cover(item: MediaItem, modifier: Modifier = Modifier, showStatus: Boolean = false, statusAlignment: Alignment = Alignment.TopStart, overrideStatus: WatchStatus? = null, showRating: Boolean = false, selected: Boolean = false) {
     val c = LocalKikoColors.current
     val displayTitle = item.displayTitle()
-    Box(modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).background(Color(item.color)), contentAlignment = Alignment.Center) {
+    val coverShape = RoundedCornerShape(kikoCorner(16.dp))
+    Box(modifier.coverElevation(coverShape).clip(coverShape).background(Color(item.color)), contentAlignment = Alignment.Center) {
         if (item.cover.isNotBlank()) {
             AsyncImage(
                 model = item.cover,
