@@ -536,8 +536,10 @@ fun MediaItem.nextEpisodeLabel(confirmed: AiringInfo? = null): String? {
 }
 // Locale time format
 
+private val timeFmt24 by lazy { java.time.format.DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault()) }
+private val timeFmt12 by lazy { java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.getDefault()) }
 fun localizedTimeLabel(time: java.time.LocalTime, is24Hour: Boolean): String =
-    time.format(java.time.format.DateTimeFormatter.ofPattern(if (is24Hour) "HH:mm" else "h:mm a", java.util.Locale.getDefault()))
+    time.format(if (is24Hour) timeFmt24 else timeFmt12)
 // Read device time format
 
 @Composable fun systemIs24Hour(): Boolean {

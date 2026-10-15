@@ -58,7 +58,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
@@ -84,6 +83,7 @@ import com.kiko.tracker.data.model.currentSeasonName
 import com.kiko.tracker.data.model.UserSearchFilters
 import com.kiko.tracker.data.model.UserSummary
 import com.kiko.tracker.data.model.WatchStatus
+import com.kiko.tracker.data.model.AirTimerPrefs
 import com.kiko.tracker.data.model.airTimerLabel
 import com.kiko.tracker.data.model.upcomingLabel
 import com.kiko.tracker.data.model.systemIs24Hour
@@ -484,14 +484,17 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // where they are. Still
     // DiscoverPaginationSource/discoverHasMore) — for studio/author,
     // results the list has
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
-            .distinctUntilChanged()
-            .collect { (lastVisible, total) ->
-                if (lastVisible != null && total > 0 && lastVisible >= total - 1) {
-                    if (vm.discoverTypeFilter == "Users") vm.loadMoreUserSearch() else vm.loadMoreDiscoverSearch(context)
-                }
-            }
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
+            info.totalItemsCount > 0 && last >= info.totalItemsCount - 6
+        }
+    }
+    LaunchedEffect(shouldLoadMore, vm.visibleDiscoverResults.size, vm.discoverTypeFilter) {
+        if (shouldLoadMore) {
+            if (vm.discoverTypeFilter == "Users") vm.loadMoreUserSearch() else vm.loadMoreDiscoverSearch(context)
+        }
     }
     Box(Modifier.fillMaxSize().onGloballyPositioned { containerBounds = it.boundsInRoot() }) {
         Column(Modifier.fillMaxSize()) {
@@ -516,6 +519,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             // Fixes type/format mismatch
             if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false; forceExpandGenre = false }, onApply = { filterSheetOpen = false; forceExpandGenre = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) }, forceExpandGenre = forceExpandGenre)
             if (userFilterSheetOpen) UserAdvancedFilterSheet(vm.userFilters, onDismiss = { userFilterSheetOpen = false }, onApply = { userFilterSheetOpen = false; vm.runUserSearch(query, it) })
+            val gridRows = remember(vm.visibleDiscoverResults, isGrid) { if (isGrid) vm.visibleDiscoverResults.chunked(3) else emptyList() }
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
                 // Type dropdown + sort scroll away with the results. Its bounds are tracked so the
                 // floating suggestions can start below it while it's on screen.
@@ -689,7 +693,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             // LazyColumn (not LazyVerticalGrid) throughout this screen so the
                             // header/filters/type-branches above stay single-column — grid mode
                             // just chunks results into 3-wide rows instead of switching containers.
-                            val rows = resultsForList.chunked(3)
+                            val rows = gridRows
                             itemsIndexed(rows, key = { rowIndex, row -> "discover_row_${row.firstOrNull()?.let { "${it.id}_${it.type}" } ?: rowIndex}" }) { rowIndex, rowItems ->
                                 StaggeredItem(rowIndex, staggerSeen) {
                                     Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -902,8 +906,8 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 @Composable fun BrowseCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, subtitle: String? = null, myStatus: WatchStatus? = null, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
-    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "browseCardSelectBg")
-    val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "browseCardSelectPad")
+    val bg = Color.Transparent
+    val pad = 0.dp
     Column(
         Modifier
             .width(118.dp)
@@ -965,13 +969,26 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
     val confirmed = vm?.getCachedAiring(item.id)
     // Airing -> "Ep. N airs on ..."; not started yet -> "Not Yet Aired". Never both.
-    val timer = item.airTimerLabel(confirmed, systemIs24Hour()) ?: item.upcomingLabel()
+    val is24 = systemIs24Hour()
+    val upcoming = remember(item) { item.upcomingLabel() }
+    // Live countdown: only airing rows in countdown style run a clock, ticking once per wall-clock minute.
+    // The tick is a remember key, so the label recomputes each minute and otherwise stays cached.
+    val ticking = AirTimerPrefs.countdown && item.airStatus.equals("Currently Airing", ignoreCase = true)
+    val minuteTick by produceState(0L, ticking) {
+        if (!ticking) return@produceState
+        while (true) {
+            val now = System.currentTimeMillis()
+            kotlinx.coroutines.delay(60_000L - now % 60_000L)
+            value = System.currentTimeMillis() / 60_000L
+        }
+    }
+    val timer = remember(item, confirmed, is24, AirTimerPrefs.countdown, minuteTick) { item.airTimerLabel(confirmed, is24) ?: upcoming }
     // Accent for the live air timer, muted for the quieter "Not Yet Aired" label.
-    val timerTint = if (item.upcomingLabel() != null) c.muted else c.accent
+    val timerTint = if (upcoming != null) c.muted else c.accent
     // "TV · 23 ep, Spring 2018" — no progress bar here, so the format joins the episodes/year line.
-    val details = listOf(formatLabel(item), episodeAndYear(item)).filter { it.isNotBlank() }.joinToString(" · ")
-    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "searchResultSelectBg")
-    val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "searchResultSelectPad")
+    val details = remember(item) { listOf(formatLabel(item), episodeAndYear(item)).filter { it.isNotBlank() }.joinToString(" · ") }
+    val bg = Color.Transparent
+    val hPad = 0.dp
     Row(
         modifier
             .fillMaxWidth()

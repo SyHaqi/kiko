@@ -252,25 +252,6 @@ import com.kiko.tracker.ui.theme.kikoPillShape
         if (showStatus) (overrideStatus ?: trackedBadgeStatus(item))?.let { CoverStatusMark(it, Modifier.align(statusAlignment).padding(6.dp)) }
         // User's own score, bottom-right
         if (showRating && item.myRating > 0) CoverRatingMark(item.myRating, Modifier.align(Alignment.BottomStart).padding(6.dp))
-        // Long-press selection — tint
-        AnimatedVisibility(
-            visible = selected,
-            enter = fadeIn(tween(180)),
-            exit = fadeOut(tween(140)),
-        ) {
-            Box(Modifier.fillMaxSize().background(c.primary.copy(alpha = .32f)))
-        }
-        AnimatedVisibility(
-            visible = selected,
-            enter = fadeIn(tween(180)) + scaleIn(tween(180), initialScale = .6f),
-            exit = fadeOut(tween(140)) + scaleOut(tween(140), targetScale = .6f),
-            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
-        ) {
-            Box(
-                Modifier.size(22.dp).clip(kikoCircleShape()).background(c.primary).border(1.5.dp, Color.White.copy(alpha = .9f), kikoCircleShape()),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Default.Check, "Selected", tint = c.onPrimary, modifier = Modifier.size(13.dp)) }
-        }
     }
 }
 // All 5 states shown

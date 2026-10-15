@@ -319,8 +319,8 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
 
 @Composable fun SeasonalGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null) {
     val c = LocalKikoColors.current
-    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "seasonalGridSelectBg")
-    val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "seasonalGridSelectPad")
+    val bg = Color.Transparent
+    val pad = 0.dp
     Column(
         Modifier
             .fillMaxWidth()

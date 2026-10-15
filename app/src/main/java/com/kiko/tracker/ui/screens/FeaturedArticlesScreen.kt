@@ -434,4 +434,3 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         ArticleBlock.Divider -> HorizontalDivider(thickness = 1.dp, color = c.outlineVariant, modifier = Modifier.padding(vertical = 4.dp))
     }
 }
-

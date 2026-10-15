@@ -876,8 +876,8 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 @Composable fun StackEntryGridCard(number: Int, entry: StackTitleEntry, loading: Boolean, myStatus: WatchStatus?, onClick: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
     val shownTitle = if (LocalTitleLanguage.current == TitleLanguage.English && entry.titleEnglish.isNotBlank()) entry.titleEnglish else entry.title
-    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "stackEntrySelectBg")
-    val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "stackEntrySelectPad")
+    val bg = Color.Transparent
+    val pad = 0.dp
     Column(
         Modifier
             .fillMaxWidth()
@@ -914,27 +914,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .35f)), contentAlignment = Alignment.Center) {
                     KikoLoadingIndicator(color = Color.White, size = 26.dp)
                 }
-            }
-            // Long-press selection — same
-            // Placed bottom-end since the
-            // status mark owns top-end
-            androidx.compose.animation.AnimatedVisibility(
-                visible = isSelected,
-                enter = fadeIn(tween(180)),
-                exit = fadeOut(tween(140)),
-            ) {
-                Box(Modifier.fillMaxSize().background(c.primary.copy(alpha = .32f)))
-            }
-            androidx.compose.animation.AnimatedVisibility(
-                visible = isSelected,
-                enter = fadeIn(tween(180)) + scaleIn(tween(180), initialScale = .6f),
-                exit = fadeOut(tween(140)) + scaleOut(tween(140), targetScale = .6f),
-                modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
-            ) {
-                Box(
-                    Modifier.size(22.dp).clip(kikoCircleShape()).background(c.primary).border(1.5.dp, Color.White.copy(alpha = .9f), kikoCircleShape()),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Default.Check, "Selected", tint = c.onPrimary, modifier = Modifier.size(13.dp)) }
             }
         }
         // start/bottom inset kept on

@@ -585,6 +585,34 @@ class LibraryViewModel : ViewModel() {
             airingInFlight -= item.id
         }
     }
+
+    // Batch version of loadAiringEpisode: ONE AniList request for every airing anime in `items`
+    // instead of one per row as it scrolls into view. Results land in airingCache via a single
+    // putAll, so visible rows recompose once instead of once per lookup. On failure nothing is
+    // cached, so the per-row loadAiringEpisode still works as a fallback.
+    fun prefetchAiring(items: List<MediaItem>) {
+        val ids = items.asSequence()
+            .filter { it.type == MediaType.Anime && it.airStatus.equals("Currently Airing", ignoreCase = true) }
+            .map { it.id }
+            .distinct()
+            .filter { it !in airingCache && it !in airingInFlight }
+            .toList()
+        if (ids.isEmpty()) return
+        airingInFlight.addAll(ids)
+        viewModelScope.launch {
+            try {
+                val byMalId = AniListApi().nextAiringEpisodes(ids.mapNotNull { it.toIntOrNull() })
+                airingCache.putAll(ids.associateWith { id -> id.toIntOrNull()?.let { byMalId[it] } })
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // leave uncached
+            } finally {
+                airingInFlight.removeAll(ids.toSet())
+            }
+        }
+    }
+
     // Reset scroll on sort
     fun selectListTypeTab(context: Context, t: MediaType) { listTypeTab = t; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_type_tab", t.name).apply() }
     fun loadListTypeTab(context: Context) { listTypeTab = runCatching { MediaType.valueOf(settingsPrefs(context).getString("list_type_tab", MediaType.Anime.name)!!) }.getOrDefault(MediaType.Anime) }
@@ -1450,7 +1478,7 @@ class LibraryViewModel : ViewModel() {
     fun load(context: Context) {
         val api = MalApi(context); signedIn = api.signedIn; authChecked = true; if (!signedIn) return
         loading = true
-        viewModelScope.launch { runCatching { api.library() }.onSuccess { items = it; backfillLibraryThemes() }.onFailure { error = it.message ?: "Could not load your MAL list" }; loading = false }
+        viewModelScope.launch { runCatching { api.library() }.onSuccess { items = it; backfillLibraryThemes(); prefetchAiring(it) }.onFailure { error = it.message ?: "Could not load your MAL list" }; loading = false }
         loadProfile(context)
     }
     // MalApi.fetchList (the official MAL

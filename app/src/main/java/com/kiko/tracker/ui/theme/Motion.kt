@@ -104,8 +104,9 @@ fun Modifier.kikoCombinedClickable(
     onClick: () -> Unit,
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
-    return this
-        .pressScale(interactionSource, scale)
+    // scale == 1f means "no press-shrink": skip pressScale entirely so the row doesn't pay for an
+    // animation state + graphicsLayer it would never visibly use (matters on long lists).
+    return (if (scale != 1f) this.pressScale(interactionSource, scale) else this)
         .indication(interactionSource, LocalIndication.current)
         .then(
             if (enabled) {

@@ -3,8 +3,6 @@
 package com.kiko.tracker.ui.screens
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -94,6 +92,7 @@ import com.kiko.tracker.data.model.TitleLanguage
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayLabel
 import com.kiko.tracker.data.model.displayTitle
+import com.kiko.tracker.data.model.AirTimerPrefs
 import com.kiko.tracker.data.model.airTimerLabel
 import com.kiko.tracker.data.model.upcomingLabel
 import com.kiko.tracker.data.model.localizedTimeLabel
@@ -176,13 +175,15 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val trackedOpenTopic: (Int, String) -> Unit = onOpenTopic
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
+    GenreCoverPrefetch(vm, topGenres)
+    HomeImagePrefetch(vm)
     KikoPullToRefreshBox(
         isRefreshing = vm.loading,
         onlyWhenPulled = true,
         onRefresh = { vm.load(context); vm.loadDiscoverBrowse(context, force = true); vm.loadHomeExtras(context, force = true); vm.loadHomeTopGenres(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeFeaturedArticles(force = true); vm.malProfile?.name?.let { vm.loadHistory(context, it, force = true) } },
         modifier = Modifier.fillMaxSize(),
     ) {
-        LazyColumn(state = listState, contentPadding = PaddingValues(bottom = if (showGoToTop) 90.dp else 24.dp)) {
+        LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 90.dp)) {
             item {
                 AppHeader("kiko", 14.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
                 Column(Modifier.padding(horizontal = 14.dp)) {
@@ -317,6 +318,52 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         )
     }
 }
+// Decode sizes for Home's image cards. Snapshot cards are half the screen wide; featured-article banners
+// are 210x120dp. Requests use these exact sizes everywhere (card + prefetch) so they share one cache entry.
+private fun homeSnapshotImageSize(density: androidx.compose.ui.unit.Density, screenWidthDp: Int): Size =
+    with(density) { Size((((screenWidthDp - 28 - 11) / 2f).dp).roundToPx(), 210.dp.roundToPx()) }
+private fun homeFeaturedImageSize(density: androidx.compose.ui.unit.Density): Size =
+    with(density) { Size(210.dp.roundToPx(), 120.dp.roundToPx()) }
+private fun homeImageRequest(context: android.content.Context, data: Any?, size: Size): ImageRequest =
+    ImageRequest.Builder(context).data(data).size(size).allowHardware(true).build()
+
+// Same idea as GenreCoverPrefetch for the Snapshots grid and Featured Articles row: decode their images
+// into the memory cache up front instead of all at once as those sections scroll into view.
+@Composable private fun HomeImagePrefetch(vm: LibraryViewModel) {
+    val context = LocalContext.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+    val snapshots = vm.newsSnapshots
+    val articles = vm.homeFeaturedArticles
+    LaunchedEffect(snapshots, articles, density.density, screenW) {
+        val loader = coil.Coil.imageLoader(context)
+        val snapSize = homeSnapshotImageSize(density, screenW)
+        val featSize = homeFeaturedImageSize(density)
+        snapshots.forEach { if (it.imageUrl.isNotBlank()) loader.enqueue(homeImageRequest(context, it.imageUrl, snapSize)) }
+        articles.forEach { if (it.image.isNotBlank()) loader.enqueue(homeImageRequest(context, it.image, featSize)) }
+    }
+}
+
+// Warms Coil's memory cache with the Top Genres covers (same size/config GenreCard asks for) as soon as
+// they're known, so the carousel doesn't have to fetch + decode ten images at the moment it scrolls into
+// view -- that was the one-second hitch. Its own composable so reading the cover cache here only
+// recomposes this (empty) node, never HomeScreen.
+@Composable private fun GenreCoverPrefetch(vm: LibraryViewModel, genres: List<String>) {
+    val context = LocalContext.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val size = remember(density.density) { with(density) { Size(300.dp.roundToPx(), 400.dp.roundToPx()) } }
+    genres.forEach { genre ->
+        val cover = vm.getCachedGenreTopItem(genre)?.cover
+        LaunchedEffect(cover, size) {
+            if (!cover.isNullOrBlank()) {
+                coil.Coil.imageLoader(context).enqueue(
+                    ImageRequest.Builder(context).data(cover).size(size).allowHardware(true).crossfade(false).build()
+                )
+            }
+        }
+    }
+}
+
 @Composable fun AiringNextRow(items: List<MediaItem>, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit) {
     val rowState = rememberLazyListState()
     LazyRow(
@@ -374,7 +421,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 contentDescription = genre,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                filterQuality = FilterQuality.High,
+                filterQuality = FilterQuality.Medium,
             )
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -518,6 +565,10 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
 
 @Composable fun SnapshotCard(snapshot: NewsSnapshot, tall: Boolean, onOpenTopic: (Int, String) -> Unit) {
     val c = LocalKikoColors.current
+    val context = LocalContext.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+    val imageRequest = remember(snapshot.imageUrl, density.density, screenW) { homeImageRequest(context, snapshot.imageUrl, homeSnapshotImageSize(density, screenW)) }
     Box(
         Modifier
             .fillMaxWidth()
@@ -525,7 +576,7 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
             .clip(RoundedCornerShape(kikoCorner(18.dp)))
             .kikoClickable { onOpenTopic(snapshot.topicId, snapshot.title) },
     ) {
-        AsyncImage(model = snapshot.imageUrl, contentDescription = snapshot.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        AsyncImage(model = imageRequest, contentDescription = snapshot.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
         Box(
             Modifier
                 .fillMaxWidth()
@@ -580,11 +631,11 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
                         // thumbnail: these news-unit images are small,
                         // unproxied uploads, so avoid compounding that with
                         // Coil's default downsampling/low-quality filtering.
-                        model = ImageRequest.Builder(context).data(article.image).size(Size.ORIGINAL).allowHardware(true).build(),
+                        model = homeImageRequest(context, article.image, homeFeaturedImageSize(androidx.compose.ui.platform.LocalDensity.current)),
                         contentDescription = article.title,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                        filterQuality = FilterQuality.High,
+                        filterQuality = FilterQuality.Medium,
                     )
                 } else {
                     Text(article.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 26.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
@@ -836,13 +887,13 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     // remember(...) pattern ScoreFilterScreen/YearFilterScreen already
     val sortedItems = remember(vm.items, vm.nsfwEnabled, type, statusLabel, submittedQuery, vm.listSort, vm.titleLanguage) {
         vm.visibleItems
-            .filter { it.type == type && (statusLabel == "All" || it.status.displayLabel(type) == statusLabel) && (it.title.contains(submittedQuery, true) || it.titleEnglish.contains(submittedQuery, true)) }
+            .filter { it.type == type && (statusLabel == "All" || it.status.displayLabel(type) == statusLabel) && (submittedQuery.isEmpty() || it.title.contains(submittedQuery, true) || it.titleEnglish.contains(submittedQuery, true)) }
             .sortedWithListSort(vm.listSort, vm.titleLanguage)
     }
     // Tapping "+1" under "Last Updated" sort used to re-sort instantly, so the entry jumped
     // to the top and the next tap hit whichever entry slid into its place. While the user is
     // tapping, hold the row order frozen (progress still updates live in place); once taps
-    // stop for a moment, release it and the entry animates up to the top.
+    // stop for a moment, release it and the entry jumps to the top (no animation).
     var frozenOrder by remember { mutableStateOf<List<String>?>(null) }
     var incrementTicks by remember { mutableIntStateOf(0) }
     LaunchedEffect(incrementTicks) {
@@ -874,7 +925,6 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     // Shared between grid and
     // index that's already played
     // switching to the other,
-    val staggerSeen = rememberStaggerMemory()
     // Restore list scroll position — only on the page matching the
     // currently-active filter; other pages start at the top.
     val listState = rememberLazyListState(
@@ -885,6 +935,48 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         initialFirstVisibleItemIndex = if (restoreScroll) vm.listScrollIndex else 0,
         initialFirstVisibleItemScrollOffset = if (restoreScroll) vm.listScrollOffset else 0,
     )
+    // Decode the covers of the rows just below the viewport ahead of time (active page, list layout), so a
+    // row arriving on screen already has its cover in Coil's memory cache instead of decoding mid-scroll.
+    if (restoreScroll && !isGrid) {
+        val compactCovers = LocalCompactList.current
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        LaunchedEffect(filtered, compactCovers, density.density) {
+            val size = with(density) { Size((if (compactCovers) 72 else 100).dp.roundToPx(), (if (compactCovers) 108 else 150).dp.roundToPx()) }
+            val loader = coil.Coil.imageLoader(context)
+            var done = -1
+            snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->
+                val from = maxOf(first + 6, done + 1)
+                val to = minOf(first + 16, filtered.lastIndex)
+                for (i in from..to) {
+                    val cover = filtered[i].cover
+                    if (cover.isNotBlank()) loader.enqueue(ImageRequest.Builder(context).data(cover).size(size).allowHardware(true).build())
+                }
+                if (to > done) done = to
+            }
+        }
+    }
+    // Same idea for grid layout: nothing was warming the covers, so every row of three decoded as it
+    // scrolled in (plus the 200ms crossfade). Size mirrors the tile (3 columns, 14dp sides, 11dp gaps,
+    // 160dp cover) so the prefetched bitmap is the one the card asks for. Grid index 0 is the count
+    // row, so title i sits at grid index i + 1.
+    if (restoreScroll && isGrid) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+        LaunchedEffect(filtered, screenW, density.density) {
+            val size = with(density) { Size(((screenW - 14 * 2 - 11 * 2) / 3f).dp.roundToPx(), 160.dp.roundToPx()) }
+            val loader = coil.Coil.imageLoader(context)
+            var done = -1
+            snapshotFlow { gridState.firstVisibleItemIndex }.collect { first ->
+                val from = maxOf(first - 1 + 12, done + 1)
+                val to = minOf(first - 1 + 30, filtered.lastIndex)
+                for (i in from..to) {
+                    val cover = filtered[i].cover
+                    if (cover.isNotBlank()) loader.enqueue(ImageRequest.Builder(context).data(cover).size(size).allowHardware(true).build())
+                }
+                if (to > done) done = to
+            }
+        }
+    }
     val openItem: (MediaItem) -> Unit = remember(onOpenDetail, isGrid) {
         {
                 item ->
@@ -932,7 +1024,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     if (vm.loading && filtered.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
                     } else {
-                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen, Modifier.animateItem()) { ListGridCard(item, openItem, onIncrementHeld, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) } }
+                        items(filtered, key = { it.id }, contentType = { "grid" }) { item -> ListGridCard(item, openItem, onIncrementHeld, onLongPress = onEdit) }
                     }
                     if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
@@ -942,12 +1034,9 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     if (vm.loading && filtered.isEmpty()) {
                         item { KikoSectionLoading() }
                     } else {
-                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                            StaggeredItem(index, staggerSeen, Modifier.animateItem()) {
-                                Column {
-                                    ListRow(it, openItem, onIncrementHeld, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, vm = vm)
-                                }
-                            }
+                        // No wrapper Box/Column and no per-row animation modifiers: each row is just ListRow.
+                        items(filtered, key = { it.id }, contentType = { "row" }) { it ->
+                            ListRow(it, openItem, onIncrementHeld, showType = false, onLongPress = onEdit, vm = vm)
                         }
                     }
                     if (!vm.loading && filtered.isEmpty()) item { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
@@ -965,27 +1054,19 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
 
 @Composable fun ListGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
-    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "gridSelectBg")
-    val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "gridSelectPad")
     Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(kikoCorner(18.dp)))
-            .background(bg)
             .kikoCombinedClickable(
+                scale = 1f, // no shrink-on-press; the ripple still shows
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { edit(item) } },
             )
-            // animateDpAsState on `pad` above
-            // value frame-by-frame, so the
-            // animateContentSize() here was a
-            // wrapping every card in
-            // transition. Same fix as
-            .padding(pad)
     ) {
         // Height matches the grid card cover
         // real card don't jump
-        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, showRating = true, selected = isSelected)
+        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, showRating = true)
         // Fixed to 2 lines
         Text(
             item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, color = c.ink,
@@ -1168,7 +1249,7 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
         Modifier
             .size(tapSize)
             .clip(kikoPillShape())
-            .kikoClickable(enabled = !atMax) {
+            .clickable(enabled = !atMax) {
                 val next = (item.progress + 1).let { p -> if (item.total > 0) minOf(p, item.total) else p }
                 onIncrement(item.copy(progress = next))
             },
@@ -1210,27 +1291,36 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
     val coverW = if (compact) 72.dp else 100.dp
     val coverH = if (compact) 108.dp else 150.dp
     val rowVPad = if (compact) 10.dp else 14.dp
-    if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
-    val confirmed = vm?.getCachedAiring(item.id)
+    // Only currently-airing titles have a "confirmed" air time to look up. Skipping the rest avoids a
+    // network call per scrolled-in row, and keeps those rows from reading the shared airing cache,
+    // which would otherwise recompose EVERY visible row each time any lookup finishes mid-scroll.
+    val isAiring = item.airStatus.equals("Currently Airing", ignoreCase = true)
+    if (vm != null && isAiring) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
+    val confirmed by remember(item.id, vm, isAiring) { derivedStateOf { if (isAiring) vm?.getCachedAiring(item.id) else null } }
     // Airing -> "Ep. N airs on ..."; not started yet -> "Not Yet Aired". Never both.
-    val timer = item.airTimerLabel(confirmed, systemIs24Hour()) ?: item.upcomingLabel()
+    // This is the expensive part of a row: the air-time maths parses broadcast strings, builds java.time
+    // objects and a DateTimeFormatter, and systemIs24Hour() hits the system settings. It used to re-run
+    // for EVERY row each time it composed (i.e. as it scrolled into view), which shows up as scroll jank.
+    // Only airing rows need the 24h check / countdown pref, and the result is remembered per row.
+    val is24Hour = if (isAiring) systemIs24Hour() else false
+    val countdownStyle = if (isAiring) AirTimerPrefs.countdown else false
+    val upcoming = remember(item.airStatus, item.type) { item.upcomingLabel() }
+    val timer = remember(item, confirmed, is24Hour, countdownStyle, upcoming) { item.airTimerLabel(confirmed, is24Hour) ?: upcoming }
     // Accent for the live air timer, muted for the quieter "Not Yet Aired" label.
-    val timerTint = if (item.upcomingLabel() != null) c.muted else c.accent
-    val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "rowSelectBg")
-    val hPad by animateDpAsState(if (isSelected) 10.dp else 0.dp, label = "rowSelectPad")
+    val timerTint = if (upcoming != null) c.muted else c.accent
     Row(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(kikoCorner(16.dp)))
-            .background(bg)
             .kikoCombinedClickable(
+                scale = 1f, // no shrink-on-press; the ripple still shows
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { edit(item) } },
             )
-            .padding(horizontal = hPad, vertical = rowVPad),
+            .padding(vertical = rowVPad),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Cover(item, Modifier.size(width = coverW, height = coverH), selected = isSelected)
+        Cover(item, Modifier.size(width = coverW, height = coverH))
         Column(
             Modifier.weight(1f).height(coverH).padding(start = 16.dp, end = 6.dp),
             verticalArrangement = Arrangement.SpaceBetween,
