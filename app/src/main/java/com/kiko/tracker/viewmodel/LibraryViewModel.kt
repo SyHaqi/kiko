@@ -1502,12 +1502,14 @@ class LibraryViewModel : ViewModel() {
     fun signOut(context: Context) { MalApi(context).signOut(); signedIn = false; items = emptyList(); malProfile = null; libraryThemesBackfilled = false; clearProfileFriendsFavoritesCache(); clearFriendProfileCache() }
 
     // Load home browse rows
-    fun loadDiscoverBrowse(context: Context) {
+    // force = Home's pull-to-refresh: reload even when already loaded. A failed load (e.g. no network)
+    // resets the loaded flag so the next attempt retries, and never wipes rows that already loaded.
+    fun loadDiscoverBrowse(context: Context, force: Boolean = false) {
         // Reuse one MalApi instance
         // instead of constructing a
         // caches SharedPreferences instances by
         val api = MalApi(context)
-        if (discoverBrowseLoaded || !api.signedIn) return
+        if ((discoverBrowseLoaded && !force) || discoverBrowseLoading || !api.signedIn) return
         discoverBrowseLoaded = true
         discoverBrowseLoading = true
         viewModelScope.launch {
@@ -1525,17 +1527,19 @@ class LibraryViewModel : ViewModel() {
                 }
             }
                 .onSuccess { (season, up) -> discoverNewSeason = season; discoverUpcoming = up; discoverBrowseError = null }
-                .onFailure { discoverBrowseError = it.message ?: "Could not load Discover" }
+                .onFailure { discoverBrowseError = it.message ?: "Could not load Discover"; discoverBrowseLoaded = false }
             discoverBrowseLoading = false
         }
     }
     // Load recommendations + trending
-    fun loadHomeExtras(context: Context) {
+    fun loadHomeExtras(context: Context, force: Boolean = false) {
         val api = MalApi(context)
-        if (homeExtrasLoaded || !api.signedIn) return
+        if ((homeExtrasLoaded && !force) || !api.signedIn) return
         homeExtrasLoaded = true
-        viewModelScope.launch { runCatching { api.animeSuggestions(100) }.onSuccess { recommendations = it } }
-        viewModelScope.launch { runCatching { api.ranking(MediaType.Manga, "bypopularity", limit = 10) }.onSuccess { trendingManga = it } }
+        // A failed fetch (e.g. no network) resets the flag so the next attempt retries; rows that
+        // already loaded are kept.
+        viewModelScope.launch { runCatching { api.animeSuggestions(100) }.onSuccess { recommendations = it }.onFailure { homeExtrasLoaded = false } }
+        viewModelScope.launch { runCatching { api.ranking(MediaType.Manga, "bypopularity", limit = 10) }.onSuccess { trendingManga = it }.onFailure { homeExtrasLoaded = false } }
     }
     // (Re)run ranking chart
     fun loadRanking(context: Context, type: MediaType, sort: RankingSort) {
@@ -1587,6 +1591,25 @@ class LibraryViewModel : ViewModel() {
     fun fetchDiscoverSuggestions(context: Context, query: String, type: String) {
         discoverSuggestJob?.cancel()
         if (query.isBlank()) { discoverSuggestions = emptyList(); return }
+        // Characters / People / Companies / Users: suggest the names the real search would list first.
+        // These are scraped (MAL needs 3+ characters), so they get a longer debounce than the title API.
+        if (type != "Anime" && type != "Manga") {
+            if (query.trim().length < 3) { discoverSuggestions = emptyList(); return }
+            discoverSuggestJob = viewModelScope.launch {
+                delay(350)
+                runCatching {
+                    val names = when (type) {
+                        "Characters" -> malCharacterApi.search(query).map { it.name }
+                        "People" -> malPeopleApi.search(query).map { it.name }
+                        "Companies" -> malCompanyApi.search(query).map { it.name }
+                        "Users" -> malUserApi.search(query).users.map { it.username }
+                        else -> emptyList()
+                    }
+                    names.filter { it.isNotBlank() }.distinctBy { it.lowercase() }.take(5)
+                }.onSuccess { discoverSuggestions = it }.onFailure { discoverSuggestions = emptyList() }
+            }
+            return
+        }
         val api = MalApi(context)
         if (!api.signedIn) { discoverSuggestions = emptyList(); return }
         discoverSuggestJob = viewModelScope.launch {

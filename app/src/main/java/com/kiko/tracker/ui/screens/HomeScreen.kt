@@ -179,7 +179,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     KikoPullToRefreshBox(
         isRefreshing = vm.loading,
         onlyWhenPulled = true,
-        onRefresh = { vm.load(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeFeaturedArticles(force = true); vm.malProfile?.name?.let { vm.loadHistory(context, it, force = true) } },
+        onRefresh = { vm.load(context); vm.loadDiscoverBrowse(context, force = true); vm.loadHomeExtras(context, force = true); vm.loadHomeTopGenres(context); vm.loadNewsSnapshots(context, force = true); vm.loadHomeFeaturedArticles(force = true); vm.malProfile?.name?.let { vm.loadHistory(context, it, force = true) } },
         modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = if (showGoToTop) 90.dp else 24.dp)) {
