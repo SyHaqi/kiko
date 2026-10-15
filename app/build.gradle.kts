@@ -10,6 +10,7 @@ val malClientId = localProperties.getProperty("MAL_CLIENT_ID", "")
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("androidx.baselineprofile")
 }
 
 // Version from git tag
@@ -88,6 +89,7 @@ dependencies {
     implementation("androidx.browser:browser:1.8.0")
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("org.jsoup:jsoup:1.17.2")
+    "baselineProfile"(project(":baselineprofile"))
     debugImplementation("androidx.compose.ui:ui-tooling:1.12.1")
     // Installs src/main/baseline-prof.txt (below) onto the device on first run of a
     // release build, on API levels where the OS doesn't already read baseline profiles

@@ -27,4 +27,4 @@ build/
 # Android Studio
 *.hprof
 
-.kotlin/
+.kotlin/kikolog.txt
