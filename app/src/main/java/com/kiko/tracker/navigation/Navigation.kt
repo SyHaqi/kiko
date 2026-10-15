@@ -863,6 +863,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             onBackfillThemes = { id, type, onFound, onDone -> vm.backfillThemes(context, id, type, onFound, onDone) },
                                             onBackfillCovers = { id, type, onFound, onDone -> vm.backfillCovers(context, id, type, onFound, onDone) },
                                             onLoadRecommended = { forItem, onFound, onDone -> vm.loadUserRecommendations(context, forItem, onFound, onDone) },
+                                            onResolveEnglishTitles = { kind, ids -> vm.englishTitlesFor(context, ids, kind) },
                                             onOpenRecommended = { rec -> vm.openRecommended(context, rec) { fetched -> openRelatedDetail(screen.item, fetched) } },
                                             onLoadStatusDistribution = { forItem, onFound, onDone -> vm.loadStatusDistribution(context, forItem, onFound, onDone) },
                                             onOpenScoreStats = { scoreStatsOpen = it },
@@ -956,6 +957,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         onBack = { personDetailOpenId = null; personDetailOpen = null; castPersonOnTop = false; vm.forgetPersonPage(screen.malId) },
                                         onOpenWork = { malId, type -> vm.openCharacterWork(context, malId, type, ::openDetail) },
                                         workLoadingId = vm.characterWorkLoadingId,
+                                        onResolveEnglishTitles = { kind, ids -> vm.englishTitlesFor(context, ids, kind) },
                                         myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap(),
                                         initialScroll = vm.getPersonScroll(screen.malId),
                                         initialRolesScroll = vm.getPersonRolesScroll(screen.malId),
@@ -982,6 +984,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         // news link already do.
                                         onOpenNews = { id, title -> forumTopicOpen = id to title },
                                         workLoadingId = vm.characterWorkLoadingId,
+                                        onResolveEnglishTitles = { ids -> vm.englishTitlesFor(context, ids) },
                                         myListStatus = vm.items.mapNotNull { li -> li.id.toIntOrNull()?.takeIf { li.type == MediaType.Anime }?.let { it to li.status } }.toMap(),
                                         initialScroll = vm.getCompanyScroll(screen.malId),
                                         onLeaveScroll = { index, offset -> vm.saveCompanyScroll(screen.malId, index, offset) },

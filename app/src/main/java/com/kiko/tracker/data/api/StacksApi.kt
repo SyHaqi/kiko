@@ -35,6 +35,8 @@ data class StackTitleEntry(
     val format: String = "",
     val year: String = "",
     val score: Double = 0.0,
+    // Blank off MAL's stack page (romaji only); filled in at display time when Title Language is English.
+    val titleEnglish: String = "",
 )
 data class StackDetail(
     val id: Int,

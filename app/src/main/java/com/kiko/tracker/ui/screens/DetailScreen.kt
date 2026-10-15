@@ -84,7 +84,9 @@ import com.kiko.tracker.data.model.RelatedEntry
 import com.kiko.tracker.data.model.ReviewEntry
 import com.kiko.tracker.data.model.ReviewReactionEmojis
 import com.kiko.tracker.data.model.ReviewVerdictTags
+import com.kiko.tracker.data.model.LocalTitleLanguage
 import com.kiko.tracker.data.model.StatusDistribution
+import com.kiko.tracker.data.model.TitleLanguage
 import com.kiko.tracker.data.model.TrailerEntry
 import com.kiko.tracker.data.model.VoiceActorEntry
 import com.kiko.tracker.data.model.WatchStatus
@@ -132,6 +134,8 @@ data class DetailScreenActions(
     val onBackfillCovers: (String, MediaType, (List<String>) -> Unit, () -> Unit) -> Unit = { _, _, _, onDone -> onDone() },
     val onLoadRecommended: (MediaItem, (List<RecommendedEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenRecommended: (RecommendedEntry) -> Unit = {},
+    // (kind = "anime"/"manga", ids) -> id to English title; empty unless Title Language is English.
+    val onResolveEnglishTitles: suspend (String, List<Int>) -> Map<Int, String> = { _, _ -> emptyMap() },
     val onLoadStatusDistribution: (MediaItem, (StatusDistribution) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenScoreStats: (MediaItem) -> Unit = {},
     // Interest Stacks preview row
@@ -282,6 +286,32 @@ data class DetailScreenActions(
     var recommended by remember(item.id) { mutableStateOf(cachedSnapshot?.recommended ?: emptyList()) }
     var recommendedDone by remember(item.id) { mutableStateOf(cachedSnapshot?.recommended != null) }
     LaunchedEffect(item.id) { actions.onLoadRecommended(item, { recommended = it }, { recommendedDone = true }) }
+    // Recommendations that come without an English title (AutoRec, and any user rec the API didn't lend
+    // one to) get looked up when Title Language is English, a few at a time, applying each batch as soon as it
+    // arrives (instead of waiting for the whole row). Lookups are cached app-wide, so a batch cut off
+    // by leaving the page isn't lost — it finishes instantly on return.
+    val titleLanguage = LocalTitleLanguage.current
+    var recEnglish by remember(item.id) { mutableStateOf<Map<Pair<String, Int>, String>>(emptyMap()) }
+    LaunchedEffect(item.id, titleLanguage, recommended) {
+        if (titleLanguage != TitleLanguage.English) return@LaunchedEffect
+        for (kind in listOf("anime", "manga")) {
+            val ids = recommended.filter {
+                it.titleEnglish.isBlank() && it.malId > 0 &&
+                        (if (it.malType == "manga") "manga" else "anime") == kind && (kind to it.malId) !in recEnglish
+            }.map { it.malId }.distinct()
+            for (batch in ids.chunked(4)) {
+                val got = actions.onResolveEnglishTitles(kind, batch).filterValues { it.isNotBlank() }
+                if (got.isNotEmpty()) recEnglish = recEnglish + got.mapKeys { (id, _) -> kind to id }
+            }
+        }
+    }
+    val shownRecommended = remember(recommended, recEnglish) {
+        if (recEnglish.isEmpty()) recommended
+        else recommended.map { r ->
+            val kind = if (r.malType == "manga") "manga" else "anime"
+            if (r.titleEnglish.isBlank()) recEnglish[kind to r.malId]?.let { r.copy(titleEnglish = it) } ?: r else r
+        }
+    }
     // Status distribution loads async
     var statusDistribution by remember(item.id) { mutableStateOf(cachedSnapshot?.statusDistribution) }
     LaunchedEffect(item.id) { actions.onLoadStatusDistribution(item, { statusDistribution = it }, {}) }
@@ -834,7 +864,7 @@ data class DetailScreenActions(
                                         }
 
                                         // Recommendations from MAL endpoint
-                                        if (recommended.isNotEmpty()) {
+                                        if (shownRecommended.isNotEmpty()) {
                                             SectionTitle("Recommended", "", {})
                                             LazyRow(state = recommendedListState, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                                                 // Keyed by malId +
@@ -843,7 +873,7 @@ data class DetailScreenActions(
                                                 // throws "Key ... was
                                                 // (widening parseRecommended's selector made
                                                 // actually happen in practice,
-                                                itemsIndexed(recommended, key = { _, it -> "${it.malId}-${it.malType}" }) { i, rec ->
+                                                itemsIndexed(shownRecommended, key = { _, it -> "${it.malId}-${it.malType}" }) { i, rec ->
                                                     StaggeredItem(i, recommendedSeen) { RecommendedCard(rec, loading = recommendedLoadingId == rec.malId, myStatus = myListStatus[rec.malId to (if (rec.malType == "manga") MediaType.Manga else MediaType.Anime)]) { actions.onOpenRecommended(rec) } }
                                                 }
                                             }

@@ -62,8 +62,10 @@ import com.kiko.tracker.data.api.StackBrowseKind
 import com.kiko.tracker.data.api.StacksSavedTab
 import com.kiko.tracker.data.api.StackSummary
 import com.kiko.tracker.data.api.StackTitleEntry
+import com.kiko.tracker.data.model.LocalTitleLanguage
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
+import com.kiko.tracker.data.model.TitleLanguage
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.ui.components.CoverStatusMark
@@ -659,6 +661,26 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         }
     }
     val gridState = rememberLazyGridState()
+    // MAL's stack page only carries romaji titles, so when Title Language is English look up the
+    // missing English titles a few at a time (cached app-wide) and swap each batch in as it arrives —
+    // same approach as the Recommended row on the detail page.
+    val titleLanguage = LocalTitleLanguage.current
+    var entryEnglish by remember(stackId) { mutableStateOf<Map<Pair<MediaType, Int>, String>>(emptyMap()) }
+    LaunchedEffect(stackId, titleLanguage, detail) {
+        val d = detail ?: return@LaunchedEffect
+        if (titleLanguage != TitleLanguage.English) return@LaunchedEffect
+        for (type in listOf(MediaType.Anime, MediaType.Manga)) {
+            val kind = if (type == MediaType.Manga) "manga" else "anime"
+            val ids = d.entries.filter { it.type == type && it.titleEnglish.isBlank() && (type to it.malId) !in entryEnglish }.map { it.malId }.distinct()
+            for (batch in ids.chunked(4)) {
+                val got = vm.englishTitlesFor(context, batch, kind).filterValues { it.isNotBlank() }
+                if (got.isNotEmpty()) entryEnglish = entryEnglish + got.mapKeys { (id, _) -> type to id }
+            }
+        }
+    }
+    val shownEntries = remember(detail, entryEnglish) {
+        detail?.entries?.map { e -> if (e.titleEnglish.isBlank()) entryEnglish[e.type to e.malId]?.let { e.copy(titleEnglish = it) } ?: e else e } ?: emptyList()
+    }
     // On a cache miss
     // an initial index/offset set
     // revisited. Instead, jump to
@@ -792,7 +814,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 if (d.entries.isEmpty() && !loadFailed) {
                     item(span = { GridItemSpan(maxLineSpan) }) { Text("No entries in this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 20.dp), textAlign = TextAlign.Center) }
                 }
-                itemsIndexed(d.entries, key = { _, e -> e.malId }) { i, entry ->
+                itemsIndexed(shownEntries, key = { _, e -> e.malId }) { i, entry ->
                     StaggeredItem(i) {
                         StackEntryGridCard(i + 1, entry, loading = loadingId == entry.malId, myStatus = myListStatus[entry.malId to entry.type], onClick = { onOpenEntry(entry) }, onLongPress = { onEditEntry(entry) }, isSelected = selectedItem?.id == entry.malId.toString() && selectedItem?.type == entry.type)
                     }
@@ -853,6 +875,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 @Composable fun StackEntryGridCard(number: Int, entry: StackTitleEntry, loading: Boolean, myStatus: WatchStatus?, onClick: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false) {
     val c = LocalKikoColors.current
+    val shownTitle = if (LocalTitleLanguage.current == TitleLanguage.English && entry.titleEnglish.isNotBlank()) entry.titleEnglish else entry.title
     val bg by animateColorAsState(if (isSelected) c.primaryContainer else Color.Transparent, label = "stackEntrySelectBg")
     val pad by animateDpAsState(if (isSelected) 8.dp else 0.dp, label = "stackEntrySelectPad")
     Column(
@@ -879,9 +902,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 .background(c.surfaceLow),
         ) {
             if (entry.cover.isNotBlank()) {
-                AsyncImage(model = entry.cover, contentDescription = entry.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                AsyncImage(model = entry.cover, contentDescription = shownTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
-                Text(entry.title.take(1), fontWeight = FontWeight.Bold, fontSize = 30.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                Text(shownTitle.take(1), fontWeight = FontWeight.Bold, fontSize = 30.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }
             Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(kikoPillShape()).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
                 Text(number.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
@@ -917,7 +940,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         // start/bottom inset kept on
         // being the card's bottom-most
         // missing, e.g. some manga
-        Text(entry.title, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp, start = 3.dp, bottom = 2.dp))
+        Text(shownTitle, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp, start = 3.dp, bottom = 2.dp))
         val meta = buildString {
             val fmt = listOfNotNull(entry.format.takeIf { it.isNotBlank() }, entry.year.takeIf { it.isNotBlank() }).joinToString(", ")
             if (fmt.isNotBlank()) append(fmt)

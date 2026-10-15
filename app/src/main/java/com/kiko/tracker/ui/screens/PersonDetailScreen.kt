@@ -48,8 +48,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import com.kiko.tracker.data.model.LocalTitleLanguage
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.PersonDetail
+import com.kiko.tracker.data.model.TitleLanguage
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.ui.components.FavoriteHeartButton
@@ -66,6 +68,8 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     onBack: () -> Unit,
     onOpenWork: (malId: Int, type: MediaType) -> Unit,
     workLoadingId: Int? = null,
+    // (kind = "anime"/"manga", ids) -> id to English title; empty unless Title Language is English.
+    onResolveEnglishTitles: suspend (String, List<Int>) -> Map<Int, String> = { _, _ -> emptyMap() },
     myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(),
     initialScroll: Pair<Int, Int> = 0 to 0,
     initialRolesScroll: Pair<Int, Int> = 0 to 0,
@@ -102,6 +106,20 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
         }
     }
     BackHandler(onBack = onBack)
+    // MAL's person page only carries romaji titles, so when Title Language is English look up the
+    // missing English titles in the background (cached app-wide) and swap them in as they arrive —
+    // same approach as the Company page. Covers voice roles + staff credits (anime) and manga.
+    val titleLanguage = LocalTitleLanguage.current
+    var animeEnglish by remember(person.malId) { mutableStateOf<Map<Int, String>>(emptyMap()) }
+    var mangaEnglish by remember(person.malId) { mutableStateOf<Map<Int, String>>(emptyMap()) }
+    LaunchedEffect(person.malId, titleLanguage) {
+        if (titleLanguage != TitleLanguage.English) return@LaunchedEffect
+        val animeIds = (person.voiceActingRoles.filter { it.workTitleEnglish.isBlank() }.map { it.workId } +
+                person.staffCredits.filter { it.titleEnglish.isBlank() }.mapNotNull { it.id.toIntOrNull() }).distinct()
+        val mangaIds = person.publishedManga.filter { it.titleEnglish.isBlank() }.mapNotNull { it.id.toIntOrNull() }.distinct()
+        if (animeIds.isNotEmpty()) animeEnglish = onResolveEnglishTitles("anime", animeIds).filterValues { it.isNotBlank() }
+        if (mangaIds.isNotEmpty()) mangaEnglish = onResolveEnglishTitles("manga", mangaIds).filterValues { it.isNotBlank() }
+    }
     LaunchedEffect(person.malId) { onLoadFavoriteStatus() }
     val rolesSeen = rememberStaggerMemory()
     val staffSeen = rememberStaggerMemory()
@@ -173,7 +191,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                             LazyRow(state = rolesListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 itemsIndexed(person.voiceActingRoles, key = { _, r -> "role-${r.workId}-${r.characterId}" }) { i, role ->
                                     StaggeredItem(i, rolesSeen) {
-                                        val workTitle = role.displayTitle()
+                                        val workTitle = role.let { r -> animeEnglish[r.workId]?.takeIf { r.workTitleEnglish.isBlank() }?.let { r.copy(workTitleEnglish = it) } ?: r }.displayTitle()
                                         DetailRowCard(
                                             imageUrl = role.workImage, fallbackLetter = workTitle.take(1), title = workTitle,
                                             label = role.roleLabel, subtitle = role.characterName,
@@ -191,8 +209,9 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                         if (person.staffCredits.isNotEmpty()) {
                             SectionTitle("Anime Staff Positions", "", {})
                             LazyRow(state = staffListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                itemsIndexed(person.staffCredits, key = { _, w -> "staff-${w.id}" }) { i, work ->
+                                itemsIndexed(person.staffCredits, key = { _, w -> "staff-${w.id}" }) { i, w0 ->
                                     StaggeredItem(i, staffSeen) {
+                                        val work = animeEnglish[w0.id.toIntOrNull()]?.takeIf { w0.titleEnglish.isBlank() }?.let { w0.copy(titleEnglish = it) } ?: w0
                                         val workTitle = work.displayTitle()
                                         DetailRowCard(
                                             imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,
@@ -210,8 +229,9 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                         if (person.publishedManga.isNotEmpty()) {
                             SectionTitle("Published Manga", "", {})
                             LazyRow(state = mangaListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                itemsIndexed(person.publishedManga, key = { _, w -> "manga-${w.id}" }) { i, work ->
+                                itemsIndexed(person.publishedManga, key = { _, w -> "manga-${w.id}" }) { i, w0 ->
                                     StaggeredItem(i, mangaSeen) {
+                                        val work = mangaEnglish[w0.id.toIntOrNull()]?.takeIf { w0.titleEnglish.isBlank() }?.let { w0.copy(titleEnglish = it) } ?: w0
                                         val workTitle = work.displayTitle()
                                         DetailRowCard(
                                             imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,

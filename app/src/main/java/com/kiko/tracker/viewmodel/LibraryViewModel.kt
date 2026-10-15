@@ -1819,6 +1819,14 @@ class LibraryViewModel : ViewModel() {
             } else item
         }
     }
+    // English titles for a set of anime ids, for screens that only have MAL-scraped (romaji) titles
+    // and resolve them lazily for whatever is on screen (Company page's grid). Empty unless Title
+    // Language is English; backed by the same id-keyed cache resolveEnglishTitles uses, so ids
+    // already looked up elsewhere cost no request.
+    suspend fun englishTitlesFor(context: Context, ids: List<Int>, kind: String = "anime"): Map<Int, String> {
+        if (titleLanguage != TitleLanguage.English || ids.isEmpty()) return emptyMap()
+        return runCatching { MalApi(context).englishTitles(kind, ids) }.getOrDefault(emptyMap())
+    }
     // Kicks off (and caches)
     // soon as the filter
     // MalGenreLookup.GenreFacetCache. Scraped straight off

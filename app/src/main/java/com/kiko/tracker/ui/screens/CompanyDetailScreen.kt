@@ -57,6 +57,7 @@ import com.kiko.tracker.data.model.CompanyNews
 import com.kiko.tracker.data.model.DiscoverSort
 import com.kiko.tracker.data.model.LocalTitleLanguage
 import com.kiko.tracker.data.model.MediaItem
+import com.kiko.tracker.data.model.TitleLanguage
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.sortedForDiscover
 import com.kiko.tracker.ui.components.LinkifiedText
@@ -104,6 +105,8 @@ private const val CompanyPageSize = 9
     onOpenWork: (Int) -> Unit,
     onOpenNews: (topicId: Int, title: String) -> Unit,
     workLoadingId: Int? = null,
+    // Looks up English titles for the given anime ids (empty unless Title Language is English).
+    onResolveEnglishTitles: suspend (List<Int>) -> Map<Int, String> = { emptyMap() },
     myListStatus: Map<Int, WatchStatus> = emptyMap(),
     initialScroll: Pair<Int, Int> = 0 to 0,
     onLeaveScroll: (Int, Int) -> Unit = { _, _ -> },
@@ -158,7 +161,25 @@ private const val CompanyPageSize = 9
         if (key != lastFilter) { lastFilter = key; visibleCount = CompanyPageSize }
     }
     val hasMoreWorks = visibleCount < filteredWorks.size
-    val gridRows = remember(filteredWorks, visibleCount) { filteredWorks.take(visibleCount).chunked(3) }
+    // MAL's studio page only carries the romaji title, and an English one costs one request per
+    // title. So when Title Language is English, look them up only for the rows currently revealed
+    // (9 at a time, in the background): the page opens immediately with romaji and each title
+    // swaps to English as it arrives. Lookups are cached app-wide, so reopening is cheap.
+    var englishTitles by remember(company.malId) { mutableStateOf<Map<Int, String>>(emptyMap()) }
+    LaunchedEffect(company.malId, titleLanguage, filteredWorks, visibleCount) {
+        if (titleLanguage != TitleLanguage.English) return@LaunchedEffect
+        val ids = filteredWorks.take(visibleCount).mapNotNull { w ->
+            w.id.toIntOrNull()?.takeIf { w.titleEnglish.isBlank() && it !in englishTitles }
+        }
+        if (ids.isEmpty()) return@LaunchedEffect
+        val got = onResolveEnglishTitles(ids)
+        if (got.isNotEmpty()) englishTitles = englishTitles + got
+    }
+    val gridRows = remember(filteredWorks, visibleCount, englishTitles) {
+        filteredWorks.take(visibleCount).map { w ->
+            englishTitles[w.id.toIntOrNull()]?.takeIf { it.isNotBlank() }?.let { w.copy(titleEnglish = it) } ?: w
+        }.chunked(3)
+    }
     LaunchedEffect(listState, filteredWorks.size) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index to listState.layoutInfo.totalItemsCount }
             .distinctUntilChanged()
