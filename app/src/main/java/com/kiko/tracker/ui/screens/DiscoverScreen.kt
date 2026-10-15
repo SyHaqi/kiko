@@ -217,7 +217,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(Icons.Default.Search, "Search", tint = c.ink, modifier = Modifier.size(22.dp))
-                        Text("Search anime & manga", color = c.muted, fontSize = 16.sp, maxLines = 1, modifier = Modifier.padding(start = 14.dp))
+                        Text("Search in MAL", color = c.muted, fontSize = 16.sp, maxLines = 1, modifier = Modifier.padding(start = 14.dp))
                     }
                     Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
                 }
@@ -498,7 +498,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             SearchTopBar(
                 value = query,
                 onValueChange = { query = it; if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") vm.fetchDiscoverSuggestions(context, it, vm.discoverTypeFilter) else vm.clearDiscoverSuggestions() },
-                hint = "Search in MAL",
+                hint = "Search ${vm.discoverTypeFilter}",
                 onSearch = { vm.clearDiscoverSuggestions(); vm.selectDiscoverType(context, vm.discoverTypeFilter, query) },
                 onBack = onExitResults,
                 focusRequester = searchFocusRequester,
