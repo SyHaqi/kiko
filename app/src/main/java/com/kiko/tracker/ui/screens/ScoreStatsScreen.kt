@@ -26,6 +26,7 @@ import com.kiko.tracker.data.api.AnimeForumFilter
 import com.kiko.tracker.data.api.ForumTopic
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.ReviewEntry
+import com.kiko.tracker.data.model.ReviewReactionEmojis
 import com.kiko.tracker.data.model.ReviewVerdictTags
 import com.kiko.tracker.data.model.ScoreStats
 import com.kiko.tracker.data.model.verdict
@@ -224,5 +225,26 @@ import com.kiko.tracker.ui.theme.kikoCorner
         }
         if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
         Text(entry.review, color = c.muted, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 8, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        ReviewReactions(entry, Modifier.padding(top = 10.dp))
+    }
+}
+
+// MAL reactions for a review: the three most-used emojis, then the total number of
+// reactions — same readout as the preview ReviewCard on the detail page, shared by the
+// "See more" list (ReviewListItem) and the full ReviewScreen. Draws nothing when MAL
+// reported no reactions for the review.
+@Composable fun ReviewReactions(entry: ReviewEntry, modifier: Modifier = Modifier, emojiSize: androidx.compose.ui.unit.TextUnit = 13.sp, countSize: androidx.compose.ui.unit.TextUnit = 12.sp) {
+    val c = LocalKikoColors.current
+    val topEmojis: List<String> = entry.reactionCounts
+        .mapIndexed { i, n -> Pair(i, n) }
+        .filter { it.second > 0 }
+        .sortedByDescending { it.second }
+        .take(3)
+        .mapNotNull { ReviewReactionEmojis.getOrNull(it.first) }
+    val totalReactions = if (entry.reactionCounts.isNotEmpty()) entry.reactionCounts.sum() else entry.reactionScore
+    if (topEmojis.isEmpty() || totalReactions <= 0) return
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text(topEmojis.joinToString(""), fontSize = emojiSize)
+        Text(totalReactions.toString(), color = c.muted, fontSize = countSize, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
     }
 }

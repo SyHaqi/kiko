@@ -914,9 +914,12 @@ private fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphic
             SelectionContainer {
                 Text(
                     entry.review, color = c.ink, fontSize = 14.sp, lineHeight = 22.sp,
-                    modifier = Modifier.padding(top = 18.dp, bottom = 28.dp),
+                    modifier = Modifier.padding(top = 18.dp),
                 )
             }
+            // MAL reactions (top emojis + total), same readout as the review cards.
+            ReviewReactions(entry, Modifier.padding(top = 18.dp), emojiSize = 15.sp, countSize = 13.sp)
+            Spacer(Modifier.height(28.dp))
         }
         GoToTopButton(
             visible = showGoToTop,
