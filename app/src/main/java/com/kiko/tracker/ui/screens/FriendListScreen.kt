@@ -49,6 +49,7 @@ import com.kiko.tracker.data.api.MalSessionExpired
 import com.kiko.tracker.data.api.MalUserListEntry
 import com.kiko.tracker.data.api.MalUserListScrapeApi
 import com.kiko.tracker.data.model.ListViewMode
+import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayLabel
@@ -414,11 +415,15 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
 // ListRow there is no format line or air-timer row here.
 @Composable
 private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.tracker.ui.theme.KikoColors, onClick: () -> Unit) {
+    val compact = LocalCompactList.current
+    val coverW = if (compact) 72.dp else 100.dp
+    val coverH = if (compact) 108.dp else 150.dp
+    val rowVPad = if (compact) 10.dp else 14.dp
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onClick).padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onClick).padding(vertical = rowVPad),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(width = 100.dp, height = 150.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(width = coverW, height = coverH).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
             if (entry.cover.isNotBlank()) {
                 AsyncImage(model = entry.cover, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
@@ -426,7 +431,7 @@ private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.
             }
         }
         Column(
-            Modifier.weight(1f).height(150.dp).padding(start = 16.dp, end = 6.dp),
+            Modifier.weight(1f).height(coverH).padding(start = 16.dp, end = 6.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column {

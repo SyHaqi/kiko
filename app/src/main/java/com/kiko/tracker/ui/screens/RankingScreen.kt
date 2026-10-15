@@ -43,6 +43,7 @@ import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.RankingSort
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.airTimerLabel
+import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.data.model.systemIs24Hour
 import com.kiko.tracker.data.model.upcomingLabel
@@ -177,6 +178,10 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
 @Composable fun RankingRow(position: Int, item: MediaItem, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null) {
     val c = LocalKikoColors.current
     // Same pieces as SearchResultRow / My List: "format · episodes, year", plus the air timer while airing.
+    val compact = LocalCompactList.current
+    val coverW = if (compact) 72.dp else 100.dp
+    val coverH = if (compact) 108.dp else 150.dp
+    val rowVPad = if (compact) 10.dp else 14.dp
     val timer = item.airTimerLabel(null, systemIs24Hour()) ?: item.upcomingLabel()
     val timerTint = if (item.upcomingLabel() != null) c.muted else c.accent
     val details = listOf(formatLabel(item), episodeAndYear(item)).filter { it.isNotBlank() }.joinToString(" · ")
@@ -186,19 +191,19 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
             .fillMaxWidth()
             .clip(RoundedCornerShape(kikoCorner(16.dp)))
             .kikoClickable { onOpenDetail(item) }
-            .padding(vertical = 14.dp),
+            .padding(vertical = rowVPad),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // overrideStatus: ranking chart results are merged with the library, so a status
         // edit/delete made elsewhere shows up here immediately.
-        Box(Modifier.size(width = 100.dp, height = 150.dp)) {
+        Box(Modifier.size(width = coverW, height = coverH)) {
             Cover(item, Modifier.fillMaxSize(), showStatus = true, overrideStatus = myStatus)
         }
         // Text column is as tall as the cover: title starts at the cover's top edge, the
         // details/timer lines follow it, and the members count + rank number are pinned to the
         // bottom (members left, "#N" right).
         Column(
-            Modifier.weight(1f).height(150.dp).padding(start = 16.dp, end = 6.dp),
+            Modifier.weight(1f).height(coverH).padding(start = 16.dp, end = 6.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column {

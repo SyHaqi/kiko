@@ -23,6 +23,9 @@ import com.kiko.tracker.ui.theme.KikoColors
 enum class TitleLanguage(val label: String) { Romaji("Romaji"), English("English") }
 
 val LocalTitleLanguage = staticCompositionLocalOf { TitleLanguage.Romaji }
+// Settings -> Library -> "Compact list": smaller cover (and shorter row) in the list-mode rows
+// (My List, Profile filter pages, Discover results, friend lists).
+val LocalCompactList = staticCompositionLocalOf { false }
 // Preferred title to show
 
 @Composable

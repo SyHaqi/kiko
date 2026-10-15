@@ -1434,6 +1434,9 @@ class LibraryViewModel : ViewModel() {
     fun setListFilter(context: Context, filter: String) { listFilter = filter; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_filter", filter).apply() }
     fun loadNsfwPref(context: Context) { nsfwEnabled = settingsPrefs(context).getBoolean("nsfw_enabled", false) }
     fun setNsfw(context: Context, enabled: Boolean) { nsfwEnabled = enabled; settingsPrefs(context).edit().putBoolean("nsfw_enabled", enabled).apply() }
+    var compactList by mutableStateOf(false); private set
+    fun loadCompactList(context: Context) { compactList = settingsPrefs(context).getBoolean("compact_list", false) }
+    fun setCompactList(context: Context, enabled: Boolean) { compactList = enabled; settingsPrefs(context).edit().putBoolean("compact_list", enabled).apply() }
     fun loadAmoledDark(context: Context) { amoledDark = settingsPrefs(context).getBoolean("amoled_dark", false) }
     fun setAmoledDark(context: Context, enabled: Boolean) { amoledDark = enabled; settingsPrefs(context).edit().putBoolean("amoled_dark", enabled).apply() }
 

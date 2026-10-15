@@ -47,6 +47,7 @@ import com.kiko.tracker.data.model.CommunityTab
 import com.kiko.tracker.data.model.CompanyDetail
 import com.kiko.tracker.data.model.Destination
 import com.kiko.tracker.data.model.DiscoverFilters
+import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.LocalTitleLanguage
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
@@ -713,7 +714,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         vm.destination = it
     }
     SyncSystemBars(darkTheme, c.background)
-    CompositionLocalProvider(LocalKikoColors provides c, LocalTitleLanguage provides vm.titleLanguage) {
+    CompositionLocalProvider(LocalKikoColors provides c, LocalTitleLanguage provides vm.titleLanguage, LocalCompactList provides vm.compactList) {
         MaterialTheme(
             // Full Expressive ColorScheme generated
             // frame is already using
@@ -1065,6 +1066,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         connected = vm.signedIn, themeMode = vm.themeMode, colorSource = vm.colorSource, paletteStyle = vm.paletteStyle, titleLanguage = vm.titleLanguage,
                                         nsfwEnabled = vm.nsfwEnabled, onNsfwChange = { vm.setNsfw(context, it) },
                                         amoledDark = vm.amoledDark, onAmoledDarkChange = { vm.setAmoledDark(context, it) },
+                                        compactList = vm.compactList, onCompactListChange = { vm.setCompactList(context, it) },
                                         onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true },
                                         updateInfo = vm.updateInfo, onAboutClick = { aboutOpen = true },
                                         listViewMode = vm.listViewMode, onListViewModeChange = { vm.setListViewMode(context, it) },

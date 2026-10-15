@@ -75,6 +75,7 @@ import com.kiko.tracker.data.model.CompanySummary
 import com.kiko.tracker.data.model.DiscoverFilters
 import com.kiko.tracker.data.model.DiscoverMode
 import com.kiko.tracker.data.model.ListViewMode
+import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.PersonSummary
@@ -950,6 +951,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 @Composable fun SearchResultRow(item: MediaItem, loading: Boolean, onTap: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null, modifier: Modifier = Modifier, vm: LibraryViewModel? = null) {
     val c = LocalKikoColors.current
+    val compact = LocalCompactList.current
+    val coverW = if (compact) 72.dp else 100.dp
+    val coverH = if (compact) 108.dp else 150.dp
+    val rowVPad = if (compact) 10.dp else 14.dp
     // Optional vm (Home's Airing next row): use the confirmed episode air time, same as ListRow.
     if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
     val confirmed = vm?.getCachedAiring(item.id)
@@ -971,11 +976,11 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 onClick = onTap,
                 onLongClick = onLongPress?.let { edit -> { edit() } },
             )
-            .padding(horizontal = hPad, vertical = 14.dp),
+            .padding(horizontal = hPad, vertical = rowVPad),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Same 100x150 cover as ListRow so search results line up with My List.
-        Box(Modifier.size(width = 100.dp, height = 150.dp)) {
+        Box(Modifier.size(width = coverW, height = coverH)) {
             Cover(item, Modifier.fillMaxSize(), showStatus = true, overrideStatus = myStatus, selected = isSelected)
             if (loading) {
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(kikoCorner(14.dp))).background(Color.Black.copy(alpha = .4f)), contentAlignment = Alignment.Center) {
@@ -987,7 +992,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         // under it (and the air timer below that while airing), pinned to the top; the
         // members count pinned to the bottom.
         Column(
-            Modifier.weight(1f).height(150.dp).padding(start = 16.dp, end = 6.dp),
+            Modifier.weight(1f).height(coverH).padding(start = 16.dp, end = 6.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column {
@@ -1057,11 +1062,15 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // instead of MediaItem since
 @Composable fun CharacterSearchResultRow(entry: CharacterSummary, loading: Boolean, onTap: () -> Unit) {
     val c = LocalKikoColors.current
+    val compact = LocalCompactList.current
+    val coverW = if (compact) 72.dp else 100.dp
+    val coverH = if (compact) 108.dp else 150.dp
+    val rowVPad = if (compact) 10.dp else 14.dp
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = rowVPad),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.size(width = 100.dp, height = 150.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(width = coverW, height = coverH).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (entry.image.isNotBlank()) {
                 AsyncImage(model = entry.image, contentDescription = entry.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
@@ -1090,11 +1099,15 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // carry that the way
 @Composable fun PersonSearchResultRow(entry: PersonSummary, loading: Boolean, onTap: () -> Unit) {
     val c = LocalKikoColors.current
+    val compact = LocalCompactList.current
+    val coverW = if (compact) 72.dp else 100.dp
+    val coverH = if (compact) 108.dp else 150.dp
+    val rowVPad = if (compact) 10.dp else 14.dp
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = rowVPad),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.size(width = 100.dp, height = 150.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(width = coverW, height = coverH).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (entry.image.isNotBlank()) {
                 AsyncImage(model = entry.image, contentDescription = entry.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
@@ -1121,11 +1134,14 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // own square logo treatment).
 @Composable fun CompanySearchResultRow(entry: CompanySummary, loading: Boolean, onTap: () -> Unit) {
     val c = LocalKikoColors.current
+    val compact = LocalCompactList.current
+    val logoSize = if (compact) 72.dp else 100.dp
+    val rowVPad = if (compact) 10.dp else 14.dp
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = rowVPad),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.size(100.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(logoSize).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (entry.image.isNotBlank()) {
                 AsyncImage(model = entry.image, contentDescription = entry.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
             } else {

@@ -87,6 +87,7 @@ import com.kiko.tracker.data.model.DiscoverSort
 import com.kiko.tracker.data.model.FeaturedArticleEntry
 import com.kiko.tracker.data.model.ListSort
 import com.kiko.tracker.data.model.ListViewMode
+import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.TitleLanguage
@@ -1174,6 +1175,10 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
     vm: LibraryViewModel? = null,
 ) {
     val c = LocalKikoColors.current
+    val compact = LocalCompactList.current
+    val coverW = if (compact) 72.dp else 100.dp
+    val coverH = if (compact) 108.dp else 150.dp
+    val rowVPad = if (compact) 10.dp else 14.dp
     if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
     val confirmed = vm?.getCachedAiring(item.id)
     // Airing -> "Ep. N airs on ..."; not started yet -> "Not Yet Aired". Never both.
@@ -1191,12 +1196,12 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
                 onClick = { onOpenDetail(item) },
                 onLongClick = onLongPress?.let { edit -> { edit(item) } },
             )
-            .padding(horizontal = hPad, vertical = 14.dp),
+            .padding(horizontal = hPad, vertical = rowVPad),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Cover(item, Modifier.size(width = 100.dp, height = 150.dp), selected = isSelected)
+        Cover(item, Modifier.size(width = coverW, height = coverH), selected = isSelected)
         Column(
-            Modifier.weight(1f).height(150.dp).padding(start = 16.dp, end = 6.dp),
+            Modifier.weight(1f).height(coverH).padding(start = 16.dp, end = 6.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column {
@@ -1204,7 +1209,9 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
                     item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp,
                     color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
-                Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                // Compact + airing/upcoming: the air timer takes the format line's place (shown below).
+                val timerReplacesFormat = compact && timer != null
+                if (!timerReplacesFormat) Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(if (showType) "${item.type} · ${formatLabel(item)}" else formatLabel(item), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (item.myRating > 0) {
                         Text("  ·  ", color = c.muted, fontSize = 13.sp)
@@ -1216,7 +1223,13 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
                 timer?.let { label ->
                     Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(14.dp))
-                        Text(label, color = timerTint, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
+                        Text(label, color = timerTint, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp).weight(1f, fill = false))
+                        // The rating normally rides on the format line, so keep it here when that line is hidden.
+                        if (timerReplacesFormat && item.myRating > 0) {
+                            Text("  ·  ", color = c.muted, fontSize = 13.sp)
+                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                            Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+                        }
                     }
                 }
             }
