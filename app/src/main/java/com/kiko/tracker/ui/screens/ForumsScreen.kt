@@ -254,7 +254,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
 }
 
 // Same corner pattern as Settings' groups (settingsGroupShape in ProfileScreen): 28dp outer, 4dp inner.
-private fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape {
+fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape {
     val outer = 28.dp
     val inner = 4.dp
     if (count == 1) return RoundedCornerShape(outer)

@@ -136,11 +136,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     switchDescription = "Switch between Forums and Clubs",
                 ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
                 if (vm.signedIn) {
+                    // Same section title as the Forums board list: primary, bold 14sp, 20dp in from the edge.
                     Text(
-                        if (vm.clubsQuery.isBlank()) "POPULAR CLUBS" else "RESULTS",
-                        color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp,
+                        if (vm.clubsQuery.isBlank()) "Popular Clubs" else "Results",
+                        color = c.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp,
                         // 9dp (not 22dp) so content starts the same distance under the header as on the Seasonal screen.
-                        modifier = Modifier.padding(top = 9.dp, bottom = 9.dp),
+                        modifier = Modifier.padding(start = 20.dp, top = 9.dp, bottom = 10.dp),
                     )
                     error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 10.dp)) }
                 }
@@ -153,12 +154,11 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             if (loading && visibleClubs.isEmpty()) {
                 item { KikoSectionLoading() }
             } else {
+                // Tonal rows like the Forums board list: no divider lines — each club is its own
+                // surface with big outer / tight inner corners and a 2dp gap between rows.
                 itemsIndexed(visibleClubs, key = { _, club -> club.id }) { index, club ->
-                    StaggeredItem(index) {
-                        Column {
-                            ClubRow(club) { openClub(club) }
-                            if (index < visibleClubs.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
-                        }
+                    StaggeredItem(index, modifier = Modifier.padding(top = if (index == 0) 0.dp else 2.dp)) {
+                        ClubRow(club, forumGroupShape(index, visibleClubs.size)) { openClub(club) }
                     }
                 }
             }
@@ -185,9 +185,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // One club row in
 // a bigger thumbnail and
 // single truncated line.
-@Composable fun ClubRow(club: MalClub, onClick: () -> Unit) {
+@Composable fun ClubRow(club: MalClub, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(kikoCorner(20.dp)), onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clip(shape).background(c.surfaceContainerHigh).kikoClickable(scale = 0.98f, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         if (club.image.isNotBlank()) {
             AsyncImage(model = club.image, contentDescription = club.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.warm))
         } else {
