@@ -28,3 +28,6 @@ build/
 *.hprof
 
 .kotlin/kikolog.txt
+/kikolog.txt
+.kotlin/
+app/release/
