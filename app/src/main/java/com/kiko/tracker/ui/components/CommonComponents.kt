@@ -582,7 +582,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 // Store's), so they read as part of the page rather than a floating card. Tapping the empty part of
 // the panel or the area above the bar dismisses it. `anchorBounds`/`containerBounds` come from
 // onGloballyPositioned on the search bar and the screen's root container; only the bar's bottom edge
-// is used. Keeps showing the last non-empty list while it fades out.
+// is used. Appears and disappears instantly — no fade.
 @Composable fun BoxScope.FloatingSearchSuggestions(
     anchorBounds: Rect?,
     containerBounds: Rect?,
@@ -592,8 +592,6 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     onSelect: (String) -> Unit,
 ) {
     val c = LocalKikoColors.current
-    var held by remember { mutableStateOf(suggestions) }
-    if (suggestions.isNotEmpty() && suggestions != held) held = suggestions
     if (anchorBounds == null || containerBounds == null) return
     val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
@@ -613,21 +611,18 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 .pointerInput(Unit) { detectTapGestures { dismiss() } }
         )
     }
-    AnimatedVisibility(
-        visible = suggestions.isNotEmpty(),
-        modifier = Modifier.offset { IntOffset(0, relBottom.roundToInt()) },
-        enter = fadeIn(KikoMotion.effectsDefault()),
-        exit = fadeOut(KikoMotion.effectsFast()),
-    ) {
+    // Plain `if`, not AnimatedVisibility: the panel just pops in and out with no fade.
+    if (suggestions.isNotEmpty()) {
         Box(
             Modifier
+                .offset { IntOffset(0, relBottom.roundToInt()) }
                 .fillMaxWidth()
                 .height(with(density) { remainingHeightPx.toDp() })
                 .background(c.background)
                 .pointerInput(Unit) { detectTapGestures { dismiss() } },
         ) {
             SearchSuggestionsList(
-                held,
+                suggestions,
                 onSelect = { picked -> dismiss(); onSelect(picked) },
                 onFill = onFill,
             )

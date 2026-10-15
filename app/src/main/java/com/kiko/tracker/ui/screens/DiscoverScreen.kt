@@ -792,11 +792,17 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 @Composable fun AdvancedFilterSheet(current: DiscoverFilters, type: String, onDismiss: () -> Unit, onApply: (DiscoverFilters) -> Unit, forceExpandGenre: Boolean = false) {
     val c = LocalKikoColors.current
-    // Split combined genre facets
-    var genres by remember { mutableStateOf(current.genres.filter { it !in CommonExplicitGenres }.toSet()) }
+    // Split combined genre facets. MAL's detail-page chips mix genres, themes and demographics, and
+    // tapping one arrives here as `current.genres` regardless of which kind it is (see onGenreClick in
+    // Navigation). The sheet only highlights a chip inside its own section, so a tapped theme like
+    // "Isekai" or demographic like "Shounen" showed nothing selected. File each tag under the section
+    // whose options actually contain it; anything unrecognised stays in Genre as before.
+    val themeTags = current.genres.filter { it in CommonThemes }
+    val demographicTags = current.genres.filter { it in CommonDemographics }
+    var genres by remember { mutableStateOf(current.genres.filter { it !in CommonExplicitGenres && it !in CommonThemes && it !in CommonDemographics }.toSet()) }
     var explicitGenres by remember { mutableStateOf(current.genres.filter { it in CommonExplicitGenres }.toSet()) }
-    var themes by remember { mutableStateOf(current.themes) }
-    var demographics by remember { mutableStateOf(current.demographics) }
+    var themes by remember { mutableStateOf(current.themes + themeTags) }
+    var demographics by remember { mutableStateOf(current.demographics + demographicTags) }
     var creator by remember { mutableStateOf(current.creator) }
     var source by remember { mutableStateOf(current.source) }
     var year by remember { mutableStateOf(current.year) }
