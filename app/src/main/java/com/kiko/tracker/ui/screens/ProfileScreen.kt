@@ -81,6 +81,7 @@ import com.kiko.tracker.data.api.MalFavorites
 import com.kiko.tracker.data.api.MalFriend
 import com.kiko.tracker.data.api.MalProfile
 import com.kiko.tracker.data.api.MalSessionCookie
+import com.kiko.tracker.data.api.fullResMalImage
 import com.kiko.tracker.data.model.ColorSource
 import com.kiko.tracker.data.model.ListViewMode
 import com.kiko.tracker.data.model.MediaItem
@@ -794,8 +795,10 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
                                 if (id != null && entry.type != null) onOpenTitle(id, entry.type)
                             },
                         ) {
-                            AsyncImage(
-                                model = entry.imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            // The widget's own <img> is MAL's small resize-proxy thumbnail
+                            // (/r/WxH/...); ask for the original cover instead.
+                            FullResMalImage(
+                                url = entry.imageUrl,
                                 modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(body.copy(alpha = 0.08f)),
                             )
                         }
@@ -830,8 +833,8 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
             items(friends, key = { it.profileUrl }) { friend ->
                 Column(Modifier.width(70.dp).kikoClickable { onOpenFriend(friend) }, horizontalAlignment = Alignment.CenterHorizontally) {
                     if (!friend.avatarUrl.isNullOrBlank()) {
-                        AsyncImage(
-                            model = friend.avatarUrl, contentDescription = friend.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        FriendAvatar(
+                            url = friend.avatarUrl, contentDescription = friend.username,
                             modifier = Modifier.size(64.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh),
                         )
                     } else {
@@ -848,6 +851,39 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
         }
     }
 }
+// MAL's friend icons (the `data-bg` on a.icon-friend) are its tiny thumbnails —
+// either the `userimages/thumbs/{id}_thumb.jpg` variant or a `/r/WxH/` resize-proxy
+// URL — which look soft once drawn at 44-64dp on a modern screen. This points at the
+// full-size picture instead (`userimages/{id}.jpg`, the same file the profile page's
+// own big avatar uses). Anything that isn't a recognised thumbnail URL comes back as-is.
+private val malAvatarThumb = Regex("/userimages/thumbs/(\\d+)_thumb(\\.\\w+)")
+fun fullResMalAvatar(url: String): String =
+    fullResMalImage(url).replaceFirst(malAvatarThumb, "/userimages/\$1\$2")
+
+// Image that asks for the full-size version of a MAL picture ([upgrade] rewrites the
+// scraped thumbnail URL), and quietly falls back to the original URL if the upgraded
+// one fails to load — so a wrong guess about MAL's URL scheme can never leave a blank
+// image, only no improvement.
+@Composable fun FullResMalImage(
+    url: String?, modifier: Modifier = Modifier, contentDescription: String? = null,
+    upgrade: (String) -> String = ::fullResMalImage,
+) {
+    val raw = url.orEmpty()
+    val hiRes = remember(raw) { upgrade(raw) }
+    var useRaw by remember(raw) { mutableStateOf(false) }
+    AsyncImage(
+        model = if (useRaw) raw else hiRes,
+        contentDescription = contentDescription,
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        onError = { if (!useRaw && hiRes != raw) useRaw = true },
+        modifier = modifier,
+    )
+}
+
+// Friend avatar — same idea, with the avatar-specific thumbnail rewrite.
+@Composable fun FriendAvatar(url: String?, modifier: Modifier = Modifier, contentDescription: String? = null) =
+    FullResMalImage(url, modifier, contentDescription, upgrade = ::fullResMalAvatar)
+
 // Favorites, split into rows per category (anime/manga/characters/people/
 // companies) — each its own horizontally-scrollable row of covers. Anime/
 // manga open their in-app detail page (fetched by id via

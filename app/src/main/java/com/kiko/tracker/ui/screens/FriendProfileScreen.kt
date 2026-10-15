@@ -199,7 +199,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     // the full scrape is still in flight, so the page doesn't
                     // open on a completely blank state.
                     if (!avatarHint.isNullOrBlank()) {
-                        AsyncImage(model = avatarHint, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(64.dp).clip(kikoCircleShape()).background(c.warm))
+                        FriendAvatar(url = avatarHint, modifier = Modifier.size(64.dp).clip(kikoCircleShape()).background(c.warm))
                         Spacer(Modifier.height(16.dp))
                     }
                     KikoLoadingIndicator(color = c.primary)

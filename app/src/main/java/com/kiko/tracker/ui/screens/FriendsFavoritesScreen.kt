@@ -176,8 +176,8 @@ private fun FriendsList(friends: List<MalFriend>, c: KikoColors, onOpenFriend: (
                 Modifier.fillMaxWidth().kikoClickable { onOpenFriend(friend) }.padding(vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AsyncImage(
-                    model = friend.avatarUrl, contentDescription = null,
+                FriendAvatar(
+                    url = friend.avatarUrl,
                     modifier = Modifier.size(44.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
                 )
                 Text(friend.username, color = c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp, modifier = Modifier.padding(start = 14.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
