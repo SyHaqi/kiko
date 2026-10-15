@@ -834,10 +834,41 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     // ones triggered by unrelated
     // — instead of only
     // remember(...) pattern ScoreFilterScreen/YearFilterScreen already
-    val filtered = remember(vm.items, vm.nsfwEnabled, type, statusLabel, submittedQuery, vm.listSort, vm.titleLanguage) {
+    val sortedItems = remember(vm.items, vm.nsfwEnabled, type, statusLabel, submittedQuery, vm.listSort, vm.titleLanguage) {
         vm.visibleItems
             .filter { it.type == type && (statusLabel == "All" || it.status.displayLabel(type) == statusLabel) && (it.title.contains(submittedQuery, true) || it.titleEnglish.contains(submittedQuery, true)) }
             .sortedWithListSort(vm.listSort, vm.titleLanguage)
+    }
+    // Tapping "+1" under "Last Updated" sort used to re-sort instantly, so the entry jumped
+    // to the top and the next tap hit whichever entry slid into its place. While the user is
+    // tapping, hold the row order frozen (progress still updates live in place); once taps
+    // stop for a moment, release it and the entry animates up to the top.
+    var frozenOrder by remember { mutableStateOf<List<String>?>(null) }
+    var incrementTicks by remember { mutableIntStateOf(0) }
+    LaunchedEffect(incrementTicks) {
+        if (incrementTicks > 0) {
+            kotlinx.coroutines.delay(1500) // restarts on every tap, so it only fires after the last one
+            frozenOrder = null
+        }
+    }
+    // Changing the sort mode should take effect immediately, not wait for the hold to expire.
+    LaunchedEffect(vm.listSort) { frozenOrder = null }
+    val filtered = remember(sortedItems, frozenOrder) {
+        val order = frozenOrder
+        if (order == null) sortedItems
+        else {
+            val byId = sortedItems.associateBy { it.id }
+            val known = order.toHashSet()
+            // Anything not in the frozen order (e.g. a new entry) goes first, then the held order.
+            sortedItems.filter { it.id !in known } + order.mapNotNull { byId[it] }
+        }
+    }
+    val onIncrementHeld: (MediaItem) -> Unit = { item ->
+        if (vm.listSort == ListSort.LastUpdated) {
+            if (frozenOrder == null) frozenOrder = filtered.map { it.id }
+            incrementTicks++
+        }
+        onIncrement(item)
     }
     val isGrid = vm.listViewMode == ListViewMode.Grid
     // Shared between grid and
@@ -901,7 +932,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     if (vm.loading && filtered.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
                     } else {
-                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, openItem, onIncrement, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) } }
+                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen, Modifier.animateItem()) { ListGridCard(item, openItem, onIncrementHeld, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) } }
                     }
                     if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
@@ -912,9 +943,9 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                         item { KikoSectionLoading() }
                     } else {
                         itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                            StaggeredItem(index, staggerSeen) {
+                            StaggeredItem(index, staggerSeen, Modifier.animateItem()) {
                                 Column {
-                                    ListRow(it, openItem, onIncrement, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, vm = vm)
+                                    ListRow(it, openItem, onIncrementHeld, showType = false, onLongPress = onEdit, isSelected = selectedItem?.id == it.id && selectedItem?.type == it.type, vm = vm)
                                 }
                             }
                         }
