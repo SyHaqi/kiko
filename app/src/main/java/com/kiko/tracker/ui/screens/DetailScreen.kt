@@ -556,10 +556,15 @@ data class DetailScreenActions(
                             item.airStatus.takeIf { it.isNotBlank() }?.let { add(Triple(Icons.Default.Sensors, c.primary, it)) }
                             if (item.score > 0) add(Triple(Icons.Default.Star, Color(0xFFFFC107), item.score.twoDecimals()))
                             favorites?.takeIf { it > 0 }?.let { add(Triple(Icons.Default.Favorite, c.danger, "${formatCount(it)} favorites")) }
-                            // Anime: minutes per episode. Manga has no duration, so it keeps the published-year row.
-                            if (item.type == MediaType.Anime) {
-                                if (item.durationMin > 0) add(Triple(Icons.Default.Timer, c.primary, durationLabel(item.durationMin)))
-                            } else aired.takeIf { it.isNotBlank() }?.let { add(Triple(Icons.Default.CalendarMonth, c.primary, it)) }
+                            // Episode / chapter count lives beside the cover. MAL leaves it empty while a series is still
+                            // running or unannounced, so that case reads "N/A episodes" / "N/A chapters".
+                            val countUnit = if (item.type == MediaType.Anime) "episode" else "chapter"
+                            add(Triple(
+                                if (item.type == MediaType.Anime) Icons.Default.Tv else Icons.Default.MenuBook, c.primary,
+                                if (item.total > 0) "${item.total} $countUnit${if (item.total == 1) "" else "s"}" else "N/A ${countUnit}s",
+                            ))
+                            // Anime's minutes-per-episode lives in the Details list. Manga has no duration, and its
+                            // published year is already in Details ("Published"), so nothing else goes here.
                         }
                         Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             val posterInteraction = remember { MutableInteractionSource() }
@@ -700,8 +705,8 @@ data class DetailScreenActions(
                                             if (item.startDateFull.isNotBlank()) add("Start date" to formatFullDate(item.startDateFull))
                                             if (item.endDateFull.isNotBlank()) add("End date" to formatFullDate(item.endDateFull))
                                             else if (item.startDateFull.isNotBlank()) add("End date" to "Ongoing")
-                                            if (item.type == MediaType.Anime && item.total > 0) add("Episodes" to item.total.toString())
-                                            if (item.type == MediaType.Manga && item.total > 0) add("Chapters" to item.total.toString())
+                                            // Episodes/chapters moved beside the cover; anime's duration takes this spot (manga has none).
+                                            if (item.type == MediaType.Anime && item.durationMin > 0) add("Duration" to durationLabel(item.durationMin))
                                             if (item.type == MediaType.Manga && item.volumes > 0) add("Volumes" to item.volumes.toString())
                                             if (item.type == MediaType.Anime && item.rating.isNotBlank()) add("Rating" to item.rating)
                                             if (item.creator.isNotBlank()) add(if (item.type == MediaType.Anime) "Studio" to item.creator else "Author" to item.creator)
