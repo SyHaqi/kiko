@@ -3,6 +3,7 @@
 package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.KikoSectionLoading
+import com.kiko.tracker.ui.components.coverClip
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -809,7 +810,7 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
                             // (/r/WxH/...); ask for the original cover instead.
                             FullResMalImage(
                                 url = entry.imageUrl,
-                                modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(body.copy(alpha = 0.08f)),
+                                modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).coverClip(RoundedCornerShape(kikoCorner(12.dp))).background(body.copy(alpha = 0.08f)),
                             )
                         }
                     }
@@ -995,12 +996,12 @@ fun fullResMalAvatar(url: String): String =
                     if (label == "Companies") {
                         AsyncImage(
                             model = entry.imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh),
+                            modifier = Modifier.fillMaxWidth().aspectRatio(1f).coverClip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh),
                         )
                     } else {
                         AsyncImage(
                             model = entry.imageUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh),
+                            modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).coverClip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh),
                         )
                     }
                     if (isLoading) {

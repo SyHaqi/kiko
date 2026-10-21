@@ -3,6 +3,7 @@
 package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.KikoSectionLoading
+import com.kiko.tracker.ui.components.coverClip
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -313,7 +314,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 @Composable fun StackCoverCollage(covers: List<String>, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
-    Box(modifier.clip(RoundedCornerShape(kikoCorner(14.dp)))) {
+    Box(modifier.coverClip(RoundedCornerShape(kikoCorner(14.dp)))) {
         if (covers.isEmpty()) {
             Box(Modifier.fillMaxSize().background(c.primaryContainer), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.Layers, null, tint = c.primary, modifier = Modifier.size(22.dp))
@@ -898,7 +899,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(0.72f)
-                .clip(RoundedCornerShape(kikoCorner(16.dp)))
+                .coverClip(RoundedCornerShape(kikoCorner(16.dp)))
                 .background(c.surfaceLow),
         ) {
             if (entry.cover.isNotBlank()) {

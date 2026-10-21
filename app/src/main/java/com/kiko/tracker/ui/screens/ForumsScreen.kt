@@ -3,6 +3,7 @@
 package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.KikoSectionLoading
+import com.kiko.tracker.ui.components.coverClip
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeEnd
@@ -391,7 +392,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
 @Composable fun NewsTopicRow(topic: ForumTopic, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.Top) {
-        Box(Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(width = 84.dp, height = 118.dp).coverClip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
             if (topic.imageUrl != null) {
                 AsyncImage(model = topic.imageUrl, contentDescription = topic.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {

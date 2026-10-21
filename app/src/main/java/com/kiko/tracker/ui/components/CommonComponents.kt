@@ -54,6 +54,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
@@ -233,11 +234,32 @@ import com.kiko.tracker.ui.theme.kikoPillShape
     return if (c.background.luminance() > 0.5f) this.shadow(elevation, shape, clip = false) else this
 }
 
+/**
+ * Rounded clip for cover / poster / thumbnail art that doesn't leave a thin bright rim at the corners.
+ *
+ * A plain `.clip(shape)` anti-aliases every layer inside it separately — the placeholder fill, the
+ * image, the bottom scrim — so at the curved edge each one only half-covers the pixel and the fill
+ * colour peeks out around the image (most visible on the bottom corners of dark art, e.g. snapshots
+ * with a black gradient). Here the content is first composed into one offscreen layer and the
+ * rounded shape is then applied once as a mask (DstIn), so the edge is anti-aliased a single time.
+ * Drop-in for `.clip(shape)`: apply it in the same spot (after coverElevation, before background).
+ */
+fun Modifier.coverClip(shape: Shape): Modifier = this
+    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        drawOutline(
+            outline = shape.createOutline(size, layoutDirection, this),
+            color = Color.Black,
+            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+        )
+    }
+
 @Composable fun Cover(item: MediaItem, modifier: Modifier = Modifier, showStatus: Boolean = false, statusAlignment: Alignment = Alignment.TopStart, overrideStatus: WatchStatus? = null, showRating: Boolean = false, selected: Boolean = false) {
     val c = LocalKikoColors.current
     val displayTitle = item.displayTitle()
     val coverShape = RoundedCornerShape(kikoCorner(16.dp))
-    Box(modifier.coverElevation(coverShape).clip(coverShape).background(Color(item.color)), contentAlignment = Alignment.Center) {
+    Box(modifier.coverElevation(coverShape).coverClip(coverShape).background(Color(item.color)), contentAlignment = Alignment.Center) {
         if (item.cover.isNotBlank()) {
             AsyncImage(
                 model = item.cover,

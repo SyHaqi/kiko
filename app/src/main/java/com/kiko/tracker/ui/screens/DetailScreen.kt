@@ -3,6 +3,7 @@
 package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.KikoLoadingScreen
+import com.kiko.tracker.ui.components.coverClip
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.util.openInBrowser
 import android.content.Intent
@@ -570,7 +571,7 @@ data class DetailScreenActions(
                             val posterInteraction = remember { MutableInteractionSource() }
                             Box(
                                 Modifier.size(width = 128.dp, height = 192.dp)
-                                    .shadow(6.dp, RoundedCornerShape(kikoCorner(16.dp))).clip(RoundedCornerShape(kikoCorner(16.dp))).background(Color(item.color))
+                                    .shadow(6.dp, RoundedCornerShape(kikoCorner(16.dp)), clip = false).coverClip(RoundedCornerShape(kikoCorner(16.dp))).background(Color(item.color))
                                     .pressScale(posterInteraction, scale = 0.94f)
                                     .clickable(indication = androidx.compose.foundation.LocalIndication.current, interactionSource = posterInteraction) { showFullCover = true },
                             ) {
@@ -1061,7 +1062,7 @@ data class DetailScreenActions(
             .clip(RoundedCornerShape(kikoCorner(20.dp))).background(c.surfaceContainer)
             .kikoClickable(onClick = onClick),
     ) {
-        Box(Modifier.fillMaxHeight().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.fillMaxHeight().aspectRatio(2f / 3f).coverClip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (article.image.isNotBlank()) {
                 AsyncImage(
                     // Size.ORIGINAL + High filter quality — same reasoning
@@ -1278,7 +1279,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
         Modifier.width(cardWidth).clip(RoundedCornerShape(kikoCorner(cornerRadius))).background(c.surfaceContainerHigh)
             .let { m -> onClick?.let { m.kikoClickable(enabled = !loading, onClick = it) } ?: m },
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(topStart = kikoCorner(cornerRadius), topEnd = kikoCorner(cornerRadius), bottomStart = kikoCorner(coverBottomCorner), bottomEnd = kikoCorner(coverBottomCorner))).background(c.surfaceLow)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).coverClip(RoundedCornerShape(topStart = kikoCorner(cornerRadius), topEnd = kikoCorner(cornerRadius), bottomStart = kikoCorner(coverBottomCorner), bottomEnd = kikoCorner(coverBottomCorner))).background(c.surfaceLow)) {
             if (imageUrl.isNotBlank()) {
                 AsyncImage(model = imageUrl, contentDescription = title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
@@ -1328,7 +1329,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
         Modifier.width(88.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)
             .let { m -> onClick?.let { m.kikoClickable(enabled = !loading, onClick = it) } ?: m },
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(3f / 4f).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceLow)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(3f / 4f).coverClip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceLow)) {
             if (imageUrl.isNotBlank()) {
                 AsyncImage(model = imageUrl, contentDescription = name, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {

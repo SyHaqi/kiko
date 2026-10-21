@@ -37,6 +37,7 @@ import androidx.compose.material3.carousel.CarouselItemScope
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
 import com.kiko.tracker.ui.components.KikoSectionLoading
+import com.kiko.tracker.ui.components.coverClip
 import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -412,7 +413,9 @@ private fun homeImageRequest(context: android.content.Context, data: Any?, size:
         Modifier
             .fillMaxHeight()
             .maskClip(RoundedCornerShape(kikoCorner(16.dp)))
-            .background(c.primaryContainer)
+            // The tonal fill is only the backdrop for the fallback genre icon. Left under a loaded
+            // cover it peeks out as a thin light rim where the carousel clips the rounded corners.
+            .then(if (hasCover) Modifier else Modifier.background(c.primaryContainer))
             .kikoClickable(onClick = onClick),
     ) {
         if (hasCover) {
@@ -573,7 +576,7 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
         Modifier
             .fillMaxWidth()
             .height(if (tall) 210.dp else 160.dp)
-            .clip(RoundedCornerShape(kikoCorner(18.dp)))
+            .coverClip(RoundedCornerShape(kikoCorner(18.dp)))
             .kikoClickable { onOpenTopic(snapshot.topicId, snapshot.title) },
     ) {
         AsyncImage(model = imageRequest, contentDescription = snapshot.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
@@ -621,7 +624,7 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
                 Modifier
                     .fillMaxWidth()
                     .height(120.dp)
-                    .clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp), bottomStart = kikoCorner(20.dp), bottomEnd = kikoCorner(20.dp)))
+                    .coverClip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp), bottomStart = kikoCorner(20.dp), bottomEnd = kikoCorner(20.dp)))
                     .background(c.surfaceContainerHigh),
             ) {
                 if (article.image.isNotBlank()) {
@@ -1400,7 +1403,7 @@ fun openHistoryDetail(entry: MalHistoryEntry, items: List<MediaItem>, context: a
 // as the full-size Cover() above, just at a compact scale with a smaller
 // corner radius to match.
 @Composable fun HistoryCover(entry: MalHistoryEntry, coverUrl: String, tint: Long, modifier: Modifier = Modifier) {
-    Box(modifier.clip(RoundedCornerShape(kikoCorner(12.dp))).background(Color(tint)), contentAlignment = Alignment.Center) {
+    Box(modifier.coverClip(RoundedCornerShape(kikoCorner(12.dp))).background(Color(tint)), contentAlignment = Alignment.Center) {
         if (coverUrl.isNotBlank()) {
             AsyncImage(model = coverUrl, contentDescription = entry.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
         } else {

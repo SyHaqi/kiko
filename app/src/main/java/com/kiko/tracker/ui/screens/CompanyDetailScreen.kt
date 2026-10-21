@@ -3,6 +3,7 @@
 package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.KikoLoadingScreen
+import com.kiko.tracker.ui.components.coverClip
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -427,7 +428,7 @@ fun companyLinkIconRes(url: String): Int? {
             .clip(RoundedCornerShape(kikoCorner(20.dp))).background(c.surfaceContainer)
             .kikoClickable(onClick = onClick),
     ) {
-        Box(Modifier.fillMaxHeight().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.fillMaxHeight().aspectRatio(2f / 3f).coverClip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (news.image.isNotBlank()) {
                 AsyncImage(model = news.image, contentDescription = news.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
