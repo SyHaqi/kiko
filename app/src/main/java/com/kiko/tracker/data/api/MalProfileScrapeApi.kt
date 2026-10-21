@@ -16,7 +16,13 @@ class MalSessionExpired : IOException()
 data class MalFriend(
     val username: String,
     val profileUrl: String,
-    val avatarUrl: String? = null
+    val avatarUrl: String? = null,
+    // Only filled by the full /friends page (not the profile-page preview fallback).
+    // [lastOnline] is MAL's own wording ("32 minutes ago", "Today, 1:52 AM"); [friendsSince] is the
+    // date only — the time of day MAL prints after it is dropped ("Dec 3, 2024", or "Sep 12" for
+    // this year's friendships, which MAL prints without a year).
+    val lastOnline: String? = null,
+    val friendsSince: String? = null,
 )
 
 data class MalFavoriteEntry(
@@ -105,11 +111,12 @@ class MalProfileScrapeApi(context: Context) {
     private val client = NetworkClient.shared
     private val session = MalSessionCookie(context)
 
-    private fun fetchProfileDocument(username: String): Document {
+    // [path] is appended to /profile/{username} — e.g. "/friends?p=2" for the full friends page.
+    private fun fetchProfileDocument(username: String, path: String = ""): Document {
         val cookie = session.get() ?: throw MalSessionExpired()
 
         val request = Request.Builder()
-            .url("https://myanimelist.net/profile/$username")
+            .url("https://myanimelist.net/profile/$username$path")
             .header("Cookie", cookie)
             .header("User-Agent", MAL_DESKTOP_USER_AGENT)
             .build()
@@ -313,8 +320,78 @@ class MalProfileScrapeApi(context: Context) {
         return if (bb.isBlank()) MalAboutMe() else MalAboutMe(classicBody = bb)
     }
 
+    /**
+     * Every friend of [username], not just the ~10 the profile page previews. Reads the dedicated
+     * /profile/{username}/friends page (and follows its pagination when there is any); if that page
+     * can't be read for any reason other than an expired session, falls back to the profile-page
+     * preview so the row never ends up emptier than it was before.
+     */
     suspend fun friends(username: String): List<MalFriend> = withContext(Dispatchers.IO) {
-        val doc = fetchProfileDocument(username)
+        val all = try {
+            allFriends(username)
+        } catch (e: MalSessionExpired) {
+            throw e
+        } catch (e: Exception) {
+            emptyList()
+        }
+        if (all.isNotEmpty()) return@withContext all
+        previewFriends(fetchProfileDocument(username))
+    }
+
+    // One page of /friends: each friend is a div.boxlist with the name link in div.title and a
+    // lazy-loaded (data-src) 225px avatar — a better source than the tiny preview thumbnails.
+    private fun parseFriendsPage(doc: Document): List<MalFriend> =
+        doc.select("div.boxlist-container.friend div.boxlist").mapNotNull { box ->
+            val a = box.selectFirst("div.title a") ?: return@mapNotNull null
+            val name = a.text().ifBlank { return@mapNotNull null }
+            val img = box.selectFirst("img")
+            val avatar = img?.attr("data-src")?.ifBlank { img.attr("src") }
+                ?.takeIf { it.isNotBlank() && !it.endsWith("spacer.gif") }
+            val details = box.select("div.fn-grey2").map { it.text().trim() }.filter { it.isNotBlank() }
+            val since = details.firstOrNull { it.startsWith("Friends since", ignoreCase = true) }
+                ?.removePrefix("Friends since")?.trim()
+                ?.replace(Regex("""\s+\d{1,2}:\d{2}\s*[AaPp][Mm]$"""), "")
+                ?.ifBlank { null }
+            val online = details.firstOrNull { !it.startsWith("Friends since", ignoreCase = true) }
+            MalFriend(username = name, profileUrl = a.attr("abs:href"), avatarUrl = avatar, lastOnline = online, friendsSince = since)
+        }
+
+    private fun allFriends(username: String): List<MalFriend> {
+        val first = fetchProfileDocument(username, "/friends")
+        val result = LinkedHashMap<String, MalFriend>()
+        parseFriendsPage(first).forEach { result.putIfAbsent(it.profileUrl, it) }
+        if (result.isEmpty()) return emptyList()
+
+        // The profile sidebar's "All (21)" link carries the real total — lets us stop as soon as
+        // we have everyone (so a short list costs exactly one request).
+        val total = first.select("a.all-link").firstOrNull { it.attr("href").endsWith("/friends") }
+            ?.text()?.let { Regex("""\((\d+)\)""").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+        val perPage = result.size
+
+        // MAL's pager parameter wasn't visible in the one captured page (it fit on a single page),
+        // so try the two usual shapes. A strategy that adds nothing new is abandoned immediately,
+        // which also protects against a param MAL ignores (it would just re-serve page 1).
+        val pageUrls = listOf<(Int) -> String>(
+            { page -> "/friends?p=$page" },
+            { page -> "/friends?offset=${(page - 1) * perPage}" },
+        )
+        for (urlFor in pageUrls) {
+            if (total != null && result.size >= total) break
+            var page = 2
+            var progressed = false
+            while (page <= 60 && (total == null || result.size < total)) {
+                val added = parseFriendsPage(fetchProfileDocument(username, urlFor(page)))
+                    .count { result.putIfAbsent(it.profileUrl, it) == null }
+                if (added == 0) break
+                progressed = true
+                page++
+            }
+            if (progressed) break
+        }
+        return result.values.toList()
+    }
+
+    private fun previewFriends(doc: Document): List<MalFriend> =
         doc.select("div.user-friends a.icon-friend").map { a ->
             MalFriend(
                 username = a.text().ifBlank { a.attr("title") },
@@ -322,7 +399,6 @@ class MalProfileScrapeApi(context: Context) {
                 avatarUrl = a.attr("data-bg").ifBlank { null }
             )
         }
-    }
 
     suspend fun favorites(username: String): MalFavorites = withContext(Dispatchers.IO) {
         val doc = fetchProfileDocument(username)

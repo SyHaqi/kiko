@@ -109,7 +109,7 @@ import com.kiko.tracker.ui.theme.kikoClickable
             // Group 1 — library pages
             val pages = buildList<Triple<ImageVector, String, () -> Unit>> {
                 if (onOpenHistory != null) add(Triple(Icons.Outlined.History, "History", onOpenHistory))
-                if (connected && onOpenFriends != null) add(Triple(Icons.Outlined.People, "Friends & favorites", onOpenFriends))
+                if (connected && onOpenFriends != null) add(Triple(Icons.Outlined.People, "Friends", onOpenFriends))
             }
             if (pages.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {

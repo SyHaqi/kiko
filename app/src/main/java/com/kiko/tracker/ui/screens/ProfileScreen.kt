@@ -427,6 +427,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                             FriendsRow(
                                 friends, c, onOpenFriend = onOpenFriend,
                                 initialScroll = friendsRowScroll, onScrollChange = onSaveFriendsRowScroll,
+                                onSeeMore = onOpenFriendsFavorites,
                             )
                         }
                     }
@@ -830,7 +831,12 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
 @Composable fun FriendsRow(
     friends: List<MalFriend>, c: KikoColors, onOpenFriend: (MalFriend) -> Unit = {},
     initialScroll: Pair<Int, Int> = 0 to 0, onScrollChange: (Int, Int) -> Unit = { _, _ -> },
+    // The row only previews the first [previewLimit] friends; when there are more, a "See more" tile
+    // follows the last one and opens the full list (Friends & Favorites).
+    onSeeMore: () -> Unit = {}, previewLimit: Int = 10,
 ) {
+    val preview = remember(friends, previewLimit) { friends.take(previewLimit) }
+    val hasMore = friends.size > previewLimit
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialScroll.first, initialFirstVisibleItemScrollOffset = initialScroll.second)
     DisposableEffect(Unit) { onDispose { onScrollChange(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) } }
     Column(Modifier.fillMaxWidth().padding(top = 24.dp)) {
@@ -839,7 +845,7 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
         }
         Spacer(Modifier.height(16.dp))
         LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-            items(friends, key = { it.profileUrl }) { friend ->
+            items(preview, key = { it.profileUrl }) { friend ->
                 Column(Modifier.width(70.dp).kikoClickable { onOpenFriend(friend) }, horizontalAlignment = Alignment.CenterHorizontally) {
                     if (!friend.avatarUrl.isNullOrBlank()) {
                         FriendAvatar(
@@ -855,6 +861,21 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
                         friend.username, color = c.ink, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp),
                     )
+                }
+            }
+            if (hasMore) {
+                item(key = "see_more") {
+                    Column(Modifier.width(70.dp).kikoClickable { onSeeMore() }, horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Same footprint as an avatar, as a tonal circle with an arrow — reads as
+                        // "the next item in the row" rather than a button bolted on the side.
+                        Box(Modifier.size(64.dp).clip(kikoCircleShape()).background(c.secondaryContainer), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.ArrowForward, "See more friends", tint = c.onSecondaryContainer, modifier = Modifier.size(24.dp))
+                        }
+                        Text(
+                            "See more", color = c.ink, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
                 }
             }
         }

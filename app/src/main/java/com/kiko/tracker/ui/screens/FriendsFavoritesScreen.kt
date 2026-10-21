@@ -36,15 +36,15 @@ import com.kiko.tracker.ui.components.MalLoginWebView
 import com.kiko.tracker.ui.theme.KikoColors
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.kikoClickable
+import com.kiko.tracker.ui.theme.kikoCircleShape
 import com.kiko.tracker.ui.theme.kikoCorner
 import kotlinx.coroutines.launch
 
-private enum class FriendsFavoritesTab { Friends, Favorites }
-
-// Full page reached from Profile's "Friends & Favorites" card. Both are
-// scraped off the profile page (MalProfileScrapeApi) since neither is in
-// MAL's official API — that needs a logged-in session cookie, so this screen
-// shows the embedded MalLoginWebView first if there isn't one yet.
+// Full Friends page reached from Profile's Friends row ("See more") and the drawer. (Still named
+// FriendsFavoritesScreen so its call sites keep working — the Favorites tab is gone, and the
+// favorites callbacks below are now unused.) Friends aren't in MAL's official API, so they're
+// scraped (MalProfileScrapeApi) with a logged-in session cookie; this screen shows the embedded
+// MalLoginWebView first if there isn't one yet.
 @Composable fun FriendsFavoritesScreen(
     username: String, onBack: () -> Unit,
     onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {},
@@ -62,9 +62,7 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
     var showLogin by remember { mutableStateOf(false) }
     var verifyingLogin by remember { mutableStateOf(false) }
 
-    var tab by remember { mutableStateOf(FriendsFavoritesTab.Friends) }
     var friends by remember { mutableStateOf<List<MalFriend>?>(null) }
-    var favorites by remember { mutableStateOf<MalFavorites?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -75,14 +73,12 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
         scope.launch {
             val api = MalProfileScrapeApi(context)
             runCatching {
-                val f = api.friends(username)
-                val fav = api.favorites(username)
-                friends = f; favorites = fav
+                friends = api.friends(username)
             }.onFailure { e ->
                 if (e is MalSessionExpired) {
                     connected = false; session.clear()
                 } else {
-                    error = "Couldn't load friends & favorites — try again."
+                    error = "Couldn't load friends — try again."
                 }
             }
             loading = false
@@ -121,7 +117,7 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
     Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Friends & Favorites", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+            Text("Friends", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
 
         if (!connected) {
@@ -140,26 +136,13 @@ private enum class FriendsFavoritesTab { Friends, Favorites }
             return
         }
 
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceLow).padding(4.dp)) {
-            FriendsFavoritesTab.entries.forEach { t ->
-                val selected = tab == t
-                Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(if (selected) c.secondaryContainer else Color.Transparent).kikoClickable { tab = t }.padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(t.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (selected) c.onSecondaryContainer else c.muted)
-                }
-            }
-        }
-
         when {
             loading && friends == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { KikoLoadingIndicator(modifier = Modifier.padding(top = 40.dp), color = c.primary) }
             error != null -> Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(error!!, color = c.muted, fontSize = 13.sp)
                 TextButton(onClick = { load() }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
             }
-            tab == FriendsFavoritesTab.Friends -> FriendsList(friends.orEmpty(), c, onOpenFriend)
-            else -> FavoritesSections(favorites, c, onOpenCharacter, onOpenPerson, onOpenCompany, onOpenFavoriteTitle)
+            else -> FriendsList(friends.orEmpty(), c, onOpenFriend)
         }
     }
 }
@@ -170,73 +153,47 @@ private fun FriendsList(friends: List<MalFriend>, c: KikoColors, onOpenFriend: (
         Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text("No friends listed on this profile.", color = c.muted, fontSize = 13.sp) }
         return
     }
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 16.dp)) {
-        friends.forEach { friend ->
+    // Tonal rows, one grouped list — same look as the profile drawer / Settings groups.
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        friends.forEachIndexed { index, friend ->
             Row(
-                Modifier.fillMaxWidth().kikoClickable { onOpenFriend(friend) }.padding(vertical = 10.dp),
+                Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(friendGroupShape(index, friends.size)).background(c.surfaceContainer)
+                    .kikoClickable(scale = 0.98f) { onOpenFriend(friend) }.padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FriendAvatar(
-                    url = friend.avatarUrl,
-                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
-                )
-                Text(friend.username, color = c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp, modifier = Modifier.padding(start = 14.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // Circle avatar, same as the Friends row on Profile.
+                if (!friend.avatarUrl.isNullOrBlank()) {
+                    FriendAvatar(
+                        url = friend.avatarUrl, contentDescription = friend.username,
+                        modifier = Modifier.size(52.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh),
+                    )
+                } else {
+                    Box(Modifier.size(52.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                        Text(friend.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = c.ink)
+                    }
+                }
+                Column(Modifier.padding(start = 16.dp).weight(1f)) {
+                    Text(friend.username, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    friend.lastOnline?.let {
+                        Text(it, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                    }
+                    friend.friendsSince?.let {
+                        Text("Friends since $it", color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
+                    }
+                }
             }
         }
     }
 }
 
-@Composable
-private fun FavoritesSections(
-    favorites: MalFavorites?, c: KikoColors,
-    onOpenCharacter: (Int) -> Unit, onOpenPerson: (Int) -> Unit, onOpenCompany: (Int) -> Unit,
-    onOpenFavoriteTitle: (Int, com.kiko.tracker.data.model.MediaType) -> Unit,
-) {
-    val sections = listOfNotNull(
-        favorites?.anime?.takeIf { it.isNotEmpty() }?.let { "Anime" to it },
-        favorites?.manga?.takeIf { it.isNotEmpty() }?.let { "Manga" to it },
-        favorites?.characters?.takeIf { it.isNotEmpty() }?.let { "Characters" to it },
-        favorites?.people?.takeIf { it.isNotEmpty() }?.let { "People" to it },
-        favorites?.companies?.takeIf { it.isNotEmpty() }?.let { "Companies" to it },
-    )
-    if (sections.isEmpty()) {
-        Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { Text("No favorites listed on this profile.", color = c.muted, fontSize = 13.sp) }
-        return
-    }
-    val uriHandler = LocalUriHandler.current
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 16.dp, bottom = 24.dp)) {
-        sections.forEach { (label, entries) ->
-            Text(label.uppercase(), color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                entries.forEach { entry: MalFavoriteEntry ->
-                    // Anime/manga/characters/people/companies all open their
-                    // in-app detail page (same routing as Profile's inline
-                    // Favorites rows) — falls back to the browser only if a
-                    // url doesn't parse as a recognized MAL link.
-                    Column(
-                        Modifier.width(96.dp).kikoClickable {
-                            when (label) {
-                                "Anime" -> malIdFromFavoriteUrl(entry.url)?.let { onOpenFavoriteTitle(it, com.kiko.tracker.data.model.MediaType.Anime) } ?: uriHandler.openUri(entry.url)
-                                "Manga" -> malIdFromFavoriteUrl(entry.url)?.let { onOpenFavoriteTitle(it, com.kiko.tracker.data.model.MediaType.Manga) } ?: uriHandler.openUri(entry.url)
-                                else -> when (val link = parseMalProfileLink(entry.url)) {
-                                    is MalProfileLink.Character -> onOpenCharacter(link.malId)
-                                    is MalProfileLink.Person -> onOpenPerson(link.malId)
-                                    is MalProfileLink.Company -> onOpenCompany(link.malId)
-                                    null -> uriHandler.openUri(entry.url)
-                                }
-                            }
-                        },
-                    ) {
-                        AsyncImage(
-                            model = entry.imageUrl, contentDescription = null,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(kikoCorner(12.dp))).background(c.surfaceContainerHigh),
-                        )
-                        Text(entry.title, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-                        entry.subtitle?.let { Text(it, color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    }
-                }
-            }
-            Spacer(Modifier.height(24.dp))
-        }
+// Big outer corners, tight inner ones — same grouped shape as the profile drawer and Settings.
+private fun friendGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape {
+    val outer = 28.dp
+    val inner = 4.dp
+    if (count == 1) return RoundedCornerShape(outer)
+    return when (index) {
+        0 -> RoundedCornerShape(topStart = outer, topEnd = outer, bottomStart = inner, bottomEnd = inner)
+        count - 1 -> RoundedCornerShape(topStart = inner, topEnd = inner, bottomStart = outer, bottomEnd = outer)
+        else -> RoundedCornerShape(inner)
     }
 }
