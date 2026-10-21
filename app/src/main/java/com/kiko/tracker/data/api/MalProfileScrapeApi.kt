@@ -85,8 +85,11 @@ data class MalAboutMe(
     val bodyTextColor: String? = null,
     val backgroundColor: String? = null,
     val sections: List<MalAboutMeSection> = emptyList(),
+    // "Classic" About Me style: one free-form BBCode blob (already re-emitted as bracket-tag
+    // BBCode via htmlToBb) instead of the modern banner/intro/rows widget. Rendered with ForumBody.
+    val classicBody: String? = null,
 ) {
-    val isEmpty: Boolean get() = mainVisualUrl == null && displayName.isNullOrBlank() && introText.isNullOrBlank() && sections.isEmpty()
+    val isEmpty: Boolean get() = mainVisualUrl == null && displayName.isNullOrBlank() && introText.isNullOrBlank() && sections.isEmpty() && classicBody.isNullOrBlank()
 }
 
 /**
@@ -255,7 +258,10 @@ class MalProfileScrapeApi(context: Context) {
      */
     suspend fun aboutMe(username: String): MalAboutMe = withContext(Dispatchers.IO) {
         val doc = fetchProfileDocument(username)
-        val root = doc.selectFirst("div#modern-about-me-inner") ?: return@withContext MalAboutMe()
+        val root = doc.selectFirst("div#modern-about-me-inner")
+        // No modern widget: the user is on MAL's Classic About Me style, which is just their
+        // rendered BBCode in div.profile-about-user (table > td > div.word-break).
+            ?: return@withContext classicAboutMe(doc)
 
         // The three theme colors a user picks in MAL's about-me editor are
         // written as CSS custom properties in a <style> block just above
@@ -299,6 +305,12 @@ class MalProfileScrapeApi(context: Context) {
             backgroundColor = cssVar("about-me-color-background"),
             sections = sections,
         )
+    }
+
+    private fun classicAboutMe(doc: Document): MalAboutMe {
+        val el = doc.selectFirst("div.profile-about-user td") ?: doc.selectFirst("div.profile-about-user") ?: return MalAboutMe()
+        val bb = MalForumScrapeApi().htmlToBb(el).trim()
+        return if (bb.isBlank()) MalAboutMe() else MalAboutMe(classicBody = bb)
     }
 
     suspend fun friends(username: String): List<MalFriend> = withContext(Dispatchers.IO) {

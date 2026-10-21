@@ -730,6 +730,15 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
 @Composable fun AboutMeCard(aboutMe: MalAboutMe, onOpenTitle: (Int, MediaType) -> Unit = { _, _ -> }, modifier: Modifier = Modifier, bleed: androidx.compose.ui.unit.Dp = 0.dp) {
     if (aboutMe.isEmpty) return
     val c = LocalKikoColors.current
+    // Classic About Me style: plain BBCode text with no theme of its own, so it's drawn straight on the
+    // screen background (no card, no bleed) and lines up with the page's normal horizontal padding.
+    aboutMe.classicBody?.takeIf { it.isNotBlank() }?.let { body ->
+        Column(modifier.fillMaxWidth().padding(top = 20.dp)) {
+            Text("ABOUT ME", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
+            ForumBody(body, Modifier.padding(top = 10.dp))
+        }
+        return
+    }
     // Falls back to Kiko's own card colors if a user's about-me somehow has
     // no theme color set (e.g. content but no <style> block) — never a
     // fully unstyled/invisible card.

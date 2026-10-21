@@ -120,7 +120,7 @@ class MalForumScrapeApi {
     // Walks MAL's already-rendered post/signature HTML and re-emits it as the bracket-tag BBCode
     // string parseBBCode (BBCodeParser.kt) already knows how to read — see this file's class doc
     // comment for exactly which tags are covered and which known gaps are left unguessed-at.
-    private fun htmlToBb(root: Element): String {
+    internal fun htmlToBb(root: Element): String {
         val sb = StringBuilder()
 
         fun visit(node: Node) {
