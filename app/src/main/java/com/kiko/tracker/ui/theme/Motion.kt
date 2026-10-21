@@ -31,12 +31,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalViewConfiguration
+import kotlinx.coroutines.delay
 import androidx.compose.ui.unit.dp
 
 // ---------------------------------------------------------------------------
@@ -72,17 +76,13 @@ object KikoMotion {
 // and buttons read as
 // ---------------------------------------------------------------------------
 
-/** Low-level: scales `this` down */
+/** No longer shrinks anything: pressed items are shown as pressed by their highlight (ripple /
+ *  indication) alone. Kept as a pass-through so every existing call site — [kikoClickable],
+ *  [kikoCombinedClickable] and the cards that call it directly — compiles unchanged and the `scale`
+ *  arguments are simply ignored. */
+@Suppress("UNUSED_PARAMETER")
 @Composable
-fun Modifier.pressScale(interactionSource: InteractionSource, scale: Float = 0.96f): Modifier {
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val animatedScale by animateFloatAsState(
-        targetValue = if (isPressed) scale else 1f,
-        animationSpec = KikoMotion.spatialFast(),
-        label = "pressScale",
-    )
-    return this.graphicsLayer { scaleX = animatedScale; scaleY = animatedScale }
-}
+fun Modifier.pressScale(interactionSource: InteractionSource, scale: Float = 0.96f): Modifier = this
 
 /** Drop-in replacement for `.clickable */
 @Composable

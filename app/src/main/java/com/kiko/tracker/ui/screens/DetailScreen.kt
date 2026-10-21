@@ -572,7 +572,7 @@ data class DetailScreenActions(
                                 Modifier.size(width = 128.dp, height = 192.dp)
                                     .shadow(6.dp, RoundedCornerShape(kikoCorner(16.dp))).clip(RoundedCornerShape(kikoCorner(16.dp))).background(Color(item.color))
                                     .pressScale(posterInteraction, scale = 0.94f)
-                                    .clickable(indication = null, interactionSource = posterInteraction) { showFullCover = true },
+                                    .clickable(indication = androidx.compose.foundation.LocalIndication.current, interactionSource = posterInteraction) { showFullCover = true },
                             ) {
                                 if (item.cover.isNotBlank()) {
                                     Image(painter = coverPainter, contentDescription = displayTitle, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
