@@ -348,7 +348,6 @@ data class DetailScreenActions(
     // fadeIn/slideIn every time a
     // in/out of the LazyRow's
     val charactersSeen = rememberStaggerMemory()
-    val voiceActorsSeen = rememberStaggerMemory()
     val reviewsSeen = rememberStaggerMemory()
     val relatedSeen = rememberStaggerMemory()
     val recommendedSeen = rememberStaggerMemory()
@@ -803,15 +802,23 @@ data class DetailScreenActions(
                                         // Characters and their Japanese voice actors share one
                                         // "Characters & Voice Actors" header — a VA row is just
                                         // that same cast's dub credits, not a separate topic —
-                                        // but stay two separate keyed blocks/LazyRows below it
-                                        // since they load and fail independently.
+                                        // and sit in a single LazyRow (each item is a character
+                                        // with its voice actor underneath) so they scroll as one.
                                         key("characters") {
                                             if (characters.isNotEmpty()) {
                                                 SectionTitle("Characters & Voice Actors", "", {})
                                                 LazyRow(state = charactersListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                                     itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch ->
                                                         StaggeredItem(i, charactersSeen) {
-                                                            CharacterCard(ch, loading = castLoadingId == ch.malId, onClick = { actions.onOpenCharacter(ch.malId) })
+                                                            // Character on top, their Japanese voice actor right below, in
+                                                            // ONE LazyRow, so both rows always scroll together.
+                                                            Column {
+                                                                CharacterCard(ch, loading = castLoadingId == ch.malId, onClick = { actions.onOpenCharacter(ch.malId) })
+                                                                ch.japaneseVoiceActor?.let { va ->
+                                                                    Spacer(Modifier.height(14.dp))
+                                                                    VoiceActorCard(va, ch.name, onClick = { actions.onOpenPerson(va.malId) })
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -832,21 +839,6 @@ data class DetailScreenActions(
                                                 ) {
                                                     Icon(Icons.Default.Refresh, null, tint = c.muted, modifier = Modifier.size(16.dp))
                                                     Text("Couldn't load cast — tap to retry", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
-                                                }
-                                            }
-                                        }
-                                        // Japanese cast only, one
-                                        // (e.g. a role recast
-                                        key("voiceActors") {
-                                            val japaneseVoiceActors = characters.mapNotNull { ch -> ch.japaneseVoiceActor?.let { it to ch.name } }
-                                            if (japaneseVoiceActors.isNotEmpty()) {
-                                                // Small gap under the characters row above,
-                                                // rather than SectionTitle's full 32dp — this
-                                                // row reads as a second group within the same
-                                                // section, not a new section of its own.
-                                                Spacer(Modifier.height(14.dp))
-                                                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                                    itemsIndexed(japaneseVoiceActors, key = { _, (va, charName) -> "${va.malId}-$charName" }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, onClick = { actions.onOpenPerson(va.malId) }) } }
                                                 }
                                             }
                                         }
