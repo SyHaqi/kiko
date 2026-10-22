@@ -78,6 +78,7 @@ import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.PersonSummary
+import com.kiko.tracker.data.model.RankingSort
 import com.kiko.tracker.data.model.SeasonName
 import com.kiko.tracker.data.model.currentSeasonName
 import com.kiko.tracker.data.model.UserSearchFilters
@@ -121,6 +122,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     vm: LibraryViewModel,
     onOpenDetail: (MediaItem) -> Unit,
     onRanking: () -> Unit,
+    onSeeRanking: (MediaType, RankingSort) -> Unit = { _, _ -> },
     onSeasonal: () -> Unit,
     onStacks: () -> Unit,
     onRecommendations: () -> Unit,
@@ -146,7 +148,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         label = "discover-mode",
     ) { mode ->
         if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults, onEdit, selectedItem, onOpenCharacter, onOpenPerson, onOpenCompany, onOpenUser)
-        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeasonal, onStacks, onRecommendations, onSchedule, onEdit, selectedItem)
+        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeeRanking, onSeasonal, onStacks, onRecommendations, onSchedule, onEdit, selectedItem)
     }
 }
 // Discover landing page
@@ -156,6 +158,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     context: Context,
     onOpenDetail: (MediaItem) -> Unit,
     onRanking: () -> Unit,
+    onSeeRanking: (MediaType, RankingSort) -> Unit = { _, _ -> },
     onSeasonal: () -> Unit,
     onStacks: () -> Unit,
     onRecommendations: () -> Unit,
@@ -289,7 +292,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 val upcoming = vm.visibleDiscoverUpcoming
                 if (upcoming.isNotEmpty()) {
                     item {
-                        SectionTitle("Top 10 upcoming", "", {})
+                        SectionTitle("Top 10 upcoming", "See more", { onSeeRanking(MediaType.Anime, RankingSort.Upcoming) })
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             itemsIndexed(upcoming, key = { _, it -> it.id }) { index, item ->
                                 StaggeredItem(index) { BrowseCard(item, trackedOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type) }
@@ -302,7 +305,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 val trendingManga = vm.visibleTrendingManga.take(6)
                 if (trendingManga.isNotEmpty()) {
                     item {
-                        SectionTitle("Trending manga", "", {})
+                        SectionTitle("Trending manga", "See more", { onSeeRanking(MediaType.Manga, RankingSort.Popularity) })
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                             // Cap row at 6
                             itemsIndexed(trendingManga, key = { _, it -> it.id }) { index, item ->

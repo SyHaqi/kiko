@@ -1093,6 +1093,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             vm,
                                             onOpenDetail = ::openDetail,
                                             onRanking = { rankingOpen = true },
+                                            onSeeRanking = { type, sort -> vm.loadRanking(context, type, sort); rankingOpen = true },
                                             onSeasonal = { vm.destination = Destination.Seasonal },
                                             onStacks = ::openStacks,
                                             onRecommendations = { recommendationsOpen = true },
