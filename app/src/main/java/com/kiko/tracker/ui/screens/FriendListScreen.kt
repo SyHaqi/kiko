@@ -3,7 +3,6 @@
 package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
-import com.kiko.tracker.ui.components.coverClip
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
@@ -385,7 +384,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
 @Composable private fun FriendGridCard(entry: MalUserListEntry, type: MediaType, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).kikoClickable(onClick = onClick)) {
-        Box(Modifier.fillMaxWidth().height(160.dp).coverClip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh)) {
             if (entry.cover.isNotBlank()) {
                 AsyncImage(model = entry.cover, contentDescription = entry.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
@@ -424,7 +423,7 @@ private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onClick).padding(vertical = rowVPad),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(width = coverW, height = coverH).coverClip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(width = coverW, height = coverH).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
             if (entry.cover.isNotBlank()) {
                 AsyncImage(model = entry.cover, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {

@@ -3,7 +3,6 @@
 package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.KikoSectionLoading
-import com.kiko.tracker.ui.components.coverClip
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -1094,7 +1093,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = rowVPad),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.size(width = coverW, height = coverH).coverClip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(width = coverW, height = coverH).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (entry.image.isNotBlank()) {
                 AsyncImage(model = entry.image, contentDescription = entry.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
@@ -1131,7 +1130,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = rowVPad),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.size(width = coverW, height = coverH).coverClip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(width = coverW, height = coverH).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (entry.image.isNotBlank()) {
                 AsyncImage(model = entry.image, contentDescription = entry.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
@@ -1165,7 +1164,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = rowVPad),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.size(logoSize).coverClip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(logoSize).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (entry.image.isNotBlank()) {
                 AsyncImage(model = entry.image, contentDescription = entry.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
             } else {
@@ -1197,7 +1196,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onTap).padding(vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.size(100.dp).coverClip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
+        Box(Modifier.size(100.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh)) {
             if (entry.avatarUrl.isNotBlank()) {
                 AsyncImage(model = entry.avatarUrl, contentDescription = entry.username, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
@@ -1359,7 +1358,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
     val c = LocalKikoColors.current
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).kikoClickable(enabled = !loading, onClick = onTap)) {
         // square = true gives a 1:1 cover (used for Company logos); everything else keeps the 160dp-tall cover.
-        Box((if (square) Modifier.fillMaxWidth().aspectRatio(1f) else Modifier.fillMaxWidth().height(160.dp)).coverClip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
+        Box((if (square) Modifier.fillMaxWidth().aspectRatio(1f) else Modifier.fillMaxWidth().height(160.dp)).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
             if (imageUrl.isNotBlank()) {
                 AsyncImage(model = imageUrl, contentDescription = title, modifier = Modifier.fillMaxSize(), contentScale = if (fit) ContentScale.Fit else ContentScale.Crop)
             } else {

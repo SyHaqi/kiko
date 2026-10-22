@@ -233,44 +233,11 @@ import com.kiko.tracker.ui.theme.kikoPillShape
     return if (c.background.luminance() > 0.5f) this.shadow(elevation, shape, clip = false) else this
 }
 
-/**
- * Rounded clip for cover / poster / thumbnail art that doesn't leave a thin bright rim at the corners.
- *
- * A plain `.clip(shape)` anti-aliases every layer inside it separately — the placeholder fill, the
- * image, the bottom scrim — so at the curved edge each one only half-covers the pixel and the fill
- * colour peeks out around the image (most visible on the bottom corners of dark art, e.g. snapshots
- * with a black gradient). Here the content is first composed into one offscreen layer and the
- * outside of the rounded shape is then erased once (BlendMode.Clear), so the edge is anti-aliased a single time.
- * Drop-in for `.clip(shape)`: apply it in the same spot (after coverElevation, before background).
- */
-fun Modifier.coverClip(shape: Shape): Modifier = this
-    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        // Erase everything OUTSIDE the shape. (A DstIn draw of the shape itself only touches pixels
-        // inside it, so it would never cut the corners.)
-        val bounds = androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height)
-        val shapePath = androidx.compose.ui.graphics.Path()
-        when (val outline = shape.createOutline(size, layoutDirection, this)) {
-            is androidx.compose.ui.graphics.Outline.Rectangle -> shapePath.addRect(outline.rect)
-            is androidx.compose.ui.graphics.Outline.Rounded -> shapePath.addRoundRect(outline.roundRect)
-            is androidx.compose.ui.graphics.Outline.Generic -> shapePath.addPath(outline.path)
-        }
-        val outside = androidx.compose.ui.graphics.Path().apply {
-            op(
-                androidx.compose.ui.graphics.Path().apply { addRect(bounds) },
-                shapePath,
-                androidx.compose.ui.graphics.PathOperation.Difference,
-            )
-        }
-        drawPath(outside, Color.Black, blendMode = androidx.compose.ui.graphics.BlendMode.Clear)
-    }
-
 @Composable fun Cover(item: MediaItem, modifier: Modifier = Modifier, showStatus: Boolean = false, statusAlignment: Alignment = Alignment.TopStart, overrideStatus: WatchStatus? = null, showRating: Boolean = false, selected: Boolean = false) {
     val c = LocalKikoColors.current
     val displayTitle = item.displayTitle()
     val coverShape = RoundedCornerShape(kikoCorner(16.dp))
-    Box(modifier.coverElevation(coverShape).coverClip(coverShape).background(Color(item.color)), contentAlignment = Alignment.Center) {
+    Box(modifier.coverElevation(coverShape).clip(coverShape).background(Color(item.color)), contentAlignment = Alignment.Center) {
         if (item.cover.isNotBlank()) {
             AsyncImage(
                 model = item.cover,

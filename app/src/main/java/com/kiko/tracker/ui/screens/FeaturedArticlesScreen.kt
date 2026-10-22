@@ -3,7 +3,6 @@
 package com.kiko.tracker.ui.screens
 
 import com.kiko.tracker.ui.components.KikoSectionLoading
-import com.kiko.tracker.ui.components.coverClip
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeEnd
@@ -275,7 +274,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .padding(vertical = 16.dp),
     ) {
         Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).coverClip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
         ) {
             if (article.image.isNotBlank()) {
                 AsyncImage(
