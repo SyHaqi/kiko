@@ -1649,6 +1649,32 @@ class LibraryViewModel : ViewModel() {
         }
     }
     fun clearDiscoverSuggestions() { discoverSuggestJob?.cancel(); discoverSuggestions = emptyList() }
+    // Recent Discover searches per type (Anime, Manga, Characters...), newest first, max 15 each.
+    // Stored in the settings prefs as one JSON array per type under "search_history_<type>".
+    var searchHistoryByType by mutableStateOf<Map<String, List<String>>>(emptyMap()); private set
+    fun searchHistoryFor(type: String): List<String> = searchHistoryByType[type] ?: emptyList()
+    fun loadSearchHistory(context: Context) {
+        val prefix = "search_history_"
+        searchHistoryByType = settingsPrefs(context).all
+            .filterKeys { it.startsWith(prefix) }
+            .mapNotNull { (key, value) ->
+                runCatching {
+                    val arr = org.json.JSONArray(value as String)
+                    key.removePrefix(prefix) to List(arr.length()) { arr.getString(it) }
+                }.getOrNull()
+            }.toMap()
+    }
+    private fun saveSearchHistory(context: Context, type: String, list: List<String>) {
+        searchHistoryByType = searchHistoryByType + (type to list)
+        settingsPrefs(context).edit().putString("search_history_$type", org.json.JSONArray(list).toString()).apply()
+    }
+    fun addSearchHistory(context: Context, type: String, query: String) {
+        val q = query.trim()
+        if (q.isEmpty()) return
+        saveSearchHistory(context, type, (listOf(q) + searchHistoryFor(type).filterNot { it.equals(q, ignoreCase = true) }).take(15))
+    }
+    fun removeSearchHistory(context: Context, type: String, query: String) = saveSearchHistory(context, type, searchHistoryFor(type).filterNot { it == query })
+    fun clearSearchHistory(context: Context, type: String) = saveSearchHistory(context, type, emptyList())
 
     // Switch to results page
     fun runDiscoverSearch(context: Context, query: String, type: String, filters: DiscoverFilters = discoverFilters) {

@@ -53,6 +53,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -457,6 +458,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     modifier: Modifier = Modifier,
     showDivider: Boolean = true,
     onClear: (() -> Unit)? = null,
+    onFocusChange: ((Boolean) -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val c = LocalKikoColors.current
@@ -478,7 +480,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                     cursorBrush = SolidColor(c.accent),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { onSearch(); focusManager.clearFocus(); keyboard?.hide() }),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                    modifier = Modifier.fillMaxWidth().onFocusChanged { onFocusChange?.invoke(it.isFocused) }.focusRequester(focusRequester),
                 )
             }
             if (value.isNotEmpty()) {
@@ -534,7 +536,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 // Play Store-style search suggestions: plain full-width rows on the screen background (no card, no
 // dividers) — a small round tonal icon, the title, and a north-west arrow that copies the suggestion
 // into the search field without running it ([onFill]). Tapping the row itself searches it.
-@Composable fun SearchSuggestionsList(suggestions: List<String>, onSelect: (String) -> Unit, onFill: ((String) -> Unit)? = null) {
+@Composable fun SearchSuggestionsList(suggestions: List<String>, onSelect: (String) -> Unit, onFill: ((String) -> Unit)? = null, history: Boolean = false, onRemove: ((String) -> Unit)? = null) {
     val c = LocalKikoColors.current
     if (suggestions.isEmpty()) return
     Column(Modifier.fillMaxWidth()) {
@@ -548,10 +550,12 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(32.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Search, null, tint = c.ink, modifier = Modifier.size(18.dp))
+                    Icon(if (history) Icons.Default.History else Icons.Default.Search, null, tint = c.ink, modifier = Modifier.size(18.dp))
                 }
                 Text(title, color = c.ink, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 16.dp, end = 8.dp).weight(1f))
-                if (onFill != null) {
+                if (history && onRemove != null) {
+                    IconButton(onClick = { onRemove(title) }) { Icon(Icons.Default.Close, "Remove from history", tint = c.muted, modifier = Modifier.size(20.dp)) }
+                } else if (onFill != null) {
                     IconButton(onClick = { onFill(title) }) { Icon(Icons.Default.NorthWest, "Use in search", tint = c.muted, modifier = Modifier.size(22.dp)) }
                 }
             }
@@ -570,6 +574,9 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     suggestions: List<String>,
     onDismiss: () -> Unit,
     onFill: ((String) -> Unit)? = null,
+    history: Boolean = false,
+    onRemove: ((String) -> Unit)? = null,
+    onClearAll: (() -> Unit)? = null,
     onSelect: (String) -> Unit,
 ) {
     val c = LocalKikoColors.current
@@ -602,11 +609,21 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 .background(c.background)
                 .pointerInput(Unit) { detectTapGestures { dismiss() } },
         ) {
-            SearchSuggestionsList(
-                suggestions,
-                onSelect = { picked -> dismiss(); onSelect(picked) },
-                onFill = onFill,
-            )
+            Column(Modifier.fillMaxWidth()) {
+                if (history && onClearAll != null) {
+                    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Recent searches", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        TextButton(onClick = onClearAll) { Text("Clear all", color = c.primary, fontSize = 13.sp) }
+                    }
+                }
+                SearchSuggestionsList(
+                    suggestions,
+                    onSelect = { picked -> dismiss(); onSelect(picked) },
+                    onFill = onFill,
+                    history = history,
+                    onRemove = onRemove,
+                )
+            }
         }
     }
 }

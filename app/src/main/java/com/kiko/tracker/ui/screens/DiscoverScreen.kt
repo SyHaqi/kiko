@@ -388,6 +388,8 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 @Composable fun DiscoverResultsScreen(vm: LibraryViewModel, context: Context, onOpenDetail: (MediaItem) -> Unit, onExitResults: () -> Unit = vm::exitDiscoverSearch, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null, onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {}, onOpenUser: (String, String?) -> Unit = { _, _ -> }) {
     val c = LocalKikoColors.current
     var query by remember { mutableStateOf(vm.discoverQuery) }
+    var searchFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { vm.loadSearchHistory(context) }
     var filterSheetOpen by remember { mutableStateOf(false) }
     var userFilterSheetOpen by remember { mutableStateOf(false) }
     // Genre section only pre-expands the first time the sheet is opened
@@ -505,7 +507,8 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 value = query,
                 onValueChange = { query = it; if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") vm.fetchDiscoverSuggestions(context, it, vm.discoverTypeFilter) else vm.clearDiscoverSuggestions() },
                 hint = "Search ${vm.discoverTypeFilter}",
-                onSearch = { vm.clearDiscoverSuggestions(); vm.selectDiscoverType(context, vm.discoverTypeFilter, query) },
+                onSearch = { vm.clearDiscoverSuggestions(); vm.addSearchHistory(context, vm.discoverTypeFilter, query); vm.selectDiscoverType(context, vm.discoverTypeFilter, query) },
+                onFocusChange = { searchFocused = it },
                 onBack = onExitResults,
                 focusRequester = searchFocusRequester,
                 modifier = Modifier.onGloballyPositioned { searchBarBounds = it.boundsInRoot() },
@@ -747,12 +750,16 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 Rect(b.left, b.top, b.right, maxOf(b.bottom + dividerPx, rowBottom))
             },
             containerBounds = containerBounds,
-            suggestions = if (query.isNotBlank()) vm.discoverSuggestions else emptyList(),
+            suggestions = if (query.isNotBlank()) vm.discoverSuggestions else if (searchFocused) vm.searchHistoryFor(vm.discoverTypeFilter) else emptyList(),
+            history = query.isBlank(),
+            onRemove = { vm.removeSearchHistory(context, vm.discoverTypeFilter, it) },
+            onClearAll = { vm.clearSearchHistory(context, vm.discoverTypeFilter) },
             onDismiss = vm::clearDiscoverSuggestions,
             // Arrow on a suggestion: copy it into the field and refine from there (suggestions refresh).
             onFill = { picked -> query = picked; vm.fetchDiscoverSuggestions(context, picked, vm.discoverTypeFilter) },
         ) { picked ->
             query = picked
+            vm.addSearchHistory(context, vm.discoverTypeFilter, picked)
             vm.selectDiscoverType(context, vm.discoverTypeFilter, picked)
         }
     }
