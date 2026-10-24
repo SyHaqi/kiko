@@ -907,10 +907,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             } else {
                 Text(shownTitle.take(1), fontWeight = FontWeight.Bold, fontSize = 30.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }
-            Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(kikoPillShape()).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
+            Box(Modifier.align(Alignment.TopEnd).padding(6.dp).clip(kikoPillShape()).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
                 Text(number.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
-            myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopEnd).padding(6.dp)) }
+            myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopStart).padding(6.dp)) }
             if (loading) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .35f)), contentAlignment = Alignment.Center) {
                     KikoLoadingIndicator(color = Color.White, size = 26.dp)
