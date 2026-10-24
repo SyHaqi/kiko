@@ -98,6 +98,7 @@ import com.kiko.tracker.navigation.PopExit
 import com.kiko.tracker.navigation.PushEnter
 import com.kiko.tracker.navigation.PushExit
 import com.kiko.tracker.ui.components.AppHeader
+import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.Cover
 import com.kiko.tracker.ui.components.FloatingSearchSuggestions
@@ -202,10 +203,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 // DiscoverResultsScreen) instead of an
                 // icon that jumps there,
                 // part of the header
-                // Play Store-style header: full-width search pill + round avatar.
-                // Tapping the pill opens the search screen (same as the old icon did).
+                // Play Store-style header: full-width search pill + round avatar. Same fixed
+                // slot, side margin and avatar position as every other main page (KikoHeader);
+                // the pill simply takes all the width the other pages give to their title.
+                // Tapping the pill opens the search screen.
                 Row(
-                    Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp),
+                    Modifier.fillMaxWidth().height(KikoHeader.Height),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
@@ -222,7 +225,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         Icon(Icons.Default.Search, "Search", tint = c.ink, modifier = Modifier.size(22.dp))
                         Text("Search in MAL", color = c.muted, fontSize = 16.sp, maxLines = 1, modifier = Modifier.padding(start = 14.dp))
                     }
-                    Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
+                    Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = KikoHeader.AvatarSize, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
                 }
                 Spacer(Modifier.height(17.dp))
 

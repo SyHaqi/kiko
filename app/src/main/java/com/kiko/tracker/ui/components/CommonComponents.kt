@@ -32,6 +32,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -49,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
@@ -198,14 +201,31 @@ import com.kiko.tracker.ui.theme.kikoPillShape
     }
 }
 
-@Composable fun AppHeader(title: String, horizontalPadding: Dp = 20.dp, titleColor: Color = LocalKikoColors.current.ink, action: @Composable () -> Unit = {}) {
+// One set of numbers for the header of every main page (Home, My List, Discover, Seasonal, Hub),
+// so the slot, side margins and avatar sit in exactly the same place on all five.
+object KikoHeader {
+    val Height = 72.dp        // fixed slot; content below never jumps between tabs
+    val SidePadding = 14.dp   // same left/right margin as the page content
+    val AvatarSize = 33.dp    // round profile picture, flush with the right margin
+}
+
+// Play Store-style top bar: title on the left, round avatar/actions on the right, vertically
+// centred in the fixed [KikoHeader.Height] slot.
+@Composable fun AppHeader(title: String, horizontalPadding: Dp = KikoHeader.SidePadding, titleColor: Color = LocalKikoColors.current.ink, action: @Composable () -> Unit = {}) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = horizontalPadding, vertical = 12.dp),
+        Modifier.fillMaxWidth().height(KikoHeader.Height).padding(horizontal = horizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(title, style = MaterialTheme.typography.headlineMedium, color = titleColor)
-        action()
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineMedium,
+            color = titleColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) { action() }
     }
 }
 
@@ -324,7 +344,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 // saving vertical space while
 // any small option set
 // every "tap the big
-@Composable fun <T> SwitcherHeader(current: T, options: List<T>, labelFor: (T) -> String, onSelect: (T) -> Unit, horizontalPadding: Dp = 20.dp, switchDescription: String = "Switch section", minHeight: Dp = 72.dp, verticalPadding: Dp = 12.dp, action: @Composable () -> Unit = {}) {
+@Composable fun <T> SwitcherHeader(current: T, options: List<T>, labelFor: (T) -> String, onSelect: (T) -> Unit, horizontalPadding: Dp = 20.dp, switchDescription: String = "Switch section", minHeight: Dp = KikoHeader.Height, verticalPadding: Dp = 12.dp, action: @Composable () -> Unit = {}) {
     val c = LocalKikoColors.current
     val density = LocalDensity.current
     var expanded by remember { mutableStateOf(false) }
@@ -393,7 +413,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     hint: String = "Search",
     horizontalPadding: Dp = 20.dp,
     switchDescription: String = "Switch section",
-    minHeight: Dp = 72.dp,
+    minHeight: Dp = KikoHeader.Height,
     verticalPadding: Dp = 12.dp,
     edgeBleed: Dp = 0.dp,
     avatar: @Composable () -> Unit,
