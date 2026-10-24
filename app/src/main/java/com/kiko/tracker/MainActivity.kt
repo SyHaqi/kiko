@@ -11,6 +11,8 @@ import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -59,6 +61,9 @@ class MainActivity : ComponentActivity() {
         if (uri.scheme == "com.kiko.tracker") callback = uri else malLink = uri
     }
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Go edge-to-edge BEFORE the first frame. Doing it later (in SyncSystemBars' SideEffect) made the
+        // first frame lay out with no status-bar inset, so the home header flashed under the bar.
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         // Best-effort crash capture: if
         // anywhere in the process
@@ -131,6 +136,12 @@ class MainActivity : ComponentActivity() {
         // report, then clear it
         val crashFile = java.io.File(filesDir, "last_crash.txt")
         var crashText by mutableStateOf<String?>(if (crashFile.exists()) runCatching { crashFile.readText() }.getOrNull() else null)
+        // Read the look-and-feel prefs BEFORE the first frame. They used to load in a LaunchedEffect, which
+        // only runs after the first composition, so the app opened with the default theme/palette and
+        // switched once that effect got a turn. viewModels() returns the same instance viewModel() does below.
+        val earlyVm: LibraryViewModel by viewModels()
+        earlyVm.loadTheme(this); earlyVm.loadColorSource(this); earlyVm.loadPaletteStyle(this); earlyVm.loadCustomColor(this)
+        earlyVm.loadAmoledDark(this); earlyVm.loadTitleLanguage(this); earlyVm.loadCompactList(this)
         setContent {
             val vm: LibraryViewModel = viewModel()
             // Note: vm.loadHomeExtras() (Discover's "You

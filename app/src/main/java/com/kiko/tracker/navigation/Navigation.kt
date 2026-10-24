@@ -128,10 +128,9 @@ fun SyncSystemBars(darkTheme: Boolean, background: Color) {
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = !darkTheme
             controller.isAppearanceLightNavigationBars = !darkTheme
-            // Draw behind the status bar so the Detail banner can run underneath it (already the default
-            // on Android 15+); Scaffold still applies the inset everywhere else.
-            WindowCompat.setDecorFitsSystemWindows(window, false)
-            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            // Edge-to-edge (draw behind the status bar for the Detail banner) is enabled in
+            // MainActivity.onCreate via enableEdgeToEdge(), before the first frame. Toggling it here
+            // caused the header to flash under the status bar on launch.
             window.navigationBarColor = background.toArgb()
         }
     }
@@ -757,7 +756,23 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                         // The top inset is applied per screen (inside the AnimatedContent below) instead of
                         // here, so the anime/manga Detail banner can run underneath the status bar while every
                         // other screen keeps its normal inset and slides in/out together with it.
-                        val topInset = padding.calculateTopPadding()
+                        // The live inset can read 0 for the first frame(s) of a cold start (the window's insets haven't
+                        // been dispatched yet), which drew every page's header under the status bar until they arrived.
+                        // Until a real value has been seen this run, fall back to the last one we measured.
+                        val liveTopInset = padding.calculateTopPadding()
+                        val insetPrefs = remember { context.getSharedPreferences("kiko_ui", android.content.Context.MODE_PRIVATE) }
+                        val insetKey = if (androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) "status_top_dp_land" else "status_top_dp_port"
+                        val cachedTopInset = remember(insetKey) { insetPrefs.getFloat(insetKey, 0f).dp }
+                        // Plain holder, not State: it's only read here, and the padding changing already triggers the
+                        // recomposition, so writing it must not schedule another one.
+                        val seenLiveTopInset = remember(insetKey) { booleanArrayOf(false) }
+                        val topInset = if (liveTopInset > 0.dp || seenLiveTopInset[0]) liveTopInset else cachedTopInset
+                        SideEffect {
+                            if (liveTopInset > 0.dp) {
+                                seenLiveTopInset[0] = true
+                                if (liveTopInset.value != cachedTopInset.value) insetPrefs.edit().putFloat(insetKey, liveTopInset.value).apply()
+                            }
+                        }
                         val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
                         Box(Modifier.fillMaxSize().padding(start = padding.calculateStartPadding(layoutDirection), end = padding.calculateEndPadding(layoutDirection), bottom = padding.calculateBottomPadding())) {
                             val topScreen = when {
