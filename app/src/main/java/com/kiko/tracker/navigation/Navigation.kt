@@ -775,6 +775,24 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                         }
                         val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
                         Box(Modifier.fillMaxSize().padding(start = padding.calculateStartPadding(layoutDirection), end = padding.calculateEndPadding(layoutDirection), bottom = padding.calculateBottomPadding())) {
+                            // Open pages that can sit on top of each other, listed lowest default priority first (this is the
+                            // order used when several appear in the same frame). overlayOrder remembers the order they were
+                            // actually opened in; keys include the page's id so replacing one (a different topic, another
+                            // company) counts as a fresh open and moves it to the top.
+                            val overlayOrder = remember { mutableListOf<String>() }
+                            val activeOverlays = buildList<Pair<String, TopScreen>> {
+                                featuredArticleOpen?.let { add("article:${it.first}" to TopScreen.FeaturedArticle(it.first, it.second)) }
+                                forumTopicOpen?.let { add("topic:${it.first}" to TopScreen.Topic(it.first, it.second)) }
+                                mediaStacksOpen?.let { add("mediaStacks" to TopScreen.MediaStacks(it)) }
+                                stackDetailOpen?.let { add("stack:${it.first}" to TopScreen.StackDetail(it.first, it.second)) }
+                                if (detailOnTopOfTopicOrStack && detailItem != null) add("detail" to TopScreen.Detail(detailItem))
+                                if (castCompanyOnTop) companyDetailOpenId?.let { add("company:$it" to TopScreen.CompanyPage(it, companyDetailOpen)) }
+                                if (castCharacterOnTop) characterDetailOpenId?.let { add("character:$it" to TopScreen.CharacterPage(it, characterDetailOpen)) }
+                                if (castPersonOnTop) personDetailOpenId?.let { add("person:$it" to TopScreen.PersonPage(it, personDetailOpen)) }
+                            }
+                            overlayOrder.retainAll(activeOverlays.map { it.first }.toSet())
+                            activeOverlays.forEach { (key, _) -> if (key !in overlayOrder) overlayOrder.add(key) }
+                            val topOverlay = overlayOrder.lastOrNull()?.let { key -> activeOverlays.first { it.first == key }.second }
                             val topScreen = when {
                                 reviewOpen != null -> TopScreen.Review(reviewOpen!!.first, reviewOpen!!.second)
                                 // A character opened from
@@ -787,44 +805,11 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 // A person opened from
                                 // voice-actor row — same
                                 // further out, so it
-                                castPersonOnTop && personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
-                                castCharacterOnTop && characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
-                                // Company/anime/manga links tapped inside
-                                // StackDetail screen — see
-                                // detailOnTopOfTopicOrStack's doc comments above
-                                // must be checked here,
-                                // just below, rather than
-                                // own plain checks further
-                                castCompanyOnTop && companyDetailOpenId != null -> TopScreen.CompanyPage(companyDetailOpenId!!, companyDetailOpen)
-                                detailOnTopOfTopicOrStack && detailItem != null -> TopScreen.Detail(detailItem)
-                                // Checked ahead of detailItem/mediaStacksOpen
-                                // from either (or from
-                                // shows on top rather
-                                // still underneath it —
-                                // companyDetailOpenId further down.
-                                stackDetailOpen != null -> TopScreen.StackDetail(stackDetailOpen!!.first, stackDetailOpen!!.second)
-                                // Opened from Detail's own
-                                // way castCharacterOnTop/castPersonOnTop do above,
-                                // a separate "on top"
-                                mediaStacksOpen != null -> TopScreen.MediaStacks(mediaStacksOpen!!)
-                                // A topic opened from
-                                // Discussion rows, or from
-                                // onOpenNews/onOpenTopic below), must show
-                                // though detailItem/companyDetailOpenId is still
-                                // reasoning as castCharacterOnTop/castPersonOnTop and
-                                // above. Checked before both
-                                // companyDetailOpenId, where it only
-                                // tap from Detail isn't
-                                // matching first; forumTopicOpen ==
-                                // branch is a no-op
-                                forumTopicOpen != null -> TopScreen.Topic(forumTopicOpen!!.first, forumTopicOpen!!.second)
-                                // Checked ahead of detailItem (same reasoning
-                                // as forumTopicOpen just above) so the reader
-                                // shows immediately when opened from Detail's
-                                // own "Recent Featured Articles" row, instead
-                                // of only appearing once detailItem is later
-                                // cleared by backing out of Detail.
-                                featuredArticleOpen != null -> TopScreen.FeaturedArticle(featuredArticleOpen!!.first, featuredArticleOpen!!.second)
+                                // Pages that can be stacked on one another (cast pages, a title opened from a topic/stack, stacks, topics,
+                                // articles) rank by WHEN they were opened: the newest sits on top, whatever kind it is. A fixed ranking here
+                                // used to hide anything opened from a higher-ranked page (e.g. a company page's Recent News stayed hidden
+                                // until the company page was closed). See overlayOrder above.
+                                topOverlay != null -> topOverlay
                                 detailItem != null -> TopScreen.Detail(detailItem)
                                 characterDetailOpenId != null -> TopScreen.CharacterPage(characterDetailOpenId!!, characterDetailOpen)
                                 personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
