@@ -5,6 +5,13 @@ package com.kiko.tracker.ui.screens
 import com.kiko.tracker.ui.components.KikoLoadingScreen
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.util.openInBrowser
+import android.app.Activity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.luminance
+import androidx.core.view.WindowCompat
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -223,6 +230,10 @@ data class DetailScreenActions(
 )
 
 
+// How many Detail screens currently own the status-bar icon colour (two overlap briefly during a
+// related-title transition), so the old one leaving doesn't reset the icons the new one just set.
+private var detailStatusBarOwners = 0
+
 @Composable fun DetailScreen(item: MediaItem, actions: DetailScreenActions, relatedLoadingId: Int? = null, recommendedLoadingId: Int? = null, castLoadingId: Int? = null, initialScroll: Pair<Int, Int> = 0 to 0, initialRelatedScroll: Pair<Int, Int> = 0 to 0, initialRecommendedScroll: Pair<Int, Int> = 0 to 0, initialCharactersScroll: Pair<Int, Int> = 0 to 0, initialReviewsScroll: Pair<Int, Int> = 0 to 0, initialTab: Int = 0, myListStatus: Map<Pair<Int, MediaType>, WatchStatus> = emptyMap(), cachedSnapshot: LibraryViewModel.DetailCacheSnapshot? = null, airingInfo: AiringInfo? = null, favorited: Boolean = false) {
     LaunchedEffect(item.id) { actions.onLoadAiringEpisode(item) }
     LaunchedEffect(item.id) { actions.onLoadFavoriteStatus() }
@@ -387,9 +398,42 @@ data class DetailScreenActions(
     )
     val coverReady = item.cover.isBlank() || coverPainter.state is AsyncImagePainter.State.Success || coverPainter.state is AsyncImagePainter.State.Error
     BackHandler(onBack = actions.onBack)
+    // The banner now runs underneath the status bar (this screen is hosted without the usual top inset,
+    // see Navigation.kt), so it needs the inset height itself to keep its buttons/title clear of it.
+    val density = LocalDensity.current
+    val statusTopPx = WindowInsets.systemBars.getTop(density)
+    val statusTop = with(density) { statusTopPx.toDp() }
+    var bannerHeightPx by remember(item.id) { mutableStateOf(0) }
+    val fadeRangePx = with(density) { 56.dp.toPx() }
+    // 0 while the banner is behind the status bar -> 1 once it has scrolled away (plain page colour).
+    // Read only in draw/derived code so scrolling doesn't recompose the whole screen.
+    val statusBarFill by remember(item.id, statusTopPx, fadeRangePx) {
+        derivedStateOf {
+            if (bannerHeightPx == 0) 0f
+            else if (listState.firstVisibleItemIndex > 0) 1f
+            else {
+                val bannerBottom = bannerHeightPx - listState.firstVisibleItemScrollOffset
+                ((statusTopPx + fadeRangePx - bannerBottom) / fadeRangePx).coerceIn(0f, 1f)
+            }
+        }
+    }
+    val loaded = coverReady && relatedDone && themesDone && recommendedDone
+    val darkTheme = c.background.luminance() < 0.5f
+    val iconsOnBanner by remember(loaded) { derivedStateOf { loaded && statusBarFill < 0.5f } }
+    val hostView = LocalView.current
+    // White status-bar icons while the dark-scrimmed banner is behind them, theme default otherwise.
+    DisposableEffect(iconsOnBanner, darkTheme) {
+        val controller = (hostView.context as? Activity)?.window?.let { WindowCompat.getInsetsController(it, hostView) }
+        detailStatusBarOwners++
+        controller?.isAppearanceLightStatusBars = if (iconsOnBanner) false else !darkTheme
+        onDispose {
+            detailStatusBarOwners--
+            if (detailStatusBarOwners == 0) controller?.isAppearanceLightStatusBars = !darkTheme
+        }
+    }
     // Load all sections upfront
-    if (!coverReady || !relatedDone || !themesDone || !recommendedDone) {
-        KikoLoadingScreen(onBack = actions.onBack)
+    if (!loaded) {
+        Box(Modifier.fillMaxSize().padding(top = statusTop)) { KikoLoadingScreen(onBack = actions.onBack) }
         return
     }
     Box(Modifier.fillMaxSize()) {
@@ -403,7 +447,7 @@ data class DetailScreenActions(
                 // Play Store-style header: backdrop with the format line + title overlaid at the bottom.
                 // The cover and the info rows now live in the section below the banner.
                 Box(
-                    Modifier.fillMaxWidth().heightIn(min = 190.dp)
+                    Modifier.fillMaxWidth().onSizeChanged { bannerHeightPx = it.height }.heightIn(min = 190.dp + statusTop)
                         .clip(RoundedCornerShape(bottomStart = kikoCorner(32.dp), bottomEnd = kikoCorner(32.dp)))
                         // Composite image + scrims into one offscreen layer first, so the rounded clip is
                         // anti-aliased once on the finished pixels. Without this each layer is clipped
@@ -421,17 +465,18 @@ data class DetailScreenActions(
                     } else {
                         Box(Modifier.matchParentSize().background(Color(item.color)))
                     }
-                    // Shadow at the top so the icons stay readable
-                    Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .5f), .4f to Color.Transparent)))
+                    // Subtle shadow over the status bar + top edge so the system icons and buttons stay readable,
+                    // instead of a hard strip between the status bar and the banner.
+                    Box(Modifier.align(Alignment.TopStart).fillMaxWidth().height(statusTop + 40.dp).background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .4f), 1f to Color.Transparent)))
                     // Darkening overlay, much heavier at the bottom where the title sits (keeps it readable on bright art)
                     Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .3f), .3f to Color.Black.copy(alpha = .5f), .65f to Color.Black.copy(alpha = .75f), 1f to Color.Black.copy(alpha = .92f))))
                     // Plain 24dp icons floating on the banner (no backing chip), 48dp touch targets.
                     IconButton(
                         onClick = actions.onBack,
-                        modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 13.dp),
+                        modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 13.dp + statusTop),
                     ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White, modifier = Modifier.size(24.dp)) }
                     var moreOpen by remember(item.id) { mutableStateOf(false) }
-                    Row(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 13.dp + statusTop), verticalAlignment = Alignment.CenterVertically) {
                         // Favorite sits to the left of the 3-dot menu, in the same header row.
                         FavoriteHeartButton(
                             favorited = favorited,
@@ -470,7 +515,7 @@ data class DetailScreenActions(
                     // The alternative/secondary title now lives in the Info tab's "Alternative titles" list.
                     val textShadow = androidx.compose.ui.graphics.Shadow(color = Color.Black.copy(alpha = .85f), offset = androidx.compose.ui.geometry.Offset(0f, 2f), blurRadius = 20f)
                     Column(
-                        Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 62.dp, bottom = 16.dp),
+                        Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 62.dp + statusTop, bottom = 16.dp),
                     ) {
                         Text(
                             "${item.type.name.uppercase()}${if (item.format.isNotBlank()) " · ${item.format}" else ""}",
@@ -1002,6 +1047,10 @@ data class DetailScreenActions(
                 }
             }
         }
+        // Status-bar strip: see-through while the banner is behind it, fading to the plain page colour
+        // as the banner scrolls away (content scrolling under it is hidden once it is solid).
+        val pageColor = c.background
+        Box(Modifier.align(Alignment.TopStart).fillMaxWidth().height(statusTop).drawBehind { drawRect(pageColor.copy(alpha = statusBarFill)) })
         ExtendedFloatingActionButton(
             onClick = { actions.onEdit(item) },
             icon = { Icon(if (item.inUserList) Icons.Default.Edit else Icons.Default.Add, if (item.inUserList) "Edit" else "Add", tint = c.onPrimary) },
