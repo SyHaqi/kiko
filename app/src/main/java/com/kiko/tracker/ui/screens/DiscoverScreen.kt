@@ -208,7 +208,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 // the pill simply takes all the width the other pages give to their title.
                 // Tapping the pill opens the search screen.
                 Row(
-                    Modifier.fillMaxWidth().height(KikoHeader.Height),
+                    Modifier.fillMaxWidth().height(KikoHeader.Height).padding(bottom = KikoHeader.BottomGap),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
@@ -1329,7 +1329,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 19.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 19.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                     Text("You might like", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
                 }

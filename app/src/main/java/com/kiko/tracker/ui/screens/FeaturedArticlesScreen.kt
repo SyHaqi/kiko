@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
@@ -115,7 +116,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
             ) {
                 item(key = "header") {
-                    Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 1.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                         Text("Featured Articles", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
                     }
@@ -358,7 +359,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val showGoToTop by remember { derivedStateOf { scrollState.value > 800 } }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
-            Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { context.openInBrowser(url) }, modifier = Modifier.headerEdgeEnd()) {

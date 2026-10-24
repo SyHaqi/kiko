@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -152,7 +153,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
 
     if (!connected) {
         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
-            Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                 Text(if (type == MediaType.Anime) "Anime List" else "Manga List", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
             }
@@ -192,7 +193,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Column(Modifier.headerTitleStart()) {
                 Text(if (type == MediaType.Anime) "Anime List" else "Manga List", style = MaterialTheme.typography.titleLarge, color = c.ink)

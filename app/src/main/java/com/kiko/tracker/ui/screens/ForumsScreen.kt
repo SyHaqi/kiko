@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
@@ -318,7 +319,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
             item {
-                Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 19.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 19.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = vm::exitForumTopics, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back to Forums", tint = c.ink, modifier = Modifier.size(24.dp)) }
                     Text(headerTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
                 }
@@ -669,7 +670,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                     // Fixed back/open-in-browser row — same non-floating pattern as the other
                     // detail screens (e.g. PersonDetailScreen): plain row at the top of the
                     // scrolling content, no background fade, no overlay.
-                    Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = goBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                         Spacer(Modifier.weight(1f))
                         IconButton(onClick = { context.openInBrowser("https://myanimelist.net/forum/?topicid=$topicId") }, modifier = Modifier.headerEdgeEnd()) {
@@ -872,7 +873,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     val showGoToTop by remember { derivedStateOf { scrollState.value > 600 } }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 14.dp).padding(bottom = if (showGoToTop) 90.dp else 24.dp)) {
-            Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 19.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 19.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                 Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
                 if (entry.url.isNotBlank()) {

@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
@@ -176,7 +177,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
         // than another tile in a stack of cards. Everything below the hero
         // applies its own horizontal inset instead.
         Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 13.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = exitProfile, modifier = Modifier.headerEdgeStart(14.dp)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                 // "Profile" moved down to a small eyebrow label above the
                 // username in the avatar/name row below (ProfileStatsSection),
@@ -254,7 +255,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Settings", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
@@ -1224,7 +1225,7 @@ private fun formatCacheBytes(b: Long): String = when {
     // Tab/page order: All, then 10 down to 1. Swipe left/right to move between scores.
     val scoreOptions = remember { listOf(0) + (10 downTo 1).toList() }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Score Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
@@ -1311,7 +1312,7 @@ private fun formatCacheBytes(b: Long): String = when {
     // GenreFilterScreen below. See YearFilterFab/YearFilterSheet.
     var yearSheetOpen by remember { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Year Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
@@ -1402,7 +1403,7 @@ private fun formatCacheBytes(b: Long): String = when {
     // Tab/page order: All (blank), then each format alphabetically.
     val formatOptions = remember(formats) { listOf("") + formats }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Format Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
@@ -1480,7 +1481,7 @@ private fun formatCacheBytes(b: Long): String = when {
     // see GenreFilterFab/GenreFilterSheet below.
     var genreSheetOpen by remember { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(top = 13.dp, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Genre Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }

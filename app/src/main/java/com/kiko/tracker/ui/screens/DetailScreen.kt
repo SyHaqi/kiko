@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingScreen
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.util.openInBrowser
@@ -473,10 +474,10 @@ private var detailStatusBarOwners = 0
                     // Plain 24dp icons floating on the banner (no backing chip), 48dp touch targets.
                     IconButton(
                         onClick = actions.onBack,
-                        modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 13.dp + statusTop),
+                        modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = KikoHeader.BackTop + statusTop),
                     ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White, modifier = Modifier.size(24.dp)) }
                     var moreOpen by remember(item.id) { mutableStateOf(false) }
-                    Row(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 13.dp + statusTop), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = KikoHeader.BackTop + statusTop), verticalAlignment = Alignment.CenterVertically) {
                         // Favorite sits to the left of the 3-dot menu, in the same header row.
                         FavoriteHeartButton(
                             favorited = favorited,

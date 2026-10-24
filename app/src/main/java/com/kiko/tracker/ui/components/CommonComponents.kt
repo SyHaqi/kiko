@@ -204,16 +204,24 @@ import com.kiko.tracker.ui.theme.kikoPillShape
 // One set of numbers for the header of every main page (Home, My List, Discover, Seasonal, Hub),
 // so the slot, side margins and avatar sit in exactly the same place on all five.
 object KikoHeader {
-    val Height = 72.dp        // fixed slot; content below never jumps between tabs
+    // Main-tab header slot. The bar itself is [BarHeight] tall with the avatar/title/search centred in
+    // it (centre ~27dp under the status bar, the same line as the back-button headers and the Play Store
+    // app bar); [BottomGap] is breathing room below it before the page content starts.
+    val BarHeight = 54.dp
+    val BottomGap = 10.dp
+    val Height = BarHeight + BottomGap   // fixed slot; content below never jumps between tabs
     val SidePadding = 14.dp   // same left/right margin as the page content
     val AvatarSize = 33.dp    // round profile picture, flush with the right margin
+    // Back-button headers (detail/sub pages): space above the 48dp back button. 3dp puts the arrow's centre
+    // ~27dp under the status bar, like the Play Store app bar (it used to be 13dp, i.e. 10dp lower).
+    val BackTop = 3.dp
 }
 
 // Play Store-style top bar: title on the left, round avatar/actions on the right, vertically
 // centred in the fixed [KikoHeader.Height] slot.
 @Composable fun AppHeader(title: String, horizontalPadding: Dp = KikoHeader.SidePadding, titleColor: Color = LocalKikoColors.current.ink, action: @Composable () -> Unit = {}) {
     Row(
-        Modifier.fillMaxWidth().height(KikoHeader.Height).padding(horizontal = horizontalPadding),
+        Modifier.fillMaxWidth().height(KikoHeader.Height).padding(start = horizontalPadding, end = horizontalPadding, bottom = KikoHeader.BottomGap),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -352,7 +360,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     // shrink-wrapping to its own
     var anchorWidthPx by remember { mutableStateOf(0) }
     val arrowRotation by animateFloatAsState(if (expanded) 180f else 0f, label = "switcherArrowRotation")
-    Row(Modifier.fillMaxWidth().heightIn(min = minHeight).padding(horizontal = horizontalPadding, vertical = verticalPadding), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(Modifier.fillMaxWidth().height(minHeight).padding(start = horizontalPadding, end = horizontalPadding, bottom = KikoHeader.BottomGap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Box {
             Row(
                 Modifier
@@ -446,7 +454,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
             BackHandler { onExpandedChange(false) }
             LaunchedEffect(Unit) { focusRequester.requestFocus(); keyboard?.show() }
             // Same fixed slot as the normal header so the content below doesn't jump.
-            Box(Modifier.fillMaxWidth().height(minHeight), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().height(minHeight).padding(bottom = KikoHeader.BottomGap), contentAlignment = Alignment.Center) {
                 SearchTopBar(
                     value = query,
                     onValueChange = onQueryChange,

@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
@@ -253,7 +254,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                     }
                     Box(Modifier.fillMaxWidth().height(160.dp).background(Color.Black.copy(alpha = .35f)))
                     // Plain 24dp icons floating on the banner (no backing chip), 48dp touch targets.
-                    Row(Modifier.fillMaxWidth().padding(top = 13.dp, start = 4.dp, end = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, start = 4.dp, end = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White, modifier = Modifier.size(24.dp)) }
                         if (full.url.isNotBlank()) {
                             IconButton(onClick = { context.openInBrowser(full.url) }) {

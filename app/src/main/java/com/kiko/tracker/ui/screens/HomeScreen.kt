@@ -102,6 +102,7 @@ import com.kiko.tracker.data.model.nextEpisodeLabel
 import com.kiko.tracker.data.model.oneDecimal
 import com.kiko.tracker.data.model.systemIs24Hour
 import com.kiko.tracker.ui.components.AppHeader
+import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.Cover
 import com.kiko.tracker.ui.components.SearchTopBar
@@ -814,7 +815,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     else { kotlinx.coroutines.delay(250); submittedQuery = query }
                 }
                 // Same 72dp slot as the normal header so the tabs below don't jump.
-                Box(Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().height(KikoHeader.Height).padding(bottom = KikoHeader.BottomGap), contentAlignment = Alignment.Center) {
                     SearchTopBar(
                         value = query,
                         onValueChange = { query = it },
