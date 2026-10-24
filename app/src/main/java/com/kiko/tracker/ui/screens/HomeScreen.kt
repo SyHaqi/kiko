@@ -7,9 +7,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -106,6 +103,7 @@ import com.kiko.tracker.data.model.oneDecimal
 import com.kiko.tracker.data.model.systemIs24Hour
 import com.kiko.tracker.ui.components.AppHeader
 import com.kiko.tracker.ui.components.KikoHeader
+import com.kiko.tracker.ui.components.SwitcherHeader
 import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.Cover
 import com.kiko.tracker.ui.components.SearchTopBar
@@ -735,43 +733,6 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
 }
 
 
-/**
- * My List header: the current list's name with a one-tap "swap" button beside it that flips between the
- * Anime and Manga lists (replaces the old title dropdown). Same 72dp slot / paddings as SwitcherHeader so
- * the tabs below don't move. [action] is the trailing search icon + avatar.
- */
-@Composable private fun MyListHeader(current: MediaType, onSwap: () -> Unit, horizontalPadding: Dp = 14.dp, action: @Composable () -> Unit = {}) {
-    val c = LocalKikoColors.current
-    val other = if (current == MediaType.Anime) "Manga" else "Anime"
-    // Each tap turns the icon half a revolution, so it always spins the same way.
-    var halfTurns by remember { mutableStateOf(0) }
-    val rotation by animateFloatAsState(halfTurns * 180f, tween(300), label = "listSwapRotation")
-    Row(
-        Modifier.fillMaxWidth().height(KikoHeader.Height).padding(start = horizontalPadding, end = horizontalPadding, bottom = KikoHeader.BottomGap),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            AnimatedContent(
-                targetState = current,
-                transitionSpec = { (slideInVertically(tween(220)) { it / 3 } + fadeIn(tween(220))) togetherWith (slideOutVertically(tween(160)) { -it / 3 } + fadeOut(tween(120))) },
-                label = "listTypeTitle",
-            ) { type ->
-                Text(if (type == MediaType.Anime) "Anime" else "Manga", style = MaterialTheme.typography.headlineMedium, letterSpacing = (-1).sp, color = c.ink, maxLines = 1)
-            }
-            // Deliberately quiet: no fill, muted tint (same weight the old dropdown chevron had). The 40dp box is
-            // the touch target; only the 22dp icon is visible.
-            Box(
-                Modifier.size(40.dp).clip(kikoCircleShape()).kikoClickable { halfTurns++; onSwap() },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Default.SwapHoriz, "Swap to $other list", tint = c.muted, modifier = Modifier.size(22.dp).graphicsLayer { rotationZ = rotation })
-            }
-        }
-        action()
-    }
-}
-
 @Composable fun ListScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onIncrement: (MediaItem) -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
@@ -825,10 +786,13 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             label = "listHeaderSearch",
         ) { expanded ->
             if (!expanded) {
-                MyListHeader(
+                SwitcherHeader(
                     current = typeTab,
-                    onSwap = { vm.selectListTypeTab(context, if (typeTab == MediaType.Anime) MediaType.Manga else MediaType.Anime) },
+                    options = MediaType.entries.toList(),
+                    labelFor = { if (it == MediaType.Anime) "Anime" else "Manga" },
+                    onSelect = { vm.selectListTypeTab(context, it) },
                     horizontalPadding = 14.dp,
+                    switchDescription = "Switch between Anime and Manga",
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Box(
