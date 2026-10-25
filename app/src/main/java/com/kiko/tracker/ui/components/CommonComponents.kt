@@ -108,6 +108,7 @@ import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.accent
 import com.kiko.tracker.ui.theme.kikoCircleShape
 import com.kiko.tracker.ui.theme.kikoClickable
+import com.kiko.tracker.ui.theme.kikoCombinedClickable
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.ui.theme.kikoPillShape
 
@@ -563,8 +564,9 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 
 // Play Store-style search suggestions: plain full-width rows on the screen background (no card, no
 // dividers) — a small round tonal icon, the title, and a north-west arrow that copies the suggestion
-// into the search field without running it ([onFill]). Tapping the row itself searches it.
-@Composable fun SearchSuggestionsList(suggestions: List<String>, onSelect: (String) -> Unit, onFill: ((String) -> Unit)? = null, history: Boolean = false, onRemove: ((String) -> Unit)? = null) {
+// into the search field without running it ([onFill]). Tapping the row itself searches it. In history
+// mode, long-pressing a row calls [onLongPress] (used to clear all recent searches).
+@Composable fun SearchSuggestionsList(suggestions: List<String>, onSelect: (String) -> Unit, onFill: ((String) -> Unit)? = null, history: Boolean = false, onRemove: ((String) -> Unit)? = null, onLongPress: (() -> Unit)? = null) {
     val c = LocalKikoColors.current
     if (suggestions.isEmpty()) return
     Column(Modifier.fillMaxWidth()) {
@@ -573,7 +575,10 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 Modifier
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)
-                    .kikoClickable(scale = 1f) { onSelect(title) }
+                    .let { m ->
+                        if (history && onLongPress != null) m.kikoCombinedClickable(scale = 1f, onLongClick = onLongPress, onClick = { onSelect(title) })
+                        else m.kikoClickable(scale = 1f) { onSelect(title) }
+                    }
                     .padding(start = 20.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -609,6 +614,9 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 ) {
     val c = LocalKikoColors.current
     if (anchorBounds == null || containerBounds == null) return
+    // Long-pressing a recent search asks before wiping the whole history. Kept out of the panel's `if`
+    // below on purpose: the dialog takes focus from the search field, which empties `suggestions`.
+    var confirmClearAll by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -638,21 +646,26 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 .pointerInput(Unit) { detectTapGestures { dismiss() } },
         ) {
             Column(Modifier.fillMaxWidth()) {
-                if (history && onClearAll != null) {
-                    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Recent searches", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                        TextButton(onClick = onClearAll) { Text("Clear all", color = c.primary, fontSize = 13.sp) }
-                    }
-                }
                 SearchSuggestionsList(
                     suggestions,
                     onSelect = { picked -> dismiss(); onSelect(picked) },
                     onFill = onFill,
                     history = history,
                     onRemove = onRemove,
+                    onLongPress = if (history && onClearAll != null) { { confirmClearAll = true } } else null,
                 )
             }
         }
+    }
+    if (confirmClearAll && onClearAll != null) {
+        AlertDialog(
+            onDismissRequest = { confirmClearAll = false },
+            containerColor = c.surfaceContainerHigh,
+            title = { Text("Clear recent searches?", color = c.ink) },
+            text = { Text("This removes all of your recent searches.", color = c.muted, fontSize = 14.sp) },
+            confirmButton = { TextButton(onClick = { confirmClearAll = false; onClearAll() }, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("Clear all") } },
+            dismissButton = { TextButton(onClick = { confirmClearAll = false }, colors = ButtonDefaults.textButtonColors(contentColor = c.muted)) { Text("Cancel") } },
+        )
     }
 }
 
