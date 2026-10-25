@@ -2,13 +2,19 @@
 
 package com.kiko.tracker.ui.screens
 
+import androidx.activity.compose.BackHandler
+import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
+import com.kiko.tracker.ui.components.headerEdgeStart
+import com.kiko.tracker.ui.components.headerTitleStart
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,6 +36,7 @@ import com.kiko.tracker.data.model.ReviewEntry
 import com.kiko.tracker.data.model.ReviewReactionEmojis
 import com.kiko.tracker.data.model.ReviewVerdictTags
 import com.kiko.tracker.data.model.ScoreStats
+import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.data.model.verdict
 import com.kiko.tracker.data.model.verdictColor
 import com.kiko.tracker.ui.components.kikoFilterChipColors
@@ -70,30 +78,19 @@ import com.kiko.tracker.ui.theme.kikoCorner
     }
 }
 
-// "See more" sheet from
-// Detail's Reviews row —
-// re-runs onLoad, which just
-// hands back the same
-// cached list the row
-// already fetched (see LibraryViewModel.loadReviews),
-// so this doesn't re-hit
-// MAL. Tapping a review
-// opens the full ReviewScreen readout
-// on top of this
-// sheet (see onOpenReview at
-// the Navigation.kt call site) rather
-// than dismissing it, so
-// this composable gets torn
-// down and rebuilt when
-// that happens — initialReviews/initialScroll seed
-// it back to exactly
-// where it was instead
-// of a fresh "loading"
-// state, and onLeaveScroll captures
-// the scroll position on
-// that same teardown.
-@Composable fun ReviewListSheet(
-    item: MediaItem, onDismiss: () -> Unit,
+// Full "Reviews" page opened from Detail's Reviews row "See more" (see
+// TopScreen.ReviewList). onLoad re-runs the same cached loader the row already
+// used (LibraryViewModel.loadReviews), so this doesn't re-hit MAL. Tapping a review
+// opens the full ReviewScreen on top of this page (reviewOpen outranks it in
+// Navigation.kt) rather than dismissing it, so this composable is torn down and
+// rebuilt when that happens — initialReviews/initialScroll seed it back to exactly
+// where it was instead of a fresh "loading" state, and onLeaveScroll captures the
+// scroll position on that same teardown.
+//
+// Rows are grouped tonal rows (big outer corners, tight inner ones, a 2dp gap
+// instead of dividers) — same look as Clubs / Settings / Detail info rows.
+@Composable fun ReviewListScreen(
+    item: MediaItem, onBack: () -> Unit,
     onLoad: ((List<ReviewEntry>) -> Unit, () -> Unit) -> Unit,
     onOpenReview: (ReviewEntry) -> Unit,
     initialReviews: List<ReviewEntry> = emptyList(),
@@ -101,40 +98,47 @@ import com.kiko.tracker.ui.theme.kikoCorner
     onLeaveScroll: (Int) -> Unit = {},
 ) {
     val c = LocalKikoColors.current
+    BackHandler(onBack = onBack)
     var reviews by remember(item.id, item.type) { mutableStateOf(initialReviews) }
     var loading by remember(item.id, item.type) { mutableStateOf(initialReviews.isEmpty()) }
-    // A plain ScrollState Column (not a LazyColumn) — same shape every
-    // other sheet in this app uses. Handing ModalBottomSheet an
-    // unbounded, self-measuring Column lets it size to the real content
-    // height and keep its half/full/close anchors; a LazyColumn forced
-    // into a fixed heightIn(max=...) here used to fight the sheet's own
-    // drag for who owns vertical scroll, which is what left it stuck
-    // partway and made it snap once the list end was reached.
     val scrollState = rememberScrollState(initial = initialScroll)
-    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    val showGoToTop by remember { derivedStateOf { scrollState.value > 600 } }
     LaunchedEffect(item.id, item.type) { onLoad({ reviews = it }, { loading = false }) }
     DisposableEffect(item.id, item.type) {
         onDispose { onLeaveScroll(scrollState.value) }
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(scrollState)) {
-            Text("Reviews", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text(item.title, style = MaterialTheme.typography.headlineSmall, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 14.dp).padding(bottom = if (showGoToTop) 90.dp else 24.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 17.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+                Column(Modifier.headerTitleStart()) {
+                    Text("Reviews", style = MaterialTheme.typography.titleLarge, color = c.ink)
+                    Text(item.displayTitle(), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                }
+            }
             when {
-                loading && reviews.isEmpty() -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                loading && reviews.isEmpty() -> Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
                     KikoLoadingIndicator(color = c.primary, size = 28.dp)
                 }
-                reviews.isEmpty() -> Text("No reviews yet.", color = c.muted, fontSize = 12.sp)
-                else -> Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    reviews.forEach { rev -> ReviewListItem(rev, onClick = { onOpenReview(rev) }) }
+                reviews.isEmpty() -> Text("No reviews yet.", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
+                else -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    reviews.forEachIndexed { i, rev ->
+                        key(rev.malId) { ReviewListItem(rev, forumGroupShape(i, reviews.size), onClick = { onOpenReview(rev) }) }
+                    }
                 }
             }
         }
+        GoToTopButton(
+            visible = showGoToTop,
+            onClick = { scope.launch { scrollState.animateScrollTo(0) } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+        )
     }
 }
 
 // "See more" sheet from Detail's Recent Forum Discussion row —
-// same shape as ReviewListSheet above, except the row above
+// same sheet-over-current-screen shape the old Reviews tray had, except the row above
 // only ever shows a 2-item preview (parseDetailForumDiscussion's own
 // limit), so this always re-fetches the full per-title /forum
 // listing rather than reading back an already-complete cached list.
@@ -145,7 +149,7 @@ import com.kiko.tracker.ui.theme.kikoCorner
 // to a tab already viewed this sheet-visit doesn't re-hit the
 // network. Tapping a topic opens the full ForumTopicScreen on
 // top of this sheet (see onOpenTopic at the Navigation.kt call
-// site) the same way ReviewListSheet's onOpenReview does, rather
+// site) the same way the Reviews page's onOpenReview does, rather
 // than dismissing it — reusing DetailForumDiscussionRow itself so the
 // row here looks identical to the preview it's expanding.
 @Composable fun ForumDiscussionListSheet(
@@ -189,12 +193,12 @@ import com.kiko.tracker.ui.theme.kikoCorner
 
 // Full-width counterpart to
 // DetailScreen's 260dp-wide ReviewCard, for
-// the vertical list inside
-// ReviewListSheet.
-@Composable fun ReviewListItem(entry: ReviewEntry, onClick: () -> Unit) {
+// the vertical list on ReviewListScreen. One tonal row of a grouped list —
+// pass forumGroupShape(index, count) for the big-outer / tight-inner corners.
+@Composable fun ReviewListItem(entry: ReviewEntry, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(kikoCorner(18.dp)), onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh).kikoClickable(onClick = onClick).padding(14.dp),
+        Modifier.fillMaxWidth().clip(shape).background(c.surfaceContainer).kikoClickable(scale = 0.98f, onClick = onClick).padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (entry.userImage.isNotBlank()) {
@@ -231,7 +235,7 @@ import com.kiko.tracker.ui.theme.kikoCorner
 
 // MAL reactions for a review: the three most-used emojis, then the total number of
 // reactions — same readout as the preview ReviewCard on the detail page, shared by the
-// "See more" list (ReviewListItem) and the full ReviewScreen. Draws nothing when MAL
+// "See more" page (ReviewListItem) and the full ReviewScreen. Draws nothing when MAL
 // reported no reactions for the review.
 @Composable fun ReviewReactions(entry: ReviewEntry, modifier: Modifier = Modifier, emojiSize: androidx.compose.ui.unit.TextUnit = 13.sp, countSize: androidx.compose.ui.unit.TextUnit = 12.sp) {
     val c = LocalKikoColors.current

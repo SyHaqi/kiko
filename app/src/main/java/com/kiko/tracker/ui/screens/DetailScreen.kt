@@ -179,15 +179,10 @@ data class DetailScreenActions(
     val onLoadCharacters: (MediaItem, (List<CharacterEntry>) -> Unit, () -> Unit, () -> Unit) -> Unit = { _, _, onDone, _ -> onDone() },
     val onLoadReviews: (MediaItem, (List<ReviewEntry>) -> Unit, () -> Unit) -> Unit = { _, _, onDone -> onDone() },
     val onOpenReview: (ReviewEntry) -> Unit = {},
-    // Opens the "See more"
-    // reviews sheet. Takes the
-    // item (rather than a
-    // URL) since the sheet
-    // re-runs onLoadReviews, which just
-    // returns the same cached
-    // list the row already
-    // fetched instead of hitting
-    // the network again.
+    // Opens the full-page "Reviews" list from "See more". Takes the
+    // item (rather than a URL) since the page re-runs onLoadReviews,
+    // which just returns the same cached list the row already fetched
+    // instead of hitting the network again.
     val onOpenReviewList: (MediaItem) -> Unit = {},
     val onGenreClick: (String) -> Unit = {},
     val onCreatorClick: (String) -> Unit = {},
