@@ -67,6 +67,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -374,7 +375,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 Text(labelFor(current), style = MaterialTheme.typography.headlineMedium, letterSpacing = (-1).sp, color = c.ink)
                 Icon(Icons.Default.KeyboardArrowDown, contentDescription = switchDescription, tint = c.muted, modifier = Modifier.padding(start = 2.dp).size(28.dp).rotate(arrowRotation))
             }
-            DropdownMenu(
+            KikoDropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 containerColor = c.surfaceContainerHigh,
@@ -969,5 +970,34 @@ fun FavoriteHeartButton(
                 modifier = Modifier.size(iconSize),
             )
         }
+    }
+}
+
+// Dropdown menu that opens ON TOP of its anchor (like Google's apps) instead of below it: the
+// menu's top edge lines up with the top of the button / text that opened it, covering it. Call it
+// where you'd call DropdownMenu, inside the same Box as the anchor (it needs the BoxScope). The
+// inner Box tracks the anchor's height, and the menu is nudged up by exactly that much; if the
+// menu doesn't fit there, Material's own positioner still shifts it back on screen.
+@Composable
+fun BoxScope.KikoDropdownMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(kikoCorner(18.dp)),
+    containerColor: Color = LocalKikoColors.current.surfaceContainer,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val density = LocalDensity.current
+    var anchorHeightPx by remember { mutableStateOf(0) }
+    Box(Modifier.matchParentSize().then(Modifier.onSizeChanged { anchorHeightPx = it.height })) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = onDismissRequest,
+            modifier = modifier,
+            offset = androidx.compose.ui.unit.DpOffset(0.dp, -with(density) { anchorHeightPx.toDp() }),
+            shape = shape,
+            containerColor = containerColor,
+            content = content,
+        )
     }
 }

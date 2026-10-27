@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoDropdownMenu
 import com.kiko.tracker.ui.components.KikoLoadingScreen
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
@@ -396,7 +397,7 @@ fun companyLinkIconRes(url: String): Int? {
             trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(18.dp)) },
             colors = kikoFilterChipColors(),
         )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = RoundedCornerShape(kikoCorner(16.dp)), containerColor = c.surfaceContainer) {
+        KikoDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = RoundedCornerShape(kikoCorner(16.dp)), containerColor = c.surfaceContainer) {
             DropdownMenuItem(
                 text = { Text("All (${works.size})", color = if (current == "All") c.accent else c.ink, fontWeight = if (current == "All") FontWeight.Bold else FontWeight.Normal) },
                 onClick = { expanded = false; onSelect("All") },

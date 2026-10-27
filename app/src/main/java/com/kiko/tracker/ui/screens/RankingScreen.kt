@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoDropdownMenu
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingRow
@@ -163,7 +164,7 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
             Icon(rankingIcon(current), "Ranking type", tint = c.accent, modifier = Modifier.size(16.dp))
             Text(current.label, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surfaceContainerHigh, shape = RoundedCornerShape(kikoCorner(18.dp))) {
+        KikoDropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surfaceContainerHigh, shape = RoundedCornerShape(kikoCorner(18.dp))) {
             options.forEach { sort ->
                 DropdownMenuItem(
                     text = { Text(sort.label, color = if (sort == current) c.accent else c.ink, fontWeight = if (sort == current) FontWeight.Bold else FontWeight.Normal) },

@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoDropdownMenu
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
@@ -168,7 +169,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     IconButton(onClick = { moreOpen = true }) {
                         Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
                     }
-                    DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
+                    KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
                         DropdownMenuItem(
                             text = { Text("Share") },
                             leadingIcon = { Icon(Icons.Default.Share, null) },

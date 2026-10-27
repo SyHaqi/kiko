@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoDropdownMenu
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingScreen
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
@@ -486,7 +487,7 @@ private var detailStatusBarOwners = 0
                             IconButton(
                                 onClick = { moreOpen = true },
                             ) { Icon(Icons.Default.MoreVert, "More options", tint = Color.White, modifier = Modifier.size(24.dp)) }
-                            DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp))) {
+                            KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp))) {
                                 DropdownMenuItem(
                                     text = { Text("Share") },
                                     leadingIcon = { Icon(Icons.Default.Share, null) },
