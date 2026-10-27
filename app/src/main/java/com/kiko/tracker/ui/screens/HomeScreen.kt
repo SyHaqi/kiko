@@ -57,6 +57,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.PlatformTextStyle
@@ -1236,22 +1237,29 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
 }
 
 // The "+1" pill used by ListRow.
-// Vertical pill (28x32dp) with a "+1" label, same shape/size as the Play Store expand button.
-// The outer Box keeps a 48dp-tall tap target around the smaller visible pill.
+// 56x34dp capsule with a "+1" label, bottom-right of the row. Its bottom edge is the row's bottom edge,
+// the same line the progress bar ends on, so counter + bar + pill read as one section. The outer Box is a
+// 64x48dp tap target; the visible capsule sits in its bottom-end corner (alignment).
 @Composable private fun IncrementPill(
     item: MediaItem,
     onIncrement: (MediaItem) -> Unit,
-    pillSize: DpSize = DpSize(28.dp, 32.dp),
-    tapSize: DpSize = DpSize(38.dp, 48.dp),
-    alignment: Alignment = Alignment.Center,
+    modifier: Modifier = Modifier,
+    pillSize: DpSize = DpSize(56.dp, 34.dp),
+    tapSize: DpSize = DpSize(64.dp, 48.dp),
+    alignment: Alignment = Alignment.BottomEnd,
 ) {
     val c = LocalKikoColors.current
     val atMax = item.total > 0 && item.progress >= item.total
+    // The big tap box must NOT be clipped to a pill: it is larger than the visible capsule and sits
+    // flush with its bottom-right corner, so a clip here (radius = half of 48dp) shaved the capsule's
+    // corners into a lopsided blob. No ripple on it either (it would draw as a rectangle); the capsule
+    // itself dims while pressed instead.
+    val press = remember { MutableInteractionSource() }
+    val pressed by press.collectIsPressedAsState()
     Box(
-        Modifier
+        modifier
             .size(tapSize)
-            .clip(kikoPillShape())
-            .clickable(enabled = !atMax) {
+            .clickable(interactionSource = press, indication = null, enabled = !atMax) {
                 val next = (item.progress + 1).let { p -> if (item.total > 0) minOf(p, item.total) else p }
                 onIncrement(item.copy(progress = next))
             },
@@ -1261,13 +1269,13 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
             Modifier
                 .size(pillSize)
                 .clip(kikoPillShape())
-                .background(if (atMax) c.surfaceContainerHigh else c.primaryContainer),
+                .background((if (atMax) c.surfaceContainerHigh else c.primaryContainer).copy(alpha = if (pressed) 0.7f else 1f)),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 "+1",
                 color = if (atMax) c.muted else c.onPrimaryContainer,
-                fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+                fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
             )
         }
     }
@@ -1275,8 +1283,8 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
 
 // Shared media row (My List, Profile lists). The text column is exactly as tall as
 // the cover. Title (1-2 lines), the format line, and (while airing) an
-// "Ep. N airs on ..." row are pinned to the top; progress bar -> counter pinned
-// to the bottom. Any slack sits in the middle, so the bar and counter never move.
+// "Ep. N airs on ..." row are pinned to the top; counter -> progress bar pinned
+// to the bottom. Any slack sits in the middle, so the counter and bar never move.
 @Composable fun ListRow(
     item: MediaItem,
     onOpenDetail: (MediaItem) -> Unit,
@@ -1323,54 +1331,61 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Cover(item, Modifier.size(width = coverW, height = coverH))
-        Column(
-            Modifier.weight(1f).height(coverH).padding(start = 16.dp, end = 6.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column {
-                Text(
-                    item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp,
-                    color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                )
-                // Compact + airing/upcoming: the air timer takes the format line's place (shown below).
-                val timerReplacesFormat = compact && timer != null
-                if (!timerReplacesFormat) Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (showType) "${item.type} · ${formatLabel(item)}" else formatLabel(item), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (item.myRating > 0) {
-                        Text("  ·  ", color = c.muted, fontSize = 13.sp)
-                        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
-                        Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
-                    }
-                }
-                // Currently airing / not yet aired: the status gets its own row under the format.
-                timer?.let { label ->
-                    Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(14.dp))
-                        Text(label, color = timerTint, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp).weight(1f, fill = false))
-                        // The rating normally rides on the format line, so keep it here when that line is hidden.
-                        if (timerReplacesFormat && item.myRating > 0) {
+        // Text column + (optional) +1 pill share one cover-tall Box, so the pill can sit on the
+        // bottom-right corner while the title and airing rows still use the full width above it.
+        Box(Modifier.weight(1f).height(coverH)) {
+            Column(
+                Modifier.fillMaxSize().padding(start = 16.dp, end = 6.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column {
+                    Text(
+                        item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp,
+                        color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    )
+                    // Compact + airing/upcoming: the air timer takes the format line's place (shown below).
+                    val timerReplacesFormat = compact && timer != null
+                    if (!timerReplacesFormat) Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (showType) "${item.type} · ${formatLabel(item)}" else formatLabel(item), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        if (item.myRating > 0) {
                             Text("  ·  ", color = c.muted, fontSize = 13.sp)
                             Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
                             Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
                         }
                     }
+                    // Currently airing / not yet aired: the status gets its own row under the format.
+                    timer?.let { label ->
+                        Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(14.dp))
+                            Text(label, color = timerTint, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp).weight(1f, fill = false))
+                            // The rating normally rides on the format line, so keep it here when that line is hidden.
+                            if (timerReplacesFormat && item.myRating > 0) {
+                                Text("  ·  ", color = c.muted, fontSize = 13.sp)
+                                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                                Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+                            }
+                        }
+                    }
+                }
+                // Counter on top, bar underneath (bar is the bottom-most element). With a +1 pill the
+                // block stops short of it, so the bar never runs underneath the button.
+                Column(Modifier.padding(end = if (onIncrement != null) 68.dp else 0.dp)) {
+                    Text(progressLabel(item), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1)
+                    // Always drawn, even when the total is unknown (e.g. a not-yet-aired
+                    // "Plan to Watch" title): the track just stays empty until a total exists.
+                    LinearProgressIndicator(
+                        progress = { if (item.total > 0) (item.progress.toFloat() / item.total).coerceIn(0f, 1f) else 0f },
+                        modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
+                        color = statusColor(item.status), trackColor = c.surfaceLow,
+                    )
                 }
             }
-            Column {
-                // Always drawn, even when the total is unknown (e.g. a not-yet-aired
-                // "Plan to Watch" title): the track just stays empty until a total exists.
-                LinearProgressIndicator(
-                    progress = { if (item.total > 0) (item.progress.toFloat() / item.total).coerceIn(0f, 1f) else 0f },
-                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
-                    color = statusColor(item.status), trackColor = c.surfaceLow,
-                )
-                Text(progressLabel(item), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
+            if (onIncrement != null) {
+                // Capsule pinned to the bottom-right corner; its bottom edge is level with the progress bar's.
+                IncrementPill(item, onIncrement, modifier = Modifier.align(Alignment.BottomEnd))
             }
         }
-        if (onIncrement != null) {
-            // Default pill (28x32dp, 38x48dp tap target), vertically centered in the row.
-            IncrementPill(item, onIncrement)
-        } else if (showChevron) {
+        if (onIncrement == null && showChevron) {
             // No increment action here (e.g. a read-only list), so show a chevron in the trailing slot instead.
             Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(22.dp))
         }
