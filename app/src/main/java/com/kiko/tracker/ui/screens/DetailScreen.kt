@@ -934,7 +934,7 @@ private var detailStatusBarOwners = 0
                                         // function) so a slow
                                         key("stacks") {
                                             if (stacks.isNotEmpty()) {
-                                                SectionTitle("Interest Stacks", "", {})
+                                                SectionTitle("Interest Stacks", "See more", { actions.onOpenStacksList(item) })
                                                 LazyRow(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                                                     itemsIndexed(stacks, key = { _, it -> it.id }) { i, s ->
                                                         StaggeredItem(i, stacksSeen) { DetailStackCard(s, actions.onLoadStackCovers) { actions.onOpenStack(s.id, s.title) } }

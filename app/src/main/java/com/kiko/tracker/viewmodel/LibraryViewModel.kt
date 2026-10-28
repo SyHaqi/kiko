@@ -3019,7 +3019,11 @@ class LibraryViewModel : ViewModel() {
         cache.stacks?.let { onFound(it); return }
         val intId = item.id.toIntOrNull() ?: return
         viewModelScope.launch {
-            val result = runCatching { StacksApi().forMedia(intId, item.type, limit = 5).items }.getOrElse { emptyList() }
+            // Fetch the whole first page once: the preview shows the first 3 and the See more screen
+            // starts from the same page instead of downloading it a second time.
+            val page = runCatching { StacksApi().forMedia(intId, item.type) }.getOrNull()
+            if (page != null) mediaStacksPrefetch[intId to item.type] = page
+            val result = page?.items?.take(3).orEmpty()
             cache.stacks = result
             if (result.isNotEmpty()) onFound(result)
         }
@@ -3041,6 +3045,8 @@ class LibraryViewModel : ViewModel() {
     // "fewer than 20 rows
     // counter itself doesn't parse.
     var mediaStacksHasMore by mutableStateOf(true); private set
+    // First page already fetched for the detail page's preview row (see loadMediaStacks).
+    private val mediaStacksPrefetch = mutableMapOf<Pair<Int, MediaType>, StacksApi.MediaStacksPage>()
     private var mediaStacksOffset = 0
     private var mediaStacksTarget: Pair<Int, MediaType>? = null
     var mediaStacksScrollIndex by mutableStateOf(0); private set
@@ -3056,6 +3062,12 @@ class LibraryViewModel : ViewModel() {
             mediaStacksOffset = 0
             mediaStacksHasMore = true
             mediaStacksScrollIndex = 0; mediaStacksScrollOffset = 0
+            mediaStacksPrefetch[target]?.let { pre ->
+                val first = pre.items.distinctBy { it.id }
+                mediaStacksResults = first
+                mediaStacksHasMore = if (pre.total != null) first.size < pre.total else pre.items.size >= 20
+                return
+            }
         } else if (mediaStacksLoading || mediaStacksTarget != target || !mediaStacksHasMore) return
         val targetOffset = if (reset) 0 else mediaStacksOffset + 20
         mediaStacksLoading = true

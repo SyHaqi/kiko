@@ -343,13 +343,17 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 @Composable fun StackStatsRow(entryCount: Int, restacks: Int, updatedLabel: String) {
     val c = LocalKikoColors.current
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (entryCount > 0) Text("$entryCount Entries", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-        if (updatedLabel.isNotBlank()) {
-            if (entryCount > 0) Text(" · ", color = c.muted, fontSize = 12.sp)
-            Text(updatedLabel, color = c.muted, fontSize = 12.sp)
+        // The text part takes whatever width the restack pill leaves (weight 1) and the date ellipsizes
+        // first, so a long "Jun 30, 5:40 AM" label can no longer squeeze the pill into an empty circle.
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            if (entryCount > 0) Text("$entryCount Entries", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
+            if (updatedLabel.isNotBlank()) {
+                if (entryCount > 0) Text(" · ", color = c.muted, fontSize = 12.sp, maxLines = 1, softWrap = false)
+                Text(updatedLabel, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            }
         }
         if (restacks > 0) {
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(8.dp))
             // Fixed 20.dp pill height (no vertical padding): DetailStackCard wraps this row in a
             // 20.dp Box, and the old 4.dp vertical padding + 11.sp text's default line height
             // needed ~24.dp, so the count got squashed downward and clipped. Explicit lineHeight
@@ -471,7 +475,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 // items).
                 Text(stack.title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.ink, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(stack.author.takeIf { it.isNotBlank() }?.let { "by $it" } ?: "", color = c.muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 5.dp))
-                Box(Modifier.padding(top = 8.dp).height(20.dp), contentAlignment = Alignment.CenterStart) { StackStatsRow(stack.entryCount, stack.restacks, stack.updatedLabel) }
+                Box(Modifier.padding(top = 8.dp).height(20.dp), contentAlignment = Alignment.CenterStart) { StackStatsRow(stack.entryCount, stack.restacks, "") }
             }
         }
     }
@@ -543,8 +547,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val c = LocalKikoColors.current
     // Same on-demand-and-cached cover fetch
     // — just takes 2
-    val cachedCovers = vm.getCachedStackCovers(stack.id)
-    val covers = stack.covers.ifEmpty { cachedCovers ?: emptyList() }.take(2)
+    // Only read the (snapshot) cover cache when the row actually has no covers of its own — reading it
+    // unconditionally made every visible row recompose each time ANY stack's covers finished loading.
+    val covers = (if (stack.covers.isNotEmpty()) stack.covers else vm.getCachedStackCovers(stack.id) ?: emptyList()).take(2)
     LaunchedEffect(stack.id) { if (stack.covers.isEmpty()) vm.loadStackCovers(stack.id) }
     Row(
         Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 14.dp),

@@ -100,9 +100,14 @@ class StacksApi {
     // parsed out — inferring
     // getting every row right
     // real end whenever the
-    suspend fun forMedia(mediaId: Int, type: MediaType, offset: Int = 0, limit: Int? = null): MediaStacksPage = withContext(Dispatchers.IO) {
+    suspend fun forMedia(mediaId: Int, type: MediaType, offset: Int = 0, limit: Int? = null, title: String = ""): MediaStacksPage = withContext(Dispatchers.IO) {
         val kind = if (type == MediaType.Anime) "anime" else "manga"
-        val url = "$MAL/$kind/$mediaId/stacks" + if (offset > 0) "?offset=$offset" else ""
+        // MAL's routing is /{kind}/{id}/{slug}/stacks. Without a slug segment it reads "stacks" AS the
+        // slug and redirects to the title's main page, which only carries the 3-stack preview — so the
+        // full list used to come back as those same 3. Any slug works (MAL redirects to the real one
+        // and keeps the subpage), same as the other per-title scrapers; "_" is the blank-title fallback.
+        val slug = title.trim().replace(Regex("[^A-Za-z0-9-]+"), "_").trim('_').ifBlank { "_" }
+        val url = "$MAL/$kind/$mediaId/$slug/stacks" + if (offset > 0) "?offset=$offset" else ""
         val doc = fetchDoc(url)
         val total = doc.selectFirst("#total-count")?.attr("data-total")?.toIntOrNull()
         MediaStacksPage(parseSummaries(doc, limit), total)
@@ -200,14 +205,20 @@ class StacksApi {
             val text = normalizeWhitespace(container)
             val typeTokens = stackBadgeRun.findAll(text).flatMap { run -> stackBadgeToken.findAll(run.value).map { it.value } }.toList()
             val type = typeTokens.firstOrNull { it == "Anime" || it == "Manga" }.orEmpty()
-            val author = Regex("by\\s+([\\w\\-.]+)").find(text)?.groupValues?.get(1).orEmpty()
+            // Search after the title text: a title like "OP/ED sung by a Vtuber" has its own "by x" that
+            // the first match would otherwise take for the author.
+            val afterTitle = text.substringAfter(title, text)
+            val author = Regex("by\\s+([\\w\\-.]+)").find(afterTitle)?.groupValues?.get(1).orEmpty()
             val entryCount = Regex("(\\d+)\\s+Entries").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-            val restacks = Regex("(\\d+)\\s+Restacks").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            // The per-title /stacks page prints the count as a bare number in the restack balloon rather
+            // than "N Restacks" text, so fall back to that.
+            val restacks = Regex("(\\d+)\\s+Restacks").find(text)?.groupValues?.get(1)?.toIntOrNull()
+                ?: coverContainer.selectFirst(".js-num-stack")?.text()?.trim()?.toIntOrNull() ?: 0
             // Covers relative "N ago"/"N
             val updatedLabel = relativeOrDatedLabel.find(text)?.value.orEmpty()
             val description = if (author.isNotBlank()) {
                 Regex(Regex.escape("by $author") + "\\s*(.*?)\\s*(?:${descriptionStop.pattern})", RegexOption.DOT_MATCHES_ALL)
-                    .find(text)?.groupValues?.get(1)?.trim().orEmpty()
+                    .find(afterTitle)?.groupValues?.get(1)?.trim().orEmpty()
             } else ""
             val tags = listOfNotNull(type.takeIf { it.isNotBlank() }, "Challenge".takeIf { typeTokens.contains("Challenge") })
             seen[id] = StackSummary(id, title, type, author, description, entryCount, restacks, updatedLabel, coverUrls(coverContainer), tags)
