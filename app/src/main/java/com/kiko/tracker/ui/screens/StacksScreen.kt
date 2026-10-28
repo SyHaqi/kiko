@@ -64,6 +64,7 @@ import com.kiko.tracker.data.api.StackBrowseKind
 import com.kiko.tracker.data.api.StacksSavedTab
 import com.kiko.tracker.data.api.StackSummary
 import com.kiko.tracker.data.api.StackTitleEntry
+import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.LocalTitleLanguage
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
@@ -178,7 +179,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             StackListRow(s, vm) { openStack(s) }
                             // Same subtle row separator
                             // (see SearchResultRow's divider) —
-                            if (index < vm.stacksHomeRecent.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                         }
                     }
                 }
@@ -278,7 +278,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     StaggeredItem(index, staggerSeen) {
                         Column {
                             StackListRow(s, vm) { openStack(s) }
-                            if (index < vm.stacksBrowseResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                         }
                     }
                 }
@@ -354,18 +353,23 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         }
         if (restacks > 0) {
             Spacer(Modifier.width(8.dp))
-            // Fixed 20.dp pill height (no vertical padding): DetailStackCard wraps this row in a
-            // 20.dp Box, and the old 4.dp vertical padding + 11.sp text's default line height
-            // needed ~24.dp, so the count got squashed downward and clipped. Explicit lineHeight
-            // keeps the digits vertically centered inside the pill.
-            Row(
-                Modifier.height(20.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Default.Layers, null, tint = c.accent, modifier = Modifier.size(11.dp))
-                Text(restacks.toString(), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 4.dp))
-            }
+            StackRestackPill(restacks)
         }
+    }
+}
+// Restack count pill shared by StackStatsRow and StackListRow.
+@Composable fun StackRestackPill(restacks: Int) {
+    val c = LocalKikoColors.current
+    // Fixed 20.dp pill height (no vertical padding): DetailStackCard wraps its stats row in a
+    // 20.dp Box, and the old 4.dp vertical padding + 11.sp text's default line height
+    // needed ~24.dp, so the count got squashed downward and clipped. Explicit lineHeight
+    // keeps the digits vertically centered inside the pill.
+    Row(
+        Modifier.height(20.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Default.Layers, null, tint = c.accent, modifier = Modifier.size(11.dp))
+        Text(restacks.toString(), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 4.dp))
     }
 }
 // Featured stacks-homepage card —
@@ -525,7 +529,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         StaggeredItem(index, staggerSeen) {
                             Column {
                                 StackListRow(s, vm) { onOpenStack(s.id, s.title) }
-                                if (index < vm.mediaStacksResults.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                             }
                         }
                     }
@@ -545,25 +548,53 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // Recent-stacks list row —
 @Composable fun StackListRow(stack: StackSummary, vm: LibraryViewModel, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    // Same on-demand-and-cached cover fetch
-    // — just takes 2
+    // Same row structure and sizing as the My List row (ListRow / SearchResultRow): 100x150 cover, a text
+    // column exactly as tall as the cover with title + detail line pinned to the top and the stat line
+    // pinned to the bottom, no divider lines between rows.
+    val compact = LocalCompactList.current
+    val coverW = if (compact) 72.dp else 100.dp
+    val coverH = if (compact) 108.dp else 150.dp
+    val rowVPad = if (compact) 10.dp else 14.dp
     // Only read the (snapshot) cover cache when the row actually has no covers of its own — reading it
     // unconditionally made every visible row recompose each time ANY stack's covers finished loading.
     val covers = (if (stack.covers.isNotEmpty()) stack.covers else vm.getCachedStackCovers(stack.id) ?: emptyList()).take(2)
     LaunchedEffect(stack.id) { if (stack.covers.isEmpty()) vm.loadStackCovers(stack.id) }
+    // "Anime · Challenge · by Author" — the stack's counterpart of My List's "TV · 23 ep, Spring 2018" line.
+    val details = remember(stack) { (stack.tags + listOfNotNull(stack.author.takeIf { it.isNotBlank() }?.let { "by $it" })).joinToString(" · ") }
+    // Footer is just the entry count now — the "Jun 30, 5:40 AM" updated label was a third muted line of
+    // metadata fighting the blurb for attention (it's still on the stack's own page).
+    val counts = remember(stack) { stack.entryCount.takeIf { it > 0 }?.let { "$it Entries" }.orEmpty() }
     Row(
-        Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 14.dp),
-        verticalAlignment = Alignment.Top,
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onClick).padding(vertical = rowVPad),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        StackCoverCollage(covers, modifier = Modifier.width(84.dp).height(118.dp))
-        Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
-            Text(stack.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (stack.tags.isNotEmpty()) Box(Modifier.padding(top = 7.dp)) { StackTagsRow(stack.tags) }
-            if (stack.author.isNotBlank()) Text("by ${stack.author}", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 5.dp))
-            if (stack.description.isNotBlank()) {
-                Text(stack.description, color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+        StackCoverCollage(covers, modifier = Modifier.size(width = coverW, height = coverH))
+        Column(
+            Modifier.weight(1f).height(coverH).padding(start = 16.dp, end = 6.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column {
+                Text(stack.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (details.isNotBlank()) {
+                    Text(details, color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                }
+                // Stacks carry a short blurb, which My List rows don't have. One line, softer than the
+                // details line above it, with a little air — so it reads as a teaser, not a 3rd block of
+                // same-weight grey text.
+                if (!compact && stack.description.isNotBlank()) {
+                    Text(stack.description, color = c.muted.copy(alpha = 0.7f), fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+                }
             }
-            Box(Modifier.padding(top = 8.dp)) { StackStatsRow(stack.entryCount, stack.restacks, stack.updatedLabel) }
+            // Bottom line, like My List's score/members row: entry count (+ last update) on the left, the
+            // restack pill on the right.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (counts.isNotBlank()) Icon(Icons.Default.Layers, null, tint = c.muted, modifier = Modifier.size(13.dp))
+                Text(counts, color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = if (counts.isNotBlank()) 5.dp else 0.dp))
+                if (stack.restacks > 0) {
+                    Spacer(Modifier.width(8.dp))
+                    StackRestackPill(stack.restacks)
+                }
+            }
         }
     }
 }
@@ -634,7 +665,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         StaggeredItem(index, staggerSeen) {
                             Column {
                                 StackListRow(s, vm) { onOpenStack(s.id, s.title) }
-                                if (index < results.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 100.dp), thickness = 1.dp, color = c.outlineVariant)
                             }
                         }
                     }
