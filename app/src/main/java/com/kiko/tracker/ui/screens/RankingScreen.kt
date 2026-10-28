@@ -185,7 +185,7 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
     val coverH = if (compact) 108.dp else 150.dp
     val rowVPad = if (compact) 10.dp else 14.dp
     val timer = item.airTimerLabel(null, systemIs24Hour()) ?: item.upcomingLabel()
-    val timerTint = if (item.upcomingLabel() != null) c.muted else c.accent
+    val timerTint = c.muted
     val details = listOf(formatLabel(item), episodeAndYear(item)).filter { it.isNotBlank() }.joinToString(" · ")
     // No divider lines — the row's own 14dp top/bottom padding is the only separation.
     Row(
@@ -215,8 +215,8 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
                 }
                 if (timer != null) {
                     Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(14.dp))
-                        Text(timer, color = timerTint, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
+                        Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(12.dp))
+                        Text(timer, color = timerTint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
             }

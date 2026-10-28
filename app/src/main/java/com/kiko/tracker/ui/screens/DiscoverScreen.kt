@@ -998,7 +998,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
     val timer = remember(item, confirmed, is24, AirTimerPrefs.countdown, minuteTick) { item.airTimerLabel(confirmed, is24) ?: upcoming }
     // Accent for the live air timer, muted for the quieter "Not Yet Aired" label.
-    val timerTint = if (upcoming != null) c.muted else c.accent
+    val timerTint = c.muted
     // "TV · 23 ep, Spring 2018" — no progress bar here, so the format joins the episodes/year line.
     val details = remember(item) { listOf(formatLabel(item), episodeAndYear(item)).filter { it.isNotBlank() }.joinToString(" · ") }
     val bg = Color.Transparent
@@ -1039,8 +1039,8 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 }
                 if (timer != null) {
                     Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(14.dp))
-                        Text(timer, color = timerTint, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
+                        Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(12.dp))
+                        Text(timer, color = timerTint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
             }

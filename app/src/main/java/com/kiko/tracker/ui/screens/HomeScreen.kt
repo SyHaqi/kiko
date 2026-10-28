@@ -1317,7 +1317,7 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
     val upcoming = remember(item.airStatus, item.type) { item.upcomingLabel() }
     val timer = remember(item, confirmed, is24Hour, countdownStyle, upcoming) { item.airTimerLabel(confirmed, is24Hour) ?: upcoming }
     // Accent for the live air timer, muted for the quieter "Not Yet Aired" label.
-    val timerTint = if (upcoming != null) c.muted else c.accent
+    val timerTint = c.muted
     Row(
         modifier
             .fillMaxWidth()
@@ -1356,8 +1356,8 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
                     // Currently airing / not yet aired: the status gets its own row under the format.
                     timer?.let { label ->
                         Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(14.dp))
-                            Text(label, color = timerTint, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp).weight(1f, fill = false))
+                            Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(12.dp))
+                            Text(label, color = timerTint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp).weight(1f, fill = false))
                             // The rating normally rides on the format line, so keep it here when that line is hidden.
                             if (timerReplacesFormat && item.myRating > 0) {
                                 Text("  ·  ", color = c.muted, fontSize = 13.sp)
