@@ -40,7 +40,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalViewConfiguration
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 
 // ---------------------------------------------------------------------------
@@ -104,19 +106,40 @@ fun Modifier.kikoCombinedClickable(
     onClick: () -> Unit,
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
+    val tapTimeout = remember { android.view.ViewConfiguration.getTapTimeout().toLong() } // ~100ms, delays the pressed state
     // scale == 1f means "no press-shrink": skip pressScale entirely so the row doesn't pay for an
     // animation state + graphicsLayer it would never visibly use (matters on long lists).
     return (if (scale != 1f) this.pressScale(interactionSource, scale) else this)
         .indication(interactionSource, LocalIndication.current)
         .then(
             if (enabled) {
-                Modifier.pointerInput(onClick, onLongClick) {
+                Modifier.pointerInput(onClick, onLongClick, tapTimeout) {
                     detectTapGestures(
                         onPress = { offset ->
+                            // Same behaviour as Foundation's clickable: don't show the pressed
+                            // highlight the instant a finger lands. Wait out the tap timeout first;
+                            // if a scroll/drag takes over before then, the press is cancelled and
+                            // nothing is ever shown (no flashing rows while scrolling a list).
                             val press = PressInteraction.Press(offset)
-                            interactionSource.emit(press)
-                            val released = tryAwaitRelease()
-                            interactionSource.emit(if (released) PressInteraction.Release(press) else PressInteraction.Cancel(press))
+                            var shown = false
+                            coroutineScope {
+                                val showJob = launch {
+                                    delay(tapTimeout)
+                                    interactionSource.emit(press)
+                                    shown = true
+                                }
+                                val released = tryAwaitRelease()
+                                if (shown) {
+                                    interactionSource.emit(if (released) PressInteraction.Release(press) else PressInteraction.Cancel(press))
+                                } else {
+                                    showJob.cancel()
+                                    if (released) {
+                                        // Quick tap: still flash the ripple so it feels responsive.
+                                        interactionSource.emit(press)
+                                        interactionSource.emit(PressInteraction.Release(press))
+                                    }
+                                }
+                            }
                         },
                         onTap = { onClick() },
                         onLongPress = onLongClick?.let { click -> { _: androidx.compose.ui.geometry.Offset -> click() } },
