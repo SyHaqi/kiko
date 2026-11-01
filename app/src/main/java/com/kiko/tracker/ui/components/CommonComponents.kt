@@ -37,6 +37,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items
@@ -489,6 +491,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     showDivider: Boolean = true,
     onClear: (() -> Unit)? = null,
     onFocusChange: ((Boolean) -> Unit)? = null,
+    keepFocusOnClear: Boolean = false,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val c = LocalKikoColors.current
@@ -502,9 +505,14 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
             IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Box(Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, end = 4.dp), contentAlignment = Alignment.CenterStart) {
                 if (value.isEmpty()) Text(hint, color = c.muted, fontSize = 16.sp, maxLines = 1)
+                // A plain String field starts with the cursor at the very beginning. Wrap it in a TextFieldValue so
+                // pre-filled text (e.g. reopening search from a results page) puts the cursor at the END, ready to
+                // edit; the same happens when the text is replaced from outside (suggestion arrow, clear).
+                var fieldValue by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(value, androidx.compose.ui.text.TextRange(value.length))) }
+                val shownValue = if (fieldValue.text == value) fieldValue else androidx.compose.ui.text.input.TextFieldValue(value, androidx.compose.ui.text.TextRange(value.length))
                 BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
+                    value = shownValue,
+                    onValueChange = { fieldValue = it; if (it.text != value) onValueChange(it.text) },
                     singleLine = true,
                     textStyle = androidx.compose.ui.text.TextStyle(color = c.ink, fontSize = 16.sp),
                     cursorBrush = SolidColor(c.accent),
@@ -514,13 +522,51 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 )
             }
             if (value.isNotEmpty()) {
-                IconButton(onClick = { if (onClear != null) onClear() else onValueChange(""); focusManager.clearFocus(); keyboard?.hide() }) {
+                IconButton(onClick = { if (onClear != null) onClear() else onValueChange(""); if (!keepFocusOnClear) { focusManager.clearFocus(); keyboard?.hide() } }) {
                     Icon(Icons.Rounded.Close, "Clear search", tint = c.muted, modifier = Modifier.size(20.dp))
                 }
             }
             trailing()
         }
         if (showDivider) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+    }
+}
+
+/**
+ * Read-only twin of [SearchTopBar] for a results page: [back arrow] [the query that produced these
+ * results] [clear] [trailing action]. Nothing is typed here - tapping the query (or the clear button)
+ * opens the dedicated search page, like the Play Store does. [onClear] should open that page with an
+ * empty field; the results underneath are left alone until a new search is submitted.
+ */
+@Composable fun SearchResultsTopBar(
+    query: String,
+    hint: String,
+    onBack: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+    trailing: @Composable RowScope.() -> Unit = {},
+) {
+    val c = LocalKikoColors.current
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Box(
+                Modifier.weight(1f).fillMaxHeight().kikoClickable(scale = 1f) { onOpenSearch() }.padding(start = 8.dp, end = 4.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (query.isEmpty()) Text(hint, color = c.muted, fontSize = 16.sp, maxLines = 1)
+                else Text(query, color = c.ink, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (query.isNotEmpty()) {
+                IconButton(onClick = onClear) { Icon(Icons.Rounded.Close, "Clear search", tint = c.muted, modifier = Modifier.size(20.dp)) }
+            }
+            trailing()
+        }
+        HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
     }
 }
 
@@ -597,66 +643,31 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     }
 }
 
-// Shows the suggestions as a panel that fills the screen below the search bar (opaque, like the Play
-// Store's), so they read as part of the page rather than a floating card. Tapping the empty part of
-// the panel or the area above the bar dismisses it. `anchorBounds`/`containerBounds` come from
-// onGloballyPositioned on the search bar and the screen's root container; only the bar's bottom edge
-// is used. Appears and disappears instantly — no fade.
-@Composable fun BoxScope.FloatingSearchSuggestions(
-    anchorBounds: Rect?,
-    containerBounds: Rect?,
+// Body of the dedicated search page: recent searches (history = true, shown while the field is empty)
+// or title suggestions (shown while typing), as a scrollable list under the search bar. Long-pressing a
+// recent search asks before wiping the whole history. Fills whatever space the caller gives it.
+@Composable fun SearchSuggestionsContent(
     suggestions: List<String>,
-    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
     onFill: ((String) -> Unit)? = null,
     history: Boolean = false,
     onRemove: ((String) -> Unit)? = null,
     onClearAll: (() -> Unit)? = null,
-    onSelect: (String) -> Unit,
 ) {
     val c = LocalKikoColors.current
-    if (anchorBounds == null || containerBounds == null) return
-    // Long-pressing a recent search asks before wiping the whole history. Kept out of the panel's `if`
-    // below on purpose: the dialog takes focus from the search field, which empties `suggestions`.
     var confirmClearAll by remember { mutableStateOf(false) }
-    val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    val dismiss: () -> Unit = { focusManager.clearFocus(); keyboard?.hide(); onDismiss() }
-
-    val relTop = anchorBounds.top - containerBounds.top
-    val relBottom = anchorBounds.bottom - containerBounds.top
-    val remainingHeightPx = (containerBounds.height - relBottom).coerceAtLeast(0f)
-
-    // Scrim above the bar (taps there just dismiss)
-    if (suggestions.isNotEmpty() && relTop > 0f) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(with(density) { relTop.toDp() })
-                .pointerInput(Unit) { detectTapGestures { dismiss() } }
+    Column(modifier.verticalScroll(rememberScrollState())) {
+        SearchSuggestionsList(
+            suggestions,
+            onSelect = { picked -> focusManager.clearFocus(); keyboard?.hide(); onSelect(picked) },
+            onFill = onFill,
+            history = history,
+            onRemove = onRemove,
+            onLongPress = if (history && onClearAll != null) { { confirmClearAll = true } } else null,
         )
-    }
-    // Plain `if`, not AnimatedVisibility: the panel just pops in and out with no fade.
-    if (suggestions.isNotEmpty()) {
-        Box(
-            Modifier
-                .offset { IntOffset(0, relBottom.roundToInt()) }
-                .fillMaxWidth()
-                .height(with(density) { remainingHeightPx.toDp() })
-                .background(c.background)
-                .pointerInput(Unit) { detectTapGestures { dismiss() } },
-        ) {
-            Column(Modifier.fillMaxWidth()) {
-                SearchSuggestionsList(
-                    suggestions,
-                    onSelect = { picked -> dismiss(); onSelect(picked) },
-                    onFill = onFill,
-                    history = history,
-                    onRemove = onRemove,
-                    onLongPress = if (history && onClearAll != null) { { confirmClearAll = true } } else null,
-                )
-            }
-        }
     }
     if (confirmClearAll && onClearAll != null) {
         AlertDialog(
@@ -773,16 +784,18 @@ fun statusColor(label: String): Color = when {
 }
 // Outline style genre chip
 
-@Composable fun GenreChip(text: String, onClick: (() -> Unit)? = null) {
+@Composable fun GenreChip(text: String, onClick: (() -> Unit)? = null, selected: Boolean = false) {
     val c = LocalKikoColors.current
+    val shape = RoundedCornerShape(kikoCorner(10.dp))
     Box(
         Modifier
-            .clip(RoundedCornerShape(kikoCorner(10.dp)))
-            .border(1.dp, c.outlineVariant, RoundedCornerShape(kikoCorner(10.dp)))
+            .clip(shape)
+            .background(if (selected) c.secondaryContainer else Color.Transparent)
+            .border(1.dp, if (selected) c.secondaryContainer else c.outlineVariant, shape)
             .let { if (onClick != null) it.kikoClickable(onClick = onClick) else it }
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
-        Text(text, color = c.ink, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+        Text(text, color = if (selected) c.onSecondaryContainer else c.ink, fontWeight = FontWeight.Medium, fontSize = 12.sp)
     }
 }
 

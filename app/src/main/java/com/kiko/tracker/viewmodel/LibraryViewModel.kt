@@ -195,26 +195,16 @@ class LibraryViewModel : ViewModel() {
     var discoverBrowseScrollIndex by mutableStateOf(0); private set
     var discoverBrowseScrollOffset by mutableStateOf(0); private set
     fun saveDiscoverBrowseScroll(index: Int, offset: Int) { discoverBrowseScrollIndex = index; discoverBrowseScrollOffset = offset }
-    // Bumped by BottomBar on
-    // Discover landing page. DiscoverResultsScreen
-    // keyboard on its search
-    // two triggers in a
-    // both register as distinct
-    //
-    // discoverSearchFocusConsumedTick tracks the last
-    // acted on. This lives
-    // itself gets torn down
-    // back — a plain
-    // tick and re-fire on
-    // returning to an in-progress
-    // ViewModel level means it
-    // matter how many times
-    var discoverSearchFocusTick by mutableStateOf(0); private set
-    var discoverSearchFocusConsumedTick by mutableStateOf(0); private set
-    fun requestDiscoverSearchFocus() { discoverSearchFocusTick++ }
-    fun consumeDiscoverSearchFocus() { discoverSearchFocusConsumedTick = discoverSearchFocusTick }
-    // Same tick/consumed-tick shape as discoverSearchFocusTick above, but
-    // for jumping straight into the Advanced filters sheet with its Genre
+    // Dedicated search page (Play Store style). It is an overlay on top of whatever Discover is already
+    // showing - the landing page (Browse) or a results page (Results) - rather than a mode of its own,
+    // so closing it always lands you back exactly where you were: on the results if there were any,
+    // otherwise on the landing page.
+    var discoverSearchPageOpen by mutableStateOf(false); private set
+    // Text the search page starts with: the current query when it's opened from a results page,
+    // blank when it's opened from the landing page.
+    var discoverSearchDraft by mutableStateOf(""); private set
+    fun closeDiscoverSearchPage() { discoverSearchPageOpen = false }
+    // Tick/consumed-tick pair for jumping straight into the Advanced filters sheet with its Genre
     // section pre-expanded — used by Home's "Top Genres" -> "Discover"
     // link, which wants Search & Discover open on the filter sheet rather
     // than a blank results list.
@@ -222,17 +212,11 @@ class LibraryViewModel : ViewModel() {
     var discoverFilterSheetConsumedTick by mutableStateOf(0); private set
     fun requestDiscoverFilterSheet() { discoverFilterSheetTick++ }
     fun consumeDiscoverFilterSheet() { discoverFilterSheetConsumedTick = discoverFilterSheetTick }
-    // Jumps to the search-results
-    // the Discover landing page,
-    // starts a new blank
-    // Browse landing page, where
-    // scratch). If a search
-    // an in-progress search from
-    // alone and just re-requests
-    // typing", not "start over".
-    fun openDiscoverSearch(context: Context) {
-        if (discoverMode == DiscoverMode.Browse) runDiscoverSearch(context, "", discoverTypeFilter)
-        requestDiscoverSearchFocus()
+    // Opens the search page (recent searches while the field is empty, title suggestions once you type).
+    // [prefill] overrides the starting text; by default it's the query of the results currently shown.
+    fun openDiscoverSearch(context: Context, prefill: String? = null) {
+        discoverSearchDraft = prefill ?: if (discoverMode == DiscoverMode.Results) discoverQuery else ""
+        discoverSearchPageOpen = true
     }
     // Clubs tab state —
     // Discover results above: query,
@@ -964,6 +948,8 @@ class LibraryViewModel : ViewModel() {
     var discoverResults by mutableStateOf<List<MediaItem>>(emptyList()); private set
     var discoverFilters by mutableStateOf(DiscoverFilters()); private set
     var discoverSort by mutableStateOf(DiscoverSort.Relevance); private set
+    // Sort lives in the Advanced filters sheet: the sheet sets it, then re-runs the search itself.
+    fun updateDiscoverSort(sort: DiscoverSort) { discoverSort = sort }
     // MalGenreFiltered results are paginated
     // search — whatever's already
     // been scrolled to so
@@ -1975,10 +1961,13 @@ class LibraryViewModel : ViewModel() {
     }
     // Return to browse view
     fun exitDiscoverSearch() {
+        discoverSearchPageOpen = false
         discoverSort = DiscoverSort.Relevance
         discoverSearchJob?.cancel()
         discoverLoadMoreJob?.cancel()
         discoverSuggestJob?.cancel(); discoverSuggestions = emptyList()
+        // A fresh search always starts on Anime again, instead of remembering the last type used.
+        discoverTypeFilter = "Anime"
         discoverMode = DiscoverMode.Browse; discoverQuery = ""; discoverResults = emptyList(); discoverFilters = DiscoverFilters(); discoverError = null
         discoverHasMore = false; discoverLoadingMore = false; discoverPaginationSource = DiscoverPaginationSource.None
         discoverGenreKind = null; discoverGenreIds = emptyList()

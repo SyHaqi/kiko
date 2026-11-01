@@ -10,6 +10,7 @@ import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
@@ -20,6 +21,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.FlowRow
@@ -53,10 +55,12 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -74,6 +78,7 @@ import com.kiko.tracker.data.model.CommonThemes
 import com.kiko.tracker.data.model.CompanySummary
 import com.kiko.tracker.data.model.DiscoverFilters
 import com.kiko.tracker.data.model.DiscoverMode
+import com.kiko.tracker.data.model.DiscoverSort
 import com.kiko.tracker.data.model.ListViewMode
 import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.MediaItem
@@ -102,7 +107,9 @@ import com.kiko.tracker.ui.components.AppHeader
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.Cover
-import com.kiko.tracker.ui.components.FloatingSearchSuggestions
+import com.kiko.tracker.ui.components.GenreChip
+import com.kiko.tracker.ui.components.SearchResultsTopBar
+import com.kiko.tracker.ui.components.SearchSuggestionsContent
 import com.kiko.tracker.ui.components.Pill
 import com.kiko.tracker.ui.components.SearchField
 import com.kiko.tracker.ui.components.SearchTopBar
@@ -144,13 +151,30 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // you'd already opened "You
     // loadDiscoverBrowse() so both rows
     LaunchedEffect(vm.signedIn) { vm.loadDiscoverBrowse(context); vm.loadHomeExtras(context) }
+    // The search page is an overlay on top of Browse/Results (see LibraryViewModel.openDiscoverSearch), so
+    // backing out of it lands on whichever of the two was underneath: the results if there were any,
+    // otherwise the landing page.
+    val shownMode = if (vm.discoverSearchPageOpen) DiscoverMode.Search else vm.discoverMode
+    // Leaving Discover (another tab) must not leave a stale search page waiting for the next visit.
+    DisposableEffect(Unit) { onDispose { vm.closeDiscoverSearchPage() } }
     AnimatedContent(
-        vm.discoverMode,
-        transitionSpec = { if (targetState == DiscoverMode.Results) PushEnter togetherWith PushExit else PopEnter togetherWith PopExit },
+        shownMode,
+        transitionSpec = {
+            when {
+                // To / from the search page: quick cross-fade, like the Play Store's.
+                targetState == DiscoverMode.Search || initialState == DiscoverMode.Search ->
+                    androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(120)) togetherWith androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(90))
+                targetState == DiscoverMode.Results -> PushEnter togetherWith PushExit
+                else -> PopEnter togetherWith PopExit
+            }
+        },
         label = "discover-mode",
     ) { mode ->
-        if (mode == DiscoverMode.Results) DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults, onEdit, selectedItem, onOpenCharacter, onOpenPerson, onOpenCompany, onOpenUser)
-        else DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeeRanking, onSeasonal, onStacks, onRecommendations, onSchedule, onEdit, selectedItem)
+        when (mode) {
+            DiscoverMode.Search -> DiscoverSearchScreen(vm, context)
+            DiscoverMode.Results -> DiscoverResultsScreen(vm, context, onOpenDetail, onExitResults, onEdit, selectedItem, onOpenCharacter, onOpenPerson, onOpenCompany, onOpenUser)
+            else -> DiscoverBrowseScreen(vm, context, onOpenDetail, onRanking, onSeeRanking, onSeasonal, onStacks, onRecommendations, onSchedule, onEdit, selectedItem)
+        }
     }
 }
 // Discover landing page
@@ -175,6 +199,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val myListStatus = remember(vm.items) { vm.items.mapNotNull { li -> li.id.toIntOrNull()?.let { (it to li.type) to li.status } }.toMap() }
     // Restore scroll position on
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = vm.discoverBrowseScrollIndex, initialFirstVisibleItemScrollOffset = vm.discoverBrowseScrollOffset)
+    // Remember where the landing page was scrolled to whenever it leaves composition (opening the search
+    // page, results or an item), so backing out of any of them puts you back in the same spot.
+    DisposableEffect(Unit) { onDispose { vm.saveDiscoverBrowseScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) } }
     val trackedOpenDetail: (MediaItem) -> Unit = remember(onOpenDetail) {
         { item -> vm.saveDiscoverBrowseScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onOpenDetail(item) }
     }
@@ -391,9 +418,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 @Composable fun DiscoverResultsScreen(vm: LibraryViewModel, context: Context, onOpenDetail: (MediaItem) -> Unit, onExitResults: () -> Unit = vm::exitDiscoverSearch, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null, onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {}, onOpenUser: (String, String?) -> Unit = { _, _ -> }) {
     val c = LocalKikoColors.current
-    var query by remember { mutableStateOf(vm.discoverQuery) }
-    var searchFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { vm.loadSearchHistory(context) }
     var filterSheetOpen by remember { mutableStateOf(false) }
     var userFilterSheetOpen by remember { mutableStateOf(false) }
     // Genre section only pre-expands the first time the sheet is opened
@@ -462,30 +486,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         else -> vm.discoverSearching
     }
     LaunchedEffect(searchingNow) { if (searchingNow) listState.scrollToItem(0) }
-    // Bounds (in root coordinates)
-    // the suggestions list directly
-    var containerBounds by remember { mutableStateOf<Rect?>(null) }
-    var searchBarBounds by remember { mutableStateOf<Rect?>(null) }
-    var typeRowBounds by remember { mutableStateOf<Rect?>(null) }
-    // Bumped by the search
-    // Discover bottom-nav tab) via
-    // and pop the keyboard
-    // there untouched — a
-    // against the ViewModel's own
-    // discoverSearchFocusConsumedTick) instead of just
-    // screen gets torn down
-    // would have no memory
-    // re-fire (and pop the
-    // that never asked for
-    val searchFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
-    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    LaunchedEffect(vm.discoverSearchFocusTick) {
-        if (vm.discoverSearchFocusTick > vm.discoverSearchFocusConsumedTick) {
-            searchFocusRequester.requestFocus()
-            keyboardController?.show()
-            vm.consumeDiscoverSearchFocus()
-        }
-    }
     // Load the next page
     // currently loaded (not a
     // a fling is still
@@ -505,43 +505,51 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             if (vm.discoverTypeFilter == "Users") vm.loadMoreUserSearch() else vm.loadMoreDiscoverSearch(context)
         }
     }
-    Box(Modifier.fillMaxSize().onGloballyPositioned { containerBounds = it.boundsInRoot() }) {
+    // Tapping the query (or its clear button) opens the dedicated search page; the results below stay put
+    // until a new search is submitted there, so backing out of it returns to exactly this list.
+    val openSearchPage: (String?) -> Unit = { prefill ->
+        vm.saveDiscoverScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+        vm.openDiscoverSearch(context, prefill)
+    }
+    Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            SearchTopBar(
-                value = query,
-                onValueChange = { query = it; if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") vm.fetchDiscoverSuggestions(context, it, vm.discoverTypeFilter) else vm.clearDiscoverSuggestions() },
+            SearchResultsTopBar(
+                query = vm.discoverQuery,
                 hint = "Search ${vm.discoverTypeFilter}",
-                onSearch = { vm.clearDiscoverSuggestions(); vm.addSearchHistory(context, vm.discoverTypeFilter, query); vm.selectDiscoverType(context, vm.discoverTypeFilter, query) },
-                onFocusChange = { searchFocused = it },
                 onBack = onExitResults,
-                focusRequester = searchFocusRequester,
-                modifier = Modifier.onGloballyPositioned { searchBarBounds = it.boundsInRoot() },
+                onOpenSearch = { openSearchPage(null) },
+                onClear = { openSearchPage("") },
             ) {
                 // Advanced filters (format/genre/year/score) only apply to Anime/Manga; Users have
                 // their own sheet (location/age/gender). Characters/People/Companies have none.
                 if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
-                    SearchBarFilterButton(active = vm.discoverFilters.isActive(), onClick = { filterSheetOpen = true; vm.prewarmGenreLookup() })
+                    SearchBarFilterButton(active = vm.discoverFilters.isActive() || vm.discoverSort != DiscoverSort.Relevance, onClick = { filterSheetOpen = true; vm.prewarmGenreLookup() })
                 }
                 if (vm.discoverTypeFilter == "Users") {
                     SearchBarFilterButton(active = vm.userFilters.isActive(), onClick = { userFilterSheetOpen = true })
                 }
             }
             // Fixes type/format mismatch
-            if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false; forceExpandGenre = false }, onApply = { filterSheetOpen = false; forceExpandGenre = false; vm.runDiscoverSearch(context, query, resolvedDiscoverType(it.format, vm.discoverTypeFilter), it) }, forceExpandGenre = forceExpandGenre)
-            if (userFilterSheetOpen) UserAdvancedFilterSheet(vm.userFilters, onDismiss = { userFilterSheetOpen = false }, onApply = { userFilterSheetOpen = false; vm.runUserSearch(query, it) })
+            if (filterSheetOpen) AdvancedFilterSheet(vm.discoverFilters, sortCurrent = vm.discoverSort, type = vm.discoverTypeFilter, onDismiss = { filterSheetOpen = false; forceExpandGenre = false }, onApply = { filters, sort -> filterSheetOpen = false; forceExpandGenre = false; vm.updateDiscoverSort(sort); vm.runDiscoverSearch(context, vm.discoverQuery, resolvedDiscoverType(filters.format, vm.discoverTypeFilter), filters) }, forceExpandGenre = forceExpandGenre)
+            if (userFilterSheetOpen) UserAdvancedFilterSheet(vm.userFilters, onDismiss = { userFilterSheetOpen = false }, onApply = { userFilterSheetOpen = false; vm.runUserSearch(vm.discoverQuery, it) })
             val gridRows = remember(vm.visibleDiscoverResults, isGrid) { if (isGrid) vm.visibleDiscoverResults.chunked(3) else emptyList() }
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
-                // Type dropdown + sort scroll away with the results. Its bounds are tracked so the
-                // floating suggestions can start below it while it's on screen.
+                // Type pills scroll away with the results. (Sort lives in the Advanced filters sheet.)
+                // The list pads its content 14dp on each side; the row bleeds out through that padding so the
+                // pills run to the screen edges when they overflow, and its own 14dp inner padding keeps the first
+                // pill lined up with the results below.
                 item {
-                    Row(Modifier.fillMaxWidth().padding(top = 2.dp).heightIn(min = 48.dp).onGloballyPositioned { typeRowBounds = it.boundsInRoot() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        DiscoverTypeDropdown(current = vm.discoverTypeFilter, onSelect = { picked -> vm.selectDiscoverType(context, picked, query) })
-                        if (vm.discoverTypeFilter == "Anime" || vm.discoverTypeFilter == "Manga") {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                DiscoverSortMenu(current = vm.discoverSort, onSelect = { vm.selectDiscoverSort(context, it) })
-                            }
-                        }
-                    }
+                    DiscoverTypePills(
+                        current = vm.discoverTypeFilter,
+                        onSelect = { picked -> vm.selectDiscoverType(context, picked, vm.discoverQuery) },
+                        modifier = Modifier
+                            .layout { measurable, constraints ->
+                                val bleed = 14.dp.roundToPx()
+                                val w = constraints.maxWidth + bleed * 2
+                                val placeable = measurable.measure(constraints.copy(minWidth = w, maxWidth = w))
+                                layout(constraints.maxWidth, placeable.height) { placeable.place(-bleed, 0) }
+                            },
+                    )
                 }
                 item {
                     when (vm.discoverTypeFilter) {
@@ -743,29 +751,105 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             onClick = { scope.launch { listState.animateScrollToItem(0) } },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
-        // Floating title suggestions as
-        // run that search; tapping
-        FloatingSearchSuggestions(
-            // Suggestions start below the bar's divider line, and below the type/sort row while that row is
-            // visible (item 0 of the list), so neither is covered.
-            anchorBounds = searchBarBounds?.let { b ->
-                val dividerPx = with(androidx.compose.ui.platform.LocalDensity.current) { 1.dp.toPx() }
-                val rowBottom = if (listState.firstVisibleItemIndex == 0) typeRowBounds?.bottom ?: 0f else 0f
-                Rect(b.left, b.top, b.right, maxOf(b.bottom + dividerPx, rowBottom))
-            },
-            containerBounds = containerBounds,
-            suggestions = if (query.isNotBlank()) vm.discoverSuggestions else if (searchFocused) vm.searchHistoryFor(vm.discoverTypeFilter) else emptyList(),
-            history = query.isBlank(),
-            onRemove = { vm.removeSearchHistory(context, vm.discoverTypeFilter, it) },
-            onClearAll = { vm.clearSearchHistory(context, vm.discoverTypeFilter) },
-            onDismiss = vm::clearDiscoverSuggestions,
-            // Arrow on a suggestion: copy it into the field and refine from there (suggestions refresh).
-            onFill = { picked -> query = picked; vm.fetchDiscoverSuggestions(context, picked, vm.discoverTypeFilter) },
-        ) { picked ->
-            query = picked
-            vm.addSearchHistory(context, vm.discoverTypeFilter, picked)
-            vm.selectDiscoverType(context, vm.discoverTypeFilter, picked)
+    }
+}
+// Dedicated search page, Play Store style: the search bar, a row of type pills (Anime / Manga / ...) and a
+// list under them. The pills only pick what you're about to search for - the page keeps its own copy of the
+// type, so browsing them never disturbs the results underneath unless you actually submit. While the field
+// is empty the list is the recent searches for the selected type; as soon as something is typed it's title
+// suggestions only. Submitting (keyboard search key, or tapping a row) goes to the results page. Backing
+// out returns to whatever was underneath - the results you came from, or the Discover landing page.
+@Composable fun DiscoverSearchScreen(vm: LibraryViewModel, context: Context) {
+    val c = LocalKikoColors.current
+    var type by remember { mutableStateOf(vm.discoverTypeFilter) }
+    var query by remember { mutableStateOf(vm.discoverSearchDraft) }
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(Unit) {
+        vm.loadSearchHistory(context)
+        vm.clearDiscoverSuggestions()
+        if (query.isNotBlank()) vm.fetchDiscoverSuggestions(context, query, type)
+        focusRequester.requestFocus()
+        keyboard?.show()
+    }
+    DisposableEffect(Unit) { onDispose { vm.clearDiscoverSuggestions() } }
+    BackHandler { vm.closeDiscoverSearchPage() }
+    val submit: (String) -> Unit = { text ->
+        val q = text.trim()
+        focusManager.clearFocus(); keyboard?.hide()
+        if (q.isNotEmpty()) vm.addSearchHistory(context, type, q)
+        // Re-submitting the query (and type) that's already showing just goes back instead of re-running it.
+        if (!(vm.discoverMode == DiscoverMode.Results && q == vm.discoverQuery && type == vm.discoverTypeFilter)) vm.selectDiscoverType(context, type, q)
+        vm.closeDiscoverSearchPage()
+    }
+    // Advanced filters, same sheets as the results page. Applying one runs the search straight away with
+    // whatever is typed and the selected type, then lands on the results.
+    var filterSheetOpen by remember { mutableStateOf(false) }
+    var userFilterSheetOpen by remember { mutableStateOf(false) }
+    val typing = query.isNotBlank()
+    Column(Modifier.fillMaxSize().background(c.background)) {
+        SearchTopBar(
+            value = query,
+            onValueChange = { query = it; vm.fetchDiscoverSuggestions(context, it, type) },
+            hint = "Search $type",
+            onSearch = { submit(query) },
+            onBack = vm::closeDiscoverSearchPage,
+            focusRequester = focusRequester,
+            // Clearing keeps the keyboard up so you can keep typing.
+            onClear = { query = ""; vm.clearDiscoverSuggestions(); focusRequester.requestFocus(); keyboard?.show() },
+            keepFocusOnClear = true,
+        ) {
+            // Filters only exist for Anime/Manga (format/genre/year/score) and Users (location/age/gender).
+            if (type == "Anime" || type == "Manga") {
+                SearchBarFilterButton(active = vm.discoverFilters.isActive() || vm.discoverSort != DiscoverSort.Relevance, onClick = { filterSheetOpen = true; vm.prewarmGenreLookup() })
+            }
+            if (type == "Users") {
+                SearchBarFilterButton(active = vm.userFilters.isActive(), onClick = { userFilterSheetOpen = true })
+            }
         }
+        // Type pills, same look as the genre pills on a detail page; the selected one is filled.
+        DiscoverTypePills(
+            current = type,
+            onSelect = { option ->
+                type = option
+                // Suggestions are per type: refetch for what's typed, or drop the old type's.
+                if (query.isNotBlank()) vm.fetchDiscoverSuggestions(context, query, option) else vm.clearDiscoverSuggestions()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        SearchSuggestionsContent(
+            suggestions = if (typing) vm.discoverSuggestions else vm.searchHistoryFor(type),
+            history = !typing,
+            onSelect = submit,
+            // Arrow on a suggestion: copy it into the field and refine from there.
+            onFill = { picked -> query = picked; vm.fetchDiscoverSuggestions(context, picked, type) },
+            onRemove = { vm.removeSearchHistory(context, type, it) },
+            onClearAll = { vm.clearSearchHistory(context, type) },
+            modifier = Modifier.weight(1f).fillMaxWidth().imePadding(),
+        )
+        val q = query.trim()
+        if (filterSheetOpen) AdvancedFilterSheet(
+            vm.discoverFilters, sortCurrent = vm.discoverSort, type = type,
+            onDismiss = { filterSheetOpen = false },
+            onApply = { filters, sort ->
+                filterSheetOpen = false
+                if (q.isNotEmpty()) vm.addSearchHistory(context, type, q)
+                vm.updateDiscoverSort(sort)
+                vm.runDiscoverSearch(context, q, resolvedDiscoverType(filters.format, type), filters)
+                vm.closeDiscoverSearchPage()
+            },
+        )
+        if (userFilterSheetOpen) UserAdvancedFilterSheet(
+            vm.userFilters,
+            onDismiss = { userFilterSheetOpen = false },
+            onApply = {
+                userFilterSheetOpen = false
+                if (q.isNotEmpty()) vm.addSearchHistory(context, type, q)
+                vm.runUserSearch(q, it)
+                vm.closeDiscoverSearchPage()
+            },
+        )
     }
 }
 // Filters button with indicator
@@ -808,7 +892,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 }
 // Discover advanced filters sheet
 
-@Composable fun AdvancedFilterSheet(current: DiscoverFilters, type: String, onDismiss: () -> Unit, onApply: (DiscoverFilters) -> Unit, forceExpandGenre: Boolean = false) {
+@Composable fun AdvancedFilterSheet(current: DiscoverFilters, sortCurrent: DiscoverSort, type: String, onDismiss: () -> Unit, onApply: (DiscoverFilters, DiscoverSort) -> Unit, forceExpandGenre: Boolean = false) {
     val c = LocalKikoColors.current
     // Split combined genre facets. MAL's detail-page chips mix genres, themes and demographics, and
     // tapping one arrives here as `current.genres` regardless of which kind it is (see onGenreClick in
@@ -828,6 +912,8 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     var rating by remember { mutableStateOf(current.rating) }
     var format by remember { mutableStateOf(current.format) }
     var airingStatus by remember { mutableStateOf(current.airingStatus) }
+    // Sort isn't part of DiscoverFilters; it starts from whatever the results are currently sorted by.
+    var sort by remember { mutableStateOf(sortCurrent) }
     val airingOptions = listOf("Ongoing", "Finished", "Upcoming")
     val formatOptions = when (type) { "Anime" -> CommonAnimeFormats; "Manga" -> CommonMangaFormats; else -> CommonAnimeFormats + CommonMangaFormats }
     // Opens half-screen (partially expanded);
@@ -838,80 +924,87 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // resize/glitch when the keyboard
     // imePadding() below pushes the
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow, contentWindowInsets = { WindowInsets(0, 0, 0, 0) }) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding().verticalScroll(rememberScrollState())) {
-            Text("Discover", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Advanced filters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 4.dp))
-
-            ExpandableFilterSection("Genre", CommonGenres, genres, onToggle = { g -> genres = if (g in genres) genres - g else genres + g }, initiallyExpanded = genres.isNotEmpty() || forceExpandGenre)
-            // Separate explicit genre section
-            ExpandableFilterSection("Explicit genre", CommonExplicitGenres, explicitGenres, onToggle = { g -> explicitGenres = if (g in explicitGenres) explicitGenres - g else explicitGenres + g })
-            // Separate themes section
-            ExpandableFilterSection("Themes", CommonThemes, themes, onToggle = { t -> themes = if (t in themes) themes - t else themes + t })
-            ExpandableFilterSection("Demographics", CommonDemographics, demographics, onToggle = { d -> demographics = if (d in demographics) demographics - d else demographics + d })
-
-            Text("Type", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                formatOptions.forEach { f -> FilterChip(selected = format == f, onClick = { format = if (format == f) "" else f }, label = { Text(f) }, colors = kikoFilterChipColors()) }
-            }
-
-            Text("Status", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                airingOptions.forEach { s -> FilterChip(selected = airingStatus == s, onClick = { airingStatus = if (airingStatus == s) "" else s }, label = { Text(s) }, colors = kikoFilterChipColors()) }
-            }
-
-            // Anime searches by studio,
-            // When type is ambiguous
-            val creatorLabel = when (type) { "Anime" -> "Studio"; "Manga" -> "Author"; else -> "Studio / Author" }
-            val creatorHint = when (type) { "Anime" -> "e.g. Madhouse"; "Manga" -> "e.g. Eiichiro Oda"; else -> "e.g. Madhouse or Eiichiro Oda" }
-            Text(creatorLabel, color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
-            OutlinedTextField(
-                value = creator, onValueChange = { creator = it }, placeholder = { Text(creatorHint, color = c.muted) }, singleLine = true,
-                shape = RoundedCornerShape(kikoCorner(14.dp)),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Text("Source", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
-            val sourceListState = rememberLazyListState()
-            val sourceScope = rememberCoroutineScope()
-            LazyRow(state = sourceListState, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                itemsIndexed(CommonSources) { index, s -> FilterChip(selected = source == s, onClick = { source = if (source == s) "" else s; sourceScope.centerChip(sourceListState, index) }, label = { Text(s) }, colors = kikoFilterChipColors()) }
-            }
-
-            Row(Modifier.fillMaxWidth().padding(top = 22.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text("Year", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(bottom = 9.dp))
-                    OutlinedTextField(
-                        value = year, onValueChange = { year = it.filter(Char::isDigit).take(4) }, placeholder = { Text("e.g. 2023", color = c.muted) }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(kikoCorner(14.dp)),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text("Season", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(bottom = 9.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        SeasonName.entries.forEach { s -> SeasonIconButton(selected = s == season, season = s) { season = if (season == s) null else s } }
-                    }
-                }
-            }
-
-            Text("Rating", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                CommonRatings.forEach { r -> FilterChip(selected = rating == r, onClick = { rating = if (rating == r) "" else r }, label = { Text(r, maxLines = 1) }, colors = kikoFilterChipColors()) }
-            }
-
-            Row(Modifier.fillMaxWidth().padding(top = 26.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding()) {
+            // Reset / Apply sit above the title, outside the scrolling body, so they're always in reach.
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 TextButton(
-                    onClick = { genres = emptySet(); explicitGenres = emptySet(); themes = emptySet(); demographics = emptySet(); creator = ""; source = ""; year = ""; season = null; rating = ""; format = ""; airingStatus = "" },
+                    onClick = { genres = emptySet(); explicitGenres = emptySet(); themes = emptySet(); demographics = emptySet(); creator = ""; source = ""; year = ""; season = null; rating = ""; format = ""; airingStatus = ""; sort = DiscoverSort.Relevance },
                     modifier = Modifier.weight(1f),
                 ) { Text("Reset", color = c.muted, fontWeight = FontWeight.Bold) }
                 Button(
-                    onClick = { onApply(DiscoverFilters(genres + explicitGenres, themes, demographics, creator.trim(), source, year, season, rating, format, airingStatus)) },
+                    onClick = { onApply(DiscoverFilters(genres + explicitGenres, themes, demographics, creator.trim(), source, year, season, rating, format, airingStatus), sort) },
                     colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
                     modifier = Modifier.weight(2f),
                 ) { Text("Apply filters", fontWeight = FontWeight.Bold) }
+            }
+            Text("Discover", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text("Advanced filters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 4.dp))
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                // Sort: always visible (no dropdown), single choice, Relevance by default.
+                Text("Sort", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp, bottom = 9.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DiscoverSort.entries.forEach { o -> FilterChip(selected = sort == o, onClick = { sort = o }, label = { Text(o.label) }, colors = kikoFilterChipColors()) }
+                }
+
+                ExpandableFilterSection("Genre", CommonGenres, genres, onToggle = { g -> genres = if (g in genres) genres - g else genres + g }, initiallyExpanded = genres.isNotEmpty() || forceExpandGenre)
+                // Separate explicit genre section
+                ExpandableFilterSection("Explicit genre", CommonExplicitGenres, explicitGenres, onToggle = { g -> explicitGenres = if (g in explicitGenres) explicitGenres - g else explicitGenres + g })
+                // Separate themes section
+                ExpandableFilterSection("Themes", CommonThemes, themes, onToggle = { t -> themes = if (t in themes) themes - t else themes + t })
+                ExpandableFilterSection("Demographics", CommonDemographics, demographics, onToggle = { d -> demographics = if (d in demographics) demographics - d else demographics + d })
+
+                Text("Type", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    formatOptions.forEach { f -> FilterChip(selected = format == f, onClick = { format = if (format == f) "" else f }, label = { Text(f) }, colors = kikoFilterChipColors()) }
+                }
+
+                Text("Status", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    airingOptions.forEach { s -> FilterChip(selected = airingStatus == s, onClick = { airingStatus = if (airingStatus == s) "" else s }, label = { Text(s) }, colors = kikoFilterChipColors()) }
+                }
+
+                // Anime searches by studio,
+                // When type is ambiguous
+                val creatorLabel = when (type) { "Anime" -> "Studio"; "Manga" -> "Author"; else -> "Studio / Author" }
+                val creatorHint = when (type) { "Anime" -> "e.g. Madhouse"; "Manga" -> "e.g. Eiichiro Oda"; else -> "e.g. Madhouse or Eiichiro Oda" }
+                Text(creatorLabel, color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+                OutlinedTextField(
+                    value = creator, onValueChange = { creator = it }, placeholder = { Text(creatorHint, color = c.muted) }, singleLine = true,
+                    shape = RoundedCornerShape(kikoCorner(14.dp)),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Text("Source", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+                val sourceListState = rememberLazyListState()
+                val sourceScope = rememberCoroutineScope()
+                LazyRow(state = sourceListState, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    itemsIndexed(CommonSources) { index, s -> FilterChip(selected = source == s, onClick = { source = if (source == s) "" else s; sourceScope.centerChip(sourceListState, index) }, label = { Text(s) }, colors = kikoFilterChipColors()) }
+                }
+
+                Row(Modifier.fillMaxWidth().padding(top = 22.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Year", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(bottom = 9.dp))
+                        OutlinedTextField(
+                            value = year, onValueChange = { year = it.filter(Char::isDigit).take(4) }, placeholder = { Text("e.g. 2023", color = c.muted) }, singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            shape = RoundedCornerShape(kikoCorner(14.dp)),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text("Season", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(bottom = 9.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            SeasonName.entries.forEach { s -> SeasonIconButton(selected = s == season, season = s) { season = if (season == s) null else s } }
+                        }
+                    }
+                }
+
+                Text("Rating", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CommonRatings.forEach { r -> FilterChip(selected = rating == r, onClick = { rating = if (rating == r) "" else r }, label = { Text(r, maxLines = 1) }, colors = kikoFilterChipColors()) }
+                }
             }
         }
     }
@@ -1068,28 +1161,25 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // rather than a fixed
 // their own search entirely
 // FilterChips side by side
-@Composable fun DiscoverTypeDropdown(current: String, onSelect: (String) -> Unit) {
-    val c = LocalKikoColors.current
-    var expanded by remember { mutableStateOf(false) }
-    val options = listOf("Anime", "Manga", "Characters", "Companies", "People", "Users")
-    Box {
-        // Sized to match the sort button beside it (30dp tall, 12sp label, 16dp icon).
-        FilterChip(
-            modifier = Modifier.height(30.dp),
-            selected = true,
-            onClick = { expanded = true },
-            label = { Text(current, fontSize = 12.sp) },
-            trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, null, modifier = Modifier.size(16.dp)) },
-            colors = kikoFilterChipColors(),
-        )
-        KikoDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = RoundedCornerShape(kikoCorner(16.dp)), containerColor = c.surfaceContainer) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option, color = c.ink) },
-                    onClick = { expanded = false; onSelect(option) },
-                    trailingIcon = if (option == current) { { Icon(Icons.Rounded.Check, null, tint = c.primary, modifier = Modifier.size(18.dp)) } } else null,
-                )
-            }
+// Slot the type pills live in, shared by the search page and the results page (see DiscoverTypePills).
+private val DiscoverTypePillsHeight = 50.dp
+private val DiscoverTypePillsInset = 14.dp // = the results list's own side padding, so pills line up with the cards
+
+// Everything Discover can search, in display order.
+private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies", "People", "Users")
+
+// Type switcher shared by the search page and the results page: one genre-style pill per searchable type,
+// the current one filled in. Scrolls sideways when they don't all fit. The row has a fixed height with the
+// pills centred in it, so the search page and the results page place them at exactly the same spot - callers
+// must not add vertical padding of their own, or the row visibly jumps when switching between the two.
+@Composable fun DiscoverTypePills(current: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier, horizontalPadding: Dp = DiscoverTypePillsInset) {
+    Row(
+        modifier.height(DiscoverTypePillsHeight).horizontalScroll(rememberScrollState()).padding(horizontal = horizontalPadding),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DISCOVER_TYPES.forEach { option ->
+            GenreChip(option, selected = option == current, onClick = { if (option != current) onSelect(option) })
         }
     }
 }
@@ -1237,64 +1327,74 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     var ageHigh by remember { mutableStateOf(current.ageHigh?.toString() ?: "") }
     var gender by remember { mutableStateOf(current.gender) }
     val genderOptions = listOf("", "Male", "Female", "Non-Binary")
+    // Same text-box look as the Anime/Manga sheet (rounded, primary outline when focused, surface fill).
+    val fieldShape = RoundedCornerShape(kikoCorner(14.dp))
+    val fieldColors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink)
     val sheetState = rememberModalBottomSheetState()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow, contentWindowInsets = { WindowInsets(0, 0, 0, 0) }) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding().verticalScroll(rememberScrollState())) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding()) {
+            // Reset / Apply sit above the title, outside the scrolling body, so they're always in reach.
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                TextButton(
+                    onClick = { location = ""; ageLow = ""; ageHigh = ""; gender = "" },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Reset", color = c.muted, fontWeight = FontWeight.Bold) }
+                Button(
+                    onClick = { onApply(UserSearchFilters(location = location.trim(), ageLow = ageLow.toIntOrNull(), ageHigh = ageHigh.toIntOrNull(), gender = gender)) },
+                    colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
+                    modifier = Modifier.weight(2f),
+                ) { Text("Apply filters", fontWeight = FontWeight.Bold) }
+            }
             Text("Users", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text("Advanced filters", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 4.dp))
 
-            Text("Location", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
-            OutlinedTextField(
-                value = location, onValueChange = { location = it },
-                placeholder = { Text("Ex: California") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Text("Age", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                Text("Location", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
                 OutlinedTextField(
-                    value = ageLow, onValueChange = { ageLow = it.filter(Char::isDigit) },
-                    placeholder = { Text("Min") },
+                    value = location, onValueChange = { location = it },
+                    placeholder = { Text("e.g. California", color = c.muted) },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
+                    shape = fieldShape, colors = fieldColors,
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                Text("to", color = c.muted, fontSize = 13.sp)
-                OutlinedTextField(
-                    value = ageHigh, onValueChange = { ageHigh = it.filter(Char::isDigit) },
-                    placeholder = { Text("Max") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
-            }
 
-            Text("Gender", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                genderOptions.forEach { option ->
-                    FilterChip(
-                        selected = gender == option,
-                        onClick = { gender = option },
-                        label = { Text(option.ifBlank { "Don't care" }) },
-                        colors = kikoFilterChipColors(),
+                Text("Age", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = ageLow, onValueChange = { ageLow = it.filter(Char::isDigit).take(3) },
+                        placeholder = { Text("Min", color = c.muted) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = fieldShape, colors = fieldColors,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text("to", color = c.muted, fontSize = 13.sp)
+                    OutlinedTextField(
+                        value = ageHigh, onValueChange = { ageHigh = it.filter(Char::isDigit).take(3) },
+                        placeholder = { Text("Max", color = c.muted) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = fieldShape, colors = fieldColors,
+                        modifier = Modifier.weight(1f),
                     )
                 }
-            }
 
-            Row(Modifier.fillMaxWidth().padding(top = 26.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(
-                    onClick = { location = ""; ageLow = ""; ageHigh = ""; gender = "" },
-                    modifier = Modifier.weight(1f),
-                ) { Text("Reset") }
-                Button(
-                    onClick = { onApply(UserSearchFilters(location = location.trim(), ageLow = ageLow.toIntOrNull(), ageHigh = ageHigh.toIntOrNull(), gender = gender)) },
-                    modifier = Modifier.weight(1f),
-                ) { Text("Apply") }
+                Text("Gender", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    genderOptions.forEach { option ->
+                        FilterChip(
+                            selected = gender == option,
+                            onClick = { gender = option },
+                            label = { Text(option.ifBlank { "Don't care" }) },
+                            colors = kikoFilterChipColors(),
+                        )
+                    }
+                }
             }
         }
     }
 }
+
 
 fun episodeAndYear(item: MediaItem): String {
     val unit = if (item.type == MediaType.Anime) "ep" else "ch"
