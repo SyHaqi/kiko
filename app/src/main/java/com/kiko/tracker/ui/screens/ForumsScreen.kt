@@ -317,10 +317,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
             .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 6) vm.loadMoreForumTopics(context) }
     }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = vm::exitForumTopics, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back to Forums", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text(headerTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
-        }
+        KikoTopBar(title = headerTitle, onBack = vm::exitForumTopics, progress = { 1f }, backDescription = "Back to Forums")
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
@@ -668,12 +665,9 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     // behaviour). Only the reply bar takes imePadding(), and the list rides up with it (see the
     // ime effect above), like a messaging app.
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = goBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = { context.openInBrowser("https://myanimelist.net/forum/?topicid=$topicId") }, modifier = Modifier.headerEdgeEnd()) {
-                Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(24.dp))
-            }
+        val titleProgress = rememberTitleProgress(listState)
+        KikoTopBar(title = title, onBack = goBack, progress = { titleProgress.value }) {
+            IconButton(onClick = { context.openInBrowser("https://myanimelist.net/forum/?topicid=$topicId") }) { Icon(Icons.Default.OpenInNew, "Open in browser") }
         }
         Box(Modifier.weight(1f)) {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {

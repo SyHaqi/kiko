@@ -192,8 +192,9 @@ private const val CompanyPageSize = 9
     }
     val gridSeen = rememberStaggerMemory()
 
+    val titleProgress = rememberTitleProgress(listState)
     Column(Modifier.fillMaxSize()) {
-        DetailTopRow(title = company.name, shareUrl = "https://myanimelist.net/anime/producer/${company.malId}", favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite)
+        DetailTopRow(title = company.name, shareUrl = "https://myanimelist.net/anime/producer/${company.malId}", favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite, progress = { titleProgress.value })
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {

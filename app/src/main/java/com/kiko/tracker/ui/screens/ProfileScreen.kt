@@ -171,6 +171,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     }
     // Restore scroll position on
     val scrollState = rememberScrollState(initial = scrollOffset)
+    val titleProgress = rememberTitleProgress(scrollState, startOffset = 40.dp, fadeRange = 40.dp)
     KikoPullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         // No blanket horizontal padding here anymore — the hero panel inside
         // ProfileStatsSection now runs edge-to-edge (full-bleed, no card
@@ -178,22 +179,20 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
         // than another tile in a stack of cards. Everything below the hero
         // applies its own horizontal inset instead.
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = exitProfile, modifier = Modifier.headerEdgeStart(14.dp)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            KikoTopBar(title = profile?.name?.takeIf { it.isNotBlank() } ?: "Profile", onBack = exitProfile, progress = { titleProgress.value }) {
                 // "Profile" moved down to a small eyebrow label above the
                 // username in the avatar/name row below (ProfileStatsSection),
                 // matching DetailScreen's small-label-above-title pattern —
                 // so this row is now just the back button, spacer, and menu.
-                Spacer(Modifier.weight(1f))
                 // 3-dot overflow menu — replaces the separate "open in
                 // browser" button that used to live on the avatar card, and
                 // the standalone sign-out icon that used to sit here. Only
                 // shown once connected, since both items need a MAL session.
                 if (connected) {
                     var moreOpen by remember { mutableStateOf(false) }
-                    Box(Modifier.headerEdgeEnd(14.dp)) {
+                    Box {
                         IconButton(onClick = { moreOpen = true }) {
-                            Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Default.MoreVert, "More options")
                         }
                         KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
                             if (profile?.name?.isNotBlank() == true) {

@@ -119,12 +119,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
 
     if (!connected) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
-            Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                Text("Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart().weight(1f))
-            }
-            Column(Modifier.fillMaxWidth().padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxSize()) {
+            KikoTopBar(title = "Profile", onBack = onBack, progress = { 1f })
+            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.People, null, tint = c.muted, modifier = Modifier.size(48.dp))
                 Text("Connect your MAL account", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink, modifier = Modifier.padding(top = 16.dp))
                 Text(
@@ -154,44 +151,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     DisposableEffect(username) { onDispose { vm.saveFriendProfileScroll(username, scrollState.value) } }
     KikoPullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refreshFriendProfile(context, username) }, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart(20.dp)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                // "Profile" moved down to the small eyebrow label above the
-                // username in ProfileStatsSection's avatar/name row below —
-                // same change as Kiko's own Profile page — so this row is
-                // just the back button, spacer, and menu.
-                Spacer(Modifier.weight(1f))
-                // 3-dot overflow menu — mirrors Kiko's own Profile header,
-                // just with Share/"Open in browser" only (no sign out, since this
-                // isn't the signed-in user's account).
-                var moreOpen by remember { mutableStateOf(false) }
-                Box(Modifier.headerEdgeEnd(20.dp)) {
-                    IconButton(onClick = { moreOpen = true }) {
-                        Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
-                    }
-                    KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
-                        DropdownMenuItem(
-                            text = { Text("Share") },
-                            leadingIcon = { Icon(Icons.Default.Share, null) },
-                            onClick = {
-                                moreOpen = false
-                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, "https://myanimelist.net/profile/$username")
-                                }
-                                context.startActivity(Intent.createChooser(sendIntent, username))
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Open in browser") },
-                            leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                            onClick = {
-                                moreOpen = false
-                                context.openInBrowser("https://myanimelist.net/profile/$username")
-                            },
-                        )
-                    }
-                }
+            val titleProgress = rememberTitleProgress(scrollState, startOffset = 40.dp, fadeRange = 40.dp)
+            KikoTopBar(title = username, onBack = onBack, progress = { titleProgress.value }) {
+                ShareMoreMenu(title = username, shareUrl = "https://myanimelist.net/profile/$username")
             }
             Box(Modifier.weight(1f)) {
                 Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {

@@ -21,6 +21,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,8 +47,107 @@ data class DetailFact(val icon: ImageVector, val tint: Color, val text: String)
 fun countLabel(n: Int, singular: String, plural: String = singular + "s"): String = "$n ${if (n == 1) singular else plural}"
 
 /**
- * The back / favorite / ⋮ row of [DetailHeader] as its own composable, so a page can pin it above its scrolling
- * content (pass `showTopRow = false` to [DetailHeader] then).
+ * Shared pinned top bar for every sub-page: the same Material 3 small top app bar the anime/manga detail page
+ * uses. It sits on the page background, and [progress] (0..1) fades the title in once the page's own big title
+ * has scrolled out of view. Pass `{ 1f }` for pages that have no big title of their own (the title is then
+ * always shown). The screen host already applies the status-bar inset above this page, so none is added here.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun KikoTopBar(
+    title: String,
+    onBack: () -> Unit,
+    progress: () -> Float,
+    modifier: Modifier = Modifier,
+    backDescription: String = "Back",
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    val c = LocalKikoColors.current
+    val p = progress()
+    TopAppBar(
+        modifier = modifier,
+        windowInsets = WindowInsets(top = 0.dp),
+        title = {
+            Text(
+                title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, lineHeight = 24.sp, letterSpacing = 0.sp),
+            )
+        },
+        navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, backDescription) } },
+        actions = actions,
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = c.background,
+            scrolledContainerColor = c.background,
+            navigationIconContentColor = c.ink,
+            titleContentColor = c.ink.copy(alpha = p),
+            actionIconContentColor = c.ink,
+        ),
+    )
+}
+
+/**
+ * 0 while the page's big title is still on screen -> 1 once it has scrolled away, for a [KikoTopBar] over a
+ * LazyColumn whose first item holds the title. Read it inside the bar's `progress` lambda so scrolling only
+ * recomposes the bar, not the whole screen.
+ */
+@Composable
+fun rememberTitleProgress(listState: LazyListState, startOffset: Dp = 20.dp, fadeRange: Dp = 32.dp): State<Float> {
+    val density = LocalDensity.current
+    val startPx = with(density) { startOffset.toPx() }
+    val fadePx = with(density) { fadeRange.toPx() }
+    return remember(listState, startPx, fadePx) {
+        derivedStateOf {
+            if (listState.firstVisibleItemIndex > 0) 1f
+            else ((listState.firstVisibleItemScrollOffset - startPx) / fadePx).coerceIn(0f, 1f)
+        }
+    }
+}
+
+/** Same as above for a page that scrolls with a plain `verticalScroll(scrollState)` column. */
+@Composable
+fun rememberTitleProgress(scrollState: ScrollState, startOffset: Dp = 20.dp, fadeRange: Dp = 32.dp): State<Float> {
+    val density = LocalDensity.current
+    val startPx = with(density) { startOffset.toPx() }
+    val fadePx = with(density) { fadeRange.toPx() }
+    return remember(scrollState, startPx, fadePx) {
+        derivedStateOf { ((scrollState.value - startPx) / fadePx).coerceIn(0f, 1f) }
+    }
+}
+
+/** ⋮ button with Share + Open in browser, plus any [extraItems] (they get a `dismiss` callback). */
+@Composable
+fun ShareMoreMenu(title: String, shareUrl: String, extraItems: @Composable ColumnScope.(dismiss: () -> Unit) -> Unit = {}) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    var moreOpen by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { moreOpen = true }) { Icon(Icons.Default.MoreVert, "More options") }
+        KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
+            DropdownMenuItem(
+                text = { Text("Share") },
+                leadingIcon = { Icon(Icons.Default.Share, null) },
+                onClick = {
+                    moreOpen = false
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, shareUrl)
+                    }
+                    context.startActivity(Intent.createChooser(sendIntent, title))
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Open in browser") },
+                leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                onClick = { moreOpen = false; context.openInBrowser(shareUrl) },
+            )
+            extraItems { moreOpen = false }
+        }
+    }
+}
+
+/**
+ * The back / favorite / ⋮ bar of [DetailHeader] as its own composable, so a page can pin it above its scrolling
+ * content (pass `showTopRow = false` to [DetailHeader] then). [progress] fades the title in as in [KikoTopBar].
  */
 @Composable
 fun DetailTopRow(
@@ -54,37 +156,11 @@ fun DetailTopRow(
     favorited: Boolean,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
+    progress: () -> Float = { 0f },
 ) {
-    val c = LocalKikoColors.current
-    val context = LocalContext.current
-    var moreOpen by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-        Spacer(Modifier.weight(1f))
-        // Favorite sits right beside the 3-dot menu in the header row.
-        FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 48.dp, iconSize = 24.dp, background = Color.Transparent, modifier = Modifier.headerEdgeEnd())
-        Box(Modifier.headerEdgeEnd()) {
-            IconButton(onClick = { moreOpen = true }) { Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
-                DropdownMenuItem(
-                    text = { Text("Share") },
-                    leadingIcon = { Icon(Icons.Default.Share, null) },
-                    onClick = {
-                        moreOpen = false
-                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, shareUrl)
-                        }
-                        context.startActivity(Intent.createChooser(sendIntent, title))
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("Open in browser") },
-                    leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                    onClick = { moreOpen = false; context.openInBrowser(shareUrl) },
-                )
-            }
-        }
+    KikoTopBar(title = title, onBack = onBack, progress = progress) {
+        FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 48.dp, iconSize = 24.dp, background = Color.Transparent)
+        ShareMoreMenu(title = title, shareUrl = shareUrl)
     }
 }
 

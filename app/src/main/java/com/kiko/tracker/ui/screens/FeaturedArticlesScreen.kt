@@ -109,10 +109,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 5) vm.loadMoreFeaturedArticlesGrid() }
     }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Featured Articles", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
-        }
+        KikoTopBar(title = "Featured Articles", onBack = onBack, progress = { 1f })
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {
                 KikoPullToRefreshBox(isRefreshing = vm.featuredArticlesLoading && vm.featuredArticles.isNotEmpty(), onRefresh = { vm.loadFeaturedArticlesGrid(force = true) }, modifier = Modifier.fillMaxSize()) {
@@ -362,12 +359,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { scrollState.value > 800 } }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = { context.openInBrowser(url) }, modifier = Modifier.headerEdgeEnd()) {
-                Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(24.dp))
-            }
+        val titleProgress = rememberTitleProgress(scrollState)
+        KikoTopBar(title = content?.title?.ifBlank { title } ?: title, onBack = onBack, progress = { titleProgress.value }) {
+            IconButton(onClick = { context.openInBrowser(url) }) { Icon(Icons.Default.OpenInNew, "Open in browser") }
         }
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {

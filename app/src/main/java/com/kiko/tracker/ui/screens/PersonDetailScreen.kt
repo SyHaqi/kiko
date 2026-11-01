@@ -129,8 +129,9 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     // About section — a
     var aboutExpanded by remember(person.malId) { mutableStateOf(false) }
 
+    val titleProgress = rememberTitleProgress(listState)
     Column(Modifier.fillMaxSize()) {
-        DetailTopRow(title = person.name, shareUrl = "https://myanimelist.net/people/${person.malId}", favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite)
+        DetailTopRow(title = person.name, shareUrl = "https://myanimelist.net/people/${person.malId}", favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite, progress = { titleProgress.value })
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
