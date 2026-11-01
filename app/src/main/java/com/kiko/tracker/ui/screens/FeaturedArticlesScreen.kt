@@ -108,79 +108,83 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .distinctUntilChanged()
             .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 5) vm.loadMoreFeaturedArticlesGrid() }
     }
-    Box(Modifier.fillMaxSize()) {
-        KikoPullToRefreshBox(isRefreshing = vm.featuredArticlesLoading && vm.featuredArticles.isNotEmpty(), onRefresh = { vm.loadFeaturedArticlesGrid(force = true) }, modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
-            ) {
-                item(key = "header") {
-                    Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                        Text("Featured Articles", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
-                    }
-                    // Search bar + tag filter button, same row shape as
-                    // Search & Discover's own SearchField/FilterIconButton
-                    // pair — IntrinsicSize.Min so the tag button matches the
-                    // field's height exactly regardless of platform default.
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(top = 15.dp),
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text("Featured Articles", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
+        }
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                KikoPullToRefreshBox(isRefreshing = vm.featuredArticlesLoading && vm.featuredArticles.isNotEmpty(), onRefresh = { vm.loadFeaturedArticlesGrid(force = true) }, modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
                     ) {
-                        Box(Modifier.weight(1f)) {
-                            SearchField(
-                                value = searchQuery,
-                                change = { searchQuery = it },
-                                hint = "Search articles",
-                                onSearch = { vm.searchFeaturedArticles(searchQuery) },
-                                onClear = { searchQuery = ""; vm.searchFeaturedArticles("") },
-                                focusRequester = searchFocusRequester,
-                            )
+                        item(key = "header") {
+                            // Search bar + tag filter button, same row shape as
+                            // Search & Discover's own SearchField/FilterIconButton
+                            // pair — IntrinsicSize.Min so the tag button matches the
+                            // field's height exactly regardless of platform default.
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(top = 15.dp),
+                            ) {
+                                Box(Modifier.weight(1f)) {
+                                    SearchField(
+                                        value = searchQuery,
+                                        change = { searchQuery = it },
+                                        hint = "Search articles",
+                                        onSearch = { vm.searchFeaturedArticles(searchQuery) },
+                                        onClear = { searchQuery = ""; vm.searchFeaturedArticles("") },
+                                        focusRequester = searchFocusRequester,
+                                    )
+                                }
+                                if (vm.featuredTags.isNotEmpty()) {
+                                    FeaturedTagFilterButton(
+                                        selectedName = vm.featuredTags.firstOrNull { it.slug == vm.featuredArticlesTagSlug }?.name,
+                                        onClick = { tagSheetOpen = true },
+                                        modifier = Modifier.fillMaxHeight().padding(start = 10.dp),
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(18.dp))
+                            vm.featuredArticlesError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp)) }
                         }
-                        if (vm.featuredTags.isNotEmpty()) {
-                            FeaturedTagFilterButton(
-                                selectedName = vm.featuredTags.firstOrNull { it.slug == vm.featuredArticlesTagSlug }?.name,
-                                onClick = { tagSheetOpen = true },
-                                modifier = Modifier.fillMaxHeight().padding(start = 10.dp),
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(18.dp))
-                    vm.featuredArticlesError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp)) }
-                }
-                if (vm.featuredArticlesLoading && vm.featuredArticles.isEmpty()) {
-                    item { KikoSectionLoading() }
-                } else if (vm.featuredArticles.isEmpty() && vm.featuredArticlesError == null) {
-                    item(key = "empty") { Text("No articles found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-                } else {
-                    itemsIndexed(vm.featuredArticles, key = { _, it -> it.url }) { index, article ->
-                        StaggeredItem(index) {
-                            Column {
-                                FeaturedArticleListRow(article) { openArticle(article) }
-                                if (index < vm.featuredArticles.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                        if (vm.featuredArticlesLoading && vm.featuredArticles.isEmpty()) {
+                            item { KikoSectionLoading() }
+                        } else if (vm.featuredArticles.isEmpty() && vm.featuredArticlesError == null) {
+                            item(key = "empty") { Text("No articles found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                        } else {
+                            itemsIndexed(vm.featuredArticles, key = { _, it -> it.url }) { index, article ->
+                                StaggeredItem(index) {
+                                    Column {
+                                        FeaturedArticleListRow(article) { openArticle(article) }
+                                        if (index < vm.featuredArticles.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                                    }
+                                }
                             }
                         }
+                        if (vm.featuredArticlesLoadingMore) {
+                            item(key = "loading_more") { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 28.dp) } }
+                        }
                     }
                 }
-                if (vm.featuredArticlesLoadingMore) {
-                    item(key = "loading_more") { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 28.dp) } }
+                if (tagSheetOpen) {
+                    FeaturedTagFilterSheet(
+                        tags = vm.featuredTags,
+                        current = vm.featuredArticlesTagSlug,
+                        onDismiss = { tagSheetOpen = false },
+                        onApply = { picked -> tagSheetOpen = false; collapseSearchUi(); vm.selectFeaturedArticlesTag(picked) },
+                    )
                 }
+                GoToTopButton(
+                    visible = showGoToTop,
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+                )
             }
         }
-        if (tagSheetOpen) {
-            FeaturedTagFilterSheet(
-                tags = vm.featuredTags,
-                current = vm.featuredArticlesTagSlug,
-                onDismiss = { tagSheetOpen = false },
-                onApply = { picked -> tagSheetOpen = false; collapseSearchUi(); vm.selectFeaturedArticlesTag(picked) },
-            )
-        }
-        GoToTopButton(
-            visible = showGoToTop,
-            onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-        )
     }
 }
 
@@ -357,65 +361,69 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { scrollState.value > 800 } }
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
-            Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = { context.openInBrowser(url) }, modifier = Modifier.headerEdgeEnd()) {
-                    Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(24.dp))
-                }
-            }
-            Text(content?.title?.ifBlank { title } ?: title, style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 18.dp))
-            if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.primary)
-            error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
-            content?.let { data ->
-                if (data.author.isNotBlank() || data.date.isNotBlank() || data.views.isNotBlank()) {
-                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (data.author.isNotBlank()) Text("by ${data.author}", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                        if (data.date.isNotBlank()) Text(" · ${data.date}", color = c.muted, fontSize = 12.sp)
-                        if (data.views.isNotBlank()) {
-                            Row(Modifier.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Visibility, null, tint = c.muted, modifier = Modifier.size(12.dp))
-                                Text(" ${data.views}", color = c.muted, fontSize = 12.sp)
-                            }
-                        }
-                    }
-                }
-                if (data.tags.isNotEmpty()) {
-                    Row(Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                        data.tags.forEach { tag ->
-                            Box(Modifier.padding(end = 6.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 4.dp)) {
-                                Text(tag, color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                            }
-                        }
-                    }
-                }
-                // Official/social links (Facebook, X, Discord, Steam, official
-                // site, etc.) scraped out of the article body — same
-                // CompanyLinkChip pill row as Company/Detail's own "Links"
-                // section, so it looks identical here.
-                if (data.links.isNotEmpty()) {
-                    SectionTitle("Links", "", {})
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        data.links.forEach { (label, linkUrl) ->
-                            CompanyLinkChip(label, linkUrl, onClick = { runCatching { uriHandler.openUri(linkUrl) } })
-                        }
-                    }
-                }
-                Column(Modifier.fillMaxWidth().padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    data.blocks.forEach { block -> ArticleBlockView(block, c, onOpenProfileLink = onOpenProfileLink) { fullscreenImage = it } }
-                }
-                if (data.blocks.isEmpty() && !loading && error == null) {
-                    Text("Couldn't read this article's content — tap the browser icon above to view it on myanimelist.net.", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 20.dp))
-                }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = { context.openInBrowser(url) }, modifier = Modifier.headerEdgeEnd()) {
+                Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(24.dp))
             }
         }
-        GoToTopButton(
-            visible = showGoToTop,
-            onClick = { scope.launch { scrollState.animateScrollTo(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-        )
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+                    Text(content?.title?.ifBlank { title } ?: title, style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 18.dp))
+                    if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.primary)
+                    error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                    content?.let { data ->
+                        if (data.author.isNotBlank() || data.date.isNotBlank() || data.views.isNotBlank()) {
+                            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                if (data.author.isNotBlank()) Text("by ${data.author}", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                if (data.date.isNotBlank()) Text(" · ${data.date}", color = c.muted, fontSize = 12.sp)
+                                if (data.views.isNotBlank()) {
+                                    Row(Modifier.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Visibility, null, tint = c.muted, modifier = Modifier.size(12.dp))
+                                        Text(" ${data.views}", color = c.muted, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                        if (data.tags.isNotEmpty()) {
+                            Row(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                                data.tags.forEach { tag ->
+                                    Box(Modifier.padding(end = 6.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 4.dp)) {
+                                        Text(tag, color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+                        // Official/social links (Facebook, X, Discord, Steam, official
+                        // site, etc.) scraped out of the article body — same
+                        // CompanyLinkChip pill row as Company/Detail's own "Links"
+                        // section, so it looks identical here.
+                        if (data.links.isNotEmpty()) {
+                            SectionTitle("Links", "", {})
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                data.links.forEach { (label, linkUrl) ->
+                                    CompanyLinkChip(label, linkUrl, onClick = { runCatching { uriHandler.openUri(linkUrl) } })
+                                }
+                            }
+                        }
+                        Column(Modifier.fillMaxWidth().padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            data.blocks.forEach { block -> ArticleBlockView(block, c, onOpenProfileLink = onOpenProfileLink) { fullscreenImage = it } }
+                        }
+                        if (data.blocks.isEmpty() && !loading && error == null) {
+                            Text("Couldn't read this article's content — tap the browser icon above to view it on myanimelist.net.", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 20.dp))
+                        }
+                    }
+                }
+                GoToTopButton(
+                    visible = showGoToTop,
+                    onClick = { scope.launch { scrollState.animateScrollTo(0) } },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+                )
+            }
+        }
     }
 }
 

@@ -108,32 +108,36 @@ import com.kiko.tracker.ui.theme.kikoCorner
     DisposableEffect(item.id, item.type) {
         onDispose { onLeaveScroll(scrollState.value) }
     }
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 14.dp).padding(bottom = if (showGoToTop) 90.dp else 24.dp)) {
-            Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                Column(Modifier.headerTitleStart()) {
-                    Text("Reviews", style = MaterialTheme.typography.titleLarge, color = c.ink)
-                    Text(item.displayTitle(), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-                }
-            }
-            when {
-                loading && reviews.isEmpty() -> Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
-                    KikoLoadingIndicator(color = c.primary, size = 28.dp)
-                }
-                reviews.isEmpty() -> Text("No reviews yet.", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
-                else -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    reviews.forEachIndexed { i, rev ->
-                        key(rev.malId) { ReviewListItem(rev, forumGroupShape(i, reviews.size), onClick = { onOpenReview(rev) }) }
-                    }
-                }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Column(Modifier.headerTitleStart()) {
+                Text("Reviews", style = MaterialTheme.typography.titleLarge, color = c.ink)
+                Text(item.displayTitle(), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
             }
         }
-        GoToTopButton(
-            visible = showGoToTop,
-            onClick = { scope.launch { scrollState.animateScrollTo(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-        )
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 14.dp).padding(bottom = if (showGoToTop) 90.dp else 24.dp)) {
+                    when {
+                        loading && reviews.isEmpty() -> Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
+                            KikoLoadingIndicator(color = c.primary, size = 28.dp)
+                        }
+                        reviews.isEmpty() -> Text("No reviews yet.", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
+                        else -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            reviews.forEachIndexed { i, rev ->
+                                key(rev.malId) { ReviewListItem(rev, forumGroupShape(i, reviews.size), onClick = { onOpenReview(rev) }) }
+                            }
+                        }
+                    }
+                }
+                GoToTopButton(
+                    visible = showGoToTop,
+                    onClick = { scope.launch { scrollState.animateScrollTo(0) } },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+                )
+            }
+        }
     }
 }
 

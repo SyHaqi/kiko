@@ -129,116 +129,122 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
     // About section — a
     var aboutExpanded by remember(person.malId) { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
-            item {
-                DetailHeader(
-                    eyebrow = "PERSON", title = person.name,
-                    shareUrl = "https://myanimelist.net/people/${person.malId}",
-                    favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite,
-                )
-                Column(Modifier.padding(horizontal = 14.dp)) {
-                    val birthday = person.bioFields.firstOrNull { it.first.contains("birth", ignoreCase = true) }?.second?.takeIf { it.isNotBlank() }
-                    val facts = buildList {
-                        if (person.favorites > 0) add(DetailFact(Icons.Default.Favorite, c.danger, "${formatCount(person.favorites)} favorites"))
-                        birthday?.let { add(DetailFact(Icons.Default.Cake, c.primary, it)) }
-                        if (person.voiceActingRoles.isNotEmpty()) add(DetailFact(Icons.Default.Mic, c.primary, countLabel(person.voiceActingRoles.size, "voice role")))
-                        if (person.staffCredits.isNotEmpty()) add(DetailFact(Icons.Default.Groups, c.primary, countLabel(person.staffCredits.size, "staff position")))
-                        if (person.publishedManga.isNotEmpty()) add(DetailFact(Icons.Default.MenuBook, c.primary, countLabel(person.publishedManga.size, "manga", "manga")))
-                    }
-                    val posterInteraction = remember { MutableInteractionSource() }
-                    DetailCoverRow(
-                        coverWidth = 128.dp, coverHeight = 192.dp, coverCorner = 16.dp, facts = facts,
-                        modifier = Modifier.padding(top = 16.dp),
-                        coverModifier = Modifier.background(c.surfaceContainerHigh)
-                            .let { m -> if (person.image.isNotBlank()) m.clickable(indication = null, interactionSource = posterInteraction) { showFullImage = true } else m },
-                    ) {
-                        if (person.image.isNotBlank()) {
-                            AsyncImage(model = person.image, contentDescription = person.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        } else {
-                            Text(person.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 44.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
-                        }
-                    }
-
-                    if (person.bioFields.isNotEmpty()) {
-                        SectionTitle("Details", "", {})
-                        DetailFieldRows(person.bioFields)
-                    }
-
-                    if (person.about.isNotBlank()) {
-                        SectionTitle("About", "", {})
-                        Text(
-                            person.about, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp,
-                            maxLines = if (aboutExpanded) Int.MAX_VALUE else 3,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .animateContentSize()
-                                .clickable { aboutExpanded = !aboutExpanded },
+    Column(Modifier.fillMaxSize()) {
+        DetailTopRow(title = person.name, shareUrl = "https://myanimelist.net/people/${person.malId}", favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite)
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
+                    item {
+                        DetailHeader(
+                            eyebrow = "PERSON", title = person.name,
+                            shareUrl = "https://myanimelist.net/people/${person.malId}",
+                            favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite,
+                            showTopRow = false,
                         )
-                    }
+                        Column(Modifier.padding(horizontal = 14.dp)) {
+                            val birthday = person.bioFields.firstOrNull { it.first.contains("birth", ignoreCase = true) }?.second?.takeIf { it.isNotBlank() }
+                            val facts = buildList {
+                                if (person.favorites > 0) add(DetailFact(Icons.Default.Favorite, c.danger, "${formatCount(person.favorites)} favorites"))
+                                birthday?.let { add(DetailFact(Icons.Default.Cake, c.primary, it)) }
+                                if (person.voiceActingRoles.isNotEmpty()) add(DetailFact(Icons.Default.Mic, c.primary, countLabel(person.voiceActingRoles.size, "voice role")))
+                                if (person.staffCredits.isNotEmpty()) add(DetailFact(Icons.Default.Groups, c.primary, countLabel(person.staffCredits.size, "staff position")))
+                                if (person.publishedManga.isNotEmpty()) add(DetailFact(Icons.Default.MenuBook, c.primary, countLabel(person.publishedManga.size, "manga", "manga")))
+                            }
+                            val posterInteraction = remember { MutableInteractionSource() }
+                            DetailCoverRow(
+                                coverWidth = 128.dp, coverHeight = 192.dp, coverCorner = 16.dp, facts = facts,
+                                modifier = Modifier.padding(top = 16.dp),
+                                coverModifier = Modifier.background(c.surfaceContainerHigh)
+                                    .let { m -> if (person.image.isNotBlank()) m.clickable(indication = null, interactionSource = posterInteraction) { showFullImage = true } else m },
+                            ) {
+                                if (person.image.isNotBlank()) {
+                                    AsyncImage(model = person.image, contentDescription = person.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                } else {
+                                    Text(person.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 44.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                                }
+                            }
 
-                    // Each row below reads
-                    // tapped entry is being
-                    // LazyColumn item{} (see the
-                    // of workLoadingId here ties
-                    // every other row —
-                    // whole page twice (once
-                    // while the user has
-                    // recomposition to itself instead,
-                    key("voiceActingRoles") {
-                        if (person.voiceActingRoles.isNotEmpty()) {
-                            SectionTitle("Voice Acting Roles", "", {})
-                            LazyRow(state = rolesListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                itemsIndexed(person.voiceActingRoles, key = { _, r -> "role-${r.workId}-${r.characterId}" }) { i, role ->
-                                    StaggeredItem(i, rolesSeen) {
-                                        val workTitle = role.let { r -> animeEnglish[r.workId]?.takeIf { r.workTitleEnglish.isBlank() }?.let { r.copy(workTitleEnglish = it) } ?: r }.displayTitle()
-                                        DetailRowCard(
-                                            imageUrl = role.workImage, fallbackLetter = workTitle.take(1), title = workTitle,
-                                            label = role.roleLabel, subtitle = role.characterName,
-                                            loading = workLoadingId == role.workId,
-                                            myStatus = myListStatus[role.workId to MediaType.Anime],
-                                            onClick = { onOpenWork(role.workId, MediaType.Anime) },
-                                        )
+                            if (person.bioFields.isNotEmpty()) {
+                                SectionTitle("Details", "", {})
+                                DetailFieldRows(person.bioFields)
+                            }
+
+                            if (person.about.isNotBlank()) {
+                                SectionTitle("About", "", {})
+                                Text(
+                                    person.about, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp,
+                                    maxLines = if (aboutExpanded) Int.MAX_VALUE else 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .animateContentSize()
+                                        .clickable { aboutExpanded = !aboutExpanded },
+                                )
+                            }
+
+                            // Each row below reads
+                            // tapped entry is being
+                            // LazyColumn item{} (see the
+                            // of workLoadingId here ties
+                            // every other row —
+                            // whole page twice (once
+                            // while the user has
+                            // recomposition to itself instead,
+                            key("voiceActingRoles") {
+                                if (person.voiceActingRoles.isNotEmpty()) {
+                                    SectionTitle("Voice Acting Roles", "", {})
+                                    LazyRow(state = rolesListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        itemsIndexed(person.voiceActingRoles, key = { _, r -> "role-${r.workId}-${r.characterId}" }) { i, role ->
+                                            StaggeredItem(i, rolesSeen) {
+                                                val workTitle = role.let { r -> animeEnglish[r.workId]?.takeIf { r.workTitleEnglish.isBlank() }?.let { r.copy(workTitleEnglish = it) } ?: r }.displayTitle()
+                                                DetailRowCard(
+                                                    imageUrl = role.workImage, fallbackLetter = workTitle.take(1), title = workTitle,
+                                                    label = role.roleLabel, subtitle = role.characterName,
+                                                    loading = workLoadingId == role.workId,
+                                                    myStatus = myListStatus[role.workId to MediaType.Anime],
+                                                    onClick = { onOpenWork(role.workId, MediaType.Anime) },
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
-                    }
 
-                    key("staffCredits") {
-                        if (person.staffCredits.isNotEmpty()) {
-                            SectionTitle("Anime Staff Positions", "", {})
-                            LazyRow(state = staffListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                itemsIndexed(person.staffCredits, key = { _, w -> "staff-${w.id}" }) { i, w0 ->
-                                    StaggeredItem(i, staffSeen) {
-                                        val work = animeEnglish[w0.id.toIntOrNull()]?.takeIf { w0.titleEnglish.isBlank() }?.let { w0.copy(titleEnglish = it) } ?: w0
-                                        val workTitle = work.displayTitle()
-                                        DetailRowCard(
-                                            imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,
-                                            loading = workLoadingId == work.id.toIntOrNull(),
-                                            myStatus = work.id.toIntOrNull()?.let { myListStatus[it to MediaType.Anime] },
-                                            onClick = { work.id.toIntOrNull()?.let { onOpenWork(it, MediaType.Anime) } },
-                                        )
+                            key("staffCredits") {
+                                if (person.staffCredits.isNotEmpty()) {
+                                    SectionTitle("Anime Staff Positions", "", {})
+                                    LazyRow(state = staffListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        itemsIndexed(person.staffCredits, key = { _, w -> "staff-${w.id}" }) { i, w0 ->
+                                            StaggeredItem(i, staffSeen) {
+                                                val work = animeEnglish[w0.id.toIntOrNull()]?.takeIf { w0.titleEnglish.isBlank() }?.let { w0.copy(titleEnglish = it) } ?: w0
+                                                val workTitle = work.displayTitle()
+                                                DetailRowCard(
+                                                    imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,
+                                                    loading = workLoadingId == work.id.toIntOrNull(),
+                                                    myStatus = work.id.toIntOrNull()?.let { myListStatus[it to MediaType.Anime] },
+                                                    onClick = { work.id.toIntOrNull()?.let { onOpenWork(it, MediaType.Anime) } },
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
-                    }
 
-                    key("publishedManga") {
-                        if (person.publishedManga.isNotEmpty()) {
-                            SectionTitle("Published Manga", "", {})
-                            LazyRow(state = mangaListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                itemsIndexed(person.publishedManga, key = { _, w -> "manga-${w.id}" }) { i, w0 ->
-                                    StaggeredItem(i, mangaSeen) {
-                                        val work = mangaEnglish[w0.id.toIntOrNull()]?.takeIf { w0.titleEnglish.isBlank() }?.let { w0.copy(titleEnglish = it) } ?: w0
-                                        val workTitle = work.displayTitle()
-                                        DetailRowCard(
-                                            imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,
-                                            loading = workLoadingId == work.id.toIntOrNull(),
-                                            myStatus = work.id.toIntOrNull()?.let { myListStatus[it to MediaType.Manga] },
-                                            onClick = { work.id.toIntOrNull()?.let { onOpenWork(it, MediaType.Manga) } },
-                                        )
+                            key("publishedManga") {
+                                if (person.publishedManga.isNotEmpty()) {
+                                    SectionTitle("Published Manga", "", {})
+                                    LazyRow(state = mangaListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        itemsIndexed(person.publishedManga, key = { _, w -> "manga-${w.id}" }) { i, w0 ->
+                                            StaggeredItem(i, mangaSeen) {
+                                                val work = mangaEnglish[w0.id.toIntOrNull()]?.takeIf { w0.titleEnglish.isBlank() }?.let { w0.copy(titleEnglish = it) } ?: w0
+                                                val workTitle = work.displayTitle()
+                                                DetailRowCard(
+                                                    imageUrl = work.cover, fallbackLetter = workTitle.take(1), title = workTitle, label = work.format,
+                                                    loading = workLoadingId == work.id.toIntOrNull(),
+                                                    myStatus = work.id.toIntOrNull()?.let { myListStatus[it to MediaType.Manga] },
+                                                    onClick = { work.id.toIntOrNull()?.let { onOpenWork(it, MediaType.Manga) } },
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }

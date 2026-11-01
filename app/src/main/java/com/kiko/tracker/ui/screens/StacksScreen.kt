@@ -117,83 +117,85 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // this screen. Paging further
     // screen (via "See all"
 
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
-            item {
-                Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                    Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
-                    // Search stands alone now. "Saved Stacks" and "Open in
-                    // browser" moved into a 3-dot overflow menu instead of
-                    // sharing a boxed pair with Search — same pattern as the
-                    // menu on ProfileScreen/FriendProfileScreen headers.
-                    IconButton(onClick = { openBrowse(StackBrowseKind.All) }, modifier = Modifier.headerEdgeEnd()) {
-                        Icon(Icons.Default.Search, "Search stacks", tint = c.ink, modifier = Modifier.size(24.dp))
-                    }
-                    var moreOpen by remember { mutableStateOf(false) }
-                    Box(Modifier.headerEdgeEnd()) {
-                        IconButton(onClick = { moreOpen = true }) {
-                            Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
-                        }
-                        KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
-                            DropdownMenuItem(
-                                text = { Text("Saved stacks") },
-                                leadingIcon = { Icon(Icons.Default.Bookmark, null) },
-                                onClick = { moreOpen = false; saveScroll(); onOpenSaved() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Open in browser") },
-                                leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                                onClick = { moreOpen = false; context.openInBrowser("https://myanimelist.net/stacks") },
-                            )
-                        }
-                    }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
+            // Search stands alone now. "Saved Stacks" and "Open in
+            // browser" moved into a 3-dot overflow menu instead of
+            // sharing a boxed pair with Search — same pattern as the
+            // menu on ProfileScreen/FriendProfileScreen headers.
+            IconButton(onClick = { openBrowse(StackBrowseKind.All) }, modifier = Modifier.headerEdgeEnd()) {
+                Icon(Icons.Default.Search, "Search stacks", tint = c.ink, modifier = Modifier.size(24.dp))
+            }
+            var moreOpen by remember { mutableStateOf(false) }
+            Box(Modifier.headerEdgeEnd()) {
+                IconButton(onClick = { moreOpen = true }) {
+                    Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
+                }
+                KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
+                    DropdownMenuItem(
+                        text = { Text("Saved stacks") },
+                        leadingIcon = { Icon(Icons.Default.Bookmark, null) },
+                        onClick = { moreOpen = false; saveScroll(); onOpenSaved() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Open in browser") },
+                        leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                        onClick = { moreOpen = false; context.openInBrowser("https://myanimelist.net/stacks") },
+                    )
                 }
             }
-            if (vm.stacksHomeLoading) {
-                item { KikoSectionLoading() }
-            }
-            if (vm.stacksHomeSpotlight.isNotEmpty()) {
-                // Spotlight row — the
-                item { StackSectionHeader("Spotlight", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
-                item {
-                    // Non-lazy + IntrinsicSize.Max so
-                    // tallest one and stretches
-                    // row (and everything below
-                    // past cards with/without a
-                    Row(
-                        Modifier.horizontalScroll(rememberScrollState()).height(IntrinsicSize.Max),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        vm.stacksHomeSpotlight.forEachIndexed { index, s ->
-                            StaggeredItem(index, modifier = Modifier.fillMaxHeight()) { StackSpotlightCard(s, vm, modifier = Modifier.fillMaxHeight()) { openStack(s) } }
-                        }
-                    }
-                }
-            }
-            if (vm.stacksHomeRecent.isNotEmpty()) {
-                item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
-                itemsIndexed(vm.stacksHomeRecent, key = { _, it -> "rc-${it.id}" }) { index, s ->
-                    StaggeredItem(index, staggerSeen) {
-                        Column {
-                            StackListRow(s, vm) { openStack(s) }
-                            // Same subtle row separator
-                            // (see SearchResultRow's divider) —
-                        }
-                    }
-                }
-            }
-            // "Saved Stacks" no longer shows inline here — it's now reached
-            // via the header's 3-dot menu (see StacksSavedScreen below),
-            // keeping this feed to just Spotlight/Recent. loadStacksSaved is
-            // still kicked off above so isStackRestacked's bookmark state is
-            // ready by the time it's needed (e.g. StackDetailScreen).
         }
-        GoToTopButton(
-            visible = showGoToTop,
-            onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-        )
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+                    if (vm.stacksHomeLoading) {
+                        item { KikoSectionLoading() }
+                    }
+                    if (vm.stacksHomeSpotlight.isNotEmpty()) {
+                        // Spotlight row — the
+                        item { StackSectionHeader("Spotlight", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
+                        item {
+                            // Non-lazy + IntrinsicSize.Max so
+                            // tallest one and stretches
+                            // row (and everything below
+                            // past cards with/without a
+                            Row(
+                                Modifier.horizontalScroll(rememberScrollState()).height(IntrinsicSize.Max),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                vm.stacksHomeSpotlight.forEachIndexed { index, s ->
+                                    StaggeredItem(index, modifier = Modifier.fillMaxHeight()) { StackSpotlightCard(s, vm, modifier = Modifier.fillMaxHeight()) { openStack(s) } }
+                                }
+                            }
+                        }
+                    }
+                    if (vm.stacksHomeRecent.isNotEmpty()) {
+                        item { StackSectionHeader("Recent Interest Stacks", onSeeAll = { openBrowse(StackBrowseKind.All) }) }
+                        itemsIndexed(vm.stacksHomeRecent, key = { _, it -> "rc-${it.id}" }) { index, s ->
+                            StaggeredItem(index, staggerSeen) {
+                                Column {
+                                    StackListRow(s, vm) { openStack(s) }
+                                    // Same subtle row separator
+                                    // (see SearchResultRow's divider) —
+                                }
+                            }
+                        }
+                    }
+                    // "Saved Stacks" no longer shows inline here — it's now reached
+                    // via the header's 3-dot menu (see StacksSavedScreen below),
+                    // keeping this feed to just Spotlight/Recent. loadStacksSaved is
+                    // still kicked off above so isStackRestacked's bookmark state is
+                    // ready by the time it's needed (e.g. StackDetailScreen).
+                }
+                GoToTopButton(
+                    visible = showGoToTop,
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+                )
+            }
+        }
     }
 }
 // Section title + "See
@@ -753,116 +755,120 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             is MalProfileLink.Company -> onOpenCompany(link.malId)
         }
     }
-    Box(Modifier.fillMaxSize()) {
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Column {
-                    // Back button gets real
-                    // matching the spacing every
-                    // Title moved below this row (same pattern as ForumTopicScreen) —
-                    // row is just back button, spacer, and the 3-dot overflow menu.
-                    Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                        Spacer(Modifier.weight(1f))
-                        // Save Stack sits beside the 3-dot menu now, same
-                        // pattern as the favorite heart on the anime/manga
-                        // detail page — a standalone toggle instead of a
-                        // menu item, with the 3-dot menu just to its right.
-                        val isRestacked = vm.isStackRestacked(stackId)
-                        val restackTooltipState = rememberTooltipState()
-                        TooltipBox(
-                            positionProvider = rememberBelowAnchorTooltipPositionProvider(),
-                            tooltip = { PlainTooltip { Text(if (isRestacked) "Remove Stack" else "Save Stack") } },
-                            state = restackTooltipState,
-                        ) {
-                            IconButton(
-                                onClick = { vm.restackStack(context, stackId, !isRestacked) },
-                                modifier = Modifier.headerEdgeEnd(),
-                            ) {
-                                Icon(
-                                    if (isRestacked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                    if (isRestacked) "Remove Stack" else "Save Stack",
-                                    tint = if (isRestacked) c.primary else c.ink,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                            }
-                        }
-                        var moreOpen by remember { mutableStateOf(false) }
-                        Box(Modifier.headerEdgeEnd()) {
-                            IconButton(onClick = { moreOpen = true }) {
-                                Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
-                            }
-                            KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
-                                DropdownMenuItem(
-                                    text = { Text("Share") },
-                                    leadingIcon = { Icon(Icons.Default.Share, null, tint = c.primary) },
-                                    onClick = {
-                                        moreOpen = false
-                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "text/plain"
-                                            putExtra(Intent.EXTRA_TEXT, "https://myanimelist.net/stacks/$stackId")
-                                        }
-                                        context.startActivity(Intent.createChooser(sendIntent, detail?.title?.ifBlank { initialTitle } ?: initialTitle))
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Open in Browser") },
-                                    leadingIcon = { Icon(Icons.Default.OpenInNew, null, tint = c.primary) },
-                                    onClick = {
-                                        moreOpen = false
-                                        context.openInBrowser("https://myanimelist.net/stacks/$stackId")
-                                    },
-                                )
-                            }
-                        }
-                    }
-                    Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 6.dp))
-                    if (detail == null && !loadFailed) {
-                        KikoSectionLoading()
-                    } else if (loadFailed) {
-                        Text("Couldn't load this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center)
-                    }
-                    detail?.let { d ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (d.type.isNotBlank()) Pill(d.type, c.primaryContainer, c.onPrimaryContainer)
-                            if (d.author.isNotBlank()) Text("by ${d.author}", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 9.dp))
-                        }
-                        // Description sits above the
-                        // Rendered through the same
-                        // so links stay tappable
-                        // images load, instead of
-                        if (d.description.isNotBlank()) {
-                            ForumBody(d.description, Modifier.padding(top = 10.dp), onOpenProfileLink = onOpenProfileLink)
-                        }
-                        Box(Modifier.padding(top = 12.dp)) { StackStatsRow(d.entries.size, d.restacks, "") }
-                        StackMyProgressBar(d.entries, myListStatus, c, Modifier.padding(top = 16.dp))
-                        Spacer(Modifier.height(4.dp))
-                    }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Spacer(Modifier.weight(1f))
+            // Save Stack sits beside the 3-dot menu now, same
+            // pattern as the favorite heart on the anime/manga
+            // detail page — a standalone toggle instead of a
+            // menu item, with the 3-dot menu just to its right.
+            val isRestacked = vm.isStackRestacked(stackId)
+            val restackTooltipState = rememberTooltipState()
+            TooltipBox(
+                positionProvider = rememberBelowAnchorTooltipPositionProvider(),
+                tooltip = { PlainTooltip { Text(if (isRestacked) "Remove Stack" else "Save Stack") } },
+                state = restackTooltipState,
+            ) {
+                IconButton(
+                    onClick = { vm.restackStack(context, stackId, !isRestacked) },
+                    modifier = Modifier.headerEdgeEnd(),
+                ) {
+                    Icon(
+                        if (isRestacked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        if (isRestacked) "Remove Stack" else "Save Stack",
+                        tint = if (isRestacked) c.primary else c.ink,
+                        modifier = Modifier.size(24.dp),
+                    )
                 }
             }
-            detail?.let { d ->
-                if (d.entries.isEmpty() && !loadFailed) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { Text("No entries in this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 20.dp), textAlign = TextAlign.Center) }
+            var moreOpen by remember { mutableStateOf(false) }
+            Box(Modifier.headerEdgeEnd()) {
+                IconButton(onClick = { moreOpen = true }) {
+                    Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
                 }
-                itemsIndexed(shownEntries, key = { _, e -> e.malId }) { i, entry ->
-                    StaggeredItem(i) {
-                        StackEntryGridCard(i + 1, entry, loading = loadingId == entry.malId, myStatus = myListStatus[entry.malId to entry.type], onClick = { onOpenEntry(entry) }, onLongPress = { onEditEntry(entry) }, isSelected = selectedItem?.id == entry.malId.toString() && selectedItem?.type == entry.type)
-                    }
+                KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
+                    DropdownMenuItem(
+                        text = { Text("Share") },
+                        leadingIcon = { Icon(Icons.Default.Share, null, tint = c.primary) },
+                        onClick = {
+                            moreOpen = false
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, "https://myanimelist.net/stacks/$stackId")
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, detail?.title?.ifBlank { initialTitle } ?: initialTitle))
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Open in Browser") },
+                        leadingIcon = { Icon(Icons.Default.OpenInNew, null, tint = c.primary) },
+                        onClick = {
+                            moreOpen = false
+                            context.openInBrowser("https://myanimelist.net/stacks/$stackId")
+                        },
+                    )
                 }
             }
         }
-        GoToTopButton(
-            visible = showGoToTop,
-            onClick = { scope.launch { gridState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-        )
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                LazyVerticalGrid(
+                    state = gridState,
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(11.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Column {
+                            // Back button gets real
+                            // matching the spacing every
+                            // Title moved below this row (same pattern as ForumTopicScreen) —
+                            // row is just back button, spacer, and the 3-dot overflow menu.
+                            Text(detail?.title?.ifBlank { initialTitle } ?: initialTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 6.dp))
+                            if (detail == null && !loadFailed) {
+                                KikoSectionLoading()
+                            } else if (loadFailed) {
+                                Text("Couldn't load this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center)
+                            }
+                            detail?.let { d ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (d.type.isNotBlank()) Pill(d.type, c.primaryContainer, c.onPrimaryContainer)
+                                    if (d.author.isNotBlank()) Text("by ${d.author}", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 9.dp))
+                                }
+                                // Description sits above the
+                                // Rendered through the same
+                                // so links stay tappable
+                                // images load, instead of
+                                if (d.description.isNotBlank()) {
+                                    ForumBody(d.description, Modifier.padding(top = 10.dp), onOpenProfileLink = onOpenProfileLink)
+                                }
+                                Box(Modifier.padding(top = 12.dp)) { StackStatsRow(d.entries.size, d.restacks, "") }
+                                StackMyProgressBar(d.entries, myListStatus, c, Modifier.padding(top = 16.dp))
+                                Spacer(Modifier.height(4.dp))
+                            }
+                        }
+                    }
+                    detail?.let { d ->
+                        if (d.entries.isEmpty() && !loadFailed) {
+                            item(span = { GridItemSpan(maxLineSpan) }) { Text("No entries in this stack.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 20.dp), textAlign = TextAlign.Center) }
+                        }
+                        itemsIndexed(shownEntries, key = { _, e -> e.malId }) { i, entry ->
+                            StaggeredItem(i) {
+                                StackEntryGridCard(i + 1, entry, loading = loadingId == entry.malId, myStatus = myListStatus[entry.malId to entry.type], onClick = { onOpenEntry(entry) }, onLongPress = { onEditEntry(entry) }, isSelected = selectedItem?.id == entry.malId.toString() && selectedItem?.type == entry.type)
+                            }
+                        }
+                    }
+                }
+                GoToTopButton(
+                    visible = showGoToTop,
+                    onClick = { scope.launch { gridState.animateScrollToItem(0) } },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+                )
+            }
+        }
     }
 }
 // "My progress" breakdown for

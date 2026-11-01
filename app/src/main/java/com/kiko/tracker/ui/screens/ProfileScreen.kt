@@ -177,7 +177,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
         // margin around it), the way a page header does on a website rather
         // than another tile in a stack of cards. Everything below the hero
         // applies its own horizontal inset instead.
-        Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
+        Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = exitProfile, modifier = Modifier.headerEdgeStart(14.dp)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                 // "Profile" moved down to a small eyebrow label above the
@@ -215,27 +215,31 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                     }
                 }
             }
-            Box(Modifier.padding(bottom = 24.dp)) {
-                ProfileStatsSection(
-                    connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange,
-                    onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) },
-                    onYearClick = { type, year -> onSaveScroll(scrollState.value); onYearClick(type, year) },
-                    onFormatClick = onFormatClick,
-                    onGenreClick = { type, genre -> onSaveScroll(scrollState.value); onGenreClick(type, genre) },
-                    onOpenFriendsFavorites = { onSaveScroll(scrollState.value); onOpenFriendsFavorites() },
-                    onOpenFriend = { friend -> onSaveScroll(scrollState.value); onOpenFriend(friend) },
-                    onOpenCharacter = { malId -> onSaveScroll(scrollState.value); onOpenCharacter(malId) },
-                    onOpenPerson = { malId -> onSaveScroll(scrollState.value); onOpenPerson(malId) },
-                    onOpenCompany = { malId -> onSaveScroll(scrollState.value); onOpenCompany(malId) },
-                    onOpenFavoriteTitle = { malId, type -> onSaveScroll(scrollState.value); onOpenFavoriteTitle(malId, type) },
-                    favoriteLoadingId = favoriteLoadingId,
-                    friendsRowScroll = friendsRowScroll, onSaveFriendsRowScroll = onSaveFriendsRowScroll,
-                    getFavoritesRowScroll = getFavoritesRowScroll, onSaveFavoritesRowScroll = onSaveFavoritesRowScroll,
-                    cachedFriends = cachedFriends, cachedFavorites = cachedFavorites, onLoadFriendsFavorites = onLoadFriendsFavorites,
-                    friendsFavoritesLoading = friendsFavoritesLoading,
-                    cachedAboutMe = cachedAboutMe,
-                    onOpenListStatus = { type, label -> onSaveScroll(scrollState.value); onOpenListStatus(type, label) },
-                )
+            Box(Modifier.weight(1f)) {
+                Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
+                    Box(Modifier.padding(bottom = 24.dp)) {
+                        ProfileStatsSection(
+                            connected, profile, items, onConnect, statsTab = statsTab, onStatsTabChange = onStatsTabChange,
+                            onScoreClick = { type, score -> onSaveScroll(scrollState.value); onScoreClick(type, score) },
+                            onYearClick = { type, year -> onSaveScroll(scrollState.value); onYearClick(type, year) },
+                            onFormatClick = onFormatClick,
+                            onGenreClick = { type, genre -> onSaveScroll(scrollState.value); onGenreClick(type, genre) },
+                            onOpenFriendsFavorites = { onSaveScroll(scrollState.value); onOpenFriendsFavorites() },
+                            onOpenFriend = { friend -> onSaveScroll(scrollState.value); onOpenFriend(friend) },
+                            onOpenCharacter = { malId -> onSaveScroll(scrollState.value); onOpenCharacter(malId) },
+                            onOpenPerson = { malId -> onSaveScroll(scrollState.value); onOpenPerson(malId) },
+                            onOpenCompany = { malId -> onSaveScroll(scrollState.value); onOpenCompany(malId) },
+                            onOpenFavoriteTitle = { malId, type -> onSaveScroll(scrollState.value); onOpenFavoriteTitle(malId, type) },
+                            favoriteLoadingId = favoriteLoadingId,
+                            friendsRowScroll = friendsRowScroll, onSaveFriendsRowScroll = onSaveFriendsRowScroll,
+                            getFavoritesRowScroll = getFavoritesRowScroll, onSaveFavoritesRowScroll = onSaveFavoritesRowScroll,
+                            cachedFriends = cachedFriends, cachedFavorites = cachedFavorites, onLoadFriendsFavorites = onLoadFriendsFavorites,
+                            friendsFavoritesLoading = friendsFavoritesLoading,
+                            cachedAboutMe = cachedAboutMe,
+                            onOpenListStatus = { type, label -> onSaveScroll(scrollState.value); onOpenListStatus(type, label) },
+                        )
+                    }
+                }
             }
         }
     }
@@ -255,23 +259,27 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
 ) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Settings", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
-        Box(Modifier.padding(top = 12.dp, bottom = 24.dp)) {
-            SettingsSection(
-                connected = connected, themeMode = themeMode, colorSource = colorSource, paletteStyle = paletteStyle, titleLanguage = titleLanguage,
-                nsfwEnabled = nsfwEnabled, onNsfwChange = onNsfwChange,
-                amoledDark = amoledDark, onAmoledDarkChange = onAmoledDarkChange,
-                compactList = compactList, onCompactListChange = onCompactListChange,
-                onThemeClick = onThemeClick, onColorClick = onColorClick, onPaletteClick = onPaletteClick, onTitleLanguageClick = onTitleLanguageClick,
-                updateInfo = updateInfo, onAboutClick = onAboutClick,
-                listViewMode = listViewMode, onListViewModeChange = onListViewModeChange,
-                listSort = listSort, onListSortChange = onListSortChange,
-                onSignOut = onSignOut,
-            )
+        Box(Modifier.weight(1f)) {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
+                Box(Modifier.padding(top = 12.dp, bottom = 24.dp)) {
+                    SettingsSection(
+                        connected = connected, themeMode = themeMode, colorSource = colorSource, paletteStyle = paletteStyle, titleLanguage = titleLanguage,
+                        nsfwEnabled = nsfwEnabled, onNsfwChange = onNsfwChange,
+                        amoledDark = amoledDark, onAmoledDarkChange = onAmoledDarkChange,
+                        compactList = compactList, onCompactListChange = onCompactListChange,
+                        onThemeClick = onThemeClick, onColorClick = onColorClick, onPaletteClick = onPaletteClick, onTitleLanguageClick = onTitleLanguageClick,
+                        updateInfo = updateInfo, onAboutClick = onAboutClick,
+                        listViewMode = listViewMode, onListViewModeChange = onListViewModeChange,
+                        listSort = listSort, onListSortChange = onListSortChange,
+                        onSignOut = onSignOut,
+                    )
+                }
+            }
         }
     }
 }
@@ -1313,10 +1321,6 @@ private fun formatCacheBytes(b: Long): String = when {
     // GenreFilterScreen below. See YearFilterFab/YearFilterSheet.
     var yearSheetOpen by remember { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Year Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
-        }
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1324,33 +1328,41 @@ private fun formatCacheBytes(b: Long): String = when {
             }
         }
     }
-    Box(Modifier.fillMaxSize()) {
-        if (isGrid) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
-                horizontalArrangement = Arrangement.spacedBy(11.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-                itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
-                if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-            }
-        } else {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp)) {
-                item { header() }
-                itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                    StaggeredItem(index, staggerSeen) {
-                        Column {
-                            ListRow(it, onOpenDetail, showType = false)
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text("Year Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+        }
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                if (isGrid) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
+                        horizontalArrangement = Arrangement.spacedBy(11.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
+                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
+                        if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+                    }
+                } else {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp)) {
+                        item { header() }
+                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
+                            StaggeredItem(index, staggerSeen) {
+                                Column {
+                                    ListRow(it, onOpenDetail, showType = false)
+                                }
+                            }
                         }
+                        if (filtered.isEmpty()) item { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
                     }
                 }
-                if (filtered.isEmpty()) item { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+                YearFilterFab(year, onClick = { yearSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp))
             }
         }
-        YearFilterFab(year, onClick = { yearSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp))
     }
     if (yearSheetOpen) YearFilterSheet(years, year, onDismiss = { yearSheetOpen = false }) { year = it; yearSheetOpen = false }
 }
@@ -1482,10 +1494,6 @@ private fun formatCacheBytes(b: Long): String = when {
     // see GenreFilterFab/GenreFilterSheet below.
     var genreSheetOpen by remember { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Genre Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
-        }
         Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1493,33 +1501,41 @@ private fun formatCacheBytes(b: Long): String = when {
             }
         }
     }
-    Box(Modifier.fillMaxSize()) {
-        if (isGrid) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
-                horizontalArrangement = Arrangement.spacedBy(11.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-                itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
-                if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-            }
-        } else {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp)) {
-                item { header() }
-                itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                    StaggeredItem(index, staggerSeen) {
-                        Column {
-                            ListRow(it, onOpenDetail, showType = false)
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text("Genre Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+        }
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                if (isGrid) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
+                        horizontalArrangement = Arrangement.spacedBy(11.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
+                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
+                        if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+                    }
+                } else {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp)) {
+                        item { header() }
+                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
+                            StaggeredItem(index, staggerSeen) {
+                                Column {
+                                    ListRow(it, onOpenDetail, showType = false)
+                                }
+                            }
                         }
+                        if (filtered.isEmpty()) item { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
                     }
                 }
-                if (filtered.isEmpty()) item { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+                GenreFilterFab(genre, onClick = { genreSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp))
             }
         }
-        GenreFilterFab(genre, onClick = { genreSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp))
     }
     if (genreSheetOpen) GenreFilterSheet(genreCounts, typeItems.size, genre, onDismiss = { genreSheetOpen = false }) { genre = it; genreSheetOpen = false }
 }

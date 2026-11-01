@@ -192,118 +192,124 @@ private const val CompanyPageSize = 9
     }
     val gridSeen = rememberStaggerMemory()
 
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
-            item {
-                DetailHeader(
-                    eyebrow = "COMPANY", title = company.name,
-                    shareUrl = "https://myanimelist.net/anime/producer/${company.malId}",
-                    favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite,
-                )
-                Column(Modifier.padding(horizontal = 14.dp)) {
-                    val established = company.bioFields.firstOrNull { it.first.contains("establish", ignoreCase = true) }?.second?.takeIf { it.isNotBlank() }
-                    val facts = buildList {
-                        if (company.favorites > 0) add(DetailFact(Icons.Default.Favorite, c.danger, "${formatCount(company.favorites)} favorites"))
-                        if (company.works.isNotEmpty()) add(DetailFact(Icons.Default.Tv, c.primary, "${company.works.size} anime"))
-                        established?.let { add(DetailFact(Icons.Default.CalendarMonth, c.primary, it)) }
-                    }
-                    val logoInteraction = remember { MutableInteractionSource() }
-                    // Square logo (110dp) rather than a 2:3 poster — company logos are shaped that way.
-                    DetailCoverRow(
-                        coverWidth = 110.dp, coverHeight = 110.dp, coverCorner = 24.dp, facts = facts,
-                        modifier = Modifier.padding(top = 16.dp),
-                        coverModifier = Modifier.background(c.surfaceContainerHigh)
-                            .let { m -> if (company.image.isNotBlank()) m.clickable(indication = null, interactionSource = logoInteraction) { showFullImage = true } else m },
-                    ) {
-                        if (company.image.isNotBlank()) {
-                            AsyncImage(model = company.image, contentDescription = company.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                        } else {
-                            Text(company.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 40.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
-                        }
-                    }
-
-                    if (company.bioFields.isNotEmpty()) {
-                        SectionTitle("Details", "", {})
-                        DetailFieldRows(company.bioFields)
-                    }
-
-                    if (company.about.isNotBlank()) {
-                        SectionTitle("About", "", {})
-                        LinkifiedText(
-                            company.about, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp,
-                            maxLines = if (aboutExpanded) Int.MAX_VALUE else 3,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.animateContentSize(),
-                            onClick = { aboutExpanded = !aboutExpanded },
+    Column(Modifier.fillMaxSize()) {
+        DetailTopRow(title = company.name, shareUrl = "https://myanimelist.net/anime/producer/${company.malId}", favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite)
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 40.dp)) {
+                    item {
+                        DetailHeader(
+                            eyebrow = "COMPANY", title = company.name,
+                            shareUrl = "https://myanimelist.net/anime/producer/${company.malId}",
+                            favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite,
+                            showTopRow = false,
                         )
-                    }
+                        Column(Modifier.padding(horizontal = 14.dp)) {
+                            val established = company.bioFields.firstOrNull { it.first.contains("establish", ignoreCase = true) }?.second?.takeIf { it.isNotBlank() }
+                            val facts = buildList {
+                                if (company.favorites > 0) add(DetailFact(Icons.Default.Favorite, c.danger, "${formatCount(company.favorites)} favorites"))
+                                if (company.works.isNotEmpty()) add(DetailFact(Icons.Default.Tv, c.primary, "${company.works.size} anime"))
+                                established?.let { add(DetailFact(Icons.Default.CalendarMonth, c.primary, it)) }
+                            }
+                            val logoInteraction = remember { MutableInteractionSource() }
+                            // Square logo (110dp) rather than a 2:3 poster — company logos are shaped that way.
+                            DetailCoverRow(
+                                coverWidth = 110.dp, coverHeight = 110.dp, coverCorner = 24.dp, facts = facts,
+                                modifier = Modifier.padding(top = 16.dp),
+                                coverModifier = Modifier.background(c.surfaceContainerHigh)
+                                    .let { m -> if (company.image.isNotBlank()) m.clickable(indication = null, interactionSource = logoInteraction) { showFullImage = true } else m },
+                            ) {
+                                if (company.image.isNotBlank()) {
+                                    AsyncImage(model = company.image, contentDescription = company.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                                } else {
+                                    Text(company.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 40.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                                }
+                            }
 
-                    if (company.links.isNotEmpty()) {
-                        SectionTitle("Links", "", {})
-                        // Wrapping FlowRow of icon-led
-                        // placement as the genre
-                        // room for the icon
-                        // host (companyLinkIcon below), so
-                        // generic globe icon for
-                        // recognize.
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            company.links.forEach { (label, url) ->
-                                CompanyLinkChip(label, url, onClick = { runCatching { uriHandler.openUri(url) } })
+                            if (company.bioFields.isNotEmpty()) {
+                                SectionTitle("Details", "", {})
+                                DetailFieldRows(company.bioFields)
+                            }
+
+                            if (company.about.isNotBlank()) {
+                                SectionTitle("About", "", {})
+                                LinkifiedText(
+                                    company.about, color = c.ink, fontSize = 14.sp, lineHeight = 21.sp,
+                                    maxLines = if (aboutExpanded) Int.MAX_VALUE else 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.animateContentSize(),
+                                    onClick = { aboutExpanded = !aboutExpanded },
+                                )
+                            }
+
+                            if (company.links.isNotEmpty()) {
+                                SectionTitle("Links", "", {})
+                                // Wrapping FlowRow of icon-led
+                                // placement as the genre
+                                // room for the icon
+                                // host (companyLinkIcon below), so
+                                // generic globe icon for
+                                // recognize.
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    company.links.forEach { (label, url) ->
+                                        CompanyLinkChip(label, url, onClick = { runCatching { uriHandler.openUri(url) } })
+                                    }
+                                }
+                            }
+
+                            company.news?.let { news ->
+                                SectionTitle("Recent News", "", {})
+                                CompanyNewsCard(news, onClick = { onOpenNews(news.topicId, news.title) })
+                            }
+
+                            if (company.works.isNotEmpty()) {
+                                SectionTitle("Anime (${company.works.size})", "", {})
+                                // Format filter + sort,
+                                // already uses for its
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                    CompanyFormatDropdown(current = selectedFormat, options = availableFormats, works = company.works, onSelect = { selectedFormat = it })
+                                    DiscoverSortMenu(current = selectedSort, onSelect = { selectedSort = it })
+                                }
+                                Spacer(Modifier.height(4.dp))
                             }
                         }
-                    }
-
-                    company.news?.let { news ->
-                        SectionTitle("Recent News", "", {})
-                        CompanyNewsCard(news, onClick = { onOpenNews(news.topicId, news.title) })
                     }
 
                     if (company.works.isNotEmpty()) {
-                        SectionTitle("Anime (${company.works.size})", "", {})
-                        // Format filter + sort,
-                        // already uses for its
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                            CompanyFormatDropdown(current = selectedFormat, options = availableFormats, works = company.works, onSelect = { selectedFormat = it })
-                            DiscoverSortMenu(current = selectedSort, onSelect = { selectedSort = it })
-                        }
-                        Spacer(Modifier.height(4.dp))
-                    }
-                }
-            }
-
-            if (company.works.isNotEmpty()) {
-                if (filteredWorks.isEmpty()) {
-                    item {
-                        Text(
-                            "No ${selectedFormat.lowercase()} entries.", color = c.muted, fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
-                        )
-                    }
-                } else {
-                    itemsIndexed(gridRows, key = { i, _ -> "row-$i" }) { rowIndex, rowItems ->
-                        StaggeredItem(rowIndex, gridSeen) {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                                rowItems.forEach { work ->
-                                    val workId = work.id.toIntOrNull()
-                                    Box(Modifier.weight(1f)) {
-                                        SeasonalGridCard(item = work, onOpenDetail = { workId?.let(onOpenWork) }, myStatus = workId?.let { myListStatus[it] })
-                                        if (workId != null && workId == workLoadingId) {
-                                            Box(
-                                                Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(Color.Black.copy(alpha = .45f)),
-                                                contentAlignment = Alignment.Center,
-                                            ) { KikoLoadingIndicator(color = Color.White, size = 26.dp) }
+                        if (filteredWorks.isEmpty()) {
+                            item {
+                                Text(
+                                    "No ${selectedFormat.lowercase()} entries.", color = c.muted, fontSize = 13.sp,
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
+                                )
+                            }
+                        } else {
+                            itemsIndexed(gridRows, key = { i, _ -> "row-$i" }) { rowIndex, rowItems ->
+                                StaggeredItem(rowIndex, gridSeen) {
+                                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                                        rowItems.forEach { work ->
+                                            val workId = work.id.toIntOrNull()
+                                            Box(Modifier.weight(1f)) {
+                                                SeasonalGridCard(item = work, onOpenDetail = { workId?.let(onOpenWork) }, myStatus = workId?.let { myListStatus[it] })
+                                                if (workId != null && workId == workLoadingId) {
+                                                    Box(
+                                                        Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(Color.Black.copy(alpha = .45f)),
+                                                        contentAlignment = Alignment.Center,
+                                                    ) { KikoLoadingIndicator(color = Color.White, size = 26.dp) }
+                                                }
+                                            }
                                         }
+                                        // Pad the last row
+                                        repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
                                     }
                                 }
-                                // Pad the last row
-                                repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
                             }
-                        }
-                    }
-                    if (hasMoreWorks) {
-                        item(key = "loading-more") {
-                            Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
-                                KikoLoadingIndicator(size = 24.dp)
+                            if (hasMoreWorks) {
+                                item(key = "loading-more") {
+                                    Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
+                                        KikoLoadingIndicator(size = 24.dp)
+                                    }
+                                }
                             }
                         }
                     }

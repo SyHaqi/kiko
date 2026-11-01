@@ -153,7 +153,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // comment in LibraryViewModel.
     DisposableEffect(username) { onDispose { vm.saveFriendProfileScroll(username, scrollState.value) } }
     KikoPullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refreshFriendProfile(context, username) }, modifier = Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
+        Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart(20.dp)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                 // "Profile" moved down to the small eyebrow label above the
@@ -193,55 +193,59 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                 }
             }
+            Box(Modifier.weight(1f)) {
+                Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
 
-            when {
-                state.loading && state.profile == null -> Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Shows the avatar the caller already had (from the
-                    // FriendsRow/FriendsList thumbnail that was tapped) while
-                    // the full scrape is still in flight, so the page doesn't
-                    // open on a completely blank state.
-                    if (!avatarHint.isNullOrBlank()) {
-                        FriendAvatar(url = avatarHint, modifier = Modifier.size(64.dp).clip(kikoCircleShape()).background(c.warm))
-                        Spacer(Modifier.height(16.dp))
-                    }
-                    KikoLoadingIndicator(color = c.primary)
-                }
-                state.error != null && state.profile == null -> Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(state.error, color = c.muted, fontSize = 13.sp)
-                    TextButton(onClick = { vm.loadFriendProfile(context, username, force = true) }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
-                }
-                state.profile != null -> {
-                    val header = state.profile.header
-                    // MAL prints these plain (Last Online/Gender/Birthday/Joined)
-                    // next to the avatar on the real profile page. Passed into
-                    // ProfileStatsSection's own avatar card via detailsPills so
-                    // they sit under the avatar+name like Profile's gender pill
-                    // does, instead of a separate row above the card — and
-                    // gender only appears once here (ProfileStatsSection would
-                    // otherwise also render it from friendProfile.stats.gender,
-                    // which MalProfileScrapeApi copies from the same header).
-                    val aboutPills = listOfNotNull(
-                        header.lastOnline?.let { DetailPill(Icons.Default.Schedule, it) },
-                        header.gender?.let { DetailPill(Icons.Default.Person, it) },
-                        header.birthday?.let { DetailPill(Icons.Default.Cake, it) },
-                        header.joined?.let { DetailPill(Icons.Default.Event, it) },
-                    )
-                    Box(Modifier.padding(bottom = 24.dp)) {
-                        ProfileStatsSection(
-                            connected = true, profile = state.profile.stats, items = emptyList(), onConnect = {},
-                            statsTab = statsTab, onStatsTabChange = { statsTab = it },
-                            isOwnProfile = false,
-                            onOpenFriendsFavorites = { onOpenFriendsFavorites(username) },
-                            onOpenFriend = onOpenFriend,
-                            onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
-                            onOpenFavoriteTitle = onOpenFavoriteTitle,
-                            onOpenFriendList = onOpenList,
-                            cachedFriends = state.friends, cachedFavorites = state.favorites,
-                            onLoadFriendsFavorites = { forUsername -> vm.loadFriendProfileFriendsFavorites(context, forUsername) },
-                            friendsFavoritesLoading = state.friendsFavoritesLoading,
-                            detailsPills = aboutPills,
-                            cachedAboutMe = state.aboutMe,
-                        )
+                    when {
+                        state.loading && state.profile == null -> Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            // Shows the avatar the caller already had (from the
+                            // FriendsRow/FriendsList thumbnail that was tapped) while
+                            // the full scrape is still in flight, so the page doesn't
+                            // open on a completely blank state.
+                            if (!avatarHint.isNullOrBlank()) {
+                                FriendAvatar(url = avatarHint, modifier = Modifier.size(64.dp).clip(kikoCircleShape()).background(c.warm))
+                                Spacer(Modifier.height(16.dp))
+                            }
+                            KikoLoadingIndicator(color = c.primary)
+                        }
+                        state.error != null && state.profile == null -> Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(state.error, color = c.muted, fontSize = 13.sp)
+                            TextButton(onClick = { vm.loadFriendProfile(context, username, force = true) }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
+                        }
+                        state.profile != null -> {
+                            val header = state.profile.header
+                            // MAL prints these plain (Last Online/Gender/Birthday/Joined)
+                            // next to the avatar on the real profile page. Passed into
+                            // ProfileStatsSection's own avatar card via detailsPills so
+                            // they sit under the avatar+name like Profile's gender pill
+                            // does, instead of a separate row above the card — and
+                            // gender only appears once here (ProfileStatsSection would
+                            // otherwise also render it from friendProfile.stats.gender,
+                            // which MalProfileScrapeApi copies from the same header).
+                            val aboutPills = listOfNotNull(
+                                header.lastOnline?.let { DetailPill(Icons.Default.Schedule, it) },
+                                header.gender?.let { DetailPill(Icons.Default.Person, it) },
+                                header.birthday?.let { DetailPill(Icons.Default.Cake, it) },
+                                header.joined?.let { DetailPill(Icons.Default.Event, it) },
+                            )
+                            Box(Modifier.padding(bottom = 24.dp)) {
+                                ProfileStatsSection(
+                                    connected = true, profile = state.profile.stats, items = emptyList(), onConnect = {},
+                                    statsTab = statsTab, onStatsTabChange = { statsTab = it },
+                                    isOwnProfile = false,
+                                    onOpenFriendsFavorites = { onOpenFriendsFavorites(username) },
+                                    onOpenFriend = onOpenFriend,
+                                    onOpenCharacter = onOpenCharacter, onOpenPerson = onOpenPerson, onOpenCompany = onOpenCompany,
+                                    onOpenFavoriteTitle = onOpenFavoriteTitle,
+                                    onOpenFriendList = onOpenList,
+                                    cachedFriends = state.friends, cachedFavorites = state.favorites,
+                                    onLoadFriendsFavorites = { forUsername -> vm.loadFriendProfileFriendsFavorites(context, forUsername) },
+                                    friendsFavoritesLoading = state.friendsFavoritesLoading,
+                                    detailsPills = aboutPills,
+                                    cachedAboutMe = state.aboutMe,
+                                )
+                            }
+                        }
                     }
                 }
             }

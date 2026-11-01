@@ -72,40 +72,44 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val staggerSeen = rememberStaggerMemory()
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
-            item {
-                // M3 default small top app bar: 64dp tall, content centred, no extra top/bottom padding.
-                Row(Modifier.fillMaxWidth().height(KikoHeader.BackTop * 2 + 48.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                    Text("Ranking", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
-                }
-                RankingTypeButtonGroup(vm.rankingType) { vm.loadRanking(context, it, vm.rankingSort) }
-                // Score / Popularity / Favorites / Upcoming as one dropdown button (same pill look as My List's sort).
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
-                    RankingSortMenu(vm.rankingSort, sorts) { vm.loadRanking(context, vm.rankingType, it) }
-                }
-                if (vm.rankingLoading && vm.visibleRankingResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), color = c.primary)
-                vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
-            }
-            if (vm.rankingLoading && vm.visibleRankingResults.isEmpty()) {
-                item { KikoSectionLoading() }
-            } else {
-                itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it ->
-                    StaggeredItem(index, staggerSeen) {
-                        RankingRow(index + 1, it, onOpenDetail, myStatus = vm.trackedStatus(it))
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(KikoHeader.BackTop * 2 + 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text("Ranking", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+        }
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+                    item {
+                        // M3 default small top app bar: 64dp tall, content centred, no extra top/bottom padding.
+                        RankingTypeButtonGroup(vm.rankingType) { vm.loadRanking(context, it, vm.rankingSort) }
+                        // Score / Popularity / Favorites / Upcoming as one dropdown button (same pill look as My List's sort).
+                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
+                            RankingSortMenu(vm.rankingSort, sorts) { vm.loadRanking(context, vm.rankingType, it) }
+                        }
+                        if (vm.rankingLoading && vm.visibleRankingResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), color = c.primary)
+                        vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                    }
+                    if (vm.rankingLoading && vm.visibleRankingResults.isEmpty()) {
+                        item { KikoSectionLoading() }
+                    } else {
+                        itemsIndexed(vm.visibleRankingResults, key = { _, it -> it.id }) { index, it ->
+                            StaggeredItem(index, staggerSeen) {
+                                RankingRow(index + 1, it, onOpenDetail, myStatus = vm.trackedStatus(it))
+                            }
+                        }
+                    }
+                    if (!vm.rankingLoading && vm.visibleRankingResults.isEmpty() && vm.rankingError == null) {
+                        item { Text("No results.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                     }
                 }
-            }
-            if (!vm.rankingLoading && vm.visibleRankingResults.isEmpty() && vm.rankingError == null) {
-                item { Text("No results.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                GoToTopButton(
+                    visible = showGoToTop,
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+                )
             }
         }
-        GoToTopButton(
-            visible = showGoToTop,
-            onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-        )
     }
 }
 // Anime / Manga switch — a Material 3 Expressive connected button group (single-select), same

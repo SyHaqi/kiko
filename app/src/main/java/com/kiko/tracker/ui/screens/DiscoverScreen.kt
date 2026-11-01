@@ -1320,41 +1320,43 @@ fun formatExact(n: Int): String = "%,d".format(n)
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 } }
 
-    Box(Modifier.fillMaxSize()) {
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                    Text("You might like", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
-                }
-            }
-            if (vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
-            } else {
-                itemsIndexed(vm.visibleRecommendations, key = { _, it -> it.id }) { index, item ->
-                    StaggeredItem(index, staggerSeen) {
-                        RecommendationGridCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text("You might like", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+        }
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                LazyVerticalGrid(
+                    state = gridState,
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(11.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    if (vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
+                    } else {
+                        itemsIndexed(vm.visibleRecommendations, key = { _, it -> it.id }) { index, item ->
+                            StaggeredItem(index, staggerSeen) {
+                                RecommendationGridCard(item, onOpenDetail, myStatus = item.id.toIntOrNull()?.let { myListStatus[it to item.type] }, onLongPress = onEdit, isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type)
+                            }
+                        }
+                    }
+                    if (!vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Text("No recommendations yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center)
+                        }
                     }
                 }
-            }
-            if (!vm.discoverBrowseLoading && vm.visibleRecommendations.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text("No recommendations yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center)
-                }
+                GoToTopButton(
+                    visible = showGoToTop,
+                    onClick = { scope.launch { gridState.animateScrollToItem(0) } },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+                )
             }
         }
-        GoToTopButton(
-            visible = showGoToTop,
-            onClick = { scope.launch { gridState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-        )
     }
 }
 // Recommendations / search-result grid tile — now just the Seasonal screen's tile

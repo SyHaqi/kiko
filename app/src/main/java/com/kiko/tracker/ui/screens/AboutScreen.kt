@@ -69,57 +69,61 @@ import com.kiko.tracker.util.AppUpdateInfo
         runCatching { context.packageManager.getApplicationIcon(context.packageName) }
             .getOrNull()?.toBitmap(168, 168)?.asImageBitmap()
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("About", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
-        Column(Modifier.fillMaxWidth().padding(top = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            if (appIcon != null) {
-                Image(bitmap = appIcon, contentDescription = "Kiko", modifier = Modifier.size(88.dp).clip(RoundedCornerShape(kikoCorner(24.dp))))
-            } else {
-                Box(Modifier.size(88.dp).clip(RoundedCornerShape(kikoCorner(24.dp))).background(c.primaryContainer))
-            }
-            Text("Kiko", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 14.dp))
-            Text("Version ${BuildConfig.VERSION_NAME}", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
-        }
-        Spacer(Modifier.height(28.dp))
-        ListItem(
-            headlineContent = { Text("Check for updates", fontWeight = FontWeight.Bold, color = c.ink) },
-            supportingContent = {
-                Text(
-                    when {
-                        updateChecking -> "Checking…"
-                        updateInfo != null -> "Update available — ${updateInfo.version}"
-                        updateUpToDate -> "You're up to date"
-                        else -> "Tap to check"
-                    },
-                    color = if (updateInfo != null) c.primary else c.muted,
-                    fontWeight = if (updateInfo != null) FontWeight.Bold else FontWeight.Normal,
-                )
-            },
-            leadingContent = {
-                Box {
-                    Icon(Icons.Default.SystemUpdate, null, tint = c.primary)
-                    if (updateInfo != null) Box(Modifier.size(8.dp).align(Alignment.TopEnd).clip(kikoCircleShape()).background(c.danger))
+        Box(Modifier.weight(1f)) {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
+                Column(Modifier.fillMaxWidth().padding(top = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (appIcon != null) {
+                        Image(bitmap = appIcon, contentDescription = "Kiko", modifier = Modifier.size(88.dp).clip(RoundedCornerShape(kikoCorner(24.dp))))
+                    } else {
+                        Box(Modifier.size(88.dp).clip(RoundedCornerShape(kikoCorner(24.dp))).background(c.primaryContainer))
+                    }
+                    Text("Kiko", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 14.dp))
+                    Text("Version ${BuildConfig.VERSION_NAME}", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                 }
-            },
-            trailingContent = { if (updateChecking) KikoLoadingIndicator(color = c.primary, size = 24.dp) else Icon(Icons.Default.ChevronRight, null, tint = c.muted) },
-            colors = ListItemDefaults.colors(containerColor = c.surfaceContainer),
-            modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !updateChecking, onClick = onCheckForUpdate),
-        )
-        Spacer(Modifier.height(28.dp))
-        // Community links row
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://github.com/SyHaqi/kiko")) }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
-                Icon(painterResource(R.drawable.ic_github), "GitHub", tint = c.ink)
-            }
-            Spacer(Modifier.width(24.dp))
-            IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://discord.gg/KZYQHpDWKH")) }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
-                Icon(painterResource(R.drawable.ic_discord), "Discord", tint = c.ink)
+                Spacer(Modifier.height(28.dp))
+                ListItem(
+                    headlineContent = { Text("Check for updates", fontWeight = FontWeight.Bold, color = c.ink) },
+                    supportingContent = {
+                        Text(
+                            when {
+                                updateChecking -> "Checking…"
+                                updateInfo != null -> "Update available — ${updateInfo.version}"
+                                updateUpToDate -> "You're up to date"
+                                else -> "Tap to check"
+                            },
+                            color = if (updateInfo != null) c.primary else c.muted,
+                            fontWeight = if (updateInfo != null) FontWeight.Bold else FontWeight.Normal,
+                        )
+                    },
+                    leadingContent = {
+                        Box {
+                            Icon(Icons.Default.SystemUpdate, null, tint = c.primary)
+                            if (updateInfo != null) Box(Modifier.size(8.dp).align(Alignment.TopEnd).clip(kikoCircleShape()).background(c.danger))
+                        }
+                    },
+                    trailingContent = { if (updateChecking) KikoLoadingIndicator(color = c.primary, size = 24.dp) else Icon(Icons.Default.ChevronRight, null, tint = c.muted) },
+                    colors = ListItemDefaults.colors(containerColor = c.surfaceContainer),
+                    modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !updateChecking, onClick = onCheckForUpdate),
+                )
+                Spacer(Modifier.height(28.dp))
+                // Community links row
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://github.com/SyHaqi/kiko")) }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
+                        Icon(painterResource(R.drawable.ic_github), "GitHub", tint = c.ink)
+                    }
+                    Spacer(Modifier.width(24.dp))
+                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://discord.gg/KZYQHpDWKH")) }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
+                        Icon(painterResource(R.drawable.ic_discord), "Discord", tint = c.ink)
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
             }
         }
-        Spacer(Modifier.height(24.dp))
     }
 }
 // One headline stat number

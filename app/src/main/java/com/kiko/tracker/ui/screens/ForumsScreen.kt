@@ -316,47 +316,51 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
             .distinctUntilChanged()
             .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 6) vm.loadMoreForumTopics(context) }
     }
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
-            item {
-                Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = vm::exitForumTopics, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back to Forums", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                    Text(headerTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
-                }
-                if (vm.forumSubboards.isNotEmpty()) {
-                    val subboardListState = rememberLazyListState()
-                    LazyRow(state = subboardListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 15.dp)) {
-                        item { FilterChip(selected = vm.forumSubboardId == null, onClick = { vm.openForumSubboard(context, null); scope.centerChip(subboardListState, 0) }, label = { Text("All") }, colors = kikoFilterChipColors()) }
-                        itemsIndexed(vm.forumSubboards, key = { _, it -> it.id }) { index, sub -> FilterChip(selected = vm.forumSubboardId == sub.id, onClick = { vm.openForumSubboard(context, sub.id); scope.centerChip(subboardListState, index + 1) }, label = { Text(sub.title) }, colors = kikoFilterChipColors()) }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = vm::exitForumTopics, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back to Forums", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text(headerTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
+        }
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
+                    item {
+                        if (vm.forumSubboards.isNotEmpty()) {
+                            val subboardListState = rememberLazyListState()
+                            LazyRow(state = subboardListState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 15.dp)) {
+                                item { FilterChip(selected = vm.forumSubboardId == null, onClick = { vm.openForumSubboard(context, null); scope.centerChip(subboardListState, 0) }, label = { Text("All") }, colors = kikoFilterChipColors()) }
+                                itemsIndexed(vm.forumSubboards, key = { _, it -> it.id }) { index, sub -> FilterChip(selected = vm.forumSubboardId == sub.id, onClick = { vm.openForumSubboard(context, sub.id); scope.centerChip(subboardListState, index + 1) }, label = { Text(sub.title) }, colors = kikoFilterChipColors()) }
+                            }
+                        }
+                        if (vm.forumTopicsLoading && vm.forumTopics.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
+                        vm.forumTopicsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                     }
-                }
-                if (vm.forumTopicsLoading && vm.forumTopics.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
-                vm.forumTopicsError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
-            }
-            if (!vm.forumTopicsLoading && vm.forumTopics.isEmpty() && vm.forumTopicsError == null) {
-                item { Text("No topics found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-            }
-            if (vm.forumTopicsLoading && vm.forumTopics.isEmpty()) {
-                item { KikoSectionLoading() }
-            } else {
-                itemsIndexed(vm.forumTopics, key = { _, it -> it.id }) { index, topic ->
-                    StaggeredItem(index) {
-                        Column {
-                            if (vm.forumIsNewsBoard) NewsTopicRow(topic) { openTopic(topic) } else ForumTopicRow(topic) { openTopic(topic) }
-                            if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                    if (!vm.forumTopicsLoading && vm.forumTopics.isEmpty() && vm.forumTopicsError == null) {
+                        item { Text("No topics found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
+                    }
+                    if (vm.forumTopicsLoading && vm.forumTopics.isEmpty()) {
+                        item { KikoSectionLoading() }
+                    } else {
+                        itemsIndexed(vm.forumTopics, key = { _, it -> it.id }) { index, topic ->
+                            StaggeredItem(index) {
+                                Column {
+                                    if (vm.forumIsNewsBoard) NewsTopicRow(topic) { openTopic(topic) } else ForumTopicRow(topic) { openTopic(topic) }
+                                    if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                                }
+                            }
                         }
                     }
+                    if (vm.forumLoadingMore) {
+                        item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 28.dp) } }
+                    }
                 }
-            }
-            if (vm.forumLoadingMore) {
-                item { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 28.dp) } }
+                GoToTopButton(
+                    visible = showGoToTop,
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+                )
             }
         }
-        GoToTopButton(
-            visible = showGoToTop,
-            onClick = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-        )
     }
 }
 // Forum topic list row
@@ -664,19 +668,19 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     // behaviour). Only the reply bar takes imePadding(), and the list rides up with it (see the
     // ime effect above), like a messaging app.
     Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = goBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = { context.openInBrowser("https://myanimelist.net/forum/?topicid=$topicId") }, modifier = Modifier.headerEdgeEnd()) {
+                Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(24.dp))
+            }
+        }
         Box(Modifier.weight(1f)) {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
                 item {
                     // Fixed back/open-in-browser row — same non-floating pattern as the other
                     // detail screens (e.g. PersonDetailScreen): plain row at the top of the
                     // scrolling content, no background fade, no overlay.
-                    Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = goBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                        Spacer(Modifier.weight(1f))
-                        IconButton(onClick = { context.openInBrowser("https://myanimelist.net/forum/?topicid=$topicId") }, modifier = Modifier.headerEdgeEnd()) {
-                            Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(24.dp))
-                        }
-                    }
                     Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 18.dp))
                     if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
                     error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
@@ -871,62 +875,66 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     val showGoToTop by remember { derivedStateOf { scrollState.value > 600 } }
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 14.dp).padding(bottom = if (showGoToTop) 90.dp else 24.dp)) {
-            Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
-                if (entry.url.isNotBlank()) {
-                    // Open review in browser
-                    IconButton(onClick = { context.openInBrowser(entry.url) }, modifier = Modifier.headerEdgeEnd()) {
-                        Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(24.dp))
-                    }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
+            if (entry.url.isNotBlank()) {
+                // Open review in browser
+                IconButton(onClick = { context.openInBrowser(entry.url) }, modifier = Modifier.headerEdgeEnd()) {
+                    Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(24.dp))
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (entry.userImage.isNotBlank()) {
-                    AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(40.dp).clip(kikoCircleShape()).background(c.warm))
-                } else {
-                    Box(Modifier.size(40.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                        Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
-                    }
-                }
-                Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
-                if (entry.score > 0) {
-                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp))
-                    Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
-                }
-            }
-            if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 14.dp))
-            if (entry.tags.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 14.dp)) {
-                    entry.tags.forEach { tag ->
-                        val verdict = tag in ReviewVerdictTags
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (verdict) Icon(Icons.Default.Star, null, tint = verdictColor(tag, c), modifier = Modifier.size(13.dp))
-                            Text(
-                                tag, color = if (verdict) verdictColor(tag, c) else c.muted, fontWeight = if (verdict) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 12.sp, modifier = Modifier.padding(start = if (verdict) 4.dp else 0.dp),
-                            )
+        }
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 14.dp).padding(bottom = if (showGoToTop) 90.dp else 24.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (entry.userImage.isNotBlank()) {
+                            AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(40.dp).clip(kikoCircleShape()).background(c.warm))
+                        } else {
+                            Box(Modifier.size(40.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
+                                Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+                            }
+                        }
+                        Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
+                        if (entry.score > 0) {
+                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp))
+                            Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
                         }
                     }
+                    if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 14.dp))
+                    if (entry.tags.isNotEmpty()) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 14.dp)) {
+                            entry.tags.forEach { tag ->
+                                val verdict = tag in ReviewVerdictTags
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (verdict) Icon(Icons.Default.Star, null, tint = verdictColor(tag, c), modifier = Modifier.size(13.dp))
+                                    Text(
+                                        tag, color = if (verdict) verdictColor(tag, c) else c.muted, fontWeight = if (verdict) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp, modifier = Modifier.padding(start = if (verdict) 4.dp else 0.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    SelectionContainer {
+                        Text(
+                            entry.review, color = c.ink, fontSize = 14.sp, lineHeight = 22.sp,
+                            modifier = Modifier.padding(top = 18.dp),
+                        )
+                    }
+                    // MAL reactions (top emojis + total), same readout as the review cards.
+                    ReviewReactions(entry, Modifier.padding(top = 18.dp), emojiSize = 15.sp, countSize = 13.sp)
+                    Spacer(Modifier.height(28.dp))
                 }
-            }
-            SelectionContainer {
-                Text(
-                    entry.review, color = c.ink, fontSize = 14.sp, lineHeight = 22.sp,
-                    modifier = Modifier.padding(top = 18.dp),
+                GoToTopButton(
+                    visible = showGoToTop,
+                    onClick = { scope.launch { scrollState.animateScrollTo(0) } },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
                 )
             }
-            // MAL reactions (top emojis + total), same readout as the review cards.
-            ReviewReactions(entry, Modifier.padding(top = 18.dp), emojiSize = 15.sp, countSize = 13.sp)
-            Spacer(Modifier.height(28.dp))
         }
-        GoToTopButton(
-            visible = showGoToTop,
-            onClick = { scope.launch { scrollState.animateScrollTo(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-        )
     }
 }
 // BBCode tag renderer

@@ -70,37 +70,39 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         out
     }
 
-    Box(Modifier.fillMaxSize()) {
-        KikoPullToRefreshBox(
-            isRefreshing = vm.historyLoading && vm.history.isNotEmpty(),
-            onRefresh = { vm.malProfile?.name?.let { vm.loadHistory(context, it, force = true) } },
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
-                item(key = "header") {
-                    Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                        Text("History", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
-                    }
-                }
-                if (vm.historyLoading && vm.history.isEmpty()) {
-                    item(key = "loading") {
-                        Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
-                            KikoLoadingIndicator(color = c.primary)
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            Text("History", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.headerTitleStart())
+        }
+        Box(Modifier.weight(1f)) {
+            Box(Modifier.fillMaxSize()) {
+                KikoPullToRefreshBox(
+                    isRefreshing = vm.historyLoading && vm.history.isNotEmpty(),
+                    onRefresh = { vm.malProfile?.name?.let { vm.loadHistory(context, it, force = true) } },
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
+                        if (vm.historyLoading && vm.history.isEmpty()) {
+                            item(key = "loading") {
+                                Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
+                                    KikoLoadingIndicator(color = c.primary)
+                                }
+                            }
+                        } else if (vm.history.isEmpty()) {
+                            item(key = "empty") {
+                                Text("No history yet — episode and chapter updates you make will show up here.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
+                            }
                         }
-                    }
-                } else if (vm.history.isEmpty()) {
-                    item(key = "empty") {
-                        Text("No history yet — episode and chapter updates you make will show up here.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
-                    }
-                }
-                grouped.forEach { (label, entries) ->
-                    item(key = "day:$label") {
-                        Text(label, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.sp, color = c.muted, modifier = Modifier.padding(top = 18.dp, bottom = 4.dp))
-                    }
-                    itemsIndexed(entries, key = { index, it -> "${it.type}:${it.mediaId}:${it.timeLabel}:$index" }) { _, entry ->
-                        val cover = remember(entry, items) { historyCoverColor(entry, items) }
-                        HistoryRow(entry, cover.first, cover.second, showDay = false) { openHistoryDetail(entry, items, context, vm, onOpenDetail) }
+                        grouped.forEach { (label, entries) ->
+                            item(key = "day:$label") {
+                                Text(label, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.sp, color = c.muted, modifier = Modifier.padding(top = 18.dp, bottom = 4.dp))
+                            }
+                            itemsIndexed(entries, key = { index, it -> "${it.type}:${it.mediaId}:${it.timeLabel}:$index" }) { _, entry ->
+                                val cover = remember(entry, items) { historyCoverColor(entry, items) }
+                                HistoryRow(entry, cover.first, cover.second, showDay = false) { openHistoryDetail(entry, items, context, vm, onOpenDetail) }
+                            }
+                        }
                     }
                 }
             }

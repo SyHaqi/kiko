@@ -213,6 +213,32 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet"), Members("Members") }
 
 // Full club page —
+/** M3 small top app bar pinned over the club banner: transparent with white icons at first, then page-colored with the title once the banner has scrolled away. */
+@Composable
+private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress: () -> Float, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    val p = progress()
+    val iconColor = androidx.compose.ui.graphics.lerp(Color.White, c.ink, p)
+    TopAppBar(
+        modifier = modifier,
+        // The screen host already applies the status-bar inset above this page.
+        windowInsets = WindowInsets(top = 0.dp),
+        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, lineHeight = 24.sp, letterSpacing = 0.sp)) },
+        navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
+        actions = {
+            if (url.isNotBlank()) IconButton(onClick = { context.openInBrowser(url) }) { Icon(Icons.Default.OpenInNew, "Open on MyAnimeList") }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = c.background.copy(alpha = p),
+            scrolledContainerColor = c.background.copy(alpha = p),
+            navigationIconContentColor = iconColor,
+            titleContentColor = c.ink.copy(alpha = p),
+            actionIconContentColor = iconColor,
+        ),
+    )
+}
+
 @Composable fun ClubDetailScreen(club: MalClub, onBack: () -> Unit, onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {}) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
@@ -243,8 +269,17 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
         }
     }
 
+    val clubListState = rememberLazyListState()
+    val clubDensity = androidx.compose.ui.platform.LocalDensity.current
+    // 0 while the banner is behind the bar -> 1 once it has scrolled away (same fade idea as the anime/manga detail page).
+    val clubBarProgress by remember {
+        derivedStateOf {
+            if (clubListState.firstVisibleItemIndex > 0) 1f
+            else with(clubDensity) { ((clubListState.firstVisibleItemScrollOffset - 40.dp.toPx()) / 56.dp.toPx()).coerceIn(0f, 1f) }
+        }
+    }
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), state = clubListState, contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
                 Box {
                     if (full.image.isNotBlank()) {
@@ -253,15 +288,7 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                         Box(Modifier.fillMaxWidth().height(160.dp).background(c.primaryContainer))
                     }
                     Box(Modifier.fillMaxWidth().height(160.dp).background(Color.Black.copy(alpha = .35f)))
-                    // Plain 24dp icons floating on the banner (no backing chip), 48dp touch targets.
-                    Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, start = 4.dp, end = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White, modifier = Modifier.size(24.dp)) }
-                        if (full.url.isNotBlank()) {
-                            IconButton(onClick = { context.openInBrowser(full.url) }) {
-                                Icon(Icons.Default.OpenInNew, "Open on MyAnimeList", tint = Color.White, modifier = Modifier.size(24.dp))
-                            }
-                        }
-                    }
+                    // Back / open-in-browser live in the pinned ClubTopBar overlay below.
                     Text(
                         full.name.ifBlank { "Club" }, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 16.dp, end = 14.dp),
@@ -296,6 +323,13 @@ private enum class ClubTab(val label: String) { Couch("Couch"), Cabinet("Cabinet
                 }
             }
         }
+        ClubTopBar(
+            title = full.name.ifBlank { "Club" },
+            url = full.url,
+            onBack = onBack,
+            progress = { clubBarProgress },
+            modifier = Modifier.align(Alignment.TopStart),
+        )
     }
 }
 

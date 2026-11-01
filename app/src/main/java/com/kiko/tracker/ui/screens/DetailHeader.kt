@@ -44,13 +44,11 @@ data class DetailFact(val icon: ImageVector, val tint: Color, val text: String)
 fun countLabel(n: Int, singular: String, plural: String = singular + "s"): String = "$n ${if (n == 1) singular else plural}"
 
 /**
- * Plain page header (no banner/backdrop): back / favorite / ⋮ buttons in the top row, then the [eyebrow] label
- * and [title] on the normal page background. Tap the title to see it in full when it's cut off (3-line cap),
- * long-press to copy it.
+ * The back / favorite / ⋮ row of [DetailHeader] as its own composable, so a page can pin it above its scrolling
+ * content (pass `showTopRow = false` to [DetailHeader] then).
  */
 @Composable
-fun DetailHeader(
-    eyebrow: String,
+fun DetailTopRow(
     title: String,
     shareUrl: String,
     favorited: Boolean,
@@ -59,8 +57,6 @@ fun DetailHeader(
 ) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
-    var showFullTitle by remember(title) { mutableStateOf(false) }
-    var titleOverflows by remember(title) { mutableStateOf(false) }
     var moreOpen by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
@@ -90,6 +86,28 @@ fun DetailHeader(
             }
         }
     }
+}
+
+/**
+ * Plain page header (no banner/backdrop): back / favorite / ⋮ buttons in the top row, then the [eyebrow] label
+ * and [title] on the normal page background. Tap the title to see it in full when it's cut off (3-line cap),
+ * long-press to copy it.
+ */
+@Composable
+fun DetailHeader(
+    eyebrow: String,
+    title: String,
+    shareUrl: String,
+    favorited: Boolean,
+    onBack: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    showTopRow: Boolean = true,
+) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    var showFullTitle by remember(title) { mutableStateOf(false) }
+    var titleOverflows by remember(title) { mutableStateOf(false) }
+    if (showTopRow) DetailTopRow(title = title, shareUrl = shareUrl, favorited = favorited, onBack = onBack, onToggleFavorite = onToggleFavorite)
     Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp)) {
         Text(eyebrow, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 1.5.sp)
         Text(
