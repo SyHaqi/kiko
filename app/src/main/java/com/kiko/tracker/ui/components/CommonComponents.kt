@@ -206,17 +206,17 @@ import com.kiko.tracker.ui.theme.kikoPillShape
 // One set of numbers for the header of every main page (Home, My List, Discover, Seasonal, Hub),
 // so the slot, side margins and avatar sit in exactly the same place on all five.
 object KikoHeader {
-    // Main-tab header slot. The bar itself is [BarHeight] tall with the avatar/title/search centred in
-    // it (centre ~27dp under the status bar, the same line as the back-button headers and the Play Store
-    // app bar); [BottomGap] is breathing room below it before the page content starts.
-    val BarHeight = 54.dp
-    val BottomGap = 10.dp
+    // Main-tab header slot: the stock Material 3 small top app bar height (64dp), with the avatar/title/search
+    // centred in it (32dp under the status bar, the same line as the back-button headers). No extra gap
+    // below the bar, like M3.
+    val BarHeight = 64.dp
+    val BottomGap = 0.dp
     val Height = BarHeight + BottomGap   // fixed slot; content below never jumps between tabs
     val SidePadding = 14.dp   // same left/right margin as the page content
     val AvatarSize = 33.dp    // round profile picture, flush with the right margin
-    // Back-button headers (detail/sub pages): space above the 48dp back button. 3dp puts the arrow's centre
-    // ~27dp under the status bar, like the Play Store app bar (it used to be 13dp, i.e. 10dp lower).
-    val BackTop = 3.dp
+    // Back-button headers (detail/sub pages): space above the 48dp back button. 8dp (+ 8dp below) makes the
+    // header the stock Material 3 small top app bar: 64dp tall, arrow centred 32dp under the status bar.
+    val BackTop = 8.dp
 }
 
 // Play Store-style top bar: title on the left, round avatar/actions on the right, vertically

@@ -62,7 +62,7 @@ fun DetailHeader(
     var showFullTitle by remember(title) { mutableStateOf(false) }
     var titleOverflows by remember(title) { mutableStateOf(false) }
     var moreOpen by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = KikoHeader.BackTop, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
         Spacer(Modifier.weight(1f))
         // Favorite sits right beside the 3-dot menu in the header row.

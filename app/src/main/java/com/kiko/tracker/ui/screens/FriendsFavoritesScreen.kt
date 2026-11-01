@@ -116,7 +116,7 @@ import kotlinx.coroutines.launch
     }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Friends", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }

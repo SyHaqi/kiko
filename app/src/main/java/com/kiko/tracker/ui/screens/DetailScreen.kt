@@ -467,47 +467,7 @@ private var detailStatusBarOwners = 0
                     Box(Modifier.align(Alignment.TopStart).fillMaxWidth().height(statusTop + 40.dp).background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .4f), 1f to Color.Transparent)))
                     // Darkening overlay, much heavier at the bottom where the title sits (keeps it readable on bright art)
                     Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .3f), .3f to Color.Black.copy(alpha = .5f), .65f to Color.Black.copy(alpha = .75f), 1f to Color.Black.copy(alpha = .92f))))
-                    // Plain 24dp icons floating on the banner (no backing chip), 48dp touch targets.
-                    IconButton(
-                        onClick = actions.onBack,
-                        modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = KikoHeader.BackTop + statusTop),
-                    ) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White, modifier = Modifier.size(24.dp)) }
-                    var moreOpen by remember(item.id) { mutableStateOf(false) }
-                    Row(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = KikoHeader.BackTop + statusTop), verticalAlignment = Alignment.CenterVertically) {
-                        // Favorite sits to the left of the 3-dot menu, in the same header row.
-                        FavoriteHeartButton(
-                            favorited = favorited,
-                            onClick = actions.onToggleFavorite,
-                            size = 48.dp,
-                            iconSize = 24.dp,
-                            background = Color.Transparent,
-                            outlineTint = Color.White,
-                        )
-                        Box {
-                            IconButton(
-                                onClick = { moreOpen = true },
-                            ) { Icon(Icons.Default.MoreVert, "More options", tint = Color.White, modifier = Modifier.size(24.dp)) }
-                            KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp))) {
-                                DropdownMenuItem(
-                                    text = { Text("Share") },
-                                    leadingIcon = { Icon(Icons.Default.Share, null) },
-                                    onClick = {
-                                        moreOpen = false
-                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "text/plain"
-                                            putExtra(Intent.EXTRA_TEXT, malUrl(item))
-                                        }
-                                        context.startActivity(Intent.createChooser(sendIntent, displayTitle))
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Open in browser") },
-                                    leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
-                                    onClick = { moreOpen = false; context.openInBrowser(malUrl(item)) },
-                                )
-                            }
-                        }
-                    }
+                    // Back / favorite / more now live in the pinned DetailTopBar overlay (always on screen).
                     // Format line + title, bottom-left (the "Mojang" / "Minecraft" spot in the Play Store header).
                     // The alternative/secondary title now lives in the Info tab's "Alternative titles" list.
                     val textShadow = androidx.compose.ui.graphics.Shadow(color = Color.Black.copy(alpha = .85f), offset = androidx.compose.ui.geometry.Offset(0f, 2f), blurRadius = 20f)
@@ -1044,10 +1004,18 @@ private var detailStatusBarOwners = 0
                 }
             }
         }
-        // Status-bar strip: see-through while the banner is behind it, fading to the plain page colour
-        // as the banner scrolls away (content scrolling under it is hidden once it is solid).
-        val pageColor = c.background
-        Box(Modifier.align(Alignment.TopStart).fillMaxWidth().height(statusTop).drawBehind { drawRect(pageColor.copy(alpha = statusBarFill)) })
+        // Pinned M3 top app bar, always composed: transparent with white icons over the banner, then its
+        // container, title and icon colors blend to the page look as the banner scrolls away, so the
+        // header reads as one bar that never leaves instead of disappearing and reappearing.
+        DetailTopBar(
+            title = item.displayTitle(),
+            shareUrl = malUrl(item),
+            favorited = favorited,
+            onBack = actions.onBack,
+            onToggleFavorite = actions.onToggleFavorite,
+            progress = { statusBarFill },
+            modifier = Modifier.align(Alignment.TopStart),
+        )
         ExtendedFloatingActionButton(
             onClick = { actions.onEdit(item) },
             icon = { Icon(if (item.inUserList) Icons.Default.Edit else Icons.Default.Add, if (item.inUserList) "Edit" else "Add", tint = c.onPrimary) },
@@ -1056,6 +1024,73 @@ private var detailStatusBarOwners = 0
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
         )
     }
+}
+
+/**
+ * Material 3 small top app bar for the anime/manga detail page, pinned at the top. [progress] is 0 while the
+ * banner is behind it (transparent bar, white icons) and 1 once the banner has scrolled away (page-colored bar,
+ * ink icons, title shown).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DetailTopBar(
+    title: String,
+    shareUrl: String,
+    favorited: Boolean,
+    onBack: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    progress: () -> Float,
+    modifier: Modifier = Modifier,
+) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    var moreOpen by remember { mutableStateOf(false) }
+    val p = progress()
+    val iconColor = androidx.compose.ui.graphics.lerp(Color.White, c.ink, p)
+    TopAppBar(
+        modifier = modifier,
+        title = {
+            Text(
+                title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, lineHeight = 24.sp, letterSpacing = 0.sp),
+            )
+        },
+        navigationIcon = {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+        },
+        actions = {
+            FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 48.dp, iconSize = 24.dp, background = Color.Transparent, outlineTint = iconColor)
+            Box {
+                IconButton(onClick = { moreOpen = true }) { Icon(Icons.Default.MoreVert, "More options") }
+                KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp))) {
+                    DropdownMenuItem(
+                        text = { Text("Share") },
+                        leadingIcon = { Icon(Icons.Default.Share, null) },
+                        onClick = {
+                            moreOpen = false
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, shareUrl)
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, title))
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Open in browser") },
+                        leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                        onClick = { moreOpen = false; context.openInBrowser(shareUrl) },
+                    )
+                }
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = c.background.copy(alpha = p),
+            scrolledContainerColor = c.background.copy(alpha = p),
+            navigationIconContentColor = iconColor,
+            titleContentColor = c.ink.copy(alpha = p),
+            actionIconContentColor = iconColor,
+        ),
+    )
 }
 
 // Placeholder for a detail tab whose sections all came back empty (or haven't loaded yet).

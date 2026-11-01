@@ -120,7 +120,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
     if (!connected) {
         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
-            Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                 Text("Profile", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart().weight(1f))
             }
@@ -154,7 +154,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     DisposableEffect(username) { onDispose { vm.saveFriendProfileScroll(username, scrollState.value) } }
     KikoPullToRefreshBox(isRefreshing = refreshing, onRefresh = { vm.refreshFriendProfile(context, username) }, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = KikoHeader.BackTop, bottom = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart(20.dp)) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                 // "Profile" moved down to the small eyebrow label above the
                 // username in ProfileStatsSection's avatar/name row below —

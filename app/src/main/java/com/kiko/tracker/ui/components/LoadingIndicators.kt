@@ -83,7 +83,7 @@ fun KikoLoadingScreen(onBack: () -> Unit) {
     val c = LocalKikoColors.current
     Box(Modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = KikoHeader.BackTop, bottom = 13.dp),
+            Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = KikoHeader.BackTop, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) {
