@@ -10,7 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -73,7 +73,7 @@ fun KikoTopBar(
                 style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, lineHeight = 24.sp, letterSpacing = 0.sp),
             )
         },
-        navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, backDescription) } },
+        navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, backDescription) } },
         actions = actions,
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = c.background,
@@ -121,11 +121,11 @@ fun ShareMoreMenu(title: String, shareUrl: String, extraItems: @Composable Colum
     val context = LocalContext.current
     var moreOpen by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { moreOpen = true }) { Icon(Icons.Default.MoreVert, "More options") }
+        IconButton(onClick = { moreOpen = true }) { Icon(Icons.Rounded.MoreVert, "More options") }
         KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
             DropdownMenuItem(
                 text = { Text("Share") },
-                leadingIcon = { Icon(Icons.Default.Share, null) },
+                leadingIcon = { Icon(Icons.Rounded.Share, null) },
                 onClick = {
                     moreOpen = false
                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
@@ -137,7 +137,7 @@ fun ShareMoreMenu(title: String, shareUrl: String, extraItems: @Composable Colum
             )
             DropdownMenuItem(
                 text = { Text("Open in browser") },
-                leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                leadingIcon = { Icon(Icons.Rounded.OpenInNew, null) },
                 onClick = { moreOpen = false; context.openInBrowser(shareUrl) },
             )
             extraItems { moreOpen = false }

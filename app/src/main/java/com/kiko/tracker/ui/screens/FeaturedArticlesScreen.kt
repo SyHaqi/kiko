@@ -22,7 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.runtime.*
@@ -202,7 +202,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Default.FilterList, "Filter by tag", tint = if (active) c.onPrimary else c.ink, modifier = Modifier.size(16.dp))
+        Icon(Icons.Rounded.FilterList, "Filter by tag", tint = if (active) c.onPrimary else c.ink, modifier = Modifier.size(16.dp))
         Text(
             selectedName ?: "Tags",
             color = if (active) c.onPrimary else c.ink,
@@ -302,7 +302,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             if (article.author.isNotBlank()) Text("by ${article.author}", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (article.views.isNotBlank()) {
                 if (article.author.isNotBlank()) Text("  ·  ", color = c.muted, fontSize = 12.sp)
-                Icon(Icons.Default.Visibility, null, tint = c.muted, modifier = Modifier.size(12.dp))
+                Icon(Icons.Rounded.Visibility, null, tint = c.muted, modifier = Modifier.size(12.dp))
                 Text(" ${article.views} views", color = c.muted, fontWeight = FontWeight.Medium, fontSize = 12.sp)
             }
         }
@@ -361,7 +361,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     Column(Modifier.fillMaxSize()) {
         val titleProgress = rememberTitleProgress(scrollState)
         KikoTopBar(title = content?.title?.ifBlank { title } ?: title, onBack = onBack, progress = { titleProgress.value }) {
-            IconButton(onClick = { context.openInBrowser(url) }) { Icon(Icons.Default.OpenInNew, "Open in browser") }
+            IconButton(onClick = { context.openInBrowser(url) }) { Icon(Icons.Rounded.OpenInNew, "Open in browser") }
         }
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {
@@ -376,7 +376,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 if (data.date.isNotBlank()) Text(" · ${data.date}", color = c.muted, fontSize = 12.sp)
                                 if (data.views.isNotBlank()) {
                                     Row(Modifier.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Visibility, null, tint = c.muted, modifier = Modifier.size(12.dp))
+                                        Icon(Icons.Rounded.Visibility, null, tint = c.muted, modifier = Modifier.size(12.dp))
                                         Text(" ${data.views}", color = c.muted, fontSize = 12.sp)
                                     }
                                 }

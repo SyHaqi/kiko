@@ -41,7 +41,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -119,29 +119,29 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
             // Search stands alone now. "Saved Stacks" and "Open in
             // browser" moved into a 3-dot overflow menu instead of
             // sharing a boxed pair with Search — same pattern as the
             // menu on ProfileScreen/FriendProfileScreen headers.
             IconButton(onClick = { openBrowse(StackBrowseKind.All) }, modifier = Modifier.headerEdgeEnd()) {
-                Icon(Icons.Default.Search, "Search stacks", tint = c.ink, modifier = Modifier.size(24.dp))
+                Icon(Icons.Rounded.Search, "Search stacks", tint = c.ink, modifier = Modifier.size(24.dp))
             }
             var moreOpen by remember { mutableStateOf(false) }
             Box(Modifier.headerEdgeEnd()) {
                 IconButton(onClick = { moreOpen = true }) {
-                    Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Rounded.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
                 }
                 KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
                     DropdownMenuItem(
                         text = { Text("Saved stacks") },
-                        leadingIcon = { Icon(Icons.Default.Bookmark, null) },
+                        leadingIcon = { Icon(Icons.Rounded.Bookmark, null) },
                         onClick = { moreOpen = false; saveScroll(); onOpenSaved() },
                     )
                     DropdownMenuItem(
                         text = { Text("Open in browser") },
-                        leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                        leadingIcon = { Icon(Icons.Rounded.OpenInNew, null) },
                         onClick = { moreOpen = false; context.openInBrowser("https://myanimelist.net/stacks") },
                     )
                 }
@@ -217,7 +217,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 .background(c.surfaceContainerHigh)
                 .kikoClickable(onClick = onSeeAll),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Default.ArrowForward, "See all", tint = c.ink, modifier = Modifier.size(17.dp)) }
+        ) { Icon(Icons.Rounded.ArrowForward, "See all", tint = c.ink, modifier = Modifier.size(17.dp)) }
     }
 }
 
@@ -233,7 +233,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val kinds = remember { StackBrowseKind.entries.toList() }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
         Column(Modifier.padding(horizontal = 14.dp)) {
@@ -301,7 +301,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val c = LocalKikoColors.current
     if (covers.isEmpty()) {
         Box(modifier.background(c.primaryContainer), contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.Layers, null, tint = c.primary, modifier = Modifier.size(26.dp))
+            Icon(Icons.Rounded.Layers, null, tint = c.primary, modifier = Modifier.size(26.dp))
         }
     } else {
         Row(modifier) {
@@ -319,7 +319,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     Box(modifier.clip(RoundedCornerShape(kikoCorner(14.dp)))) {
         if (covers.isEmpty()) {
             Box(Modifier.fillMaxSize().background(c.primaryContainer), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Layers, null, tint = c.primary, modifier = Modifier.size(22.dp))
+                Icon(Icons.Rounded.Layers, null, tint = c.primary, modifier = Modifier.size(22.dp))
             }
         } else {
             Row(Modifier.fillMaxSize()) {
@@ -370,7 +370,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Modifier.height(20.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Default.Layers, null, tint = c.accent, modifier = Modifier.size(11.dp))
+        Icon(Icons.Rounded.Layers, null, tint = c.accent, modifier = Modifier.size(11.dp))
         Text(restacks.toString(), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 4.dp))
     }
 }
@@ -513,7 +513,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Column(Modifier.headerTitleStart()) {
                 Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink)
                 Text(item.displayTitle(), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
@@ -590,7 +590,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             // Bottom line, like My List's score/members row: entry count (+ last update) on the left, the
             // restack pill on the right.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (counts.isNotBlank()) Icon(Icons.Default.Layers, null, tint = c.muted, modifier = Modifier.size(13.dp))
+                if (counts.isNotBlank()) Icon(Icons.Rounded.Layers, null, tint = c.muted, modifier = Modifier.size(13.dp))
                 Text(counts, color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = if (counts.isNotBlank()) 5.dp else 0.dp))
                 if (stack.restacks > 0) {
                     Spacer(Modifier.width(8.dp))
@@ -623,7 +623,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     DisposableEffect(Unit) { onDispose { vm.saveStacksSavedScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) } }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Saved Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
         // Mirrors StacksScreen's own browse-kind FilterChip row (All/Challenges/Anime/Manga/
@@ -757,7 +757,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Spacer(Modifier.weight(1f))
             // Save Stack sits beside the 3-dot menu now, same
             // pattern as the favorite heart on the anime/manga
@@ -775,7 +775,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     modifier = Modifier.headerEdgeEnd(),
                 ) {
                     Icon(
-                        if (isRestacked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        if (isRestacked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
                         if (isRestacked) "Remove Stack" else "Save Stack",
                         tint = if (isRestacked) c.primary else c.ink,
                         modifier = Modifier.size(24.dp),
@@ -785,12 +785,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             var moreOpen by remember { mutableStateOf(false) }
             Box(Modifier.headerEdgeEnd()) {
                 IconButton(onClick = { moreOpen = true }) {
-                    Icon(Icons.Default.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Rounded.MoreVert, "More options", tint = c.ink, modifier = Modifier.size(24.dp))
                 }
                 KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
                     DropdownMenuItem(
                         text = { Text("Share") },
-                        leadingIcon = { Icon(Icons.Default.Share, null, tint = c.primary) },
+                        leadingIcon = { Icon(Icons.Rounded.Share, null, tint = c.primary) },
                         onClick = {
                             moreOpen = false
                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
@@ -802,7 +802,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     )
                     DropdownMenuItem(
                         text = { Text("Open in Browser") },
-                        leadingIcon = { Icon(Icons.Default.OpenInNew, null, tint = c.primary) },
+                        leadingIcon = { Icon(Icons.Rounded.OpenInNew, null, tint = c.primary) },
                         onClick = {
                             moreOpen = false
                             context.openInBrowser("https://myanimelist.net/stacks/$stackId")

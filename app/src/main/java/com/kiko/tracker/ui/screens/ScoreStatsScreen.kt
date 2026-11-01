@@ -14,8 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -110,7 +110,7 @@ import com.kiko.tracker.ui.theme.kikoCorner
     }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Column(Modifier.headerTitleStart()) {
                 Text("Reviews", style = MaterialTheme.typography.titleLarge, color = c.ink)
                 Text(item.displayTitle(), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
@@ -214,7 +214,7 @@ import com.kiko.tracker.ui.theme.kikoCorner
             }
             Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 10.dp))
             if (entry.score > 0) {
-                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(14.dp))
+                Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(14.dp))
                 Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
             }
         }
@@ -223,7 +223,7 @@ import com.kiko.tracker.ui.theme.kikoCorner
         if (verdict != null || otherTags.isNotEmpty()) {
             Row(Modifier.padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                 verdict?.let {
-                    Icon(Icons.Default.Star, null, tint = verdictColor(it, c), modifier = Modifier.size(12.dp))
+                    Icon(Icons.Rounded.Star, null, tint = verdictColor(it, c), modifier = Modifier.size(12.dp))
                     Text(it, color = verdictColor(it, c), fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
                 }
                 otherTags.firstOrNull()?.let {

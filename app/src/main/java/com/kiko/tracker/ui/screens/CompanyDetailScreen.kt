@@ -23,17 +23,17 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -208,9 +208,9 @@ private const val CompanyPageSize = 9
                         Column(Modifier.padding(horizontal = 14.dp)) {
                             val established = company.bioFields.firstOrNull { it.first.contains("establish", ignoreCase = true) }?.second?.takeIf { it.isNotBlank() }
                             val facts = buildList {
-                                if (company.favorites > 0) add(DetailFact(Icons.Default.Favorite, c.danger, "${formatCount(company.favorites)} favorites"))
-                                if (company.works.isNotEmpty()) add(DetailFact(Icons.Default.Tv, c.primary, "${company.works.size} anime"))
-                                established?.let { add(DetailFact(Icons.Default.CalendarMonth, c.primary, it)) }
+                                if (company.favorites > 0) add(DetailFact(Icons.Rounded.Favorite, c.danger, "${formatCount(company.favorites)} favorites"))
+                                if (company.works.isNotEmpty()) add(DetailFact(Icons.Rounded.Tv, c.primary, "${company.works.size} anime"))
+                                established?.let { add(DetailFact(Icons.Rounded.CalendarMonth, c.primary, it)) }
                             }
                             val logoInteraction = remember { MutableInteractionSource() }
                             // Square logo (110dp) rather than a 2:3 poster — company logos are shaped that way.
@@ -334,7 +334,7 @@ private const val CompanyPageSize = 9
                 IconButton(
                     onClick = { showFullImage = false },
                     modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(kikoCircleShape()).background(Color.White.copy(alpha = .15f)),
-                ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
+                ) { Icon(Icons.Rounded.Close, "Close", tint = Color.White) }
             }
         }
     }
@@ -382,7 +382,7 @@ fun companyLinkIconRes(url: String): Int? {
         if (iconRes != null) {
             Icon(painterResource(iconRes), null, tint = c.ink, modifier = Modifier.size(16.dp))
         } else {
-            Icon(Icons.Default.Language, null, tint = c.ink, modifier = Modifier.size(16.dp))
+            Icon(Icons.Rounded.Language, null, tint = c.ink, modifier = Modifier.size(16.dp))
         }
         Text(label, color = c.ink, fontWeight = FontWeight.Medium, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
     }
@@ -401,21 +401,21 @@ fun companyLinkIconRes(url: String): Int? {
             selected = true,
             onClick = { expanded = true },
             label = { Text(current) },
-            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(18.dp)) },
+            trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, null, modifier = Modifier.size(18.dp)) },
             colors = kikoFilterChipColors(),
         )
         KikoDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = RoundedCornerShape(kikoCorner(16.dp)), containerColor = c.surfaceContainer) {
             DropdownMenuItem(
                 text = { Text("All (${works.size})", color = if (current == "All") c.accent else c.ink, fontWeight = if (current == "All") FontWeight.Bold else FontWeight.Normal) },
                 onClick = { expanded = false; onSelect("All") },
-                trailingIcon = if (current == "All") { { Icon(Icons.Default.Check, null, tint = c.primary, modifier = Modifier.size(18.dp)) } } else null,
+                trailingIcon = if (current == "All") { { Icon(Icons.Rounded.Check, null, tint = c.primary, modifier = Modifier.size(18.dp)) } } else null,
             )
             options.forEach { f ->
                 val count = works.count { it.format == f }
                 DropdownMenuItem(
                     text = { Text("$f ($count)", color = if (f == current) c.accent else c.ink, fontWeight = if (f == current) FontWeight.Bold else FontWeight.Normal) },
                     onClick = { expanded = false; onSelect(f) },
-                    trailingIcon = if (f == current) { { Icon(Icons.Default.Check, null, tint = c.primary, modifier = Modifier.size(18.dp)) } } else null,
+                    trailingIcon = if (f == current) { { Icon(Icons.Rounded.Check, null, tint = c.primary, modifier = Modifier.size(18.dp)) } } else null,
                 )
             }
         }

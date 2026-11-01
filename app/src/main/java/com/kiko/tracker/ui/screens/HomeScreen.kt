@@ -30,7 +30,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.carousel.CarouselDefaults
 import androidx.compose.material3.carousel.CarouselItemScope
@@ -490,21 +490,21 @@ private fun homeImageRequest(context: android.content.Context, data: Any?, size:
 // Best-effort icon per genre name, purely decorative — falls back to a
 // generic tag icon for anything not in the map.
 private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
-    "action" -> Icons.Default.Bolt
-    "adventure" -> Icons.Default.Explore
-    "comedy" -> Icons.Default.EmojiEmotions
-    "drama" -> Icons.Default.TheaterComedy
-    "fantasy", "supernatural" -> Icons.Default.AutoAwesome
-    "romance" -> Icons.Default.Favorite
-    "sci-fi" -> Icons.Default.Public
-    "horror" -> Icons.Default.DarkMode
-    "mystery", "psychological" -> Icons.Default.Psychology
-    "slice of life" -> Icons.Default.Groups
-    "sports" -> Icons.Default.SportsSoccer
-    "thriller" -> Icons.Default.Whatshot
-    "mecha" -> Icons.Default.Build
-    "music" -> Icons.Default.MusicNote
-    else -> Icons.Default.Category
+    "action" -> Icons.Rounded.Bolt
+    "adventure" -> Icons.Rounded.Explore
+    "comedy" -> Icons.Rounded.EmojiEmotions
+    "drama" -> Icons.Rounded.TheaterComedy
+    "fantasy", "supernatural" -> Icons.Rounded.AutoAwesome
+    "romance" -> Icons.Rounded.Favorite
+    "sci-fi" -> Icons.Rounded.Public
+    "horror" -> Icons.Rounded.DarkMode
+    "mystery", "psychological" -> Icons.Rounded.Psychology
+    "slice of life" -> Icons.Rounded.Groups
+    "sports" -> Icons.Rounded.SportsSoccer
+    "thriller" -> Icons.Rounded.Whatshot
+    "mecha" -> Icons.Rounded.Build
+    "music" -> Icons.Rounded.MusicNote
+    else -> Icons.Rounded.Category
 }
 
 // Reusable rounded pill button
@@ -521,7 +521,7 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
     }
 }
 
-@Composable fun SectionTitle(title: String, action: String, click: () -> Unit, icon: ImageVector = Icons.Default.ArrowForward) {
+@Composable fun SectionTitle(title: String, action: String, click: () -> Unit, icon: ImageVector = Icons.Rounded.ArrowForward) {
     val c = LocalKikoColors.current
     Row(
         Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 10.dp),
@@ -652,7 +652,7 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
                         Modifier.padding(top = 8.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Default.Visibility, null, tint = c.accent, modifier = Modifier.size(11.dp))
+                        Icon(Icons.Rounded.Visibility, null, tint = c.accent, modifier = Modifier.size(11.dp))
                         Text(article.views, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
@@ -697,7 +697,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             Modifier.height(30.dp).clip(FilterChipDefaults.shape).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
+            Icon(Icons.Rounded.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
             Text(current.label, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
         }
         KikoDropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surfaceContainerHigh, shape = RoundedCornerShape(kikoCorner(18.dp))) {
@@ -720,7 +720,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
             Modifier.height(30.dp).clip(FilterChipDefaults.shape).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
+            Icon(Icons.Rounded.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
             Text(current.label, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
         }
         KikoDropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surfaceContainerHigh, shape = RoundedCornerShape(kikoCorner(18.dp))) {
@@ -800,7 +800,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                         Box(
                             Modifier.size(43.dp).clip(kikoCircleShape()).kikoClickable { searchExpanded = true },
                             contentAlignment = Alignment.Center,
-                        ) { Icon(Icons.Default.Search, "Search your list", tint = c.ink, modifier = Modifier.size(24.dp)) }
+                        ) { Icon(Icons.Rounded.Search, "Search your list", tint = c.ink, modifier = Modifier.size(24.dp)) }
                         Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
                     }
                 }
@@ -1227,13 +1227,13 @@ fun statusFilterLabels(type: MediaType): List<String> {
 // Icon per status filter
 
 fun filterLabelIcon(label: String): ImageVector = when (label) {
-    "All" -> Icons.Default.Apps
-    "Watching", "Reading" -> Icons.Default.PlayArrow
-    "Plan to Watch", "Plan to Read" -> Icons.Default.Bookmark
-    "Completed" -> Icons.Default.Check
-    "On Hold" -> Icons.Default.Pause
-    "Dropped" -> Icons.Default.Close
-    else -> Icons.Default.FilterList
+    "All" -> Icons.Rounded.Apps
+    "Watching", "Reading" -> Icons.Rounded.PlayArrow
+    "Plan to Watch", "Plan to Read" -> Icons.Rounded.Bookmark
+    "Completed" -> Icons.Rounded.Check
+    "On Hold" -> Icons.Rounded.Pause
+    "Dropped" -> Icons.Rounded.Close
+    else -> Icons.Rounded.FilterList
 }
 
 // The "+1" pill used by ListRow.
@@ -1349,19 +1349,19 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
                         Text(if (showType) "${item.type} · ${formatLabel(item)}" else formatLabel(item), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                         if (item.myRating > 0) {
                             Text("  ·  ", color = c.muted, fontSize = 13.sp)
-                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                            Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
                             Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
                         }
                     }
                     // Currently airing / not yet aired: the status gets its own row under the format.
                     timer?.let { label ->
                         Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(12.dp))
+                            Icon(Icons.Rounded.Schedule, null, tint = timerTint, modifier = Modifier.size(12.dp))
                             Text(label, color = timerTint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp).weight(1f, fill = false))
                             // The rating normally rides on the format line, so keep it here when that line is hidden.
                             if (timerReplacesFormat && item.myRating > 0) {
                                 Text("  ·  ", color = c.muted, fontSize = 13.sp)
-                                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                                Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
                                 Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
                             }
                         }
@@ -1387,7 +1387,7 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
         }
         if (onIncrement == null && showChevron) {
             // No increment action here (e.g. a read-only list), so show a chevron in the trailing slot instead.
-            Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(22.dp))
+            Icon(Icons.Rounded.ChevronRight, null, tint = c.muted, modifier = Modifier.size(22.dp))
         }
     }
 }

@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -64,7 +64,7 @@ import com.kiko.tracker.ui.theme.kikoCorner
             Box(
                 Modifier.align(Alignment.Center).size(48.dp).clip(kikoCircleShape()).background(Color.Black.copy(alpha = .6f)),
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Default.PlayArrow, "Play $title on YouTube", tint = Color.White, modifier = Modifier.size(32.dp)) }
+            ) { Icon(Icons.Rounded.PlayArrow, "Play $title on YouTube", tint = Color.White, modifier = Modifier.size(32.dp)) }
         }
         Text(
             title, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium,

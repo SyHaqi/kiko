@@ -44,7 +44,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -292,11 +292,11 @@ fun trackedBadgeStatus(item: MediaItem): WatchStatus? =
 // Icon per tracking status
 
 fun WatchStatus.badgeIcon(): ImageVector = when (this) {
-    WatchStatus.Watching, WatchStatus.Reading -> Icons.Default.PlayArrow
-    WatchStatus.Completed -> Icons.Default.Check
-    WatchStatus.OnHold -> Icons.Default.Pause
-    WatchStatus.Dropped -> Icons.Default.Close
-    WatchStatus.Plan -> Icons.Default.Bookmark
+    WatchStatus.Watching, WatchStatus.Reading -> Icons.Rounded.PlayArrow
+    WatchStatus.Completed -> Icons.Rounded.Check
+    WatchStatus.OnHold -> Icons.Rounded.Pause
+    WatchStatus.Dropped -> Icons.Rounded.Close
+    WatchStatus.Plan -> Icons.Rounded.Bookmark
 }
 // Status tag: M3-style rounded-square container in the status colour (no outline), lifted off
 // the cover with a standard neutral elevation shadow. The corner radius is the cover's 16dp
@@ -329,7 +329,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
             .padding(horizontal = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
+        Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
         Text(text, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 3.dp))
     }
 }
@@ -373,7 +373,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(labelFor(current), style = MaterialTheme.typography.headlineMedium, letterSpacing = (-1).sp, color = c.ink)
-                Icon(Icons.Default.KeyboardArrowDown, contentDescription = switchDescription, tint = c.muted, modifier = Modifier.padding(start = 2.dp).size(28.dp).rotate(arrowRotation))
+                Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = switchDescription, tint = c.muted, modifier = Modifier.padding(start = 2.dp).size(28.dp).rotate(arrowRotation))
             }
             KikoDropdownMenu(
                 expanded = expanded,
@@ -446,7 +446,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                     Box(
                         Modifier.size(43.dp).clip(kikoCircleShape()).kikoClickable { onExpandedChange(true) },
                         contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Default.Search, hint, tint = c.ink, modifier = Modifier.size(24.dp)) }
+                    ) { Icon(Icons.Rounded.Search, hint, tint = c.ink, modifier = Modifier.size(24.dp)) }
                     avatar()
                 }
             }
@@ -499,7 +499,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
             modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Box(Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, end = 4.dp), contentAlignment = Alignment.CenterStart) {
                 if (value.isEmpty()) Text(hint, color = c.muted, fontSize = 16.sp, maxLines = 1)
                 BasicTextField(
@@ -515,7 +515,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
             }
             if (value.isNotEmpty()) {
                 IconButton(onClick = { if (onClear != null) onClear() else onValueChange(""); focusManager.clearFocus(); keyboard?.hide() }) {
-                    Icon(Icons.Default.Close, "Clear search", tint = c.muted, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Rounded.Close, "Clear search", tint = c.muted, modifier = Modifier.size(20.dp))
                 }
             }
             trailing()
@@ -529,7 +529,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     val c = LocalKikoColors.current
     IconButton(onClick = onClick) {
         Box {
-            Icon(Icons.Default.Tune, "Advanced filters", tint = if (active) c.primary else c.ink, modifier = Modifier.size(24.dp))
+            Icon(Icons.Rounded.Tune, "Advanced filters", tint = if (active) c.primary else c.ink, modifier = Modifier.size(24.dp))
             if (active) Box(Modifier.size(8.dp).align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).clip(kikoCircleShape()).background(c.primary))
         }
     }
@@ -540,7 +540,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     OutlinedTextField(
-        value = value, onValueChange = change, placeholder = { Text(hint, color = c.muted) }, leadingIcon = { Icon(Icons.Default.Search, null, tint = c.muted) },
+        value = value, onValueChange = change, placeholder = { Text(hint, color = c.muted) }, leadingIcon = { Icon(Icons.Rounded.Search, null, tint = c.muted) },
         trailingIcon = {
             // Show clear when non-empty
             if (value.isNotEmpty()) {
@@ -552,7 +552,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                         keyboard?.hide()
                     },
                     modifier = Modifier.size(32.dp),
-                ) { Icon(Icons.Default.Close, "Clear search", tint = c.muted, modifier = Modifier.size(16.dp)) }
+                ) { Icon(Icons.Rounded.Close, "Clear search", tint = c.muted, modifier = Modifier.size(16.dp)) }
             }
         },
         singleLine = true, shape = kikoPillShape(),
@@ -584,13 +584,13 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(32.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
-                    Icon(if (history) Icons.Default.History else Icons.Default.Search, null, tint = c.ink, modifier = Modifier.size(18.dp))
+                    Icon(if (history) Icons.Rounded.History else Icons.Rounded.Search, null, tint = c.ink, modifier = Modifier.size(18.dp))
                 }
                 Text(title, color = c.ink, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 16.dp, end = 8.dp).weight(1f))
                 if (history && onRemove != null) {
-                    IconButton(onClick = { onRemove(title) }) { Icon(Icons.Default.Close, "Remove from history", tint = c.muted, modifier = Modifier.size(20.dp)) }
+                    IconButton(onClick = { onRemove(title) }) { Icon(Icons.Rounded.Close, "Remove from history", tint = c.muted, modifier = Modifier.size(20.dp)) }
                 } else if (onFill != null) {
-                    IconButton(onClick = { onFill(title) }) { Icon(Icons.Default.NorthWest, "Use in search", tint = c.muted, modifier = Modifier.size(22.dp)) }
+                    IconButton(onClick = { onFill(title) }) { Icon(Icons.Rounded.NorthWest, "Use in search", tint = c.muted, modifier = Modifier.size(22.dp)) }
                 }
             }
         }
@@ -964,7 +964,7 @@ fun FavoriteHeartButton(
             else modifier.size(size).clip(RoundedCornerShape(kikoCorner(14.dp))).background(background ?: c.surfaceContainerHigh),
         ) {
             Icon(
-                if (favorited) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                if (favorited) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                 if (favorited) "Remove from favorites" else "Add to favorites",
                 tint = if (favorited) c.danger else (outlineTint ?: c.ink),
                 modifier = Modifier.size(iconSize),

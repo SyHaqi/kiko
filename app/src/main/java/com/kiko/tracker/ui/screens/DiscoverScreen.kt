@@ -38,7 +38,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -223,7 +223,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Default.Search, "Search", tint = c.ink, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Rounded.Search, "Search", tint = c.ink, modifier = Modifier.size(22.dp))
                         Text("Search in MAL", color = c.muted, fontSize = 16.sp, maxLines = 1, modifier = Modifier.padding(start = 14.dp))
                     }
                     Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = KikoHeader.AvatarSize, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
@@ -236,13 +236,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     DiscoverActionButton(
                         modifier = Modifier.weight(1f),
-                        icon = Icons.Default.TrendingUp,
+                        icon = Icons.Rounded.TrendingUp,
                         label = "Rankings",
                         onClick = onRanking
                     )
                     DiscoverActionButton(
                         modifier = Modifier.weight(1f),
-                        icon = Icons.Default.Layers,
+                        icon = Icons.Rounded.Layers,
                         label = "Stacks",
                         onClick = onStacks
                     )
@@ -777,7 +777,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .background(if (active) c.primary else c.surfaceContainerHigh)
             .kikoClickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Icon(Icons.Default.Tune, "Advanced filters", tint = if (active) c.onPrimary else c.ink) }
+    ) { Icon(Icons.Rounded.Tune, "Advanced filters", tint = if (active) c.onPrimary else c.ink) }
 }
 // Collapsible multi-select facet
 
@@ -797,7 +797,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     }
                 }
             }
-            Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "Collapse $title" else "Expand $title", tint = c.muted)
+            Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, if (expanded) "Collapse $title" else "Expand $title", tint = c.muted)
         }
         if (expanded) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 9.dp)) {
@@ -959,7 +959,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 @Composable fun ScoreLine(score: Double, decimals: Int = 1, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier.padding(top = 2.dp).height(16.dp)) {
-        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+        Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
         val label = if (score > 0) (if (decimals == 2) score.twoDecimals() else score.oneDecimal()) else "N/A"
         // Center + Trim.None pins the glyphs in the middle of the 16sp line box. The default
         // (Proportional + Trim.Both) splits/trims the extra line height unevenly for a single
@@ -1039,7 +1039,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 }
                 if (timer != null) {
                     Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(12.dp))
+                        Icon(Icons.Rounded.Schedule, null, tint = timerTint, modifier = Modifier.size(12.dp))
                         Text(timer, color = timerTint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
@@ -1048,12 +1048,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 run {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // Star always shows; unrated titles read "N/A" instead of the rating vanishing.
-                        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
+                        Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
                         Text(if (item.score > 0) item.score.twoDecimals() else "N/A", color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 4.dp))
                         if (item.listUsers > 0) {
                             // Members count to the right of the MAL score, separated by a dot.
                             Text("·", color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(horizontal = 6.dp))
-                            Icon(Icons.Default.Group, null, tint = c.muted, modifier = Modifier.size(13.dp))
+                            Icon(Icons.Rounded.Group, null, tint = c.muted, modifier = Modifier.size(13.dp))
                             Text(formatExact(item.listUsers), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 5.dp))
                         }
                     }
@@ -1079,7 +1079,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             selected = true,
             onClick = { expanded = true },
             label = { Text(current, fontSize = 12.sp) },
-            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp)) },
+            trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, null, modifier = Modifier.size(16.dp)) },
             colors = kikoFilterChipColors(),
         )
         KikoDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = RoundedCornerShape(kikoCorner(16.dp)), containerColor = c.surfaceContainer) {
@@ -1087,7 +1087,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 DropdownMenuItem(
                     text = { Text(option, color = c.ink) },
                     onClick = { expanded = false; onSelect(option) },
-                    trailingIcon = if (option == current) { { Icon(Icons.Default.Check, null, tint = c.primary, modifier = Modifier.size(18.dp)) } } else null,
+                    trailingIcon = if (option == current) { { Icon(Icons.Rounded.Check, null, tint = c.primary, modifier = Modifier.size(18.dp)) } } else null,
                 )
             }
         }
@@ -1322,7 +1322,7 @@ fun formatExact(n: Int): String = "%,d".format(n)
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("You might like", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
         Box(Modifier.weight(1f)) {

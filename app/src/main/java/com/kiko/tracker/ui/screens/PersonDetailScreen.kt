@@ -22,16 +22,16 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Cake
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Cake
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -145,11 +145,11 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                         Column(Modifier.padding(horizontal = 14.dp)) {
                             val birthday = person.bioFields.firstOrNull { it.first.contains("birth", ignoreCase = true) }?.second?.takeIf { it.isNotBlank() }
                             val facts = buildList {
-                                if (person.favorites > 0) add(DetailFact(Icons.Default.Favorite, c.danger, "${formatCount(person.favorites)} favorites"))
-                                birthday?.let { add(DetailFact(Icons.Default.Cake, c.primary, it)) }
-                                if (person.voiceActingRoles.isNotEmpty()) add(DetailFact(Icons.Default.Mic, c.primary, countLabel(person.voiceActingRoles.size, "voice role")))
-                                if (person.staffCredits.isNotEmpty()) add(DetailFact(Icons.Default.Groups, c.primary, countLabel(person.staffCredits.size, "staff position")))
-                                if (person.publishedManga.isNotEmpty()) add(DetailFact(Icons.Default.MenuBook, c.primary, countLabel(person.publishedManga.size, "manga", "manga")))
+                                if (person.favorites > 0) add(DetailFact(Icons.Rounded.Favorite, c.danger, "${formatCount(person.favorites)} favorites"))
+                                birthday?.let { add(DetailFact(Icons.Rounded.Cake, c.primary, it)) }
+                                if (person.voiceActingRoles.isNotEmpty()) add(DetailFact(Icons.Rounded.Mic, c.primary, countLabel(person.voiceActingRoles.size, "voice role")))
+                                if (person.staffCredits.isNotEmpty()) add(DetailFact(Icons.Rounded.Groups, c.primary, countLabel(person.staffCredits.size, "staff position")))
+                                if (person.publishedManga.isNotEmpty()) add(DetailFact(Icons.Rounded.MenuBook, c.primary, countLabel(person.publishedManga.size, "manga", "manga")))
                             }
                             val posterInteraction = remember { MutableInteractionSource() }
                             DetailCoverRow(
@@ -271,7 +271,7 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                 IconButton(
                     onClick = { showFullImage = false },
                     modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(kikoCircleShape()).background(Color.White.copy(alpha = .15f)),
-                ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
+                ) { Icon(Icons.Rounded.Close, "Close", tint = Color.White) }
             }
         }
     }

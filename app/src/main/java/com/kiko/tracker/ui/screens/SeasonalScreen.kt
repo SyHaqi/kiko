@@ -27,7 +27,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -163,7 +163,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // re-filters and re-sorts on
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Release Schedule", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
         // One page per weekday (Mon..Sun) — swipe left/right to move between days.
@@ -214,7 +214,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     Modifier.clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
+                    Icon(Icons.Rounded.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
                     Text(localizedTimeLabel(time, is24Hour), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 5.dp))
                 }
                 // Extra pill for titles that haven't premiered yet.
@@ -251,11 +251,11 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             ) {
                 val (py, ps) = stepSeason(pendingYear, pendingSeason, forward = false)
                 val (ny, ns) = stepSeason(pendingYear, pendingSeason, forward = true)
-                IconButton(onClick = { pendingYear = py; pendingSeason = ps }) { Icon(Icons.Default.ChevronLeft, "Previous season", tint = c.ink) }
+                IconButton(onClick = { pendingYear = py; pendingSeason = ps }) { Icon(Icons.Rounded.ChevronLeft, "Previous season", tint = c.ink) }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     SeasonName.entries.forEach { s -> SeasonIconButton(selected = s == pendingSeason, season = s) { pendingSeason = s } }
                 }
-                IconButton(onClick = { pendingYear = ny; pendingSeason = ns }) { Icon(Icons.Default.ChevronRight, "Next season", tint = c.ink) }
+                IconButton(onClick = { pendingYear = ny; pendingSeason = ns }) { Icon(Icons.Rounded.ChevronRight, "Next season", tint = c.ink) }
             }
 
             Text("Year", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
@@ -287,7 +287,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.Autorenew, null, tint = c.primary, modifier = Modifier.size(19.dp))
+                Icon(Icons.Rounded.Autorenew, null, tint = c.primary, modifier = Modifier.size(19.dp))
                 Text("Still airing from before", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.weight(1f).padding(start = 11.dp))
                 Switch(
                     checked = pendingContinuing,
@@ -315,7 +315,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
 }
 
-fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons.Default.Group; SeasonalSort.Score -> Icons.Default.Star }
+fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons.Rounded.Group; SeasonalSort.Score -> Icons.Rounded.Star }
 // Seasonal chart grid tile
 
 @Composable fun SeasonalGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null) {
@@ -357,7 +357,7 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
             modifier = Modifier.padding(top = 7.dp)
         )
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
-            Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
+            Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
             Text(
                 if (item.score > 0) item.score.twoDecimals() else "N/A",
                 color = c.muted,
@@ -367,7 +367,7 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-            Icon(Icons.Default.Group, null, tint = c.muted, modifier = Modifier.size(11.dp))
+            Icon(Icons.Rounded.Group, null, tint = c.muted, modifier = Modifier.size(11.dp))
             Text(
                 if (item.listUsers > 0) formatCount(item.listUsers) else "N/A",
                 color = c.muted,

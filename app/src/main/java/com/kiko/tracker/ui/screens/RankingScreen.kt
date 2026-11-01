@@ -20,7 +20,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -74,7 +74,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(KikoHeader.BackTop * 2 + 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Ranking", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
         Box(Modifier.weight(1f)) {
@@ -151,10 +151,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // Which chart is shown (Score / Popularity / Favorites / Upcoming) isn't a sort order, so each option
 // gets its own icon instead of the generic "sort" glyph.
 private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.ImageVector = when (sort) {
-    RankingSort.Score -> Icons.Default.Star
-    RankingSort.Popularity -> Icons.Default.Whatshot
-    RankingSort.Favorite -> Icons.Default.Favorite
-    RankingSort.Upcoming -> Icons.Default.Event
+    RankingSort.Score -> Icons.Rounded.Star
+    RankingSort.Popularity -> Icons.Rounded.Whatshot
+    RankingSort.Favorite -> Icons.Rounded.Favorite
+    RankingSort.Upcoming -> Icons.Rounded.Event
 }
 // Ranking chart dropdown — same pill shape as My List's SortMenu, over RankingSort.
 @Composable private fun RankingSortMenu(current: RankingSort, options: List<RankingSort>, onSelect: (RankingSort) -> Unit) {
@@ -219,7 +219,7 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
                 }
                 if (timer != null) {
                     Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Schedule, null, tint = timerTint, modifier = Modifier.size(12.dp))
+                        Icon(Icons.Rounded.Schedule, null, tint = timerTint, modifier = Modifier.size(12.dp))
                         Text(timer, color = timerTint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
@@ -228,12 +228,12 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     run {
                         // Star always shows; unrated titles read "N/A" instead of the rating vanishing.
-                        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
+                        Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
                         Text(if (item.score > 0) item.score.twoDecimals() else "N/A", color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 4.dp))
                         if (item.listUsers > 0) {
                             // Members count to the right of the MAL score, separated by a dot.
                             Text("·", color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(horizontal = 6.dp))
-                            Icon(Icons.Default.Group, null, tint = c.muted, modifier = Modifier.size(13.dp))
+                            Icon(Icons.Rounded.Group, null, tint = c.muted, modifier = Modifier.size(13.dp))
                             Text(formatExact(item.listUsers), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 5.dp))
                         }
                     }

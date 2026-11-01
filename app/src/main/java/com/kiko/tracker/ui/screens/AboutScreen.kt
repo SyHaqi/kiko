@@ -21,7 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -71,7 +71,7 @@ import com.kiko.tracker.util.AppUpdateInfo
     }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("About", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
         Box(Modifier.weight(1f)) {
@@ -102,11 +102,11 @@ import com.kiko.tracker.util.AppUpdateInfo
                     },
                     leadingContent = {
                         Box {
-                            Icon(Icons.Default.SystemUpdate, null, tint = c.primary)
+                            Icon(Icons.Rounded.SystemUpdate, null, tint = c.primary)
                             if (updateInfo != null) Box(Modifier.size(8.dp).align(Alignment.TopEnd).clip(kikoCircleShape()).background(c.danger))
                         }
                     },
-                    trailingContent = { if (updateChecking) KikoLoadingIndicator(color = c.primary, size = 24.dp) else Icon(Icons.Default.ChevronRight, null, tint = c.muted) },
+                    trailingContent = { if (updateChecking) KikoLoadingIndicator(color = c.primary, size = 24.dp) else Icon(Icons.Rounded.ChevronRight, null, tint = c.muted) },
                     colors = ListItemDefaults.colors(containerColor = c.surfaceContainer),
                     modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !updateChecking, onClick = onCheckForUpdate),
                 )

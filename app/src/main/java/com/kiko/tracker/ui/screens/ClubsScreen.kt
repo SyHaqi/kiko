@@ -23,7 +23,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.runtime.*
@@ -193,7 +193,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             AsyncImage(model = club.image, contentDescription = club.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.warm))
         } else {
             Box(Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.primaryContainer), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Groups, null, tint = c.primary, modifier = Modifier.size(30.dp))
+                Icon(Icons.Rounded.Groups, null, tint = c.primary, modifier = Modifier.size(30.dp))
             }
         }
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
@@ -202,11 +202,11 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 Text(club.description, color = c.muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
             }
             Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Groups, null, tint = c.muted, modifier = Modifier.size(13.dp))
+                Icon(Icons.Rounded.Groups, null, tint = c.muted, modifier = Modifier.size(13.dp))
                 Text(formatExact(club.members), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 5.dp))
             }
         }
-        Icon(Icons.Default.ChevronRight, null, tint = c.muted)
+        Icon(Icons.Rounded.ChevronRight, null, tint = c.muted)
     }
 }
 
@@ -225,9 +225,9 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
         // The screen host already applies the status-bar inset above this page.
         windowInsets = WindowInsets(top = 0.dp),
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, lineHeight = 24.sp, letterSpacing = 0.sp)) },
-        navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
+        navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, "Back") } },
         actions = {
-            if (url.isNotBlank()) IconButton(onClick = { context.openInBrowser(url) }) { Icon(Icons.Default.OpenInNew, "Open on MyAnimeList") }
+            if (url.isNotBlank()) IconButton(onClick = { context.openInBrowser(url) }) { Icon(Icons.Rounded.OpenInNew, "Open on MyAnimeList") }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = c.background.copy(alpha = p),
@@ -361,7 +361,7 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
             posts.isEmpty() -> {
                 Text("Couldn't find any Couch posts here — the layout may not have matched what we expected.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp))
                 Button(onClick = onOpenBrowser, enabled = club.url.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) {
-                    Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Open club room")
                 }
@@ -410,7 +410,7 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
                             Text(staff.username.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
                             if (staff.role.isNotBlank()) Text(staff.role, color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
                         }
-                        Icon(Icons.Default.ChevronRight, null, tint = c.muted)
+                        Icon(Icons.Rounded.ChevronRight, null, tint = c.muted)
                     }
                     if (index < club.staff.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.outlineVariant)
                 }
@@ -454,7 +454,7 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
                                     }
                                 }
                                 Text(member.username.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                                Icon(Icons.Default.ChevronRight, null, tint = c.muted)
+                                Icon(Icons.Rounded.ChevronRight, null, tint = c.muted)
                             }
                             if (index < members.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 66.dp), thickness = 1.dp, color = c.outlineVariant)
                         }

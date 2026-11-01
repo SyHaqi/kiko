@@ -46,9 +46,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.automirrored.filled.Reply
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material3.*
 import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.runtime.*
@@ -225,7 +225,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // MAL gives every forum
 // (bullhorn for Announcements, gavel
 // see the board-list HTML).
-// generic Icons.Default.Forum glyph, which
+// generic Icons.Rounded.Forum glyph, which
 // scan at a glance.
 // per-board distinctiveness while keeping
 // before, only the glyph
@@ -233,25 +233,25 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // Falls back to the
 // future/unlisted boards, like a
 private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
-    5 -> Icons.Default.Campaign            // Updates & Announcements
-    14 -> Icons.Default.Gavel              // MAL Guidelines & FAQ
-    17 -> Icons.Default.EditNote           // DB Modification Requests
-    3 -> Icons.Default.SupportAgent        // Support
-    4 -> Icons.Default.Lightbulb           // Suggestions
-    13 -> Icons.Default.EmojiEvents        // MAL Contests
-    15 -> Icons.Default.Article            // News Discussion
-    16 -> Icons.Default.CardGiftcard       // Anime & Manga Recommendations
-    19 -> Icons.Default.Folder             // Series Discussion
-    1 -> Icons.Default.Tv                  // Anime Discussion
-    2 -> Icons.Default.MenuBook            // Manga Discussion
-    8 -> Icons.Default.ChatBubble          // Introductions
-    7 -> Icons.Default.SportsEsports       // Games, Computers & Tech
-    10 -> Icons.Default.MusicNote          // Music & Entertainment
-    11 -> Icons.Default.LocalCafe          // Casual Discussion
-    12 -> Icons.Default.PhotoLibrary       // Creative Corner
-    9 -> Icons.Default.Extension           // Forum Games
-    6 -> Icons.Default.LocalBar            // Current Events
-    else -> Icons.Default.Forum
+    5 -> Icons.Rounded.Campaign            // Updates & Announcements
+    14 -> Icons.Rounded.Gavel              // MAL Guidelines & FAQ
+    17 -> Icons.Rounded.EditNote           // DB Modification Requests
+    3 -> Icons.Rounded.SupportAgent        // Support
+    4 -> Icons.Rounded.Lightbulb           // Suggestions
+    13 -> Icons.Rounded.EmojiEvents        // MAL Contests
+    15 -> Icons.Rounded.Article            // News Discussion
+    16 -> Icons.Rounded.CardGiftcard       // Anime & Manga Recommendations
+    19 -> Icons.Rounded.Folder             // Series Discussion
+    1 -> Icons.Rounded.Tv                  // Anime Discussion
+    2 -> Icons.Rounded.MenuBook            // Manga Discussion
+    8 -> Icons.Rounded.ChatBubble          // Introductions
+    7 -> Icons.Rounded.SportsEsports       // Games, Computers & Tech
+    10 -> Icons.Rounded.MusicNote          // Music & Entertainment
+    11 -> Icons.Rounded.LocalCafe          // Casual Discussion
+    12 -> Icons.Rounded.PhotoLibrary       // Creative Corner
+    9 -> Icons.Rounded.Extension           // Forum Games
+    6 -> Icons.Rounded.LocalBar            // Current Events
+    else -> Icons.Rounded.Forum
 }
 
 // Same corner pattern as Settings' groups (settingsGroupShape in ProfileScreen): 28dp outer, 4dp inner.
@@ -281,7 +281,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                 Text("${board.subboards.size} boards", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 10.sp)
             }
         }
-        Icon(Icons.Default.ChevronRight, null, tint = c.muted)
+        Icon(Icons.Rounded.ChevronRight, null, tint = c.muted)
     }
 }
 // Back-to-top floating button
@@ -290,7 +290,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     val c = LocalKikoColors.current
     AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
         FloatingActionButton(onClick = onClick, containerColor = c.primary, contentColor = c.onPrimary, modifier = Modifier.size(46.dp)) {
-            Icon(Icons.Default.KeyboardArrowUp, "Back to top")
+            Icon(Icons.Rounded.KeyboardArrowUp, "Back to top")
         }
     }
 }
@@ -374,7 +374,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
         }
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (topic.isLocked) Icon(Icons.Default.Lock, null, tint = c.muted, modifier = Modifier.size(13.dp).padding(end = 4.dp))
+                if (topic.isLocked) Icon(Icons.Rounded.Lock, null, tint = c.muted, modifier = Modifier.size(13.dp).padding(end = 4.dp))
                 Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Text("by ${topic.author.name.ifBlank { "Unknown" }} · ${formatForumDate(topic.createdAt)}", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
@@ -383,7 +383,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp)) {
-            Icon(Icons.Default.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
+            Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
             Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
         }
     }
@@ -397,12 +397,12 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
             if (topic.imageUrl != null) {
                 AsyncImage(model = topic.imageUrl, contentDescription = topic.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
-                Icon(Icons.Default.Newspaper, null, tint = c.muted, modifier = Modifier.size(28.dp))
+                Icon(Icons.Rounded.Newspaper, null, tint = c.muted, modifier = Modifier.size(28.dp))
             }
         }
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (topic.isLocked) Icon(Icons.Default.Lock, null, tint = c.muted, modifier = Modifier.size(12.dp).padding(end = 4.dp))
+                if (topic.isLocked) Icon(Icons.Rounded.Lock, null, tint = c.muted, modifier = Modifier.size(12.dp).padding(end = 4.dp))
                 Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
             Text("by ${topic.author.name.ifBlank { "Unknown" }} · ${formatForumDate(topic.createdAt)}", color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
@@ -413,7 +413,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                     Spacer(Modifier.weight(1f))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
+                    Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
                     Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
                 }
             }
@@ -667,7 +667,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     Column(Modifier.fillMaxSize()) {
         val titleProgress = rememberTitleProgress(listState)
         KikoTopBar(title = title, onBack = goBack, progress = { titleProgress.value }) {
-            IconButton(onClick = { context.openInBrowser("https://myanimelist.net/forum/?topicid=$topicId") }) { Icon(Icons.Default.OpenInNew, "Open in browser") }
+            IconButton(onClick = { context.openInBrowser("https://myanimelist.net/forum/?topicid=$topicId") }) { Icon(Icons.Rounded.OpenInNew, "Open in browser") }
         }
         Box(Modifier.weight(1f)) {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
@@ -683,7 +683,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                     // is especially confusing right
                     if (!loading && error == null && posts.isEmpty()) {
                         Column(Modifier.fillMaxWidth().padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.HourglassEmpty, null, tint = c.muted, modifier = Modifier.size(28.dp))
+                            Icon(Icons.Rounded.HourglassEmpty, null, tint = c.muted, modifier = Modifier.size(28.dp))
                             Text("This topic hasn't finished loading on MAL's end yet", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp))
                             Text("This can happen for very recently posted topics — try again in a bit.", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
                             TextButton(onClick = {
@@ -795,7 +795,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
             HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
             if (!connected) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Forum, null, tint = c.muted, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Rounded.Forum, null, tint = c.muted, modifier = Modifier.size(18.dp))
                     Text("Connect your MAL account to reply", color = c.muted, fontSize = 13.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
                     TextButton(onClick = onConnect) { Text("Connect") }
                 }
@@ -809,7 +809,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                     ) {
                         Text("Replying to ${target.author.name.ifBlank { "Unknown" }}", color = c.muted, fontSize = 12.sp)
                         IconButton(onClick = onCancelReply, modifier = Modifier.padding(start = 4.dp).size(20.dp)) {
-                            Icon(Icons.Default.Close, "Cancel reply", tint = c.muted, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Rounded.Close, "Cancel reply", tint = c.muted, modifier = Modifier.size(14.dp))
                         }
                     }
                 }
@@ -852,7 +852,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                         if (posting) {
                             KikoLoadingIndicator(color = c.onPrimary, size = 24.dp)
                         } else {
-                            Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = if (canSend) c.onPrimary else c.muted, modifier = Modifier.size(18.dp))
+                            Icon(Icons.AutoMirrored.Rounded.Send, "Send", tint = if (canSend) c.onPrimary else c.muted, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -871,12 +871,12 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     val showGoToTop by remember { derivedStateOf { scrollState.value > 600 } }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
             if (entry.url.isNotBlank()) {
                 // Open review in browser
                 IconButton(onClick = { context.openInBrowser(entry.url) }, modifier = Modifier.headerEdgeEnd()) {
-                    Icon(Icons.Default.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Rounded.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(24.dp))
                 }
             }
         }
@@ -893,7 +893,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                         }
                         Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
                         if (entry.score > 0) {
-                            Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp))
                             Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
                         }
                     }
@@ -903,7 +903,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                             entry.tags.forEach { tag ->
                                 val verdict = tag in ReviewVerdictTags
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (verdict) Icon(Icons.Default.Star, null, tint = verdictColor(tag, c), modifier = Modifier.size(13.dp))
+                                    if (verdict) Icon(Icons.Rounded.Star, null, tint = verdictColor(tag, c), modifier = Modifier.size(13.dp))
                                     Text(
                                         tag, color = if (verdict) verdictColor(tag, c) else c.muted, fontWeight = if (verdict) FontWeight.Bold else FontWeight.Normal,
                                         fontSize = 12.sp, modifier = Modifier.padding(start = if (verdict) 4.dp else 0.dp),
@@ -1042,7 +1042,7 @@ sealed class BbToken {
                         Modifier.fillMaxWidth().padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Icon(Icons.Default.Warning, null, tint = c.muted, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Rounded.Warning, null, tint = c.muted, modifier = Modifier.size(22.dp))
                         Text("Couldn't load image · tap to open", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                         errorDetail?.let {
                             Text(it, color = c.muted.copy(alpha = .7f), fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 2.dp))
@@ -1085,7 +1085,7 @@ sealed class BbToken {
             Box(
                 Modifier.align(Alignment.Center).size(56.dp).clip(kikoCircleShape()).background(Color.Black.copy(alpha = .6f)),
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Default.PlayArrow, "Play video on YouTube", tint = Color.White, modifier = Modifier.size(36.dp)) }
+            ) { Icon(Icons.Rounded.PlayArrow, "Play video on YouTube", tint = Color.White, modifier = Modifier.size(36.dp)) }
             Text(
                 "Watch on YouTube", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
@@ -1148,7 +1148,7 @@ sealed class BbToken {
                 when (painter.state) {
                     is AsyncImagePainter.State.Loading -> KikoLoadingIndicator(color = Color.White, size = 40.dp)
                     is AsyncImagePainter.State.Error -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Warning, null, tint = Color.White.copy(alpha = .8f), modifier = Modifier.size(28.dp))
+                        Icon(Icons.Rounded.Warning, null, tint = Color.White.copy(alpha = .8f), modifier = Modifier.size(28.dp))
                         Text("Couldn't load image · tap to open", color = Color.White.copy(alpha = .8f), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
                     }
                     else -> SubcomposeAsyncImageContent()
@@ -1157,7 +1157,7 @@ sealed class BbToken {
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(kikoCircleShape()).background(Color.White.copy(alpha = .15f)),
-            ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
+            ) { Icon(Icons.Rounded.Close, "Close", tint = Color.White) }
         }
     }
 }
@@ -1274,7 +1274,7 @@ private fun openForumLink(url: String, uriHandler: androidx.compose.ui.platform.
                         .border(BorderStroke(3.dp, c.muted.copy(alpha = .35f)), RoundedCornerShape(kikoCorner(10.dp))).padding(10.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.AutoMirrored.Filled.Reply, null, tint = c.muted, modifier = Modifier.size(12.dp))
+                        Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = c.muted, modifier = Modifier.size(12.dp))
                         Text("Reply to ${post.replyToAuthor}", color = c.muted, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
                     }
                     if (post.replyToBody.isNotBlank()) {
@@ -1291,7 +1291,7 @@ private fun openForumLink(url: String, uriHandler: androidx.compose.ui.platform.
                     Modifier.padding(top = 8.dp).clip(kikoPillShape()).kikoClickable { onReply(post) }.padding(vertical = 4.dp, horizontal = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.Reply, null, tint = c.muted, modifier = Modifier.size(14.dp))
+                    Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = c.muted, modifier = Modifier.size(14.dp))
                     Text("Reply", color = c.muted, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
                 }
             }

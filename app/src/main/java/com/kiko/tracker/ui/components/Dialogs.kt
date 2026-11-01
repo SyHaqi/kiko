@@ -14,8 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -92,7 +92,7 @@ import com.kiko.tracker.util.AppUpdateInfo
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = c.surfaceContainerHigh,
-        icon = { Icon(Icons.Default.ErrorOutline, null, tint = c.danger) },
+        icon = { Icon(Icons.Rounded.ErrorOutline, null, tint = c.danger) },
         title = { Text("Something went wrong", color = c.ink) },
         text = { Text(message, color = c.muted, fontSize = 13.sp) },
         confirmButton = { TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("OK") } },
@@ -108,7 +108,7 @@ import com.kiko.tracker.util.AppUpdateInfo
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = c.surfaceContainerHigh,
-        icon = { Icon(Icons.Default.WarningAmber, null, tint = c.danger) },
+        icon = { Icon(Icons.Rounded.WarningAmber, null, tint = c.danger) },
         title = { Text("Kiko crashed last time", color = c.ink) },
         text = {
             Column {
@@ -128,9 +128,9 @@ import com.kiko.tracker.util.AppUpdateInfo
                     Text(crashText, color = c.ink, fontSize = 11.sp, lineHeight = 15.sp, fontFamily = FontFamily.Monospace)
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    HomeActionButton(modifier = Modifier.weight(1f), label = "Copy", icon = Icons.Default.ContentCopy, onClick = onCopy)
-                    HomeActionButton(modifier = Modifier.weight(1f), label = "Save .txt", icon = Icons.Default.Download, onClick = onDownload)
-                    HomeActionButton(modifier = Modifier.weight(1f), label = "Discord", icon = Icons.AutoMirrored.Filled.Send, onClick = onSendDiscord)
+                    HomeActionButton(modifier = Modifier.weight(1f), label = "Copy", icon = Icons.Rounded.ContentCopy, onClick = onCopy)
+                    HomeActionButton(modifier = Modifier.weight(1f), label = "Save .txt", icon = Icons.Rounded.Download, onClick = onDownload)
+                    HomeActionButton(modifier = Modifier.weight(1f), label = "Discord", icon = Icons.AutoMirrored.Rounded.Send, onClick = onSendDiscord)
                 }
             }
         },

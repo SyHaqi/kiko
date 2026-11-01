@@ -28,10 +28,10 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.Sort
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.People
+import androidx.compose.material.icons.rounded.Sort
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -155,7 +155,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     if (!connected) {
         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+                IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
                 Text(if (type == MediaType.Anime) "Anime List" else "Manga List", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
             }
             if (showLogin) {
@@ -177,7 +177,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
                 }
             } else {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Icon(Icons.Default.People, null, tint = c.muted, modifier = Modifier.size(48.dp))
+                    Icon(Icons.Rounded.People, null, tint = c.muted, modifier = Modifier.size(48.dp))
                     Text("Unlock more features", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink, modifier = Modifier.padding(top = 16.dp))
                     Text(
                         "MAL doesn't expose another member's list through the app the usual way. Kiko needs to open a one-time login page to read it from their profile.",
@@ -195,7 +195,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Column(Modifier.headerTitleStart()) {
                 Text(if (type == MediaType.Anime) "Anime List" else "Manga List", style = MaterialTheme.typography.titleLarge, color = c.ink)
                 Text(username, color = c.muted, fontSize = 12.sp)
@@ -362,7 +362,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
             Modifier.height(30.dp).clip(FilterChipDefaults.shape).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
+            Icon(Icons.Rounded.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
             Text(current.label, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
         }
         KikoDropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surfaceContainerHigh, shape = RoundedCornerShape(kikoCorner(18.dp))) {
@@ -440,7 +440,7 @@ private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.
                 Text(entry.title, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (entry.score > 0) {
                     Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                        Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
                         Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
                     }
                 }

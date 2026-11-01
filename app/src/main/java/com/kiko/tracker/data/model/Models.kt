@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
@@ -238,7 +238,7 @@ enum class WatchStatus(val label: String) { Watching("Watching"), Reading("Readi
 fun WatchStatus.displayLabel(type: MediaType): String =
     if (this == WatchStatus.Plan && type == MediaType.Manga) "Plan to Read" else label
 
-enum class Destination(val label: String, val icon: ImageVector) { Home("Home", Icons.Default.Home), List("My list", Icons.Default.List), Discover("Discover", Icons.Default.Search), Seasonal("Seasonal", Icons.Default.DateRange), Community("Hub", Icons.Default.Groups) }
+enum class Destination(val label: String, val icon: ImageVector) { Home("Home", Icons.Rounded.Home), List("My list", Icons.Rounded.List), Discover("Discover", Icons.Rounded.Search), Seasonal("Seasonal", Icons.Rounded.DateRange), Community("Hub", Icons.Rounded.Groups) }
 
 // Sub-tab within the combined
 enum class CommunityTab(val label: String) { Forums("Forums"), Clubs("Clubs") }
@@ -444,10 +444,10 @@ enum class RankingSort(val label: String) {
 // Four broadcast seasons
 
 enum class SeasonName(val api: String, val label: String, val icon: ImageVector) {
-    Winter("winter", "Winter", Icons.Default.AcUnit),
-    Spring("spring", "Spring", Icons.Default.LocalFlorist),
-    Summer("summer", "Summer", Icons.Default.BeachAccess),
-    Fall("fall", "Fall", Icons.Default.Park),
+    Winter("winter", "Winter", Icons.Rounded.AcUnit),
+    Spring("spring", "Spring", Icons.Rounded.LocalFlorist),
+    Summer("summer", "Summer", Icons.Rounded.BeachAccess),
+    Fall("fall", "Fall", Icons.Rounded.Park),
 }
 
 fun SeasonName.prev() = SeasonName.entries[(ordinal + 3) % 4]

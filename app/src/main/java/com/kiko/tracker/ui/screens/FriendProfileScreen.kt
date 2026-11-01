@@ -18,15 +18,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Cake
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Cake
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.People
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Share
 import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -122,7 +122,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Column(Modifier.fillMaxSize()) {
             KikoTopBar(title = "Profile", onBack = onBack, progress = { 1f })
             Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.People, null, tint = c.muted, modifier = Modifier.size(48.dp))
+                Icon(Icons.Rounded.People, null, tint = c.muted, modifier = Modifier.size(48.dp))
                 Text("Connect your MAL account", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink, modifier = Modifier.padding(top = 16.dp))
                 Text(
                     "MAL doesn't expose other members' profiles through sign-in alone — Kiko needs to open a one-time login page to read them.",
@@ -185,10 +185,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             // otherwise also render it from friendProfile.stats.gender,
                             // which MalProfileScrapeApi copies from the same header).
                             val aboutPills = listOfNotNull(
-                                header.lastOnline?.let { DetailPill(Icons.Default.Schedule, it) },
-                                header.gender?.let { DetailPill(Icons.Default.Person, it) },
-                                header.birthday?.let { DetailPill(Icons.Default.Cake, it) },
-                                header.joined?.let { DetailPill(Icons.Default.Event, it) },
+                                header.lastOnline?.let { DetailPill(Icons.Rounded.Schedule, it) },
+                                header.gender?.let { DetailPill(Icons.Rounded.Person, it) },
+                                header.birthday?.let { DetailPill(Icons.Rounded.Cake, it) },
+                                header.joined?.let { DetailPill(Icons.Rounded.Event, it) },
                             )
                             Box(Modifier.padding(bottom = 24.dp)) {
                                 ProfileStatsSection(

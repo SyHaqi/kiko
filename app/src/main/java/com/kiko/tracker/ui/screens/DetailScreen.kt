@@ -46,7 +46,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -542,7 +542,7 @@ private var detailStatusBarOwners = 0
                             IconButton(
                                 onClick = { showFullCover = false },
                                 modifier = Modifier.align(Alignment.TopEnd).padding(20.dp).size(42.dp).clip(kikoCircleShape()).background(Color.White.copy(alpha = .15f)),
-                            ) { Icon(Icons.Default.Close, "Close", tint = Color.White) }
+                            ) { Icon(Icons.Rounded.Close, "Close", tint = Color.White) }
                         }
                     }
                 }
@@ -555,14 +555,14 @@ private var detailStatusBarOwners = 0
                         // Cover (same 128dp size as before) with one tonal row per fact beside it. The rows
                         // column is exactly as tall as the cover and the rows split that height evenly.
                         val infoRows = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, Color, String>> {
-                            item.airStatus.takeIf { it.isNotBlank() }?.let { add(Triple(Icons.Default.Sensors, c.primary, it)) }
-                            if (item.score > 0) add(Triple(Icons.Default.Star, Color(0xFFFFC107), item.score.twoDecimals()))
-                            favorites?.takeIf { it > 0 }?.let { add(Triple(Icons.Default.Favorite, c.danger, "${formatCount(it)} favorites")) }
+                            item.airStatus.takeIf { it.isNotBlank() }?.let { add(Triple(Icons.Rounded.Sensors, c.primary, it)) }
+                            if (item.score > 0) add(Triple(Icons.Rounded.Star, Color(0xFFFFC107), item.score.twoDecimals()))
+                            favorites?.takeIf { it > 0 }?.let { add(Triple(Icons.Rounded.Favorite, c.danger, "${formatCount(it)} favorites")) }
                             // Episode / chapter count lives beside the cover. MAL leaves it empty while a series is still
                             // running or unannounced, so that case reads "? episodes" / "? chapters".
                             val countUnit = if (item.type == MediaType.Anime) "episode" else "chapter"
                             add(Triple(
-                                if (item.type == MediaType.Anime) Icons.Default.Tv else Icons.Default.MenuBook, c.primary,
+                                if (item.type == MediaType.Anime) Icons.Rounded.Tv else Icons.Rounded.MenuBook, c.primary,
                                 if (item.total > 0) "${item.total} $countUnit${if (item.total == 1) "" else "s"}" else "? ${countUnit}s",
                             ))
                             // Anime's minutes-per-episode lives in the Details list. Manga has no duration, and its
@@ -593,7 +593,7 @@ private var detailStatusBarOwners = 0
                             val is24Hour = systemIs24Hour()
                             val airTime = item.nextAirDateTime(airingInfo)?.toLocalTime()
                             Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Schedule, null, tint = c.primary, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Rounded.Schedule, null, tint = c.primary, modifier = Modifier.size(14.dp))
                                 Text(
                                     listOfNotNull(label, airTime?.let { localizedTimeLabel(it, is24Hour) }).joinToString(" · "),
                                     color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp),
@@ -618,11 +618,11 @@ private var detailStatusBarOwners = 0
                     // pinning, and the page below has no fixed height. It sits outside the 14dp
                     // margins so the divider runs edge to edge.
                     val detailTabs = listOf(
-                        "Info" to Icons.Default.Info,
-                        "Casts" to Icons.Default.Groups,
-                        "Related" to Icons.Default.AccountTree,
-                        "Stats" to Icons.Default.BarChart,
-                        "Forum" to Icons.Default.Forum,
+                        "Info" to Icons.Rounded.Info,
+                        "Casts" to Icons.Rounded.Groups,
+                        "Related" to Icons.Rounded.AccountTree,
+                        "Stats" to Icons.Rounded.BarChart,
+                        "Forum" to Icons.Rounded.Forum,
                     )
                     PrimaryTabRow(
                         selectedTabIndex = selectedTab,
@@ -728,7 +728,7 @@ private var detailStatusBarOwners = 0
                                                                 value, color = if (isCreatorRow) c.primary else c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp,
                                                                 textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis,
                                                             )
-                                                            if (isCreatorRow) { if (creatorResolving) KikoLoadingIndicator(modifier = Modifier.padding(start = 6.dp), color = c.primary, size = 16.dp) else Icon(Icons.Default.ChevronRight, null, tint = c.primary, modifier = Modifier.size(18.dp).padding(start = 2.dp)) }
+                                                            if (isCreatorRow) { if (creatorResolving) KikoLoadingIndicator(modifier = Modifier.padding(start = 6.dp), color = c.primary, size = 16.dp) else Icon(Icons.Rounded.ChevronRight, null, tint = c.primary, modifier = Modifier.size(18.dp).padding(start = 2.dp)) }
                                                         }
                                                     }
                                                 }
@@ -763,7 +763,7 @@ private var detailStatusBarOwners = 0
                                                     DetailGroupRow(i, themeRowCount, onClick = { uriHandler.openUri(youtubeSearchUrl("$text $itemDisplayTitle")) }) {
                                                         Text(kind, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.width(32.dp))
                                                         Text(text, color = c.ink, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
-                                                        Icon(Icons.Default.PlayArrow, "Search on YouTube", tint = c.muted, modifier = Modifier.size(20.dp))
+                                                        Icon(Icons.Rounded.PlayArrow, "Search on YouTube", tint = c.muted, modifier = Modifier.size(20.dp))
                                                     }
                                                 }
                                                 if (themes.size > 4) {
@@ -774,7 +774,7 @@ private var detailStatusBarOwners = 0
                                                             modifier = Modifier.weight(1f),
                                                         )
                                                         Icon(
-                                                            Icons.Default.KeyboardArrowDown,
+                                                            Icons.Rounded.KeyboardArrowDown,
                                                             contentDescription = if (themesExpanded) "Show less" else "Show more",
                                                             tint = c.primary,
                                                             modifier = Modifier.size(22.dp).rotate(themesArrowRotation),
@@ -831,7 +831,7 @@ private var detailStatusBarOwners = 0
                                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                                     verticalAlignment = Alignment.CenterVertically,
                                                 ) {
-                                                    Icon(Icons.Default.Refresh, null, tint = c.muted, modifier = Modifier.size(16.dp))
+                                                    Icon(Icons.Rounded.Refresh, null, tint = c.muted, modifier = Modifier.size(16.dp))
                                                     Text("Couldn't load cast — tap to retry", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
                                                 }
                                             }
@@ -922,7 +922,7 @@ private var detailStatusBarOwners = 0
                                         // Reuse status bar styling
                                         key("statusDistribution") {
                                             statusDistribution?.takeIf { it.total > 0 }?.let { dist ->
-                                                SectionTitle("Status distribution", "See more", { actions.onOpenScoreStats(item) }, icon = Icons.Default.BarChart)
+                                                SectionTitle("Status distribution", "See more", { actions.onOpenScoreStats(item) }, icon = Icons.Rounded.BarChart)
                                                 Card(shape = RoundedCornerShape(kikoCorner(24.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
                                                     Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
                                                         StatBar("Watching", dist.watching, dist.total, c, statusColor("Watching"))
@@ -1018,7 +1018,7 @@ private var detailStatusBarOwners = 0
         )
         ExtendedFloatingActionButton(
             onClick = { actions.onEdit(item) },
-            icon = { Icon(if (item.inUserList) Icons.Default.Edit else Icons.Default.Add, if (item.inUserList) "Edit" else "Add", tint = c.onPrimary) },
+            icon = { Icon(if (item.inUserList) Icons.Rounded.Edit else Icons.Rounded.Add, if (item.inUserList) "Edit" else "Add", tint = c.onPrimary) },
             text = { Text(if (item.inUserList) item.status.displayLabel(item.type) else "Add", fontWeight = FontWeight.Bold, color = c.onPrimary) },
             containerColor = c.primary,
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
@@ -1056,16 +1056,16 @@ private fun DetailTopBar(
             )
         },
         navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+            IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, "Back") }
         },
         actions = {
             FavoriteHeartButton(favorited = favorited, onClick = onToggleFavorite, size = 48.dp, iconSize = 24.dp, background = Color.Transparent, outlineTint = iconColor)
             Box {
-                IconButton(onClick = { moreOpen = true }) { Icon(Icons.Default.MoreVert, "More options") }
+                IconButton(onClick = { moreOpen = true }) { Icon(Icons.Rounded.MoreVert, "More options") }
                 KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp))) {
                     DropdownMenuItem(
                         text = { Text("Share") },
-                        leadingIcon = { Icon(Icons.Default.Share, null) },
+                        leadingIcon = { Icon(Icons.Rounded.Share, null) },
                         onClick = {
                             moreOpen = false
                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
@@ -1077,7 +1077,7 @@ private fun DetailTopBar(
                     )
                     DropdownMenuItem(
                         text = { Text("Open in browser") },
-                        leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                        leadingIcon = { Icon(Icons.Rounded.OpenInNew, null) },
                         onClick = { moreOpen = false; context.openInBrowser(shareUrl) },
                     )
                 }
@@ -1121,7 +1121,7 @@ private fun DetailTopBar(
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp)) {
-            Icon(Icons.Default.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
+            Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
             Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
         }
     }
@@ -1244,7 +1244,7 @@ internal fun copyTitleToClipboard(context: android.content.Context, text: String
                 value, color = if (onClick != null) c.primary else c.ink, fontWeight = FontWeight.Medium, fontSize = 13.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
-            if (onClick != null) Icon(Icons.Default.ChevronRight, null, tint = c.primary, modifier = Modifier.size(16.dp).padding(start = 2.dp))
+            if (onClick != null) Icon(Icons.Rounded.ChevronRight, null, tint = c.primary, modifier = Modifier.size(16.dp).padding(start = 2.dp))
         }
     }
 }
@@ -1459,7 +1459,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
             }
             Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 9.dp))
             if (entry.score > 0) {
-                Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
+                Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
                 Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 3.dp))
             }
         }
@@ -1468,7 +1468,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
         if (verdict != null || otherTags.isNotEmpty()) {
             Row(Modifier.padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                 verdict?.let {
-                    Icon(Icons.Default.Star, null, tint = verdictColor(it, c), modifier = Modifier.size(11.dp))
+                    Icon(Icons.Rounded.Star, null, tint = verdictColor(it, c), modifier = Modifier.size(11.dp))
                     Text(it, color = verdictColor(it, c), fontWeight = FontWeight.Bold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
                 }
                 otherTags.firstOrNull()?.let {
@@ -1638,9 +1638,9 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                IconButton(onClick = { if (progress > 0) progress-- }) { Icon(Icons.Default.Remove, "Decrease", tint = c.primary) }
+                IconButton(onClick = { if (progress > 0) progress-- }) { Icon(Icons.Rounded.Remove, "Decrease", tint = c.primary) }
                 Text(if (item.total > 0) "$progress/${item.total}" else progress.toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink)
-                IconButton(onClick = { if (item.total <= 0 || progress < item.total) progress++ }) { Icon(Icons.Default.Add, "Increase", tint = c.primary) }
+                IconButton(onClick = { if (item.total <= 0 || progress < item.total) progress++ }) { Icon(Icons.Rounded.Add, "Increase", tint = c.primary) }
             }
 
             Text("Your rating", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
@@ -1657,7 +1657,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                 // just recolored to this
                 // instead of the MAL-score
                 Box(Modifier.padding(start = 14.dp).size(38.dp), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Star, contentDescription = null, tint = c.primaryContainer, modifier = Modifier.fillMaxSize())
+                    Icon(Icons.Rounded.Star, contentDescription = null, tint = c.primaryContainer, modifier = Modifier.fillMaxSize())
                     Text(if (rating == 0) "–" else rating.toString(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.primary)
                 }
             }
@@ -1682,9 +1682,9 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                IconButton(onClick = { if (timesRewatched > 0) timesRewatched-- }) { Icon(Icons.Default.Remove, "Decrease", tint = c.primary) }
+                IconButton(onClick = { if (timesRewatched > 0) timesRewatched-- }) { Icon(Icons.Rounded.Remove, "Decrease", tint = c.primary) }
                 Text("Times $rewatchedWord: $timesRewatched", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink)
-                IconButton(onClick = { timesRewatched++ }) { Icon(Icons.Default.Add, "Increase", tint = c.primary) }
+                IconButton(onClick = { timesRewatched++ }) { Icon(Icons.Rounded.Add, "Increase", tint = c.primary) }
             }
 
             Text("$rewatchWord value", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
@@ -1753,10 +1753,10 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
             // Only offer clearing once
             // a date has actually
             if (value.isNotBlank()) {
-                IconButton(onClick = { onPick("") }, modifier = Modifier.size(20.dp)) { Icon(Icons.Default.Close, "Clear $label", tint = c.muted, modifier = Modifier.size(16.dp)) }
+                IconButton(onClick = { onPick("") }, modifier = Modifier.size(20.dp)) { Icon(Icons.Rounded.Close, "Clear $label", tint = c.muted, modifier = Modifier.size(16.dp)) }
                 Spacer(Modifier.width(6.dp))
             }
-            Icon(Icons.Default.DateRange, null, tint = c.muted, modifier = Modifier.size(18.dp))
+            Icon(Icons.Rounded.DateRange, null, tint = c.muted, modifier = Modifier.size(18.dp))
         }
     }
     if (showPicker) {

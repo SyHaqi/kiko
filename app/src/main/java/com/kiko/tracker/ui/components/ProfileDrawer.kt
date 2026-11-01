@@ -9,14 +9,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Login
-import androidx.compose.material.icons.outlined.People
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Login
+import androidx.compose.material.icons.rounded.People
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -60,7 +60,7 @@ import com.kiko.tracker.ui.theme.kikoClickable
             Box(
                 Modifier.size(44.dp).clip(kikoCircleShape()).kikoClickable { onClose() },
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Outlined.Close, "Close", tint = c.ink, modifier = Modifier.size(26.dp)) }
+            ) { Icon(Icons.Rounded.Close, "Close", tint = c.ink, modifier = Modifier.size(26.dp)) }
         }
 
         Column(
@@ -92,24 +92,24 @@ import com.kiko.tracker.ui.theme.kikoClickable
                     )
                 }
                 Box(Modifier.size(width = 44.dp, height = 48.dp).clip(RoundedCornerShape(16.dp)).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.ChevronRight, null, tint = c.ink, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Rounded.ChevronRight, null, tint = c.ink, modifier = Modifier.size(24.dp))
                 }
             }
 
             // Stand-alone pill rows
             if (updateVersion != null && onOpenUpdate != null) {
-                MenuRow(Icons.Outlined.SystemUpdate, "Update available", subtitle = "Version $updateVersion", shape = RoundedCornerShape(50), container = c.tertiaryContainer, content = c.onTertiaryContainer, iconTint = c.onTertiaryContainer) { onOpenUpdate() }
+                MenuRow(Icons.Rounded.SystemUpdate, "Update available", subtitle = "Version $updateVersion", shape = RoundedCornerShape(50), container = c.tertiaryContainer, content = c.onTertiaryContainer, iconTint = c.onTertiaryContainer) { onOpenUpdate() }
             }
             if (!connected && onSignIn != null) {
-                MenuRow(Icons.Outlined.Login, "Sign in to MyAnimeList", shape = RoundedCornerShape(50), container = c.secondaryContainer, content = c.onSecondaryContainer, iconTint = c.onSecondaryContainer) { onSignIn() }
+                MenuRow(Icons.Rounded.Login, "Sign in to MyAnimeList", shape = RoundedCornerShape(50), container = c.secondaryContainer, content = c.onSecondaryContainer, iconTint = c.onSecondaryContainer) { onSignIn() }
             }
 
             Spacer(Modifier.height(4.dp))
 
             // Group 1 — library pages
             val pages = buildList<Triple<ImageVector, String, () -> Unit>> {
-                if (onOpenHistory != null) add(Triple(Icons.Outlined.History, "History", onOpenHistory))
-                if (connected && onOpenFriends != null) add(Triple(Icons.Outlined.People, "Friends", onOpenFriends))
+                if (onOpenHistory != null) add(Triple(Icons.Rounded.History, "History", onOpenHistory))
+                if (connected && onOpenFriends != null) add(Triple(Icons.Rounded.People, "Friends", onOpenFriends))
             }
             if (pages.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -121,8 +121,8 @@ import com.kiko.tracker.ui.theme.kikoClickable
 
             // Group 2 — app
             val app = buildList<Triple<ImageVector, String, () -> Unit>> {
-                add(Triple(Icons.Outlined.Settings, "Settings", onOpenSettings))
-                if (onOpenAbout != null) add(Triple(Icons.Outlined.Info, "About", onOpenAbout))
+                add(Triple(Icons.Rounded.Settings, "Settings", onOpenSettings))
+                if (onOpenAbout != null) add(Triple(Icons.Rounded.Info, "About", onOpenAbout))
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 app.forEachIndexed { i, (icon, label, action) ->

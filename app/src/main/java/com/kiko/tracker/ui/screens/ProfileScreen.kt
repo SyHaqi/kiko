@@ -36,22 +36,22 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.ColorLens
-import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material.icons.outlined.Smartphone
-import androidx.compose.material.icons.outlined.Sort
-import androidx.compose.material.icons.outlined.Translate
-import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.rounded.ColorLens
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Smartphone
+import androidx.compose.material.icons.rounded.Sort
+import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.Timer
 import com.kiko.tracker.data.model.AirTimerPrefs
-import androidx.compose.material.icons.outlined.ViewAgenda
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.automirrored.outlined.Logout as LogoutOutlined
+import androidx.compose.material.icons.rounded.ViewAgenda
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.automirrored.rounded.Logout as LogoutOutlined
 import androidx.compose.material3.*
 import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.ui.semantics.role
@@ -192,13 +192,13 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                     var moreOpen by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { moreOpen = true }) {
-                            Icon(Icons.Default.MoreVert, "More options")
+                            Icon(Icons.Rounded.MoreVert, "More options")
                         }
                         KikoDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }, shape = RoundedCornerShape(kikoCorner(18.dp)), containerColor = c.surfaceContainer) {
                             if (profile?.name?.isNotBlank() == true) {
                                 DropdownMenuItem(
                                     text = { Text("Open in browser") },
-                                    leadingIcon = { Icon(Icons.Default.OpenInNew, null) },
+                                    leadingIcon = { Icon(Icons.Rounded.OpenInNew, null) },
                                     onClick = {
                                         moreOpen = false
                                         context.openInBrowser("https://myanimelist.net/profile/${profile.name}")
@@ -207,7 +207,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                             }
                             DropdownMenuItem(
                                 text = { Text("Sign out") },
-                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, null, tint = c.danger) },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = c.danger) },
                                 onClick = { moreOpen = false; confirmSignOut = true },
                             )
                         }
@@ -260,7 +260,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Settings", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
         Box(Modifier.weight(1f)) {
@@ -395,9 +395,9 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                     // "Open in browser" / sign out live in the 3-dot menu up in
                     // the Profile header (ProfileStatsScreen) instead of here.
                     val details = detailsPills ?: listOfNotNull(
-                        profile.location.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.LocationOn, it) },
-                        profile.gender.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Default.Person, it) },
-                        profile.birthday.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Cake, formatFullDate(it)) },
+                        profile.location.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Rounded.LocationOn, it) },
+                        profile.gender.takeIf { it.isNotBlank() }?.let { DetailPill(Icons.Rounded.Person, it) },
+                        profile.birthday.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Rounded.Cake, formatFullDate(it)) },
                         // Was a plain "Joined ..." line next to the name
                         // above — moved down here as a pill (same ISO-date
                         // formatting via formatFullDate) so it matches
@@ -406,7 +406,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                         // pattern on your own profile. Own icon (Event,
                         // vs. birthday's Cake) so the two dates read
                         // differently at a glance.
-                        profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Default.Event, formatFullDate(it)) },
+                        profile.joinedAt.take(10).takeIf { it.length == 10 }?.let { DetailPill(Icons.Rounded.Event, formatFullDate(it)) },
                     )
                     if (details.isNotEmpty()) {
                         FlowRow(
@@ -449,9 +449,9 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                         Modifier.fillMaxWidth().padding(top = 24.dp).kikoClickable { onOpenFriendsFavorites() }.padding(vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Default.People, null, tint = c.primary, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Rounded.People, null, tint = c.primary, modifier = Modifier.size(22.dp))
                         Text("Unlock more features", color = c.ink, fontWeight = FontWeight.Medium, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp).weight(1f))
-                        Icon(Icons.Default.ChevronRight, null, tint = c.muted, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Rounded.ChevronRight, null, tint = c.muted, modifier = Modifier.size(20.dp))
                     }
                 }
             }
@@ -489,8 +489,8 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
             if (connected && ((profile?.animeTotalEntries ?: 0) > 0 || mangaItems.isNotEmpty())) {
                 if (animeDaysWatched > 0 || mangaDaysDisplay > 0) {
                     Row(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OverviewTile(Modifier.weight(1f), Icons.Default.PlayCircle, "Days watched", animeDaysWatched.oneDecimal(), c.primaryContainer, c.onPrimaryContainer)
-                        OverviewTile(Modifier.weight(1f), Icons.Default.MenuBook, if (hasScrapedMangaStats) "Days read" else "Days read (est.)", mangaDaysDisplay.oneDecimal(), c.secondaryContainer, c.onSecondaryContainer)
+                        OverviewTile(Modifier.weight(1f), Icons.Rounded.PlayCircle, "Days watched", animeDaysWatched.oneDecimal(), c.primaryContainer, c.onPrimaryContainer)
+                        OverviewTile(Modifier.weight(1f), Icons.Rounded.MenuBook, if (hasScrapedMangaStats) "Days read" else "Days read (est.)", mangaDaysDisplay.oneDecimal(), c.secondaryContainer, c.onSecondaryContainer)
                     }
                 }
                 SectionDivider(14.dp + outerInset)
@@ -698,7 +698,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("See List", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Icon(Icons.Default.ChevronRight, null, tint = c.primary, modifier = Modifier.size(16.dp))
+            Icon(Icons.Rounded.ChevronRight, null, tint = c.primary, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -878,7 +878,7 @@ private fun Modifier.bleedHorizontal(amount: androidx.compose.ui.unit.Dp): Modif
                         // Same footprint as an avatar, as a tonal circle with an arrow — reads as
                         // "the next item in the row" rather than a button bolted on the side.
                         Box(Modifier.size(64.dp).clip(kikoCircleShape()).background(c.secondaryContainer), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.ArrowForward, "See more friends", tint = c.onSecondaryContainer, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Rounded.ArrowForward, "See more friends", tint = c.onSecondaryContainer, modifier = Modifier.size(24.dp))
                         }
                         Text(
                             "See more", color = c.ink, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -1123,33 +1123,33 @@ private fun formatCacheBytes(b: Long): String = when {
 
     Column {
         SettingsGroup("Appearance", listOf(
-            SettingsItem("Theme", themeMode.label, icon = Icons.Outlined.DarkMode, onClick = onThemeClick),
-            SettingsItem("Color", colorSource.label, icon = Icons.Outlined.Palette, onClick = onColorClick),
-            SettingsItem("Color palette", paletteStyle.label, icon = Icons.Outlined.ColorLens, onClick = onPaletteClick),
+            SettingsItem("Theme", themeMode.label, icon = Icons.Rounded.DarkMode, onClick = onThemeClick),
+            SettingsItem("Color", colorSource.label, icon = Icons.Rounded.Palette, onClick = onColorClick),
+            SettingsItem("Color palette", paletteStyle.label, icon = Icons.Rounded.ColorLens, onClick = onPaletteClick),
             SettingsItem(
                 "AMOLED black", "True black backgrounds in dark mode, saves battery on AMOLED screens",
                 trailing = { Switch(checked = amoledDark, onCheckedChange = null, colors = switchColors) },
-                icon = Icons.Outlined.Smartphone,
+                icon = Icons.Rounded.Smartphone,
                 onClick = { onAmoledDarkChange(!amoledDark) },
             ),
         ))
         SettingsGroup("Library", listOf(
-            SettingsItem("Title language", titleLanguage.label, icon = Icons.Outlined.Translate, onClick = onTitleLanguageClick),
-            SettingsItem("Air timer style", if (AirTimerPrefs.countdown) "Countdown" else "Air time", icon = Icons.Outlined.Timer, onClick = { airTimerDialog = true }),
-            SettingsItem("List layout", listViewMode.name, icon = Icons.Outlined.ViewAgenda, onClick = { listViewDialog = true }),
+            SettingsItem("Title language", titleLanguage.label, icon = Icons.Rounded.Translate, onClick = onTitleLanguageClick),
+            SettingsItem("Air timer style", if (AirTimerPrefs.countdown) "Countdown" else "Air time", icon = Icons.Rounded.Timer, onClick = { airTimerDialog = true }),
+            SettingsItem("List layout", listViewMode.name, icon = Icons.Rounded.ViewAgenda, onClick = { listViewDialog = true }),
             SettingsItem(
                 "Compact list", "Smaller covers and shorter rows in list layout",
                 trailing = { Switch(checked = compactList, onCheckedChange = null, colors = switchColors) },
-                icon = Icons.Outlined.ViewAgenda,
+                icon = Icons.Rounded.ViewAgenda,
                 onClick = { onCompactListChange(!compactList) },
             ),
-            SettingsItem("List sort order", listSort.label, icon = Icons.Outlined.Sort, onClick = { listSortDialog = true }),
+            SettingsItem("List sort order", listSort.label, icon = Icons.Rounded.Sort, onClick = { listSortDialog = true }),
         ))
         SettingsGroup("Content", listOf(
             SettingsItem(
                 "Adult content", if (nsfwEnabled) "Hentai-rated titles are shown" else "Hentai-rated titles are hidden",
                 trailing = { Switch(checked = nsfwEnabled, onCheckedChange = null, colors = switchColors) },
-                icon = if (nsfwEnabled) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                icon = if (nsfwEnabled) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
                 onClick = { onNsfwChange(!nsfwEnabled) },
             ),
         ))
@@ -1157,13 +1157,13 @@ private fun formatCacheBytes(b: Long): String = when {
             SettingsItem(
                 "Clear image cache",
                 cacheBytes?.let { "Covers and images saved on this device · ${formatCacheBytes(it)}" } ?: "Covers and images saved on this device",
-                icon = Icons.Outlined.Image,
+                icon = Icons.Rounded.Image,
                 onClick = { clearCacheDialog = true },
             ),
         ))
         if (connected && onSignOut != null) {
             SettingsGroup("Account", listOf(
-                SettingsItem("Sign out", "Disconnect your MyAnimeList account", titleColor = c.danger, icon = Icons.AutoMirrored.Outlined.LogoutOutlined, onClick = { signOutDialog = true }),
+                SettingsItem("Sign out", "Disconnect your MyAnimeList account", titleColor = c.danger, icon = Icons.AutoMirrored.Rounded.LogoutOutlined, onClick = { signOutDialog = true }),
             ))
         }
         SettingsGroup("About", listOf(
@@ -1172,7 +1172,7 @@ private fun formatCacheBytes(b: Long): String = when {
                 if (updateInfo != null) "Update available — ${updateInfo.version}" else "v${BuildConfig.VERSION_NAME}",
                 subtitleColor = if (updateInfo != null) c.primary else null,
                 trailing = { if (updateInfo != null) Box(Modifier.size(8.dp).clip(kikoCircleShape()).background(c.danger)) },
-                icon = Icons.Outlined.Info,
+                icon = Icons.Rounded.Info,
                 onClick = onAboutClick,
             ),
         ))
@@ -1234,7 +1234,7 @@ private fun formatCacheBytes(b: Long): String = when {
     val scoreOptions = remember { listOf(0) + (10 downTo 1).toList() }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Score Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
         KikoTabPager(
@@ -1244,7 +1244,7 @@ private fun formatCacheBytes(b: Long): String = when {
             tab = { s, selected ->
                 if (s == 0) KikoTabText("All", selected)
                 else Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                    Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
                     Text(s.toString(), fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, modifier = Modifier.padding(start = 3.dp))
                 }
             },
@@ -1329,7 +1329,7 @@ private fun formatCacheBytes(b: Long): String = when {
     }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Year Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
         Box(Modifier.weight(1f)) {
@@ -1376,7 +1376,7 @@ private fun formatCacheBytes(b: Long): String = when {
         onClick = onClick,
         containerColor = c.primary,
         contentColor = c.onPrimary,
-        icon = { Icon(Icons.Default.DateRange, contentDescription = null) },
+        icon = { Icon(Icons.Rounded.DateRange, contentDescription = null) },
         text = { Text(if (current == 0) "All Years" else current.toString()) },
         modifier = modifier,
     )
@@ -1416,7 +1416,7 @@ private fun formatCacheBytes(b: Long): String = when {
     val formatOptions = remember(formats) { listOf("") + formats }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Format Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
         KikoTabPager(
@@ -1502,7 +1502,7 @@ private fun formatCacheBytes(b: Long): String = when {
     }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Default.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Genre Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
         }
         Box(Modifier.weight(1f)) {
@@ -1548,7 +1548,7 @@ private fun formatCacheBytes(b: Long): String = when {
         onClick = onClick,
         containerColor = c.primary,
         contentColor = c.onPrimary,
-        icon = { Icon(Icons.Default.Sell, contentDescription = null) },
+        icon = { Icon(Icons.Rounded.Sell, contentDescription = null) },
         text = { Text(current.ifBlank { "All Genres" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         modifier = modifier,
     )
@@ -1588,7 +1588,7 @@ private fun formatCacheBytes(b: Long): String = when {
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (selected) Icon(Icons.Default.Check, contentDescription = null, tint = c.primary, modifier = Modifier.size(16.dp).padding(end = 8.dp))
+                if (selected) Icon(Icons.Rounded.Check, contentDescription = null, tint = c.primary, modifier = Modifier.size(16.dp).padding(end = 8.dp))
                 Text(label, color = c.ink, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 14.sp)
             }
             Text(count.toString(), color = barColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
