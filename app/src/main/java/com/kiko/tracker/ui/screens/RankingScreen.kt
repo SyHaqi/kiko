@@ -7,6 +7,7 @@ import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
+import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerTitleStart
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
@@ -71,22 +72,24 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val listState = rememberLazyListState()
     val staggerSeen = rememberStaggerMemory()
     val scope = rememberCoroutineScope()
+    var sortSheetOpen by remember { mutableStateOf(false) }
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(KikoHeader.BackTop * 2 + 48.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Ranking", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+            Text("Ranking", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
+            // Score / Popularity / Favorites / Upcoming live behind this filter button.
+            IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.headerEdgeEnd()) {
+                Icon(Icons.Rounded.FilterList, "Filter", tint = c.ink, modifier = Modifier.size(24.dp))
+            }
         }
+        if (sortSheetOpen) RankingSortSheet(vm.rankingSort, sorts, onDismiss = { sortSheetOpen = false }) { vm.loadRanking(context, vm.rankingType, it) }
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
                     item {
                         // M3 default small top app bar: 64dp tall, content centred, no extra top/bottom padding.
                         RankingTypeButtonGroup(vm.rankingType) { vm.loadRanking(context, it, vm.rankingSort) }
-                        // Score / Popularity / Favorites / Upcoming as one dropdown button (same pill look as My List's sort).
-                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
-                            RankingSortMenu(vm.rankingSort, sorts) { vm.loadRanking(context, vm.rankingType, it) }
-                        }
                         if (vm.rankingLoading && vm.visibleRankingResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), color = c.primary)
                         vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                     }
@@ -156,25 +159,25 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
     RankingSort.Favorite -> Icons.Rounded.Favorite
     RankingSort.Upcoming -> Icons.Rounded.Event
 }
-// Ranking chart dropdown — same pill shape as My List's SortMenu, over RankingSort.
-@Composable private fun RankingSortMenu(current: RankingSort, options: List<RankingSort>, onSelect: (RankingSort) -> Unit) {
+// Ranking chart sheet, opened from the header's filter button. No reset/apply: tapping an option
+// switches the chart straight away and closes the sheet.
+@Composable private fun RankingSortSheet(current: RankingSort, options: List<RankingSort>, onDismiss: () -> Unit, onSelect: (RankingSort) -> Unit) {
     val c = LocalKikoColors.current
-    var open by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            Modifier.height(30.dp).clip(FilterChipDefaults.shape).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(rankingIcon(current), "Ranking type", tint = c.accent, modifier = Modifier.size(16.dp))
-            Text(current.label, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
-        }
-        KikoDropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surfaceContainerHigh, shape = RoundedCornerShape(kikoCorner(18.dp))) {
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
+            Text("Rank by", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text("Chart", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 10.dp))
             options.forEach { sort ->
-                DropdownMenuItem(
-                    text = { Text(sort.label, color = if (sort == current) c.accent else c.ink, fontWeight = if (sort == current) FontWeight.Bold else FontWeight.Normal) },
-                    leadingIcon = { Icon(rankingIcon(sort), null, tint = if (sort == current) c.accent else c.muted, modifier = Modifier.size(18.dp)) },
-                    onClick = { onSelect(sort); open = false },
-                )
+                val selected = sort == current
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable { if (!selected) onSelect(sort); onDismiss() }.padding(horizontal = 4.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(rankingIcon(sort), null, tint = if (selected) c.accent else c.muted, modifier = Modifier.size(22.dp))
+                    Text(sort.label, color = if (selected) c.accent else c.ink, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, fontSize = 16.sp, modifier = Modifier.weight(1f).padding(start = 16.dp))
+                    if (selected) Icon(Icons.Rounded.Check, "Selected", tint = c.accent, modifier = Modifier.size(20.dp))
+                }
             }
         }
     }

@@ -710,6 +710,36 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         }
     }
 }
+// One icon per My List sort option, shown in the sort sheet.
+private fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
+    ListSort.Title -> Icons.Rounded.SortByAlpha
+    ListSort.Score -> Icons.Rounded.Star
+    ListSort.LastUpdated -> Icons.Rounded.Update
+    ListSort.StartDate -> Icons.Rounded.Event
+}
+// My List sort sheet, opened from the filter icon in the count row. No reset/apply: tapping an option
+// sorts straight away and closes the sheet.
+@Composable fun ListSortSheet(current: ListSort, onDismiss: () -> Unit, onSelect: (ListSort) -> Unit) {
+    val c = LocalKikoColors.current
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
+        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
+            Text("Sort by", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text("My List", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 10.dp))
+            ListSort.entries.forEach { sort ->
+                val selected = sort == current
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable { if (!selected) onSelect(sort); onDismiss() }.padding(horizontal = 4.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(listSortIcon(sort), null, tint = if (selected) c.accent else c.muted, modifier = Modifier.size(22.dp))
+                    Text(sort.label, color = if (selected) c.accent else c.ink, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, fontSize = 16.sp, modifier = Modifier.weight(1f).padding(start = 16.dp))
+                    if (selected) Icon(Icons.Rounded.Check, "Selected", tint = c.accent, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+    }
+}
 // Discover results sort dropdown
 
 @Composable fun DiscoverSortMenu(current: DiscoverSort, onSelect: (DiscoverSort) -> Unit, modifier: Modifier = Modifier) {
@@ -744,6 +774,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     // Search bar starts collapsed
     // the whole header row
     var searchExpanded by remember { mutableStateOf(false) }
+    var listSortSheetOpen by remember { mutableStateOf(false) }
     val typeTab = vm.listTypeTab
     val effectiveFilter = normalizeFilterForType(vm.listFilter, typeTab)
     val labels = remember(typeTab) { statusFilterLabels(typeTab) }
@@ -779,6 +810,7 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     }
 
     Column(Modifier.fillMaxSize()) {
+        if (listSortSheetOpen) ListSortSheet(vm.listSort, onDismiss = { listSortSheetOpen = false }) { vm.setListSort(context, it) }
         // Header: Anime/Manga switcher + search icon + avatar. Tapping the icon swaps the
         // WHOLE header for the same empty Play Store-style search bar Search & Discover uses
         // (back arrow, flat text field, hairline divider); back / system back restores it.
@@ -797,11 +829,21 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
                     switchDescription = "Switch between Anime and Manga",
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // Search, sort and avatar each get the same 43dp slot, so the three are evenly spaced
+                        // (centre to centre) like Google Keep's toolbar.
                         Box(
                             Modifier.size(43.dp).clip(kikoCircleShape()).kikoClickable { searchExpanded = true },
                             contentAlignment = Alignment.Center,
                         ) { Icon(Icons.Rounded.Search, "Search your list", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                        Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
+                        Box(
+                            Modifier.size(43.dp).clip(kikoCircleShape()).kikoClickable { listSortSheetOpen = true },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp)) }
+                        // The avatar's slot is 5dp wider on each side than the avatar; the offset keeps its right
+                        // edge on the same margin as the other screens.
+                        Box(Modifier.size(43.dp).offset(x = 5.dp), contentAlignment = Alignment.Center) {
+                            Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
+                        }
                     }
                 }
             } else {
@@ -989,11 +1031,12 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         }
     }
     val countRow: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        // Even spacing: the gap under the status tabs' divider equals the gap above the first entry, which
+        // is the entry's own top padding in list mode (10/14dp) or the grid's 16dp row spacing. So the row
+        // only pads its top; its bottom edge is the entry's padding.
+        val gap = if (isGrid) 16.dp else if (LocalCompactList.current) 10.dp else 14.dp
+        Row(Modifier.fillMaxWidth().padding(top = gap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Start) {
             Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SortMenu(vm.listSort) { vm.setListSort(context, it) }
-            }
         }
     }
     val scope = rememberCoroutineScope()
@@ -1236,15 +1279,18 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
     else -> Icons.Rounded.FilterList
 }
 
+// Visible size of the "+1" capsule. ListRow reads the width too, so the progress bar's reserved space
+// follows the pill instead of a hard-coded number.
+private val IncrementPillSize = DpSize(44.dp, 34.dp)
 // The "+1" pill used by ListRow.
-// 56x34dp capsule with a "+1" label, bottom-right of the row. Its bottom edge is the row's bottom edge,
+// 44x34dp capsule with a "+1" label, bottom-right of the row. Its bottom edge is the row's bottom edge,
 // the same line the progress bar ends on, so counter + bar + pill read as one section. The outer Box is a
 // 64x48dp tap target; the visible capsule sits in its bottom-end corner (alignment).
 @Composable private fun IncrementPill(
     item: MediaItem,
     onIncrement: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
-    pillSize: DpSize = DpSize(56.dp, 34.dp),
+    pillSize: DpSize = IncrementPillSize,
     tapSize: DpSize = DpSize(64.dp, 48.dp),
     alignment: Alignment = Alignment.BottomEnd,
 ) {
@@ -1369,7 +1415,7 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
                 }
                 // Counter on top, bar underneath (bar is the bottom-most element). With a +1 pill the
                 // block stops short of it, so the bar never runs underneath the button.
-                Column(Modifier.padding(end = if (onIncrement != null) 68.dp else 0.dp)) {
+                Column(Modifier.padding(end = if (onIncrement != null) IncrementPillSize.width + 12.dp else 0.dp)) {
                     Text(progressLabel(item), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1)
                     // Always drawn, even when the total is unknown (e.g. a not-yet-aired
                     // "Plan to Watch" title): the track just stays empty until a total exists.
