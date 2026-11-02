@@ -1168,8 +1168,8 @@ private val DiscoverTypePillsInset = 14.dp // = the results list's own side padd
 // Everything Discover can search, in display order.
 private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies", "People", "Users")
 
-// Type switcher shared by the search page and the results page: one genre-style pill per searchable type,
-// the current one filled in. Scrolls sideways when they don't all fit. The row has a fixed height with the
+// Type switcher shared by the search page and the results page: one Material 3 FilterChip per searchable type,
+// the current one filled in (no checkmark). Scrolls sideways when they don't all fit. The row has a fixed height with the
 // pills centred in it, so the search page and the results page place them at exactly the same spot - callers
 // must not add vertical padding of their own, or the row visibly jumps when switching between the two.
 @Composable fun DiscoverTypePills(current: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier, horizontalPadding: Dp = DiscoverTypePillsInset) {
@@ -1179,9 +1179,20 @@ private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies",
         verticalAlignment = Alignment.CenterVertically,
     ) {
         DISCOVER_TYPES.forEach { option ->
-            GenreChip(option, selected = option == current, onClick = { if (option != current) onSelect(option) })
+            DiscoverTypeTab(option, selected = option == current, onClick = { if (option != current) onSelect(option) })
         }
     }
+}
+
+// Standard Material 3 FilterChip. No leadingIcon is passed, so the selected chip just fills with the
+// secondary container colour and never grows a checkmark when tapped.
+@Composable private fun DiscoverTypeTab(text: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(text, maxLines = 1) },
+        colors = kikoFilterChipColors(),
+    )
 }
 
 // One row in the
