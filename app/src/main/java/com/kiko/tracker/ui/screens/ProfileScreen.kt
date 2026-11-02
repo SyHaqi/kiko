@@ -1228,6 +1228,8 @@ private fun formatCacheBytes(b: Long): String = when {
 @Composable fun ScoreFilterScreen(vm: LibraryViewModel, type: MediaType, initialScore: Int, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
+    var sortSheetOpen by remember { mutableStateOf(false) }
+    val sortCtx = LocalContext.current
     var score by remember { mutableStateOf(initialScore) }
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
     // Tab/page order: All, then 10 down to 1. Swipe left/right to move between scores.
@@ -1235,8 +1237,12 @@ private fun formatCacheBytes(b: Long): String = when {
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Score Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+            Text("Score Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
+            IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.headerEdgeEnd()) {
+                Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
+            }
         }
+        if (sortSheetOpen) SortSheet("Titles", com.kiko.tracker.data.model.ListSort.entries, vm.scoreFilterSort, { it.label }, { listSortIcon(it) }, onDismiss = { sortSheetOpen = false }) { vm.setScoreFilterSort(sortCtx, it) }
         KikoTabPager(
             items = scoreOptions,
             selected = score,
@@ -1261,11 +1267,8 @@ private fun formatCacheBytes(b: Long): String = when {
     val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.listViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SortMenu(vm.scoreFilterSort) { vm.setScoreFilterSort(context, it) }
-            }
         }
     }
     if (isGrid) {
@@ -1304,6 +1307,8 @@ private fun formatCacheBytes(b: Long): String = when {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     BackHandler(onBack = onBack)
+    var sortSheetOpen by remember { mutableStateOf(false) }
+    val sortCtx = LocalContext.current
     var year by remember { mutableStateOf(initialYear) }
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
     // Same tolerant startDate parsing
@@ -1320,18 +1325,19 @@ private fun formatCacheBytes(b: Long): String = when {
     // GenreFilterScreen below. See YearFilterFab/YearFilterSheet.
     var yearSheetOpen by remember { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SortMenu(vm.yearFilterSort) { vm.setYearFilterSort(context, it) }
-            }
         }
     }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Year Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+            Text("Year Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
+            IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.headerEdgeEnd()) {
+                Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
+            }
         }
+        if (sortSheetOpen) SortSheet("Titles", com.kiko.tracker.data.model.ListSort.entries, vm.yearFilterSort, { it.label }, { listSortIcon(it) }, onDismiss = { sortSheetOpen = false }) { vm.setYearFilterSort(sortCtx, it) }
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {
                 if (isGrid) {
@@ -1409,6 +1415,8 @@ private fun formatCacheBytes(b: Long): String = when {
 @Composable fun FormatFilterScreen(vm: LibraryViewModel, type: MediaType, initialFormat: String, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
+    var sortSheetOpen by remember { mutableStateOf(false) }
+    val sortCtx = LocalContext.current
     var format by remember { mutableStateOf(initialFormat) }
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
     val formats = remember(typeItems) { typeItems.map { it.format }.filter { it.isNotBlank() }.distinct().sorted() }
@@ -1417,8 +1425,12 @@ private fun formatCacheBytes(b: Long): String = when {
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Format Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+            Text("Format Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
+            IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.headerEdgeEnd()) {
+                Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
+            }
         }
+        if (sortSheetOpen) SortSheet("Titles", com.kiko.tracker.data.model.ListSort.entries, vm.formatFilterSort, { it.label }, { listSortIcon(it) }, onDismiss = { sortSheetOpen = false }) { vm.setFormatFilterSort(sortCtx, it) }
         KikoTabPager(
             items = formatOptions,
             selected = format,
@@ -1437,11 +1449,8 @@ private fun formatCacheBytes(b: Long): String = when {
     val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.listViewMode == ListViewMode.Grid
     val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SortMenu(vm.formatFilterSort) { vm.setFormatFilterSort(context, it) }
-            }
         }
     }
     if (isGrid) {
@@ -1478,6 +1487,8 @@ private fun formatCacheBytes(b: Long): String = when {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     BackHandler(onBack = onBack)
+    var sortSheetOpen by remember { mutableStateOf(false) }
+    val sortCtx = LocalContext.current
     var genre by remember { mutableStateOf(initialGenre) }
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
     // Ranked most → least,
@@ -1493,18 +1504,19 @@ private fun formatCacheBytes(b: Long): String = when {
     // see GenreFilterFab/GenreFilterSheet below.
     var genreSheetOpen by remember { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SortMenu(vm.genreFilterSort) { vm.setGenreFilterSort(context, it) }
-            }
         }
     }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Genre Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+            Text("Genre Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
+            IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.headerEdgeEnd()) {
+                Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
+            }
         }
+        if (sortSheetOpen) SortSheet("Titles", com.kiko.tracker.data.model.ListSort.entries, vm.genreFilterSort, { it.label }, { listSortIcon(it) }, onDismiss = { sortSheetOpen = false }) { vm.setGenreFilterSort(sortCtx, it) }
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {
                 if (isGrid) {

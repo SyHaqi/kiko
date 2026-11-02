@@ -7,6 +7,7 @@ import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
+import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerTitleStart
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -32,6 +33,10 @@ import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.SortByAlpha
+import androidx.compose.material.icons.rounded.Update
+import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -132,6 +137,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     // Grid/list comes from the global "List layout" setting.
     val viewMode = vm.listViewMode
     var sort by remember { mutableStateOf(FriendListSort.Title) }
+    var sortSheetOpen by remember { mutableStateOf(false) }
 
     fun load() {
         if (username.isBlank()) return
@@ -196,11 +202,15 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Column(Modifier.headerTitleStart()) {
+            Column(Modifier.weight(1f).headerTitleStart()) {
                 Text(if (type == MediaType.Anime) "Anime List" else "Manga List", style = MaterialTheme.typography.titleLarge, color = c.ink)
                 Text(username, color = c.muted, fontSize = 12.sp)
             }
+            IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.headerEdgeEnd()) {
+                Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
+            }
         }
+        if (sortSheetOpen) SortSheet(if (type == MediaType.Anime) "Anime List" else "Manga List", FriendListSort.entries, sort, { it.label }, { friendSortIcon(it) }, onDismiss = { sortSheetOpen = false }) { sort = it }
         if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent)
 
         // Keyed on username/type: switching to a different friend (or
@@ -296,11 +306,8 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     }
 
     val countRow: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${filtered.orEmpty().size} titles" + if (loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FriendSortMenu(sort, onSetSort)
-            }
         }
     }
 
@@ -353,27 +360,12 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     }
 }
 
-// Same visual shape as My List's SortMenu, over FriendListSort.
-@Composable private fun FriendSortMenu(current: FriendListSort, onSelect: (FriendListSort) -> Unit) {
-    val c = LocalKikoColors.current
-    var open by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            Modifier.height(30.dp).clip(FilterChipDefaults.shape).background(c.surfaceContainerHigh).kikoClickable { open = true }.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Rounded.Sort, "Sort", tint = c.accent, modifier = Modifier.size(16.dp))
-            Text(current.label, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 6.dp))
-        }
-        KikoDropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surfaceContainerHigh, shape = RoundedCornerShape(kikoCorner(18.dp))) {
-            FriendListSort.entries.forEach { s ->
-                DropdownMenuItem(
-                    text = { Text(s.label, color = if (s == current) c.accent else c.ink, fontWeight = if (s == current) FontWeight.Bold else FontWeight.Normal) },
-                    onClick = { onSelect(s); open = false },
-                )
-            }
-        }
-    }
+// Same icons as My List's sort sheet, over FriendListSort.
+private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.vector.ImageVector = when (sort) {
+    FriendListSort.Title -> Icons.Rounded.SortByAlpha
+    FriendListSort.Score -> Icons.Rounded.Star
+    FriendListSort.LastUpdated -> Icons.Rounded.Update
+    FriendListSort.StartDate -> Icons.Rounded.Event
 }
 
 // Compact grid tile for a friend's title — 1:1 with My List's own

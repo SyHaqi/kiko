@@ -710,36 +710,42 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
         }
     }
 }
-// One icon per My List sort option, shown in the sort sheet.
-private fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
+// Top padding for an "N titles" row. The row has no bottom padding: the first entry already adds its own
+// (10/14dp in list mode, the grid's 16dp row spacing), so using the same value on top makes the gap under
+// the status tabs' line equal to the gap above the first entry.
+@Composable fun countRowTopGap(isGrid: Boolean): androidx.compose.ui.unit.Dp = if (isGrid) 16.dp else if (LocalCompactList.current) 10.dp else 14.dp
+// One icon per My List sort option, shown in the sort sheets.
+fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
     ListSort.Title -> Icons.Rounded.SortByAlpha
     ListSort.Score -> Icons.Rounded.Star
     ListSort.LastUpdated -> Icons.Rounded.Update
     ListSort.StartDate -> Icons.Rounded.Event
 }
-// My List sort sheet, opened from the filter icon in the count row. No reset/apply: tapping an option
-// sorts straight away and closes the sheet.
-@Composable fun ListSortSheet(current: ListSort, onDismiss: () -> Unit, onSelect: (ListSort) -> Unit) {
+// Shared sort sheet (My List, Profile's Score/Year/Format/Genre screens, friend lists), opened from the
+// header's sort button. No reset/apply: tapping an option sorts straight away and closes the sheet.
+@Composable fun <T> SortSheet(heading: String, options: List<T>, current: T, label: (T) -> String, icon: (T) -> ImageVector, onDismiss: () -> Unit, onSelect: (T) -> Unit) {
     val c = LocalKikoColors.current
     val sheetState = rememberModalBottomSheetState()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
             Text("Sort by", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("My List", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 10.dp))
-            ListSort.entries.forEach { sort ->
-                val selected = sort == current
+            Text(heading, style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 10.dp))
+            options.forEach { option ->
+                val selected = option == current
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable { if (!selected) onSelect(sort); onDismiss() }.padding(horizontal = 4.dp, vertical = 14.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable { if (!selected) onSelect(option); onDismiss() }.padding(horizontal = 4.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(listSortIcon(sort), null, tint = if (selected) c.accent else c.muted, modifier = Modifier.size(22.dp))
-                    Text(sort.label, color = if (selected) c.accent else c.ink, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, fontSize = 16.sp, modifier = Modifier.weight(1f).padding(start = 16.dp))
+                    Icon(icon(option), null, tint = if (selected) c.accent else c.muted, modifier = Modifier.size(22.dp))
+                    Text(label(option), color = if (selected) c.accent else c.ink, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, fontSize = 16.sp, modifier = Modifier.weight(1f).padding(start = 16.dp))
                     if (selected) Icon(Icons.Rounded.Check, "Selected", tint = c.accent, modifier = Modifier.size(20.dp))
                 }
             }
         }
     }
 }
+@Composable fun ListSortSheet(current: ListSort, onDismiss: () -> Unit, onSelect: (ListSort) -> Unit) =
+    SortSheet("My List", ListSort.entries, current, { it.label }, { listSortIcon(it) }, onDismiss, onSelect)
 // Discover results sort dropdown
 
 @Composable fun DiscoverSortMenu(current: DiscoverSort, onSelect: (DiscoverSort) -> Unit, modifier: Modifier = Modifier) {
@@ -1034,7 +1040,7 @@ private fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
         // Even spacing: the gap under the status tabs' divider equals the gap above the first entry, which
         // is the entry's own top padding in list mode (10/14dp) or the grid's 16dp row spacing. So the row
         // only pads its top; its bottom edge is the entry's padding.
-        val gap = if (isGrid) 16.dp else if (LocalCompactList.current) 10.dp else 14.dp
+        val gap = countRowTopGap(isGrid)
         Row(Modifier.fillMaxWidth().padding(top = gap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Start) {
             Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
         }
