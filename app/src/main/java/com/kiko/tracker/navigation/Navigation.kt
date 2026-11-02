@@ -1088,6 +1088,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             onThemeClick = { themeOpen = true }, onColorClick = { colorSourceOpen = true }, onPaletteClick = { paletteStyleOpen = true }, onTitleLanguageClick = { titleLangOpen = true },
                                             updateInfo = vm.updateInfo, onAboutClick = { aboutOpen = true },
                                             listViewMode = vm.listViewMode, onListViewModeChange = { vm.setListViewMode(context, it) },
+                                            gridColumns = vm.gridColumns, onGridColumnsChange = { vm.setGridColumns(context, it) },
                                             listSort = vm.listSort, onListSortChange = { vm.setListSort(context, it) },
                                             onSignOut = onSignOut,
                                             onBack = { settingsPageOpen = false },

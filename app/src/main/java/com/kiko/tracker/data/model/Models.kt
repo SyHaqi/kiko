@@ -478,6 +478,10 @@ enum class ListSort(val label: String) { Title("Title"), Score("Score"), LastUpd
 
 enum class ListViewMode { List, Grid }
 
+// Column count for the grid layout (Settings > Grid columns). Dynamic fits as many columns as the
+// screen allows (3 on most phones); Two / Three are fixed.
+enum class GridColumns(val label: String) { Dynamic("Dynamic"), Two("2"), Three("3") }
+
 fun nowIso(): String = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'+00:00'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date())
 // Convert broadcast to local
 

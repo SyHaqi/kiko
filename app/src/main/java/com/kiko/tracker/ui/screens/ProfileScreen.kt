@@ -85,6 +85,7 @@ import com.kiko.tracker.data.api.MalProfile
 import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.data.api.fullResMalImage
 import com.kiko.tracker.data.model.ColorSource
+import com.kiko.tracker.data.model.GridColumns
 import com.kiko.tracker.data.model.ListViewMode
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
@@ -253,6 +254,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     onThemeClick: () -> Unit, onColorClick: () -> Unit, onPaletteClick: () -> Unit, onTitleLanguageClick: () -> Unit,
     updateInfo: AppUpdateInfo?, onAboutClick: () -> Unit, onBack: () -> Unit,
     listViewMode: ListViewMode = ListViewMode.List, onListViewModeChange: (ListViewMode) -> Unit = {},
+    gridColumns: GridColumns = GridColumns.Dynamic, onGridColumnsChange: (GridColumns) -> Unit = {},
     listSort: com.kiko.tracker.data.model.ListSort = com.kiko.tracker.data.model.ListSort.Title, onListSortChange: (com.kiko.tracker.data.model.ListSort) -> Unit = {},
     onSignOut: (() -> Unit)? = null,
 ) {
@@ -274,6 +276,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                         onThemeClick = onThemeClick, onColorClick = onColorClick, onPaletteClick = onPaletteClick, onTitleLanguageClick = onTitleLanguageClick,
                         updateInfo = updateInfo, onAboutClick = onAboutClick,
                         listViewMode = listViewMode, onListViewModeChange = onListViewModeChange,
+                        gridColumns = gridColumns, onGridColumnsChange = onGridColumnsChange,
                         listSort = listSort, onListSortChange = onListSortChange,
                         onSignOut = onSignOut,
                     )
@@ -1102,6 +1105,7 @@ private fun formatCacheBytes(b: Long): String = when {
     onThemeClick: () -> Unit, onColorClick: () -> Unit, onPaletteClick: () -> Unit, onTitleLanguageClick: () -> Unit,
     updateInfo: AppUpdateInfo? = null, onAboutClick: () -> Unit = {},
     listViewMode: ListViewMode = ListViewMode.List, onListViewModeChange: (ListViewMode) -> Unit = {},
+    gridColumns: GridColumns = GridColumns.Dynamic, onGridColumnsChange: (GridColumns) -> Unit = {},
     listSort: com.kiko.tracker.data.model.ListSort = com.kiko.tracker.data.model.ListSort.Title, onListSortChange: (com.kiko.tracker.data.model.ListSort) -> Unit = {},
     onSignOut: (() -> Unit)? = null,
 ) {
@@ -1109,6 +1113,7 @@ private fun formatCacheBytes(b: Long): String = when {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var listViewDialog by remember { mutableStateOf(false) }
+    var gridColumnsDialog by remember { mutableStateOf(false) }
     var airTimerDialog by remember { mutableStateOf(false) }
     var listSortDialog by remember { mutableStateOf(false) }
     var clearCacheDialog by remember { mutableStateOf(false) }
@@ -1137,12 +1142,13 @@ private fun formatCacheBytes(b: Long): String = when {
             SettingsItem("Title language", titleLanguage.label, icon = Icons.Rounded.Translate, onClick = onTitleLanguageClick),
             SettingsItem("Air timer style", if (AirTimerPrefs.countdown) "Countdown" else "Air time", icon = Icons.Rounded.Timer, onClick = { airTimerDialog = true }),
             SettingsItem("List layout", listViewMode.name, icon = Icons.Rounded.ViewAgenda, onClick = { listViewDialog = true }),
-            SettingsItem(
+            // Layout-specific option: Compact list only applies to the list layout, Grid columns to the grid layout.
+            if (listViewMode == ListViewMode.List) SettingsItem(
                 "Compact list", "Smaller covers and shorter rows in list layout",
                 trailing = { Switch(checked = compactList, onCheckedChange = null, colors = switchColors) },
                 icon = Icons.Rounded.ViewAgenda,
                 onClick = { onCompactListChange(!compactList) },
-            ),
+            ) else SettingsItem("Grid columns", gridColumns.label, icon = Icons.Rounded.GridView, onClick = { gridColumnsDialog = true }),
             SettingsItem("List sort order", listSort.label, icon = Icons.Rounded.Sort, onClick = { listSortDialog = true }),
         ))
         SettingsGroup("Content", listOf(
@@ -1187,6 +1193,15 @@ private fun formatCacheBytes(b: Long): String = when {
     if (listViewDialog) ChoiceDialog(
         title = "List layout", options = ListViewMode.entries, selected = listViewMode, label = { it.name },
         onSelect = { onListViewModeChange(it); listViewDialog = false }, onDismiss = { listViewDialog = false },
+    )
+    if (gridColumnsDialog) ChoiceDialog(
+        title = "Grid columns", options = GridColumns.entries, selected = gridColumns, label = { it.label },
+        description = { when (it) {
+            GridColumns.Dynamic -> "Fits as many as the screen allows (3 on most phones)"
+            GridColumns.Two -> "2 per row, bigger covers"
+            GridColumns.Three -> "3 per row"
+        } },
+        onSelect = { onGridColumnsChange(it); gridColumnsDialog = false }, onDismiss = { gridColumnsDialog = false },
     )
     if (listSortDialog) ChoiceDialog(
         title = "List sort order", options = com.kiko.tracker.data.model.ListSort.entries, selected = listSort, label = { it.label },
@@ -1273,7 +1288,7 @@ private fun formatCacheBytes(b: Long): String = when {
     }
     if (isGrid) {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
+            columns = vm.gridColumns.cells(),
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -1342,7 +1357,7 @@ private fun formatCacheBytes(b: Long): String = when {
             Box(Modifier.fillMaxSize()) {
                 if (isGrid) {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
+                        columns = vm.gridColumns.cells(),
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
                         horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -1455,7 +1470,7 @@ private fun formatCacheBytes(b: Long): String = when {
     }
     if (isGrid) {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
+            columns = vm.gridColumns.cells(),
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -1521,7 +1536,7 @@ private fun formatCacheBytes(b: Long): String = when {
             Box(Modifier.fillMaxSize()) {
                 if (isGrid) {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
+                        columns = vm.gridColumns.cells(),
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
                         horizontalArrangement = Arrangement.spacedBy(11.dp),

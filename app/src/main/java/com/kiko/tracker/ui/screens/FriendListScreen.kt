@@ -355,7 +355,7 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
             if (grid) {
                 LazyVerticalGrid(
                     state = gridState,
-                    columns = GridCells.Fixed(3),
+                    columns = vm.gridColumns.cells(),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -400,7 +400,7 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
     FriendListSort.StartDate -> Icons.Rounded.Event
 }
 
-// Compact grid tile for a friend's title, laid out like My List's own ListGridCard: 160dp cover with the
+// Compact grid tile for a friend's title, laid out like My List's own ListGridCard: poster cover with the
 // status badge (only on the All tab, [showStatus]), 2-line title, the score on its own row right under it (a
 // friend's scraped entry has no format / airing field, so unlike My List there is no format text or air timer
 // next to it), then the counter and progress bar as one block at the very bottom. Built straight off
@@ -411,7 +411,7 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
     // The tile itself is not clipped: only the cover has rounded corners (same shape + shadow as Cover()).
     Column(Modifier.fillMaxWidth().kikoClickable(onClick = onClick)) {
         val coverShape = RoundedCornerShape(kikoCorner(16.dp))
-        Box(Modifier.fillMaxWidth().height(160.dp).coverElevation(coverShape).clip(coverShape).background(c.surfaceContainerHigh)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(GridCoverAspect).coverElevation(coverShape).clip(coverShape).background(c.surfaceContainerHigh)) {
             if (entry.cover.isNotBlank()) {
                 AsyncImage(model = entry.cover, contentDescription = entry.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {

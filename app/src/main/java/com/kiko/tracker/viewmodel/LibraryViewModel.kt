@@ -82,6 +82,7 @@ import com.kiko.tracker.data.model.FeaturedArticleEntry
 import com.kiko.tracker.data.model.FeaturedTag
 import com.kiko.tracker.data.model.ForumMode
 import com.kiko.tracker.data.model.ListSort
+import com.kiko.tracker.data.model.GridColumns
 import com.kiko.tracker.data.model.ListViewMode
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
@@ -608,6 +609,10 @@ class LibraryViewModel : ViewModel() {
     fun loadListSort(context: Context) { listSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("list_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
     fun setListViewMode(context: Context, mode: ListViewMode) { listViewMode = mode; settingsPrefs(context).edit().putString("list_view_mode", mode.name).apply() }
     fun loadListViewMode(context: Context) { listViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("list_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
+    // Grid layout column count (Settings > Grid columns).
+    var gridColumns by mutableStateOf(GridColumns.Dynamic); private set
+    fun setGridColumns(context: Context, value: GridColumns) { gridColumns = value; settingsPrefs(context).edit().putString("grid_columns", value.name).apply() }
+    fun loadGridColumns(context: Context) { gridColumns = runCatching { GridColumns.valueOf(settingsPrefs(context).getString("grid_columns", GridColumns.Dynamic.name)!!) }.getOrDefault(GridColumns.Dynamic) }
     // Score distribution drill-down view
     // switching one screen's list/grid
     var scoreFilterViewMode by mutableStateOf(ListViewMode.List); private set

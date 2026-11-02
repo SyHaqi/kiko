@@ -86,6 +86,7 @@ import com.kiko.tracker.data.api.NewsSnapshot
 import com.kiko.tracker.data.model.DiscoverSort
 import com.kiko.tracker.data.model.FeaturedArticleEntry
 import com.kiko.tracker.data.model.ListSort
+import com.kiko.tracker.data.model.GridColumns
 import com.kiko.tracker.data.model.ListViewMode
 import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.MediaItem
@@ -722,6 +723,23 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
 // Top padding for an "N titles" row. The row has no bottom padding: the first entry already adds its own
 // (10/14dp in list mode, the grid's 16dp row spacing), so using the same value on top makes the gap under
 // the status tabs' line equal to the gap above the first entry.
+// Grid layout columns (Settings > Grid columns). Dynamic = as many columns as fit with tiles at least
+// DynamicGridMinTile wide: 3 on phones from ~340dp to ~440dp wide, more on foldables and tablets.
+private const val DynamicGridMinTile = 96
+fun GridColumns.cells(): GridCells = when (this) {
+    GridColumns.Dynamic -> GridCells.Adaptive(DynamicGridMinTile.dp)
+    GridColumns.Two -> GridCells.Fixed(2)
+    GridColumns.Three -> GridCells.Fixed(3)
+}
+// How many columns [cells] resolves to for a grid [availableDp] wide (gap = the grid's 11dp column spacing).
+fun GridColumns.count(availableDp: Float, gapDp: Float = 11f): Int = when (this) {
+    GridColumns.Dynamic -> ((availableDp + gapDp) / (DynamicGridMinTile + gapDp)).toInt().coerceAtLeast(1)
+    GridColumns.Two -> 2
+    GridColumns.Three -> 3
+}
+// Grid cover shape: width / height. The cover's height follows the tile's width so 2, 3 or more columns all
+// keep a poster shape (1 / 1.55 gives the old 160dp cover on a 360dp-wide phone at 3 columns).
+const val GridCoverAspect = 1f / 1.55f
 @Composable fun countRowTopGap(isGrid: Boolean): androidx.compose.ui.unit.Dp = if (isGrid) 16.dp else if (LocalCompactList.current) 10.dp else 14.dp
 // One icon per My List sort option, shown in the sort sheets.
 fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
@@ -1016,19 +1034,21 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
         }
     }
     // Same idea for grid layout: nothing was warming the covers, so every row of three decoded as it
-    // scrolled in (plus the 200ms crossfade). Size mirrors the tile (3 columns, 14dp sides, 11dp gaps,
-    // 160dp cover) so the prefetched bitmap is the one the card asks for. Grid index 0 is the count
+    // scrolled in (plus the 200ms crossfade). Size mirrors the tile (column count from the Grid columns setting, 14dp sides, 11dp gaps,
+    // poster cover) so the prefetched bitmap is the one the card asks for. Grid index 0 is the count
     // row, so title i sits at grid index i + 1.
     if (restoreScroll && isGrid) {
         val density = androidx.compose.ui.platform.LocalDensity.current
         val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
-        LaunchedEffect(filtered, screenW, density.density) {
-            val size = with(density) { Size(((screenW - 14 * 2 - 11 * 2) / 3f).dp.roundToPx(), 160.dp.roundToPx()) }
+        val columns = vm.gridColumns.count((screenW - 14 * 2).toFloat())
+        LaunchedEffect(filtered, screenW, density.density, columns) {
+            val tileW = (screenW - 14 * 2 - 11f * (columns - 1)) / columns
+            val size = with(density) { Size(tileW.dp.roundToPx(), (tileW / GridCoverAspect).dp.roundToPx()) }
             val loader = coil.Coil.imageLoader(context)
             var done = -1
             snapshotFlow { gridState.firstVisibleItemIndex }.collect { first ->
-                val from = maxOf(first - 1 + 12, done + 1)
-                val to = minOf(first - 1 + 30, filtered.lastIndex)
+                val from = maxOf(first - 1 + 4 * columns, done + 1)
+                val to = minOf(first - 1 + 10 * columns, filtered.lastIndex)
                 for (i in from..to) {
                     val cover = filtered[i].cover
                     if (cover.isNotBlank()) loader.enqueue(ImageRequest.Builder(context).data(cover).size(size).allowHardware(true).build())
@@ -1075,7 +1095,7 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
             if (grid) {
                 LazyVerticalGrid(
                     state = gridState,
-                    columns = GridCells.Fixed(3),
+                    columns = vm.gridColumns.cells(),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = bottomInset),
                     horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -1143,7 +1163,7 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
         // [showStatus] is off on My List's per-status tabs (every tile there has the same status, so the
         // badge is redundant) and only on for the "All" tab. The score is no longer drawn on the cover; it
         // rides on the format line under the title, like in list view.
-        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = showStatus)
+        Cover(item, Modifier.fillMaxWidth().aspectRatio(GridCoverAspect), showStatus = showStatus)
         // Fixed to 2 lines
         Text(
             item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, color = c.ink,
