@@ -45,12 +45,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.size.Size
 import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.data.api.MalSessionExpired
 import com.kiko.tracker.data.api.MalUserListEntry
@@ -60,7 +63,7 @@ import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayLabel
-import com.kiko.tracker.ui.components.CoverRatingMark
+import com.kiko.tracker.ui.components.coverElevation
 import com.kiko.tracker.ui.components.CoverStatusMark
 import com.kiko.tracker.ui.components.MalLoginWebView
 import com.kiko.tracker.ui.components.statusColor
@@ -68,6 +71,7 @@ import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.accent
 import com.kiko.tracker.ui.theme.kikoClickable
+import com.kiko.tracker.ui.theme.kikoCombinedClickable
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
 import com.kiko.tracker.viewmodel.LibraryViewModel
@@ -94,11 +98,16 @@ private fun List<MalUserListEntry>.sortedWithFriendSort(sort: FriendListSort): L
     FriendListSort.StartDate -> sortedWith(compareByDescending<MalUserListEntry> { it.startDate.isNotBlank() }.thenByDescending { it.startDate })
 }
 
-private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): String {
-    if (entry.progress == 0) return entry.status.displayLabel(type)
-    val unit = if (type == MediaType.Anime) "ep." else "ch."
-    return if (entry.total > 0) "${entry.progress} of ${entry.total} $unit" else "${entry.progress} $unit"
-}
+// Same wording as My List's progressLabel(): "5 of 12 episodes" / "30 of ? chapters".
+private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): String =
+    if (entry.progress == 0) entry.status.displayLabel(type)
+    else "${entry.progress} of ${if (entry.total > 0) entry.total.toString() else "?"} ${if (type == MediaType.Anime) "episodes" else "chapters"}"
+
+// Grid tile counter row, same wording as My List's grid tile: "5/12 ep." / "30/? ch."; a Plan to Watch/Read
+// entry that hasn't been started reads "Plan to Watch" / "Plan to Read" instead of "0/12 ep.".
+private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): String =
+    if (entry.status == WatchStatus.Plan && entry.progress == 0) entry.status.displayLabel(type)
+    else "${entry.progress}/${if (entry.total > 0) entry.total.toString() else "?"} ${if (type == MediaType.Anime) "ep." else "ch."}"
 
 /**
  * Another MAL member's anime or manga list, read-only, opened by tapping a
@@ -251,6 +260,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
         FriendListPage(
             vm = vm, username = username,
             entries = entries, loading = loading, error = error, tabStatus = tabs.getOrNull(page), type = type,
+            active = pagerState.currentPage == page,
             viewMode = viewMode, sort = sort, onSetSort = onSetSort,
             onRetry = onRetry, onOpenTitle = onOpenTitle,
         )
@@ -263,6 +273,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
 @Composable private fun FriendListPage(
     vm: LibraryViewModel, username: String,
     entries: List<MalUserListEntry>?, loading: Boolean, error: String?, tabStatus: WatchStatus?, type: MediaType,
+    active: Boolean,
     viewMode: ListViewMode, sort: FriendListSort,
     onSetSort: (FriendListSort) -> Unit,
     onRetry: () -> Unit, onOpenTitle: (Int, MediaType) -> Unit,
@@ -290,8 +301,32 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
             else vm.saveFriendListScroll(username, type, tabStatus, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
         }
     }
-    val showGoToTop by remember { derivedStateOf { if (isGrid) gridState.firstVisibleItemIndex > 0 else listState.firstVisibleItemIndex > 0 } }
+    // Keyed on isGrid (same fix as My List): otherwise the lambda keeps watching whichever state was
+    // active on first composition, and the button never shows after toggling grid <-> list.
+    val showGoToTop by remember(isGrid) { derivedStateOf { if (isGrid) gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 600 else listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    // Decode the covers of the rows just below the viewport ahead of time (active page, list layout), same
+    // as My List, so a row arriving on screen already has its cover in Coil's memory cache.
+    if (active && !isGrid) {
+        val compactCovers = LocalCompactList.current
+        val density = LocalDensity.current
+        LaunchedEffect(filtered, compactCovers, density.density) {
+            val list = filtered ?: return@LaunchedEffect
+            val size = with(density) { Size((if (compactCovers) 72 else 100).dp.roundToPx(), (if (compactCovers) 108 else 150).dp.roundToPx()) }
+            val loader = coil.Coil.imageLoader(context)
+            var done = -1
+            snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->
+                val from = maxOf(first + 6, done + 1)
+                val to = minOf(first + 16, list.lastIndex)
+                for (i in from..to) {
+                    val cover = list[i].cover
+                    if (cover.isNotBlank()) loader.enqueue(ImageRequest.Builder(context).data(cover).size(size).allowHardware(true).build())
+                }
+                if (to > done) done = to
+            }
+        }
+    }
 
     if (error != null && entries == null) {
         Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -306,7 +341,7 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
     }
 
     val countRow: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Start) {
             Text("${filtered.orEmpty().size} titles" + if (loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
         }
     }
@@ -331,22 +366,19 @@ private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): Strin
                         item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
                     } else {
                         itemsIndexed(filtered, key = { _, it -> it.malId }) { index, entry ->
-                            StaggeredItem(index, staggerSeen) { FriendGridCard(entry, type) { onOpenTitle(entry.malId, type) } }
+                            StaggeredItem(index, staggerSeen) { FriendGridCard(entry, type, showStatus = tabStatus == null) { onOpenTitle(entry.malId, type) } }
                         }
                     }
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
                     item { countRow() }
                     if (filtered.isNullOrEmpty()) {
                         item { Text("No titles here.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
                     } else {
-                        itemsIndexed(filtered, key = { _, it -> it.malId }) { index, entry ->
-                            StaggeredItem(index, staggerSeen) {
-                                Column(Modifier.padding(horizontal = 14.dp)) {
-                                    FriendListRow(entry, type, c, onClick = { onOpenTitle(entry.malId, type) })
-                                }
-                            }
+                        // Like My List: no wrapper and no per-row animation, each row is just the row.
+                        itemsIndexed(filtered, key = { _, it -> it.malId }, contentType = { _, _ -> "row" }) { _, entry ->
+                            FriendListRow(entry, type, c, onClick = { onOpenTitle(entry.malId, type) })
                         }
                     }
                 }
@@ -368,37 +400,51 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
     FriendListSort.StartDate -> Icons.Rounded.Event
 }
 
-// Compact grid tile for a friend's title — 1:1 with My List's own
-// ListGridCard (160dp cover, CoverStatusMark/CoverRatingMark badges, 2-line
-// title, progress bar + label — My List's grid tile has no genre line, so
-// neither does this one), built straight off MalUserListEntry's own
-// cover/title fields (same pattern as HistoryRow's HistoryCover) rather than
-// a MediaItem, since a friend's scraped entry isn't necessarily in your own
-// signed-in list.
-@Composable private fun FriendGridCard(entry: MalUserListEntry, type: MediaType, onClick: () -> Unit) {
+// Compact grid tile for a friend's title, laid out like My List's own ListGridCard: 160dp cover with the
+// status badge (only on the All tab, [showStatus]), 2-line title, the score on its own row right under it (a
+// friend's scraped entry has no format / airing field, so unlike My List there is no format text or air timer
+// next to it), then the counter and progress bar as one block at the very bottom. Built straight off
+// MalUserListEntry's own cover/title fields (same pattern as HistoryRow's HistoryCover) rather than a
+// MediaItem, since a friend's scraped entry isn't necessarily in your own signed-in list.
+@Composable private fun FriendGridCard(entry: MalUserListEntry, type: MediaType, showStatus: Boolean = true, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).kikoClickable(onClick = onClick)) {
-        Box(Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh)) {
+    // The tile itself is not clipped: only the cover has rounded corners (same shape + shadow as Cover()).
+    Column(Modifier.fillMaxWidth().kikoClickable(onClick = onClick)) {
+        val coverShape = RoundedCornerShape(kikoCorner(16.dp))
+        Box(Modifier.fillMaxWidth().height(160.dp).coverElevation(coverShape).clip(coverShape).background(c.surfaceContainerHigh)) {
             if (entry.cover.isNotBlank()) {
                 AsyncImage(model = entry.cover, contentDescription = entry.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
                 Text(entry.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 26.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }
-            // Same icon+border badge as Cover()'s showStatus, top-start.
-            CoverStatusMark(entry.status, Modifier.align(Alignment.TopStart).padding(6.dp))
-            // Same pill badge as Cover()'s showRating, bottom-end.
-            if (entry.score > 0) CoverRatingMark(entry.score, Modifier.align(Alignment.BottomStart).padding(6.dp))
+            // Same icon+border badge as Cover()'s showStatus, top-start; only on the All tab, since every
+            // tile on a status tab has the same status. The score is no longer drawn on the cover.
+            if (showStatus) CoverStatusMark(entry.status, Modifier.align(Alignment.TopStart).padding(6.dp))
         }
         Text(
             entry.title, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, color = c.ink,
             minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp),
         )
-        Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp)) {
-            if (entry.total > 0) {
-                LinearProgressIndicator(progress = { entry.progress.toFloat() / entry.total }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))), color = statusColor(entry.status), trackColor = c.surfaceLow)
+        // Score row ("★ 8"), right after the title like list view. Unrated entries keep a blank line of the
+        // same height so the counter/bar below stay level across the tiles of a row.
+        Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (entry.score > 0) {
+                Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
+                Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 2.dp))
+            } else {
+                Text(" ", fontSize = 11.sp)
             }
         }
-        Text(friendProgressLabel(entry, type), color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp, start = 3.dp, bottom = 2.dp))
+        // Counter on top, bar underneath, as one block at the bottom (same as My List's grid tile). The bar
+        // is always drawn, even for Plan to Watch/Read or an unknown total (empty track).
+        Column(Modifier.padding(top = 6.dp)) {
+            Text(friendGridCounterLabel(entry, type), color = c.muted, fontSize = 10.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            LinearProgressIndicator(
+                progress = { if (entry.total > 0) (entry.progress.toFloat() / entry.total).coerceIn(0f, 1f) else 0f },
+                modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
+                color = statusColor(entry.status), trackColor = c.surfaceLow,
+            )
+        }
     }
 }
 
@@ -413,13 +459,19 @@ private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.
     val coverW = if (compact) 72.dp else 100.dp
     val coverH = if (compact) 108.dp else 150.dp
     val rowVPad = if (compact) 10.dp else 14.dp
+    val coverShape = RoundedCornerShape(kikoCorner(16.dp))
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onClick).padding(vertical = rowVPad),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(16.dp)))
+            .kikoCombinedClickable(scale = 1f, onClick = onClick) // no shrink-on-press, same as My List's rows
+            .padding(vertical = rowVPad),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(width = coverW, height = coverH).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
+        // Same cover treatment as Cover(): elevation shadow, then clip, then background.
+        Box(Modifier.size(width = coverW, height = coverH).coverElevation(coverShape).clip(coverShape).background(c.surfaceContainerHigh)) {
             if (entry.cover.isNotBlank()) {
-                AsyncImage(model = entry.cover, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                AsyncImage(model = entry.cover, contentDescription = entry.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
                 Text(entry.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }
@@ -438,13 +490,14 @@ private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.
                 }
             }
             Column {
+                // Counter on top, bar underneath (bar is the bottom-most element), same as My List's row.
+                Text(friendProgressLabel(entry, type), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1)
                 // Always drawn, even when the total is unknown: the track just stays empty.
                 LinearProgressIndicator(
                     progress = { if (entry.total > 0) (entry.progress.toFloat() / entry.total).coerceIn(0f, 1f) else 0f },
-                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
+                    modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
                     color = statusColor(entry.status), trackColor = c.surfaceLow,
                 )
-                Text(friendProgressLabel(entry, type), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
             }
         }
     }

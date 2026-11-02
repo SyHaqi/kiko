@@ -322,10 +322,10 @@ fun seasonalSortIcon(s: SeasonalSort) = when (s) { SeasonalSort.Members -> Icons
     val c = LocalKikoColors.current
     val bg = Color.Transparent
     val pad = 0.dp
+    // The tile itself is not clipped: only the cover has rounded corners (Cover() clips its own image).
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(kikoCorner(18.dp)))
             .background(bg)
             .kikoCombinedClickable(
                 onClick = { onOpenDetail(item) },

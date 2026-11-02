@@ -921,10 +921,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val shownTitle = if (LocalTitleLanguage.current == TitleLanguage.English && entry.titleEnglish.isNotBlank()) entry.titleEnglish else entry.title
     val bg = Color.Transparent
     val pad = 0.dp
+    // The tile itself is not clipped: only the cover has rounded corners.
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(kikoCorner(18.dp)))
             .background(bg)
             .kikoCombinedClickable(
                 enabled = !loading,
@@ -962,7 +962,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         // start/bottom inset kept on
         // being the card's bottom-most
         // missing, e.g. some manga
-        Text(shownTitle, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp, start = 3.dp, bottom = 2.dp))
+        Text(shownTitle, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         val meta = buildString {
             val fmt = listOfNotNull(entry.format.takeIf { it.isNotBlank() }, entry.year.takeIf { it.isNotBlank() }).joinToString(", ")
             if (fmt.isNotBlank()) append(fmt)
@@ -970,7 +970,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         }
         // Small always-on inset (independent
         // card corner doesn't clip
-        if (meta.isNotBlank()) Text(meta, color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp, start = 3.dp, bottom = 2.dp))
+        if (meta.isNotBlank()) Text(meta, color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
     }
 }
 

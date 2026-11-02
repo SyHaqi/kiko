@@ -1483,7 +1483,8 @@ fun formatExact(n: Int): String = "%,d".format(n)
 // also always reserved (even when blank) so every tile in a row has the same height.
 @Composable fun EntityGridCard(title: String, subtitle: String, imageUrl: String, loading: Boolean = false, fit: Boolean = false, square: Boolean = false, onTap: () -> Unit) {
     val c = LocalKikoColors.current
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(18.dp))).kikoClickable(enabled = !loading, onClick = onTap)) {
+    // The tile itself is not clipped: only the cover has rounded corners.
+    Column(Modifier.fillMaxWidth().kikoClickable(enabled = !loading, onClick = onTap)) {
         // square = true gives a 1:1 cover (used for Company logos); everything else keeps the 160dp-tall cover.
         Box((if (square) Modifier.fillMaxWidth().aspectRatio(1f) else Modifier.fillMaxWidth().height(160.dp)).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
             if (imageUrl.isNotBlank()) {
