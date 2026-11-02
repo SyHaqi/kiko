@@ -380,10 +380,13 @@ private fun homeImageRequest(context: android.content.Context, data: Any?, size:
 // Same row as Discover's search results (SearchResultRow); the only difference is that
 // these sit side by side in the snapping LazyRow above instead of stacked in a column.
 @Composable fun AiringNextCard(item: MediaItem, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, modifier: Modifier = Modifier) {
-    SearchResultRow(
-        item, loading = false, onTap = { onOpenDetail(item) },
-        myStatus = vm.trackedStatus(item), modifier = modifier, vm = vm,
-    )
+    // The "Compact list" setting is for the list screens; Home's snapping carousel always keeps the full-size row.
+    CompositionLocalProvider(LocalCompactList provides false) {
+        SearchResultRow(
+            item, loading = false, onTap = { onOpenDetail(item) },
+            myStatus = vm.trackedStatus(item), modifier = modifier, vm = vm,
+        )
+    }
 }
 // Rank-badged genre card for the Home "Top Genres" carousel — full-bleed
 // cover with the icon + genre name overlaid at the bottom instead of
