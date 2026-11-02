@@ -619,6 +619,37 @@ fun MediaItem.airTimerLabel(confirmed: AiringInfo? = null, is24Hour: Boolean = f
     return if (epNum != null) "Ep. $epNum airs on $day, $time" else "Airs on $day, $time"
 }
 
+// Short countdown for tight spots (grid tiles): "2d 3h" / "2h 15m" / "45m" / "<1m". Null once [next] has passed.
+private fun countdownCompactText(next: java.time.LocalDateTime): String? {
+    val mins = java.time.Duration.between(java.time.LocalDateTime.now(), next).toMinutes()
+    if (mins < 0) return null
+    val d = mins / (24 * 60); val h = (mins / 60) % 24; val m = mins % 60
+    return when {
+        d > 0 -> "${d}d" + if (h > 0) " ${h}h" else ""
+        h > 0 -> "${h}h" + if (m > 0) " ${m}m" else ""
+        mins > 0 -> "${m}m"
+        else -> "<1m"
+    }
+}
+
+// Compact twin of airTimerLabel() for the My List grid tile, which only has ~100dp of width: no "airs"
+// wording, "E14" instead of "Ep. 14". Countdown style: "E14 · 2d 3h". Air-time style: "E14 · Sat 9:30 PM",
+// or "E14 · 9:30 PM" when it airs today. [showEpisode] = false drops the "E14 · " prefix when the line also
+// has to fit the user's score. Null unless the title is currently airing with an episode still to come.
+fun MediaItem.airTimerCompactLabel(confirmed: AiringInfo? = null, is24Hour: Boolean = false, showEpisode: Boolean = true): String? {
+    val next = nextAirDateTime(confirmed) ?: return null
+    val epNum = confirmed?.episode ?: nextEpisodeNumber()
+    if (epNum != null && total > 0 && epNum > total) return null
+    val prefix = if (showEpisode && epNum != null) "E$epNum · " else ""
+    if (AirTimerPrefs.countdown) {
+        countdownCompactText(next)?.let { return prefix + it }
+    }
+    val time = localizedTimeLabel(next.toLocalTime(), is24Hour)
+    if (next.toLocalDate() == java.time.LocalDate.now()) return prefix + time
+    val day = next.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+    return "$prefix$day $time"
+}
+
 // "Not Yet Aired" / "Not Yet Published" for titles that haven't started yet, else null.
 // Uses airingBucket() so it matches however the source spells the status
 // ("Not yet aired", "Not Yet Aired", "not_yet_published" after prettify...).

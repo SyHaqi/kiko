@@ -96,6 +96,7 @@ import com.kiko.tracker.data.model.displayLabel
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.data.model.AirTimerPrefs
 import com.kiko.tracker.data.model.airTimerLabel
+import com.kiko.tracker.data.model.airTimerCompactLabel
 import com.kiko.tracker.data.model.upcomingLabel
 import com.kiko.tracker.data.model.localizedTimeLabel
 import com.kiko.tracker.data.model.next
@@ -665,6 +666,11 @@ fun progressLabel(i: MediaItem) = if (i.progress == 0) i.status.displayLabel(i.t
 // Same as progressLabel, but
 // the grid tile, where
 fun compactProgressLabel(i: MediaItem) = if (i.progress == 0) i.status.displayLabel(i.type) else "${i.progress} of ${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "ep." else "ch."}"
+// Grid tile counter row: "5/12 ep." / "30/? ch.". A Plan-to-Watch/Read title that hasn't been started reads
+// "Plan to Watch" / "Plan to Read" instead of "0/12 ep.".
+fun gridCounterLabel(i: MediaItem): String =
+    if (i.status == WatchStatus.Plan && i.progress == 0) i.status.displayLabel(i.type)
+    else "${i.progress}/${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "ep." else "ch."}"
 // Format field fallback
 
 fun formatLabel(i: MediaItem): String = i.format.ifBlank { if (i.type == MediaType.Anime) "Anime" else "Manga" }
@@ -1076,7 +1082,7 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
                     if (vm.loading && filtered.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
                     } else {
-                        items(filtered, key = { it.id }, contentType = { "grid" }) { item -> ListGridCard(item, openItem, onIncrementHeld, onLongPress = onEdit) }
+                        items(filtered, key = { it.id }, contentType = { "grid" }) { item -> ListGridCard(item, openItem, onIncrementHeld, onLongPress = onEdit, showStatus = statusLabel == "All", vm = vm) }
                     }
                     if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
@@ -1104,12 +1110,25 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
 }
 // Compact grid tile —
 
-@Composable fun ListGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false) {
+@Composable fun ListGridCard(item: MediaItem, onOpenDetail: (MediaItem) -> Unit, onIncrement: ((MediaItem) -> Unit)? = null, onLongPress: ((MediaItem) -> Unit)? = null, isSelected: Boolean = false, showStatus: Boolean = true, vm: LibraryViewModel? = null) {
     val c = LocalKikoColors.current
+    // Currently airing titles (My List passes [vm]; profile grids don't, so they never show a timer): the air
+    // timer replaces the format line, like compact list view. Same lookup/caching as ListRow, so only airing
+    // tiles trigger a network call and only they read the shared airing cache.
+    val isAiring = item.airStatus.equals("Currently Airing", ignoreCase = true)
+    if (vm != null && isAiring) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
+    val confirmed by remember(item.id, vm, isAiring) { derivedStateOf { if (isAiring) vm?.getCachedAiring(item.id) else null } }
+    val is24Hour = if (isAiring) systemIs24Hour() else false
+    val countdownStyle = if (isAiring) AirTimerPrefs.countdown else false
+    // A rated tile has to fit the score next to the timer, so in air-time style it drops the "E14 · " prefix.
+    val timer = if (vm == null || !isAiring) null else remember(item, confirmed, is24Hour, countdownStyle) {
+        item.airTimerCompactLabel(confirmed, is24Hour, showEpisode = item.myRating <= 0 || countdownStyle)
+    }
+    // The tile itself is not clipped: only the cover has rounded corners (Cover() clips its own image), so
+    // the title / progress text can never be cut off by a card corner.
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(kikoCorner(18.dp)))
             .kikoCombinedClickable(
                 scale = 1f, // no shrink-on-press; the ripple still shows
                 onClick = { onOpenDetail(item) },
@@ -1118,26 +1137,40 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
     ) {
         // Height matches the grid card cover
         // real card don't jump
-        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = true, showRating = true)
+        // [showStatus] is off on My List's per-status tabs (every tile there has the same status, so the
+        // badge is redundant) and only on for the "All" tab. The score is no longer drawn on the cover; it
+        // rides on the format line under the title, like in list view.
+        Cover(item, Modifier.fillMaxWidth().height(160.dp), showStatus = showStatus)
         // Fixed to 2 lines
         Text(
             item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, color = c.ink,
             minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp),
         )
-        // Always reserve the progress
-        // there's nothing to show,
-        // across every card in
-        // Total unknown (e.g. an
-        // yet) intentionally shows no
-        // distracting, so the "2
-        Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp)) {
-            if (item.total > 0) {
-                LinearProgressIndicator(progress = { item.progress.toFloat() / item.total }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))), color = statusColor(item.status), trackColor = c.surfaceLow)
+        // Format line on its own row under the title, same as list view: "TV · ★ 8". While the title is
+        // currently airing the compact air timer takes the format's place ("🕒 E14 · 2d 3h · ★ 8").
+        Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (timer != null) {
+                Icon(Icons.Rounded.Schedule, null, tint = c.muted, modifier = Modifier.size(11.dp))
+                Text(timer, color = c.muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 3.dp).weight(1f, fill = false))
+            } else {
+                Text(formatLabel(item), color = c.muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            }
+            if (item.myRating > 0) {
+                Text(if (timer != null) " · " else "  ·  ", color = c.muted, fontSize = 11.sp)
+                Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
+                Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 2.dp))
             }
         }
-        // Small always-on inset (independent
-        // card corner doesn't clip
-        Text(compactProgressLabel(item), color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp, start = 3.dp, bottom = 2.dp))
+        // Counter on top, bar underneath, as one block (same as list view); the bar is the bottom-most
+        // element. It is always drawn, even for Plan to Watch/Read or an unknown total (empty track).
+        Column(Modifier.padding(top = 6.dp)) {
+            Text(gridCounterLabel(item), color = c.muted, fontSize = 10.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            LinearProgressIndicator(
+                progress = { if (item.total > 0) (item.progress.toFloat() / item.total).coerceIn(0f, 1f) else 0f },
+                modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
+                color = statusColor(item.status), trackColor = c.surfaceLow,
+            )
+        }
     }
 }
 // Anime/Manga segmented switch
