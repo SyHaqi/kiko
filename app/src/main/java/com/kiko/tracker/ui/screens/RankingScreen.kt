@@ -90,6 +90,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     item {
                         // M3 default small top app bar: 64dp tall, content centred, no extra top/bottom padding.
                         RankingTypeButtonGroup(vm.rankingType) { vm.loadRanking(context, it, vm.rankingSort) }
+                        // Breathing room between the Anime/Manga switch and the first entry (the sort pill that
+                        // used to sit here moved into the header's filter sheet).
+                        Spacer(Modifier.height(12.dp))
                         if (vm.rankingLoading && vm.visibleRankingResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), color = c.primary)
                         vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                     }
