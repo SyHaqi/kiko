@@ -26,6 +26,8 @@ val LocalTitleLanguage = staticCompositionLocalOf { TitleLanguage.Romaji }
 // Settings -> Library -> "Compact list": smaller cover (and shorter row) in the list-mode rows
 // (My List, Profile filter pages, Discover results, friend lists).
 val LocalCompactList = staticCompositionLocalOf { false }
+// The Grid columns setting, for grid tiles that get roomier text when there are only 2 columns.
+val LocalGridColumns = staticCompositionLocalOf { GridColumns.Dynamic }
 // Preferred title to show
 
 @Composable

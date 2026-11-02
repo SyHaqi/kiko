@@ -48,6 +48,7 @@ import com.kiko.tracker.data.model.CompanyDetail
 import com.kiko.tracker.data.model.Destination
 import com.kiko.tracker.data.model.DiscoverFilters
 import com.kiko.tracker.data.model.LocalCompactList
+import com.kiko.tracker.data.model.LocalGridColumns
 import com.kiko.tracker.data.model.LocalTitleLanguage
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
@@ -715,7 +716,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         vm.destination = it
     }
     SyncSystemBars(darkTheme, c.background)
-    CompositionLocalProvider(LocalKikoColors provides c, LocalTitleLanguage provides vm.titleLanguage, LocalCompactList provides vm.compactList) {
+    CompositionLocalProvider(LocalKikoColors provides c, LocalTitleLanguage provides vm.titleLanguage, LocalCompactList provides vm.compactList, LocalGridColumns provides vm.gridColumns) {
         MaterialTheme(
             // Full Expressive ColorScheme generated
             // frame is already using

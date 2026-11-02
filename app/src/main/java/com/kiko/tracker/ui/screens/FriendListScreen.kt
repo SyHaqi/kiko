@@ -59,7 +59,9 @@ import com.kiko.tracker.data.api.MalSessionExpired
 import com.kiko.tracker.data.api.MalUserListEntry
 import com.kiko.tracker.data.api.MalUserListScrapeApi
 import com.kiko.tracker.data.model.ListViewMode
+import com.kiko.tracker.data.model.GridColumns
 import com.kiko.tracker.data.model.LocalCompactList
+import com.kiko.tracker.data.model.LocalGridColumns
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayLabel
@@ -408,6 +410,8 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
 // MediaItem, since a friend's scraped entry isn't necessarily in your own signed-in list.
 @Composable private fun FriendGridCard(entry: MalUserListEntry, type: MediaType, showStatus: Boolean = true, onClick: () -> Unit) {
     val c = LocalKikoColors.current
+    // 2 columns leave room for list-row-sized text; 3 or more keep the compact tile text.
+    val roomy = LocalGridColumns.current == GridColumns.Two
     // The tile itself is not clipped: only the cover has rounded corners (same shape + shadow as Cover()).
     Column(Modifier.fillMaxWidth().kikoClickable(onClick = onClick)) {
         val coverShape = RoundedCornerShape(kikoCorner(16.dp))
@@ -422,26 +426,26 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
             if (showStatus) CoverStatusMark(entry.status, Modifier.align(Alignment.TopStart).padding(6.dp))
         }
         Text(
-            entry.title, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, color = c.ink,
-            minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp),
+            entry.title, fontWeight = FontWeight.SemiBold, fontSize = if (roomy) 15.sp else 12.sp, lineHeight = if (roomy) 20.sp else 15.sp, color = c.ink,
+            minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = if (roomy) 10.dp else 8.dp),
         )
         // Score row ("★ 8"), right after the title like list view. Unrated entries keep a blank line of the
         // same height so the counter/bar below stay level across the tiles of a row.
-        Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(top = if (roomy) 4.dp else 3.dp), verticalAlignment = Alignment.CenterVertically) {
             if (entry.score > 0) {
-                Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(11.dp))
-                Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 2.dp))
+                Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(if (roomy) 13.dp else 11.dp))
+                Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = if (roomy) 13.sp else 11.sp, modifier = Modifier.padding(start = 2.dp))
             } else {
-                Text(" ", fontSize = 11.sp)
+                Text(" ", fontSize = if (roomy) 13.sp else 11.sp)
             }
         }
         // Counter on top, bar underneath, as one block at the bottom (same as My List's grid tile). The bar
         // is always drawn, even for Plan to Watch/Read or an unknown total (empty track).
-        Column(Modifier.padding(top = 6.dp)) {
-            Text(friendGridCounterLabel(entry, type), color = c.muted, fontSize = 10.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.padding(top = if (roomy) 8.dp else 6.dp)) {
+            Text(friendGridCounterLabel(entry, type), color = c.muted, fontSize = if (roomy) 12.sp else 10.sp, lineHeight = if (roomy) 16.sp else 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             LinearProgressIndicator(
                 progress = { if (entry.total > 0) (entry.progress.toFloat() / entry.total).coerceIn(0f, 1f) else 0f },
-                modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
+                modifier = Modifier.padding(top = if (roomy) 8.dp else 6.dp).fillMaxWidth().height(if (roomy) 5.dp else 4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
                 color = statusColor(entry.status), trackColor = c.surfaceLow,
             )
         }
