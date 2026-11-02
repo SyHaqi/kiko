@@ -555,9 +555,8 @@ private var detailStatusBarOwners = 0
                         // Cover (same 128dp size as before) with one tonal row per fact beside it. The rows
                         // column is exactly as tall as the cover and the rows split that height evenly.
                         val infoRows = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, Color, String>> {
+                            // Order: status, episode / chapter count, score, favorites (favorites is last on every detail page).
                             item.airStatus.takeIf { it.isNotBlank() }?.let { add(Triple(Icons.Rounded.Sensors, c.primary, it)) }
-                            if (item.score > 0) add(Triple(Icons.Rounded.Star, Color(0xFFFFC107), item.score.twoDecimals()))
-                            favorites?.takeIf { it > 0 }?.let { add(Triple(Icons.Rounded.Favorite, c.danger, "${formatCount(it)} favorites")) }
                             // Episode / chapter count lives beside the cover. MAL leaves it empty while a series is still
                             // running or unannounced, so that case reads "? episodes" / "? chapters".
                             val countUnit = if (item.type == MediaType.Anime) "episode" else "chapter"
@@ -565,6 +564,8 @@ private var detailStatusBarOwners = 0
                                 if (item.type == MediaType.Anime) Icons.Rounded.Tv else Icons.Rounded.MenuBook, c.primary,
                                 if (item.total > 0) "${item.total} $countUnit${if (item.total == 1) "" else "s"}" else "? ${countUnit}s",
                             ))
+                            if (item.score > 0) add(Triple(Icons.Rounded.Star, Color(0xFFFFC107), item.score.twoDecimals()))
+                            favorites?.takeIf { it > 0 }?.let { add(Triple(Icons.Rounded.Favorite, c.danger, "${formatCount(it)} favorites")) }
                             // Anime's minutes-per-episode lives in the Details list. Manga has no duration, and its
                             // published year is already in Details ("Published"), so nothing else goes here.
                         }

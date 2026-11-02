@@ -127,10 +127,10 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                         )
                         Column(Modifier.padding(horizontal = 14.dp)) {
                             val facts = buildList {
-                                if (character.favorites > 0) add(DetailFact(Icons.Rounded.Favorite, c.danger, "${formatCount(character.favorites)} favorites"))
                                 if (character.animeography.isNotEmpty()) add(DetailFact(Icons.Rounded.Tv, c.primary, "${character.animeography.size} anime"))
                                 if (character.mangaography.isNotEmpty()) add(DetailFact(Icons.Rounded.MenuBook, c.primary, "${character.mangaography.size} manga"))
                                 if (character.voiceActors.isNotEmpty()) add(DetailFact(Icons.Rounded.Mic, c.primary, countLabel(character.voiceActors.size, "voice actor")))
+                                if (character.favorites > 0) add(DetailFact(Icons.Rounded.Favorite, c.danger, "${formatCount(character.favorites)} favorites"))
                             }
                             val posterInteraction = remember { MutableInteractionSource() }
                             DetailCoverRow(

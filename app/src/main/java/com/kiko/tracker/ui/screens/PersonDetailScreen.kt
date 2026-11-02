@@ -145,11 +145,11 @@ import com.kiko.tracker.ui.theme.rememberStaggerMemory
                         Column(Modifier.padding(horizontal = 14.dp)) {
                             val birthday = person.bioFields.firstOrNull { it.first.contains("birth", ignoreCase = true) }?.second?.takeIf { it.isNotBlank() }
                             val facts = buildList {
-                                if (person.favorites > 0) add(DetailFact(Icons.Rounded.Favorite, c.danger, "${formatCount(person.favorites)} favorites"))
                                 birthday?.let { add(DetailFact(Icons.Rounded.Cake, c.primary, it)) }
                                 if (person.voiceActingRoles.isNotEmpty()) add(DetailFact(Icons.Rounded.Mic, c.primary, countLabel(person.voiceActingRoles.size, "voice role")))
                                 if (person.staffCredits.isNotEmpty()) add(DetailFact(Icons.Rounded.Groups, c.primary, countLabel(person.staffCredits.size, "staff position")))
                                 if (person.publishedManga.isNotEmpty()) add(DetailFact(Icons.Rounded.MenuBook, c.primary, countLabel(person.publishedManga.size, "manga", "manga")))
+                                if (person.favorites > 0) add(DetailFact(Icons.Rounded.Favorite, c.danger, "${formatCount(person.favorites)} favorites"))
                             }
                             val posterInteraction = remember { MutableInteractionSource() }
                             DetailCoverRow(

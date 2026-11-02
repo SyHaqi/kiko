@@ -208,9 +208,9 @@ private const val CompanyPageSize = 9
                         Column(Modifier.padding(horizontal = 14.dp)) {
                             val established = company.bioFields.firstOrNull { it.first.contains("establish", ignoreCase = true) }?.second?.takeIf { it.isNotBlank() }
                             val facts = buildList {
-                                if (company.favorites > 0) add(DetailFact(Icons.Rounded.Favorite, c.danger, "${formatCount(company.favorites)} favorites"))
                                 if (company.works.isNotEmpty()) add(DetailFact(Icons.Rounded.Tv, c.primary, "${company.works.size} anime"))
                                 established?.let { add(DetailFact(Icons.Rounded.CalendarMonth, c.primary, it)) }
+                                if (company.favorites > 0) add(DetailFact(Icons.Rounded.Favorite, c.danger, "${formatCount(company.favorites)} favorites"))
                             }
                             val logoInteraction = remember { MutableInteractionSource() }
                             // Square logo (110dp) rather than a 2:3 poster — company logos are shaped that way.
