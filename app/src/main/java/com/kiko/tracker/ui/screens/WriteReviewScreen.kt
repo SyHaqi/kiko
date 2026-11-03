@@ -64,7 +64,7 @@ import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.MalLoginWebView
 import com.kiko.tracker.ui.components.headerEdgeStart
-import com.kiko.tracker.ui.components.headerTitleStart
+import com.kiko.tracker.ui.components.HeaderTitleSubtitle
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.kikoClickable
 import com.kiko.tracker.ui.theme.kikoCorner
@@ -228,10 +228,7 @@ private val ReviewScoreLabels = mapOf(
             IconButton(onClick = tryBack, modifier = Modifier.headerEdgeStart()) {
                 Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp))
             }
-            Column(Modifier.weight(1f).headerTitleStart()) {
-                Text("Write a Review", style = MaterialTheme.typography.titleLarge, color = c.ink)
-                Text(item.displayTitle(), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-            }
+            HeaderTitleSubtitle("Write a Review", item.displayTitle(), Modifier.weight(1f))
             Box(
                 Modifier.padding(start = 8.dp).height(36.dp)
                     .clip(kikoPillShape())

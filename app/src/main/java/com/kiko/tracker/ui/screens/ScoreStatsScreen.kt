@@ -7,7 +7,7 @@ import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
-import com.kiko.tracker.ui.components.headerTitleStart
+import com.kiko.tracker.ui.components.HeaderTitleSubtitle
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -122,10 +122,7 @@ import com.kiko.tracker.ui.theme.kikoPillShape
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Column(Modifier.weight(1f).headerTitleStart()) {
-                Text("Reviews", style = MaterialTheme.typography.titleLarge, color = c.ink)
-                Text(item.displayTitle(), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-            }
+            HeaderTitleSubtitle("Reviews", item.displayTitle(), Modifier.weight(1f))
             if (canWriteReview) {
                 IconButton(onClick = onWriteReview, modifier = Modifier.headerEdgeEnd()) {
                     Icon(Icons.Rounded.Edit, "Write a review", tint = c.primary, modifier = Modifier.size(24.dp))

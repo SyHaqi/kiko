@@ -8,6 +8,7 @@ import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerEdgeEnd
+import com.kiko.tracker.ui.components.HeaderTitleSubtitle
 import com.kiko.tracker.ui.components.headerTitleStart
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -213,10 +214,7 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Column(Modifier.weight(1f).headerTitleStart()) {
-                Text(if (type == MediaType.Anime) "Anime List" else "Manga List", style = MaterialTheme.typography.titleLarge, color = c.ink)
-                Text(username, color = c.muted, fontSize = 12.sp)
-            }
+            HeaderTitleSubtitle(if (type == MediaType.Anime) "Anime List" else "Manga List", username, Modifier.weight(1f))
             IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.headerEdgeEnd()) {
                 Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
             }

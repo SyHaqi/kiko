@@ -953,6 +953,21 @@ fun Modifier.headerEdgeEnd(parentPadding: Dp = 14.dp): Modifier = this.offset(x 
  */
 fun Modifier.headerTitleStart(parentPadding: Dp = 14.dp): Modifier = this.offset(x = 4.dp - parentPadding).padding(start = 12.dp)
 
+/**
+ * Two-line title for a back-button header: the page name with the item/user name tucked right under it.
+ * The title's line height is trimmed from titleLarge's 28sp to 24sp, the subtitle gets a snug 16sp line and
+ * no extra top padding, so the pair reads as one block instead of two lines with a gap (40dp total, still
+ * inside the 48dp back button so the header height doesn't change). Pass Modifier.weight(1f) where it sits
+ * in a Row next to trailing actions.
+ */
+@Composable fun HeaderTitleSubtitle(title: String, subtitle: String, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    Column(modifier.headerTitleStart(), verticalArrangement = Arrangement.Center) {
+        Text(title, style = MaterialTheme.typography.titleLarge.copy(lineHeight = 24.sp), color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(subtitle, color = c.muted, fontSize = 13.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
 @Composable
 fun FavoriteHeartButton(
     favorited: Boolean,

@@ -8,6 +8,7 @@ import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
+import com.kiko.tracker.ui.components.HeaderTitleSubtitle
 import com.kiko.tracker.ui.components.headerTitleStart
 import com.kiko.tracker.util.openInBrowser
 import android.content.Intent
@@ -514,10 +515,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Column(Modifier.headerTitleStart()) {
-                Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink)
-                Text(item.displayTitle(), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-            }
+            HeaderTitleSubtitle("Interest Stacks", item.displayTitle(), Modifier.weight(1f))
         }
         Box(Modifier.fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
