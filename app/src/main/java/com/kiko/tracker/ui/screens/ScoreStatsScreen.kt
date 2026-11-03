@@ -29,6 +29,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -42,7 +43,6 @@ import com.kiko.tracker.data.model.ScoreStats
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.data.model.verdict
 import com.kiko.tracker.data.model.onSentiment
-import com.kiko.tracker.data.model.reviewScoreColor
 import com.kiko.tracker.data.model.verdictColor
 import com.kiko.tracker.data.model.verdictIcon
 import com.kiko.tracker.ui.components.kikoFilterChipColors
@@ -252,7 +252,7 @@ import com.kiko.tracker.ui.theme.kikoPillShape
 @Composable private fun ReviewChip(container: Color, compact: Boolean, content: @Composable RowScope.() -> Unit) {
     Row(
         Modifier.clip(kikoPillShape()).background(container)
-            .padding(horizontal = if (compact) 7.dp else 9.dp, vertical = if (compact) 3.dp else 4.dp),
+            .padding(horizontal = if (compact) 6.dp else 9.dp, vertical = if (compact) 2.dp else 4.dp),
         verticalAlignment = Alignment.CenterVertically, content = content,
     )
 }
@@ -275,24 +275,24 @@ import com.kiko.tracker.ui.theme.kikoPillShape
     val on = onSentiment(tint)
     if (showLabel) {
         ReviewChip(tint, compact) {
-            Icon(verdictIcon(verdict), null, tint = on, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
-            Text(verdict, color = on, fontWeight = FontWeight.Bold, fontSize = if (compact) 10.sp else 12.sp, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
+            Icon(verdictIcon(verdict), null, tint = on, modifier = Modifier.size(if (compact) 10.dp else 15.dp))
+            Text(verdict, color = on, fontWeight = FontWeight.Bold, fontSize = if (compact) 9.sp else 12.sp, lineHeight = if (compact) 12.sp else TextUnit.Unspecified, maxLines = 1, modifier = Modifier.padding(start = if (compact) 4.dp else 6.dp))
         }
     } else {
         NameTooltip(verdict) {
             ReviewChip(tint, compact) {
-                Icon(verdictIcon(verdict), verdict, tint = on, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
+                Icon(verdictIcon(verdict), verdict, tint = on, modifier = Modifier.size(if (compact) 10.dp else 15.dp))
             }
         }
     }
 }
 
+// Same look as the rating in My List rows: a plain yellow star and the bold number, no chip background.
 @Composable fun ReviewScoreChip(score: Int, compact: Boolean = false) {
-    val tint = reviewScoreColor(score, LocalKikoColors.current)
-    val on = onSentiment(tint)
-    ReviewChip(tint, compact) {
-        Icon(Icons.Rounded.Star, null, tint = on, modifier = Modifier.size(if (compact) 12.dp else 14.dp))
-        Text(score.toString(), color = on, fontWeight = FontWeight.Bold, fontSize = if (compact) 12.sp else 13.sp, modifier = Modifier.padding(start = 3.dp))
+    val c = LocalKikoColors.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(if (compact) 12.dp else 14.dp))
+        Text(score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = if (compact) 13.sp else 14.sp, modifier = Modifier.padding(start = 3.dp))
     }
 }
 
@@ -301,13 +301,13 @@ import com.kiko.tracker.ui.theme.kikoPillShape
     val on = onSentiment(tint)
     if (showLabel) {
         ReviewChip(tint, compact) {
-            Icon(Icons.Rounded.VisibilityOff, null, tint = on, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
-            Text("Contains spoilers", color = on, fontWeight = FontWeight.Bold, fontSize = if (compact) 10.sp else 12.sp, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
+            Icon(Icons.Rounded.VisibilityOff, null, tint = on, modifier = Modifier.size(if (compact) 10.dp else 15.dp))
+            Text("Contains spoilers", color = on, fontWeight = FontWeight.Bold, fontSize = if (compact) 9.sp else 12.sp, lineHeight = if (compact) 12.sp else TextUnit.Unspecified, maxLines = 1, modifier = Modifier.padding(start = if (compact) 4.dp else 6.dp))
         }
     } else {
         NameTooltip("Contains spoilers") {
             ReviewChip(tint, compact) {
-                Icon(Icons.Rounded.VisibilityOff, "Contains spoilers", tint = on, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
+                Icon(Icons.Rounded.VisibilityOff, "Contains spoilers", tint = on, modifier = Modifier.size(if (compact) 10.dp else 15.dp))
             }
         }
     }
