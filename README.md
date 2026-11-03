@@ -1,44 +1,87 @@
-# Kiko for Android
+<div align="center">
 
-> Yet Another Unofficial MyAnimeList Android Client to track anime and manga
+<img src="docs/icon.png" alt="Kiko app icon" width="128" height="128">
 
-Kiko is a Material 3 Android app built around **MyAnimeList (MAL)** — fast discovery, detailed title pages, list management, a combined forums/clubs hub, seasonal charts, and profile stats, all in one clean interface.
+# Kiko
 
-Discord server: https://discord.gg/qytyH7efp6
+**Yet Another Unofficial MyAnimeList Client for Android**
 
+Track anime & manga, discover new titles, and stay close to the MyAnimeList community, all in one clean Material 3 app.
 
----
+<br>
 
-## ✨ Features at a Glance
+[![Download](https://img.shields.io/badge/⬇_Download_Latest_APK-2E51A2?style=for-the-badge&logo=android&logoColor=white)](https://github.com/SyHaqi/kiko/releases/latest)
+[![Website](https://img.shields.io/badge/🌐_Website-syhaqi.github.io%2Fkiko-1f2937?style=for-the-badge)](https://syhaqi.github.io/kiko/)
+[![Discord](https://img.shields.io/badge/Discord-Join_the_server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/KZYQHpDWKH)
 
-- **Home** — airing schedule (times synced via AniList), MAL latest announcement, forum snapshots, featured articles.
-- **My List** — sync your MAL list, filter/sort/search, edit entries, quick +1 progress.
-- **Discover** — search anime, manga, characters, people and companies, with advanced filters and personalized recommendations.
-- **Rankings & Seasonal Charts** — browse by score, popularity, favorites or season/year (accessible from Home/Discover).
-- **Title Details** — synopsis, characters, staff, reviews, recommendations, stats and related entries.
-- **Hub** — MAL forums and clubs in one tab, including Interest Stacks browsing.
-- **Profile & Stats** — OAuth login, activity breakdowns by genre, score, format, and year.
-- **Appearance** — theming, dynamic/custom colors, AMOLED dark, Romaji/English titles, built-in update checker.
-- **Deep Links** — open MAL anime/manga links directly in Kiko.
+<br>
+
+[![Latest release](https://img.shields.io/github/v/release/SyHaqi/kiko?style=flat-square&label=release&color=2E51A2)](https://github.com/SyHaqi/kiko/releases/latest)
+[![Total downloads](https://img.shields.io/github/downloads/SyHaqi/kiko/total?style=flat-square&label=downloads&color=2E51A2)](https://github.com/SyHaqi/kiko/releases)
+[![Latest downloads](https://img.shields.io/github/downloads/SyHaqi/kiko/latest/total?style=flat-square&label=latest%20release%20downloads&color=2E51A2)](https://github.com/SyHaqi/kiko/releases/latest)
+[![Stars](https://img.shields.io/github/stars/SyHaqi/kiko?style=flat-square&color=2E51A2)](https://github.com/SyHaqi/kiko/stargazers)
+[![Issues](https://img.shields.io/github/issues/SyHaqi/kiko?style=flat-square&color=2E51A2)](https://github.com/SyHaqi/kiko/issues)
+[![Last commit](https://img.shields.io/github/last-commit/SyHaqi/kiko?style=flat-square&color=2E51A2)](https://github.com/SyHaqi/kiko/commits)
+[![License](https://img.shields.io/github/license/SyHaqi/kiko?style=flat-square&color=2E51A2)](LICENSE)
+![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack_Compose-7F52FF?style=flat-square&logo=kotlin&logoColor=white)
+
+</div>
 
 ---
 
 ## 🖼️ Screenshots
 
-![Screenshots](screenshots/screenshots.png)
-![Screenshots2](screenshots/screenshots2.png)
+<div align="center">
+<img src="docs/screenshots/home.jpg" alt="Home" width="19%">
+<img src="docs/screenshots/my-list.jpg" alt="My List" width="19%">
+<img src="docs/screenshots/discover.jpg" alt="Discover" width="19%">
+<img src="docs/screenshots/title.jpg" alt="Title details" width="19%">
+<img src="docs/screenshots/profile.jpg" alt="Profile" width="19%">
+</div>
+
+<details>
+<summary><b>More screenshots</b></summary>
+<br>
+<div align="center">
+<img src="docs/screenshots/seasonal.jpg" alt="Seasonal" width="19%">
+<img src="docs/screenshots/stacks.jpg" alt="Interest Stacks" width="19%">
+<img src="docs/screenshots/forums.jpg" alt="Forums" width="19%">
+<img src="docs/screenshots/forum-post.jpg" alt="Forum post" width="19%">
+<img src="docs/screenshots/clubs.jpg" alt="Clubs" width="19%">
+</div>
+</details>
+
+---
+
+## ✨ Features
+
+- **Home**: airing schedule (times synced via AniList), MAL's latest announcement, forum snapshots and featured articles.
+- **My List**: sync your MAL list, filter/sort/search, edit entries, and bump progress with a quick **+1**.
+- **Discover**: search anime, manga, characters, people and companies with advanced filters and personalized recommendations.
+- **Rankings & Seasonal Charts**: browse by score, popularity, favorites, or by season and year.
+- **Title Details**: synopsis, trailers, characters, staff, reviews, recommendations, stats and related entries on one page.
+- **Hub**: MAL forums and clubs in a single tab, plus Interest Stacks browsing.
+- **Profile & Stats**: OAuth login, history, friends, and activity breakdowns by genre, score, format and year.
+- **Appearance**: light/dark/system themes, dynamic or custom colors, AMOLED dark, Romaji/English titles and a list layout (grid or list) that applies app-wide.
+- **Updates**: built-in update checker that pulls new versions straight from GitHub Releases.
+- **Deep Links**: open MAL anime/manga links directly in Kiko.
 
 ---
 
 ## 📦 Installation
 
-Download the latest APK from the **GitHub Releases** page. Kiko targets **Android 8.0 (API 26)+**. Since it's distributed outside Google Play, Android may prompt you to allow installs from the source you used.
+1. Go to the **[latest release](https://github.com/SyHaqi/kiko/releases/latest)** and download the APK.
+2. Open it on your device. Android may ask you to allow installs from your browser or file manager.
+3. Launch Kiko and sign in with your MyAnimeList account.
+
+Kiko needs **Android 8.0 (API 26)** or newer. It isn't on Google Play, so after the first install the app tells you when a new release is out.
 
 ---
 
 ## 🛠️ Building from Source
 
-**Requirements:** Android Studio, JDK 17, Android SDK Platform 35, a MyAnimeList API client ID.
+**Requirements:** Android Studio, JDK 17, Android SDK Platform 37, and a MyAnimeList API client ID.
 
 ```bash
 git clone https://github.com/SyHaqi/kiko.git
@@ -51,22 +94,22 @@ Copy `local.properties.example` → `local.properties` and set:
 MAL_CLIENT_ID=YOUR_MYANIMELIST_CLIENT_ID
 ```
 
-Kiko uses OAuth with redirect URI `com.kiko.tracker://oauth/callback`. **Do not include a MAL client secret** — only the client ID is needed.
+Kiko uses OAuth with the redirect URI `com.kiko.tracker://oauth/callback`. **Do not include a MAL client secret**, only the client ID is needed.
 
 Build:
 
 ```bash
-./gradlew assembleDebug   # macOS/Linux
-gradlew.bat assembleDebug # Windows
+./gradlew assembleDebug     # macOS/Linux
+gradlew.bat assembleDebug   # Windows
 ```
 
-APK output: `app/build/outputs/apk/debug/`. Release versions are derived from the latest Git tag (e.g. `v2.7.1` → `2.7.1`).
+APK output: `app/build/outputs/apk/debug/`. Use `assembleRelease` for a minified, shrunk build with the baseline profile applied. Version numbers come from the latest Git tag (e.g. `v2.7.1` → `2.7.1`).
 
 ---
 
 ## 🧱 Built With
 
-Kotlin · Jetpack Compose · Material 3 · AndroidX · MyAnimeList API · Tenrai API · AniList API · OkHttp · Coil · Jsoup · Kotlin Coroutines
+Kotlin · Jetpack Compose · Material 3 · AndroidX · Baseline Profiles · OkHttp · Coil · Jsoup · Kotlin Coroutines · MyAnimeList API · Tenrai API · AniList API
 
 ---
 
@@ -84,7 +127,7 @@ Kiko is an **unofficial third-party MyAnimeList client**, not affiliated with, s
 
 ## 📄 License
 
-Licensed under **GPL-3.0** — see [`LICENSE`](LICENSE) for full terms. You're free to use, study, modify, and redistribute Kiko's source under the same license. Third-party dependencies and assets may carry their own licenses.
+Licensed under **GPL-3.0**, see [`LICENSE`](LICENSE) for full terms. You're free to use, study, modify, and redistribute Kiko's source under the same license. Third-party dependencies and assets may carry their own licenses.
 
 Copyright © 2026 Kiko contributors.
 
@@ -92,4 +135,10 @@ Copyright © 2026 Kiko contributors.
 
 ## 💬 Community
 
-Questions, feedback, or bug reports? Open an issue!
+Questions, feedback, or bug reports? [Open an issue](https://github.com/SyHaqi/kiko/issues) or join the [Discord](https://discord.gg/KZYQHpDWKH).
+
+<div align="center">
+
+**[🌐 Website](https://syhaqi.github.io/kiko/)** · **[⬇ Download](https://github.com/SyHaqi/kiko/releases/latest)** · **[🐞 Report a bug](https://github.com/SyHaqi/kiko/issues)**
+
+</div>
