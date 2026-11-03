@@ -6,9 +6,11 @@
   <meta name="theme-color" content="#101114">
   <title>Kiko — Your anime, your way</title>
   <meta name="description" content="Kiko is a free, open-source MyAnimeList client for Android. Track anime and manga, discover new titles, and explore the MAL community.">
-  <meta property="og:title" content="Kiko — Your anime, your way">
+  <meta property="og:title" content="Kiko: Yet Another MyAnimeList Client App">
   <meta property="og:description" content="A free, open-source MyAnimeList client for Android.">
   <meta property="og:image" content="screenshots/home.jpg">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
   <!-- Optional display font. If it fails to load, the system font is used instead. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -53,7 +55,7 @@
     .shell { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
     .topbar { display:flex; align-items:center; justify-content:space-between; padding:24px 0; }
     .brand { display:flex; align-items:center; gap:12px; text-decoration:none; font-weight:700; letter-spacing:-.03em; font-size:1.15rem; }
-    .mark { display:grid; place-items:center; width:38px; height:38px; border-radius:13px; background:var(--accent); color:var(--accent-ink); font-weight:850; }
+    .mark { display:block; width:38px; height:38px; border-radius:13px; }
     .nav { display:flex; align-items:center; gap:24px; color:var(--muted); font-size:.92rem; }
     .nav a { text-decoration:none; }
     .nav a:hover, footer a:hover { color:var(--ink); }
@@ -312,169 +314,204 @@
   </style>
 </head>
 <body>
-  <div class="shell">
-    <header class="topbar">
-      <a class="brand" href="#"><span class="mark">K</span><span>Kiko</span></a>
-      <nav class="nav" aria-label="Main navigation">
-        <a href="#features">Features</a>
-        <a href="#install">Install</a>
-        <a href="https://github.com/SyHaqi/kiko">GitHub ↗</a>
-      </nav>
-    </header>
+<div class="shell">
+  <header class="topbar">
+    <a class="brand" href="#"><img class="mark" src="icon.png" width="38" height="38" alt=""><span>Kiko</span></a>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/SyHaqi/kiko">GitHub ↗</a>
+    </nav>
+  </header>
 
-    <main>
-      <section class="hero">
-        <div class="eyebrow">A MyAnimeList app for Android</div>
-        <h1>Your anime.<br>Your way.</h1>
-        <p>Keep track of what you watch and read, discover something new, and stay close to the MyAnimeList community — all in one place.</p>
-        <div class="actions">
-          <a class="button primary" href="https://github.com/SyHaqi/kiko/releases/latest">Download APK ↗</a>
-          <a class="button secondary" href="https://github.com/SyHaqi/kiko">Explore the source</a>
-        </div>
-        <div class="meta" id="release-meta">Free · Open source · Android 8.0+</div>
-      </section>
-
-      <section id="features">
-        <div class="section-head">
-          <h2>Made to keep you in the loop.</h2>
-          <p>A closer look at what you can do with Kiko.</p>
-        </div>
-
-        <div class="posters">
-
-          <!-- 1 · Home + My List -->
-          <article class="poster p-track" aria-labelledby="p1">
-            <div class="copy">
-              <span class="tag">Home · My List</span>
-              <h3 id="p1">Pick up where you left off.</h3>
-              <p class="desc">See what airs next, jump back into your list, and update your progress with a single tap after every episode.</p>
-              <ul class="chips"><li>Airing next</li><li>Status filters</li><li>One-tap progress</li></ul>
-            </div>
-            <div class="stage">
-              <i class="shape cookie"></i><i class="shape dot"></i>
-              <figure class="phone ph-a"><div class="screen"><img src="screenshots/home.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko home screen showing the next episodes to air and news snapshots"></div></figure>
-              <figure class="phone ph-b"><div class="screen"><img src="screenshots/my-list.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko My List screen with status tabs and a +1 progress button"></div></figure>
-              <span class="sticker big" aria-hidden="true">+1</span>
-            </div>
-          </article>
-
-          <!-- 2 · Discover + Interest Stacks -->
-          <article class="poster p-discover flip" aria-labelledby="p2">
-            <div class="copy">
-              <span class="tag">Discover</span>
-              <h3 id="p2">Your next favorite is out there.</h3>
-              <p class="desc">Search with filters, check the rankings, get suggestions picked for you, and dive into community Interest Stacks.</p>
-              <ul class="chips"><li>Filters</li><li>Rankings</li><li>Suggestions</li><li>Interest Stacks</li></ul>
-            </div>
-            <div class="stage">
-              <i class="shape clover"></i><i class="shape dot"></i>
-              <figure class="phone ph-a"><div class="screen"><img src="screenshots/discover.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Discover screen with search, Rankings and Stacks shortcuts, and new seasonal titles"></div></figure>
-              <figure class="phone ph-b"><div class="screen"><img src="screenshots/stacks.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Interest Stacks screen with spotlight and recent stacks"></div></figure>
-              <span class="sticker st-a" aria-hidden="true">Rankings</span>
-              <span class="sticker st-b" aria-hidden="true">Stacks</span>
-            </div>
-          </article>
-
-          <!-- 3 · Seasonal -->
-          <article class="poster p-season" aria-labelledby="p3">
-            <div class="copy">
-              <span class="tag">Seasonal</span>
-              <h3 id="p3">Know what’s airing.</h3>
-              <p class="desc">Browse seasonal anime by year and season, then sort by popularity or score to find what’s worth your time.</p>
-              <ul class="chips"><li>Any year</li><li>Any season</li><li>Popularity or score</li></ul>
-            </div>
-            <div class="stage">
-              <i class="shape flower"></i><i class="shape dot"></i>
-              <div class="words" aria-hidden="true"><span>Winter</span><span>Spring</span><span>Summer</span><span><b>Fall</b></span></div>
-              <figure class="phone ph-a"><div class="screen"><img src="screenshots/seasonal.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Seasonal screen showing a grid of this season’s anime with scores"></div></figure>
-            </div>
-          </article>
-
-          <!-- 4 · Title details -->
-          <article class="poster p-title flip" aria-labelledby="p4">
-            <div class="copy">
-              <span class="tag">Title details</span>
-              <h3 id="p4">Every detail, one page.</h3>
-              <p class="desc">Synopsis, characters, staff, reviews, recommendations and more — without jumping between pages.</p>
-              <ul class="chips"><li>Synopsis</li><li>Characters &amp; staff</li><li>Reviews</li><li>Recommendations</li></ul>
-            </div>
-            <div class="stage">
-              <i class="shape ring"></i><i class="shape cookie"></i>
-              <figure class="phone ph-a"><div class="screen"><img src="screenshots/title.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko title page for Violet Evergarden with synopsis, links and tabs"></div></figure>
-              <span class="sticker st-a" aria-hidden="true">Synopsis</span>
-              <span class="sticker st-b" aria-hidden="true">Characters</span>
-              <span class="sticker st-c" aria-hidden="true">Staff</span>
-              <span class="sticker st-d" aria-hidden="true">Reviews</span>
-              <span class="sticker st-e" aria-hidden="true">Recommendations</span>
-            </div>
-          </article>
-
-          <!-- 5 · Forums + Clubs -->
-          <article class="poster p-community" aria-labelledby="p5">
-            <div class="copy">
-              <span class="tag">Forums · Clubs</span>
-              <h3 id="p5">Join the conversation.</h3>
-              <p class="desc">Read MyAnimeList discussions, polls, announcements and news, then find your people in clubs and their posts.</p>
-              <ul class="chips"><li>Forums</li><li>Polls</li><li>News</li><li>Clubs</li></ul>
-            </div>
-            <div class="stage">
-              <i class="shape flower"></i><i class="shape dot"></i>
-              <span class="bubble" aria-hidden="true">•••</span>
-              <figure class="phone ph-a"><div class="screen"><img src="screenshots/forums.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Forums screen listing MyAnimeList boards"></div></figure>
-              <figure class="phone ph-b"><div class="screen"><img src="screenshots/clubs.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Clubs screen listing popular clubs"></div></figure>
-              <figure class="phone ph-c"><div class="screen"><img src="screenshots/forum-post.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko forum news post with images and a reply box"></div></figure>
-            </div>
-          </article>
-
-          <!-- 6 · Profile, stats, customization, conveniences -->
-          <article class="poster p-custom flip" aria-labelledby="p6">
-            <div class="copy">
-              <span class="tag">Profile · Settings</span>
-              <h3 id="p6">Make it yours.</h3>
-              <p class="desc">Light, dark or system themes with custom colors. See your profile, score breakdowns and genre insights. Kiko even checks for updates and opens MyAnimeList links for you.</p>
-              <ul class="chips"><li>Custom colors</li><li>Profile stats</li><li>Genre insights</li><li>Update checker</li><li>MAL links</li></ul>
-            </div>
-            <div class="stage">
-              <i class="shape cookie"></i>
-              <figure class="phone ph-a"><div class="screen"><img src="screenshots/profile.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko profile screen with avatar, about me and last completed anime"></div></figure>
-              <span class="orb light o1" aria-hidden="true"><span>Light</span></span>
-              <span class="orb dark o2" aria-hidden="true"><span>Dark</span></span>
-              <span class="orb sys o3" aria-hidden="true"><span>System</span></span>
-              <span class="swatches" aria-hidden="true"><i style="background:#2E51A2"></i><i style="background:#7a4fd6"></i><i style="background:#d6336c"></i><i style="background:#1f9d74"></i><i style="background:#e8890c"></i></span>
-            </div>
-          </article>
-
-        </div>
-      </section>
-
-      <section class="install" id="install">
-        <div class="eyebrow">Get started</div>
-        <h2>Ready when you are.</h2>
-        <p>Download the latest APK, install it on your Android device, and sign in with your MyAnimeList account. Android may ask you to allow installs from your browser or file manager.</p>
-        <div class="actions">
-          <a class="button primary" href="https://github.com/SyHaqi/kiko/releases/latest">Get Kiko ↗</a>
-          <a class="button secondary" href="https://discord.gg/KZYQHpDWKH">Join Discord</a>
-        </div>
-        <div class="meta">Kiko is not affiliated with or endorsed by MyAnimeList.</div>
-      </section>
-    </main>
-
-    <footer>
-      <div class="footer-row">
-        <span>© Kiko · Licensed under GPL-3.0</span>
-        <span><a href="https://github.com/SyHaqi/kiko">Source</a> · <a href="https://github.com/SyHaqi/kiko/releases">Releases</a> · <a href="https://github.com/SyHaqi/kiko/issues">Report an issue</a></span>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Yet Another MyAnimeList Client App</div>
+      <h1>MAL App.<br>Reimagined.</h1>
+      <p>Keep track of what you watch and read, discover something new and stay close to the MyAnimeList community!</p>
+      <div class="actions">
+        <a class="button primary" id="dl-hero" data-download href="https://github.com/SyHaqi/kiko/releases/latest">Download APK</a>
+        <a class="button secondary" href="https://github.com/SyHaqi/kiko">Explore the source</a>
       </div>
-    </footer>
-  </div>
-  <script>
-    // Show the latest release version when GitHub's API is available.
-    fetch('https://api.github.com/repos/SyHaqi/kiko/releases/latest')
-      .then(response => { if (!response.ok) throw new Error('Release unavailable'); return response.json(); })
-      .then(release => {
-        const version = (release.tag_name || '').replace(/^v/i, '');
-        if (version) document.getElementById('release-meta').textContent = `Free · Open source · Version ${version} · Android 8.0+`;
+      <div class="meta" id="release-meta">Free · Open source · Android 8.0+</div>
+    </section>
+
+    <section id="features">
+      <div class="section-head">
+        <h2>Made to keep you in the loop.</h2>
+        <p>A closer look at what you can do with Kiko.</p>
+      </div>
+
+      <div class="posters">
+
+        <!-- 1 · Home + My List -->
+        <article class="poster p-track" aria-labelledby="p1">
+          <div class="copy">
+            <span class="tag">Home · My List</span>
+            <h3 id="p1">Pick up where you left off.</h3>
+            <p class="desc">See what airs next, jump back into your list, and update your progress with a single tap after every episode.</p>
+            <ul class="chips"><li>Airing next</li><li>Status filters</li><li>One-tap progress</li></ul>
+          </div>
+          <div class="stage">
+            <i class="shape cookie"></i><i class="shape dot"></i>
+            <figure class="phone ph-a"><div class="screen"><img src="screenshots/home.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko home screen showing the next episodes to air and news snapshots"></div></figure>
+            <figure class="phone ph-b"><div class="screen"><img src="screenshots/my-list.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko My List screen with status tabs and a +1 progress button"></div></figure>
+            <span class="sticker big" aria-hidden="true">+1</span>
+          </div>
+        </article>
+
+        <!-- 2 · Discover + Interest Stacks -->
+        <article class="poster p-discover flip" aria-labelledby="p2">
+          <div class="copy">
+            <span class="tag">Discover</span>
+            <h3 id="p2">Your next favorite is out there.</h3>
+            <p class="desc">Search with filters, check the rankings, get suggestions picked for you, and dive into community Interest Stacks.</p>
+            <ul class="chips"><li>Filters</li><li>Rankings</li><li>Suggestions</li><li>Interest Stacks</li></ul>
+          </div>
+          <div class="stage">
+            <i class="shape clover"></i><i class="shape dot"></i>
+            <figure class="phone ph-a"><div class="screen"><img src="screenshots/discover.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Discover screen with search, Rankings and Stacks shortcuts, and new seasonal titles"></div></figure>
+            <figure class="phone ph-b"><div class="screen"><img src="screenshots/stacks.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Interest Stacks screen with spotlight and recent stacks"></div></figure>
+            <span class="sticker st-a" aria-hidden="true">Rankings</span>
+            <span class="sticker st-b" aria-hidden="true">Stacks</span>
+          </div>
+        </article>
+
+        <!-- 3 · Seasonal -->
+        <article class="poster p-season" aria-labelledby="p3">
+          <div class="copy">
+            <span class="tag">Seasonal</span>
+            <h3 id="p3">Know what’s airing.</h3>
+            <p class="desc">Browse seasonal anime by year and season, then sort by popularity or score to find what’s worth your time.</p>
+            <ul class="chips"><li>Any year</li><li>Any season</li><li>Popularity or score</li></ul>
+          </div>
+          <div class="stage">
+            <i class="shape flower"></i><i class="shape dot"></i>
+            <div class="words" aria-hidden="true"><span>Winter</span><span>Spring</span><span>Summer</span><span><b>Fall</b></span></div>
+            <figure class="phone ph-a"><div class="screen"><img src="screenshots/seasonal.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Seasonal screen showing a grid of this season’s anime with scores"></div></figure>
+          </div>
+        </article>
+
+        <!-- 4 · Title details -->
+        <article class="poster p-title flip" aria-labelledby="p4">
+          <div class="copy">
+            <span class="tag">Title details</span>
+            <h3 id="p4">Every detail, one page.</h3>
+            <p class="desc">Synopsis, characters, staff, reviews, recommendations and more — without jumping between pages.</p>
+            <ul class="chips"><li>Synopsis</li><li>Characters &amp; staff</li><li>Reviews</li><li>Recommendations</li></ul>
+          </div>
+          <div class="stage">
+            <i class="shape ring"></i><i class="shape cookie"></i>
+            <figure class="phone ph-a"><div class="screen"><img src="screenshots/title.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko title page for Violet Evergarden with synopsis, links and tabs"></div></figure>
+            <span class="sticker st-a" aria-hidden="true">Synopsis</span>
+            <span class="sticker st-b" aria-hidden="true">Characters</span>
+            <span class="sticker st-c" aria-hidden="true">Staff</span>
+            <span class="sticker st-d" aria-hidden="true">Reviews</span>
+            <span class="sticker st-e" aria-hidden="true">Recommendations</span>
+          </div>
+        </article>
+
+        <!-- 5 · Forums + Clubs -->
+        <article class="poster p-community" aria-labelledby="p5">
+          <div class="copy">
+            <span class="tag">Forums · Clubs</span>
+            <h3 id="p5">Join the conversation.</h3>
+            <p class="desc">Read MyAnimeList discussions, polls, announcements and news, then find your people in clubs and their posts.</p>
+            <ul class="chips"><li>Forums</li><li>Polls</li><li>News</li><li>Clubs</li></ul>
+          </div>
+          <div class="stage">
+            <i class="shape flower"></i><i class="shape dot"></i>
+            <span class="bubble" aria-hidden="true">•••</span>
+            <figure class="phone ph-a"><div class="screen"><img src="screenshots/forums.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Forums screen listing MyAnimeList boards"></div></figure>
+            <figure class="phone ph-b"><div class="screen"><img src="screenshots/clubs.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Clubs screen listing popular clubs"></div></figure>
+            <figure class="phone ph-c"><div class="screen"><img src="screenshots/forum-post.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko forum news post with images and a reply box"></div></figure>
+          </div>
+        </article>
+
+        <!-- 6 · Profile, stats, customization, conveniences -->
+        <article class="poster p-custom flip" aria-labelledby="p6">
+          <div class="copy">
+            <span class="tag">Profile · Settings</span>
+            <h3 id="p6">Make it yours.</h3>
+            <p class="desc">Light, dark or system themes with custom colors. See your profile, score breakdowns and genre insights. Kiko even checks for updates and opens MyAnimeList links for you.</p>
+            <ul class="chips"><li>Custom colors</li><li>Profile stats</li><li>Genre insights</li><li>Update checker</li><li>MAL links</li></ul>
+          </div>
+          <div class="stage">
+            <i class="shape cookie"></i>
+            <figure class="phone ph-a"><div class="screen"><img src="screenshots/profile.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko profile screen with avatar, about me and last completed anime"></div></figure>
+            <span class="orb light o1" aria-hidden="true"><span>Light</span></span>
+            <span class="orb dark o2" aria-hidden="true"><span>Dark</span></span>
+            <span class="orb sys o3" aria-hidden="true"><span>System</span></span>
+            <span class="swatches" aria-hidden="true"><i style="background:#2E51A2"></i><i style="background:#7a4fd6"></i><i style="background:#d6336c"></i><i style="background:#1f9d74"></i><i style="background:#e8890c"></i></span>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <section class="install" id="install">
+      <div class="eyebrow">Get started</div>
+      <h2>Ready when you are.</h2>
+      <p>Download the latest APK, install it on your Android device, and sign in with your MyAnimeList account. Android may ask you to allow installs from your browser or file manager.</p>
+      <div class="actions">
+        <a class="button primary" id="dl-install" data-download href="https://github.com/SyHaqi/kiko/releases/latest">Get Kiko</a>
+        <a class="button secondary" href="https://discord.gg/KZYQHpDWKH">Join Discord</a>
+      </div>
+      <div class="meta">Kiko is not affiliated with or endorsed by MyAnimeList.</div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-row">
+      <span>© Kiko · Licensed under GPL-3.0</span>
+      <span><a href="https://github.com/SyHaqi/kiko">Source</a> · <a href="https://github.com/SyHaqi/kiko/releases">Releases</a> · <a href="https://github.com/SyHaqi/kiko/issues">Report an issue</a></span>
+    </div>
+  </footer>
+</div>
+<script>
+  // Point the download buttons at the newest APK, the same way Kiko's in-app updater finds it.
+  // If GitHub can't be reached, the buttons still open the Releases page.
+  (function () {
+    const API = 'https://api.github.com/repos/SyHaqi/kiko/releases/latest';
+    const CACHE_KEY = 'kiko-latest-release';
+    const CACHE_MS = 10 * 60 * 1000; // avoid hitting GitHub's rate limit on repeat visits
+
+    function apply(info) {
+      document.querySelectorAll('[data-download]').forEach(function (a) {
+        if (info.apkUrl) { a.href = info.apkUrl; a.setAttribute('download', ''); }
+      });
+      const size = info.size ? ' · ' + (info.size / 1048576).toFixed(1) + ' MB' : '';
+      if (info.version) document.getElementById('release-meta').textContent =
+        'Free · Open source · Version ' + info.version + size + ' · Android 8.0+';
+    }
+
+    function read() {
+      try {
+        const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+        return c && Date.now() - c.time < CACHE_MS ? c.info : null;
+      } catch (e) { return null; }
+    }
+    function save(info) {
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ time: Date.now(), info: info })); } catch (e) {}
+    }
+
+    const cached = read();
+    if (cached) return apply(cached);
+
+    fetch(API)
+      .then(function (r) { if (!r.ok) throw new Error('Release unavailable'); return r.json(); })
+      .then(function (release) {
+        const apk = (release.assets || []).find(function (a) { return /\.apk$/i.test(a.name); });
+        const info = {
+          version: (release.tag_name || '').replace(/^v/i, ''),
+          apkUrl: apk ? apk.browser_download_url : '',
+          size: apk ? apk.size : 0
+        };
+        save(info);
+        apply(info);
       })
-      .catch(() => {});
-  </script>
+      .catch(function () {});
+  })();
+</script>
 </body>
 </html>
