@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101114">
+  <title>Kiko — Your anime, your way</title>
+  <meta name="description" content="Kiko is a free, open-source MyAnimeList client for Android. Track anime and manga, discover new titles, and explore the MAL community.">
+  <meta property="og:title" content="Kiko — Your anime, your way">
+  <meta property="og:description" content="A free, open-source MyAnimeList client for Android.">
+  <meta property="og:image" content="screenshots/home.jpg">
+  <!-- Optional display font. If it fails to load, the system font is used instead. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:wdth,wght@25..151,100..1000&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101114;
+      --panel: #191b20;
+      --panel-2: #20232a;
+      --ink: #f3f3f5;
+      --muted: #a4a7b0;
+      --line: #2b2e36;
+      --accent: #a9bdf5;
+      --accent-ink: #17213b;
+      --radius: 22px;
+
+      /* Poster palette: Kiko blue + tonal partners */
+      --blue: #2E51A2;
+      --navy: #0f1d45;
+      --blue-soft: #b0c6ff;
+      --lav: #d6c9ff;
+      --mint: #bff0dc;
+      --coral: #ffbda3;
+      --butter: #ffe18a;
+      --display: "Roboto Flex", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+      /* Decorative shapes (Material expressive-style) */
+      --cookie: polygon(100.0% 50.0%,99.0% 52.6%,96.3% 54.9%,92.9% 56.8%,90.1% 58.5%,88.6% 60.4%,89.0% 62.7%,90.6% 65.6%,92.5% 68.9%,93.7% 72.3%,93.3% 75.0%,91.1% 76.7%,87.7% 77.4%,83.8% 77.3%,80.4% 77.4%,78.3% 78.3%,77.4% 80.4%,77.3% 83.8%,77.4% 87.7%,76.7% 91.1%,75.0% 93.3%,72.3% 93.7%,68.9% 92.5%,65.6% 90.6%,62.7% 89.0%,60.4% 88.6%,58.5% 90.1%,56.8% 92.9%,54.9% 96.3%,52.6% 99.0%,50.0% 100.0%,47.4% 99.0%,45.1% 96.3%,43.2% 92.9%,41.5% 90.1%,39.6% 88.6%,37.3% 89.0%,34.4% 90.6%,31.1% 92.5%,27.7% 93.7%,25.0% 93.3%,23.3% 91.1%,22.6% 87.7%,22.7% 83.8%,22.6% 80.4%,21.7% 78.3%,19.6% 77.4%,16.2% 77.3%,12.3% 77.4%,8.9% 76.7%,6.7% 75.0%,6.3% 72.3%,7.5% 68.9%,9.4% 65.6%,11.0% 62.7%,11.4% 60.4%,9.9% 58.5%,7.1% 56.8%,3.7% 54.9%,1.0% 52.6%,0.0% 50.0%,1.0% 47.4%,3.7% 45.1%,7.1% 43.2%,9.9% 41.5%,11.4% 39.6%,11.0% 37.3%,9.4% 34.4%,7.5% 31.1%,6.3% 27.7%,6.7% 25.0%,8.9% 23.3%,12.3% 22.6%,16.2% 22.7%,19.6% 22.6%,21.7% 21.7%,22.6% 19.6%,22.7% 16.2%,22.6% 12.3%,23.3% 8.9%,25.0% 6.7%,27.7% 6.3%,31.1% 7.5%,34.4% 9.4%,37.3% 11.0%,39.6% 11.4%,41.5% 9.9%,43.2% 7.1%,45.1% 3.7%,47.4% 1.0%,50.0% 0.0%,52.6% 1.0%,54.9% 3.7%,56.8% 7.1%,58.5% 9.9%,60.4% 11.4%,62.7% 11.0%,65.6% 9.4%,68.9% 7.5%,72.3% 6.3%,75.0% 6.7%,76.7% 8.9%,77.4% 12.3%,77.3% 16.2%,77.4% 19.6%,78.3% 21.7%,80.4% 22.6%,83.8% 22.7%,87.7% 22.6%,91.1% 23.3%,93.3% 25.0%,93.7% 27.7%,92.5% 31.1%,90.6% 34.4%,89.0% 37.3%,88.6% 39.6%,90.1% 41.5%,92.9% 43.2%,96.3% 45.1%,99.0% 47.4%);
+      --flower: polygon(100.0% 50.0%,98.9% 52.6%,95.8% 54.8%,91.2% 56.5%,85.9% 57.6%,80.9% 58.3%,76.9% 58.7%,74.5% 59.4%,74.0% 60.7%,75.2% 62.8%,77.7% 66.0%,80.8% 70.0%,83.7% 74.5%,85.8% 79.0%,86.4% 82.8%,85.4% 85.4%,82.8% 86.4%,79.0% 85.8%,74.5% 83.7%,70.0% 80.8%,66.0% 77.7%,62.8% 75.2%,60.7% 74.0%,59.4% 74.5%,58.7% 76.9%,58.3% 80.9%,57.6% 85.9%,56.5% 91.2%,54.8% 95.8%,52.6% 98.9%,50.0% 100.0%,47.4% 98.9%,45.2% 95.8%,43.5% 91.2%,42.4% 85.9%,41.7% 80.9%,41.3% 76.9%,40.6% 74.5%,39.3% 74.0%,37.2% 75.2%,34.0% 77.7%,30.0% 80.8%,25.5% 83.7%,21.0% 85.8%,17.2% 86.4%,14.6% 85.4%,13.6% 82.8%,14.2% 79.0%,16.3% 74.5%,19.2% 70.0%,22.3% 66.0%,24.8% 62.8%,26.0% 60.7%,25.5% 59.4%,23.1% 58.7%,19.1% 58.3%,14.1% 57.6%,8.8% 56.5%,4.2% 54.8%,1.1% 52.6%,0.0% 50.0%,1.1% 47.4%,4.2% 45.2%,8.8% 43.5%,14.1% 42.4%,19.1% 41.7%,23.1% 41.3%,25.5% 40.6%,26.0% 39.3%,24.8% 37.2%,22.3% 34.0%,19.2% 30.0%,16.3% 25.5%,14.2% 21.0%,13.6% 17.2%,14.6% 14.6%,17.2% 13.6%,21.0% 14.2%,25.5% 16.3%,30.0% 19.2%,34.0% 22.3%,37.2% 24.8%,39.3% 26.0%,40.6% 25.5%,41.3% 23.1%,41.7% 19.1%,42.4% 14.1%,43.5% 8.8%,45.2% 4.2%,47.4% 1.1%,50.0% 0.0%,52.6% 1.1%,54.8% 4.2%,56.5% 8.8%,57.6% 14.1%,58.3% 19.1%,58.7% 23.1%,59.4% 25.5%,60.7% 26.0%,62.8% 24.8%,66.0% 22.3%,70.0% 19.2%,74.5% 16.3%,79.0% 14.2%,82.8% 13.6%,85.4% 14.6%,86.4% 17.2%,85.8% 21.0%,83.7% 25.5%,80.8% 30.0%,77.7% 34.0%,75.2% 37.2%,74.0% 39.3%,74.5% 40.6%,76.9% 41.3%,80.9% 41.7%,85.9% 42.4%,91.2% 43.5%,95.8% 45.2%,98.9% 47.4%);
+      --clover: polygon(100.0% 50.0%,99.6% 52.6%,98.5% 55.1%,96.7% 57.4%,94.4% 59.4%,91.5% 61.1%,88.4% 62.5%,85.0% 63.4%,81.6% 64.0%,78.2% 64.4%,75.1% 64.5%,72.3% 64.5%,70.0% 64.5%,68.0% 64.6%,66.6% 64.9%,65.6% 65.6%,64.9% 66.6%,64.6% 68.0%,64.5% 70.0%,64.5% 72.3%,64.5% 75.1%,64.4% 78.2%,64.0% 81.6%,63.4% 85.0%,62.5% 88.4%,61.1% 91.5%,59.4% 94.4%,57.4% 96.7%,55.1% 98.5%,52.6% 99.6%,50.0% 100.0%,47.4% 99.6%,44.9% 98.5%,42.6% 96.7%,40.6% 94.4%,38.9% 91.5%,37.5% 88.4%,36.6% 85.0%,36.0% 81.6%,35.6% 78.2%,35.5% 75.1%,35.5% 72.3%,35.5% 70.0%,35.4% 68.0%,35.1% 66.6%,34.4% 65.6%,33.4% 64.9%,32.0% 64.6%,30.0% 64.5%,27.7% 64.5%,24.9% 64.5%,21.8% 64.4%,18.4% 64.0%,15.0% 63.4%,11.6% 62.5%,8.5% 61.1%,5.6% 59.4%,3.3% 57.4%,1.5% 55.1%,0.4% 52.6%,0.0% 50.0%,0.4% 47.4%,1.5% 44.9%,3.3% 42.6%,5.6% 40.6%,8.5% 38.9%,11.6% 37.5%,15.0% 36.6%,18.4% 36.0%,21.8% 35.6%,24.9% 35.5%,27.7% 35.5%,30.0% 35.5%,32.0% 35.4%,33.4% 35.1%,34.4% 34.4%,35.1% 33.4%,35.4% 32.0%,35.5% 30.0%,35.5% 27.7%,35.5% 24.9%,35.6% 21.8%,36.0% 18.4%,36.6% 15.0%,37.5% 11.6%,38.9% 8.5%,40.6% 5.6%,42.6% 3.3%,44.9% 1.5%,47.4% 0.4%,50.0% 0.0%,52.6% 0.4%,55.1% 1.5%,57.4% 3.3%,59.4% 5.6%,61.1% 8.5%,62.5% 11.6%,63.4% 15.0%,64.0% 18.4%,64.4% 21.8%,64.5% 24.9%,64.5% 27.7%,64.5% 30.0%,64.6% 32.0%,64.9% 33.4%,65.6% 34.4%,66.6% 35.1%,68.0% 35.4%,70.0% 35.5%,72.3% 35.5%,75.1% 35.5%,78.2% 35.6%,81.6% 36.0%,85.0% 36.6%,88.4% 37.5%,91.5% 38.9%,94.4% 40.6%,96.7% 42.6%,98.5% 44.9%,99.6% 47.4%);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font: 16px/1.65 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    h1, h2, h3 { font-family: var(--display); }
+    .shell { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; padding:24px 0; }
+    .brand { display:flex; align-items:center; gap:12px; text-decoration:none; font-weight:700; letter-spacing:-.03em; font-size:1.15rem; }
+    .mark { display:grid; place-items:center; width:38px; height:38px; border-radius:13px; background:var(--accent); color:var(--accent-ink); font-weight:850; }
+    .nav { display:flex; align-items:center; gap:24px; color:var(--muted); font-size:.92rem; }
+    .nav a { text-decoration:none; }
+    .nav a:hover, footer a:hover { color:var(--ink); }
+    .hero { padding:86px 0 76px; max-width:760px; }
+    .eyebrow { color:var(--accent); text-transform:uppercase; letter-spacing:.16em; font-size:.72rem; font-weight:750; }
+    h1 { font-size:clamp(3.2rem, 8vw, 6.4rem); line-height:.98; letter-spacing:-.075em; margin:18px 0 22px; font-weight:760; }
+    .hero p { color:var(--muted); font-size:1.12rem; max-width:590px; margin:0; }
+    .actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:30px; }
+    .button { display:inline-flex; align-items:center; justify-content:center; min-height:46px; padding:0 20px; border-radius:999px; text-decoration:none; font-weight:650; font-size:.92rem; transition:transform .2s, background .2s; }
+    .button:hover { transform:translateY(-2px); }
+    .button.primary { background:var(--accent); color:var(--accent-ink); }
+    .button.secondary { border:1px solid var(--line); background:var(--panel); }
+    .meta { color:var(--muted); font-size:.82rem; margin-top:14px; }
+    .section-head { display:flex; align-items:end; justify-content:space-between; gap:24px; margin:10px 0 26px; }
+    h2 { font-size:clamp(1.7rem, 4vw, 2.35rem); letter-spacing:-.055em; line-height:1.1; margin:0; }
+    .section-head p { color:var(--muted); margin:0; max-width:380px; font-size:.92rem; }
+
+    /* =====================================================
+       POSTERS
+       Each poster is a size container, so everything inside
+       is measured in cqw (1cqw = 1% of the poster's width)
+       and scales together. Edit the numbers in the
+       "Poster layouts" block below to move things around.
+       ===================================================== */
+    .posters { display:grid; gap:20px; }
+    .poster {
+      position:relative; isolation:isolate; overflow:hidden; container-type:inline-size;
+      display:flex; align-items:center; border-radius:44px;
+      /* 2:1 poster that can still grow if the text needs more room */
+      min-height:calc(min(100vw - 40px, 1120px) / 2);
+      background:var(--pbg); color:var(--pfg);
+    }
+    .poster.flip { flex-direction:row-reverse; }
+
+    /* copy */
+    .copy { position:relative; z-index:5; width:47%; padding:0 3cqw 0 5.5cqw; }
+    .flip .copy { padding:0 5.5cqw 0 3cqw; }
+    .tag {
+      display:inline-block; padding:.5em 1.05em; border-radius:99px; font-size:.72rem; font-weight:800;
+      letter-spacing:.14em; text-transform:uppercase; background:var(--tagbg); color:var(--tagfg);
+    }
+    .poster h3 {
+      font-weight:800; font-stretch:112%; font-size:clamp(2.1rem, 5.6cqw, 4.6rem);
+      line-height:.96; letter-spacing:-.045em; margin:18px 0 16px;
+    }
+    .desc { margin:0; max-width:30em; font-size:clamp(.98rem, 1.55cqw, 1.2rem); line-height:1.5; color:var(--pmuted); }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; list-style:none; margin:22px 0 0; padding:0; }
+    .chips li {
+      padding:.5em 1em; border-radius:99px; font-size:.85rem; font-weight:650; line-height:1.2;
+      background:var(--chipbg); color:var(--chipfg);
+    }
+
+    /* stage: absolutely-placed phones, shapes and stickers */
+    .stage { position:absolute; inset:0; z-index:1; pointer-events:none; }
+    .stage > * {
+      position:absolute; left:calc(var(--x) * 1cqw); top:calc(var(--y) * 1cqw);
+      transform:rotate(calc(var(--r, 0) * 1deg)); z-index:var(--z, 1);
+    }
+    .shape { width:calc(var(--w) * 1cqw); aspect-ratio:1; background:var(--c); z-index:0; }
+    .cookie { clip-path:var(--cookie); }
+    .flower { clip-path:var(--flower); }
+    .clover { clip-path:var(--clover); }
+    .dot { border-radius:50%; }
+    .ring { border-radius:50%; background:none; border:.4cqw solid var(--c); }
+
+    /* phone frame: sized in em so the whole device scales with its width */
+    .phone {
+      margin:0; width:calc(var(--w) * 1cqw); font-size:calc(var(--w) * 1cqw);
+      padding:.062em .034em .034em; border-radius:.13em; background:#0a0b0e;
+      box-shadow:0 0 0 .005em #454852, 0 2cqw 4.5cqw rgba(0,0,0,.32);
+    }
+    .phone::before {
+      content:""; position:absolute; top:.024em; left:50%; width:.024em; height:.024em;
+      margin-left:-.012em; border-radius:50%; background:#1b1e25;
+    }
+    .screen { border-radius:.098em; overflow:hidden; aspect-ratio:1080 / 2340; background:#131416; }
+    /* The screenshot is untouched; only the phone's own status bar (top 96px of 1080) is hidden. */
+    .screen img { display:block; width:100%; height:auto; margin-top:-8.89%; }
+
+    /* stickers */
+    .sticker {
+      padding:.55em 1.05em; border-radius:99px; white-space:nowrap; z-index:var(--z, 4);
+      font:800 clamp(.78rem, 1.3cqw, 1.1rem)/1 var(--display); letter-spacing:-.01em;
+      background:var(--sb); color:var(--sf); box-shadow:0 .5cqw 1.4cqw rgba(0,0,0,.22);
+    }
+    .sticker.big { font-size:clamp(1.3rem, 3.4cqw, 2.8rem); padding:.38em .8em; letter-spacing:-.04em; }
+    .bubble { width:calc(var(--w) * 1cqw); height:calc(var(--w) * .62cqw); border-radius:1.6cqw; background:var(--c);
+      display:grid; place-items:center; color:var(--cf); font-weight:900; letter-spacing:.1em; font-size:clamp(.8rem,1.4cqw,1.2rem); }
+    .bubble::after { content:""; position:absolute; left:1.6cqw; bottom:-1cqw; border:1cqw solid transparent;
+      border-width:1.1cqw 1.1cqw 0 0; border-top-color:var(--c); border-right-color:transparent; }
+    .words {
+      font:1000 8.6cqw/.92 var(--display); font-stretch:125%; letter-spacing:-.04em; text-transform:uppercase;
+      color:rgba(46,81,162,.17); z-index:0;
+    }
+    .words span { display:block; }
+    .words b { display:inline-block; font-weight:inherit; background:var(--blue); color:var(--mint); padding:0 .2em .04em; border-radius:.28em; }
+    .orb { width:calc(var(--w) * 1cqw); aspect-ratio:1; border-radius:50%; display:grid; place-items:center;
+      font:800 clamp(.72rem,1.25cqw,1.05rem)/1 var(--display); text-transform:uppercase; letter-spacing:.06em;
+      background:var(--c); color:#fff; mix-blend-mode:normal; box-shadow:0 .5cqw 1.6cqw rgba(0,0,0,.14); z-index:2; }
+    .orb.light { --c:#fff; color:#17181c; }
+    .orb.dark { --c:#101114; color:#fff; }
+    .orb.sys { --c:#101114; background:linear-gradient(90deg,#fff 50%,#101114 50%); mix-blend-mode:normal; color:#fff; }
+    .orb.sys span { mix-blend-mode:difference; color:#fff; }
+    .swatches { display:flex; gap:.8cqw; z-index:2; }
+    .swatches i { width:3.1cqw; height:3.1cqw; border-radius:50%; border:.4cqw solid #fff; box-shadow:0 .4cqw 1cqw rgba(0,0,0,.18); }
+
+    @media (prefers-reduced-motion:no-preference) {
+      .sticker { animation:bob 6s ease-in-out infinite; }
+      .sticker:nth-child(odd) { animation-delay:-3s; }
+      @keyframes bob { 50% { translate:0 -.7cqw; } }
+    }
+
+    /* ---------- Poster colours ---------- */
+    .p-track    { --pbg:var(--blue);  --pfg:#fff;     --pmuted:#dbe4ff; --tagbg:var(--butter); --tagfg:#2c2000; --chipbg:rgba(255,255,255,.16); --chipfg:#fff; }
+    .p-discover { --pbg:var(--lav);   --pfg:#24114f;  --pmuted:#46366f; --tagbg:var(--blue);   --tagfg:#fff;    --chipbg:rgba(46,81,162,.15);  --chipfg:#24114f; }
+    .p-season   { --pbg:var(--mint);  --pfg:#052a1d;  --pmuted:#2a5646; --tagbg:var(--blue);   --tagfg:#fff;    --chipbg:rgba(5,42,29,.1);     --chipfg:#052a1d; }
+    .p-title    { --pbg:var(--navy);  --pfg:#fff;     --pmuted:#bcc8ee; --tagbg:var(--blue-soft); --tagfg:#0f1d45; --chipbg:rgba(176,198,255,.16); --chipfg:#e4ebff; }
+    .p-community{ --pbg:var(--coral); --pfg:#3b0f05;  --pmuted:#68291a; --tagbg:#3b0f05;       --tagfg:var(--coral); --chipbg:rgba(59,15,5,.12); --chipfg:#3b0f05; }
+    .p-custom   { --pbg:var(--butter);--pfg:#2c2000;  --pmuted:#584300; --tagbg:#2c2000;       --tagfg:var(--butter); --chipbg:rgba(44,32,0,.12);  --chipfg:#2c2000; }
+
+    .p-community h3 { font-size:clamp(2rem, 4.9cqw, 4rem); }
+
+    /* ---------- Poster layouts (desktop) ----------
+       --w width, --x left, --y top (all in cqw), --r rotation (deg), --z layer */
+    /* 1 · Track */
+    .p-track .cookie  { --c:var(--lav);    --w:50; --x:56; --y:-9; }
+    .p-track .dot     { --c:var(--butter); --w:8;  --x:49; --y:36; }
+    .p-track .ph-a    { --w:24; --x:51; --y:9;  --r:-7; --z:2; }
+    .p-track .ph-b    { --w:25; --x:70; --y:15; --r:5;  --z:3; }
+    .p-track .sticker { --x:86; --y:7;  --r:9;  --sb:var(--butter); --sf:#2c2000; }
+    /* 2 · Discover */
+    .p-discover .clover  { --c:var(--blue);  --w:46; --x:-2; --y:-6; }
+    .p-discover .dot     { --c:#ff9d7a;      --w:10; --x:43; --y:5; }
+    .p-discover .ph-a    { --w:23; --x:6;  --y:7;  --r:-5; --z:2; }
+    .p-discover .ph-b    { --w:23; --x:27; --y:15; --r:4;  --z:3; }
+    .p-discover .st-a    { --x:1;  --y:36; --r:-9; --sb:#fff;     --sf:var(--blue); }
+    .p-discover .st-b    { --x:38; --y:40; --r:7;  --sb:#ff9d7a;  --sf:#3b0f05; }
+    /* 3 · Seasonal */
+    .p-season .flower { --c:var(--blue);   --w:38; --x:63; --y:22; }
+    .p-season .dot    { --c:var(--butter); --w:10; --x:91; --y:3; }
+    .p-season .words  { --x:46.5; --y:8; }
+    .p-season .ph-a   { --w:24.5; --x:69; --y:7; --r:6; --z:3; }
+    /* 4 · Title details */
+    .p-title .ring    { --c:var(--blue);   --w:62; --x:-8; --y:-6; }
+    .p-title .cookie  { --c:var(--blue);   --w:36; --x:8;  --y:18; }
+    .p-title .ph-a    { --w:27; --x:13; --y:7; --r:-4; --z:2; }
+    .p-title .st-a    { --x:2;  --y:12; --r:-9; --sb:var(--blue-soft); --sf:#0f1d45; }
+    .p-title .st-b    { --x:40; --y:9;  --r:7;  --sb:var(--mint);      --sf:#052a1d; }
+    .p-title .st-c    { --x:1;  --y:30; --r:6;  --sb:var(--butter);    --sf:#2c2000; }
+    .p-title .st-d    { --x:42; --y:27; --r:-7; --sb:var(--coral);     --sf:#3b0f05; }
+    .p-title .st-e    { --x:33; --y:43; --r:5;  --sb:var(--lav);       --sf:#24114f; }
+    /* 5 · Community */
+    .p-community .flower { --c:var(--butter); --w:44; --x:56; --y:-14; }
+    .p-community .dot    { --c:var(--blue);   --w:13; --x:88; --y:-4; }
+    .p-community .bubble { --c:var(--blue); --cf:#fff; --w:10; --x:48; --y:4; --r:-6; --z:4; }
+    .p-community .ph-a   { --w:20.5; --x:51; --y:19; --r:-8; --z:2; }
+    .p-community .ph-b   { --w:20.5; --x:66; --y:8;  --r:0;  --z:3; }
+    .p-community .ph-c   { --w:20.5; --x:80.5; --y:19; --r:8;  --z:2; }
+    /* 6 · Make it yours */
+    .p-custom .cookie { --c:var(--blue); --w:42; --x:4; --y:2; }
+    .p-custom .ph-a   { --w:26; --x:11; --y:8; --r:-5; --z:3; }
+    .p-custom .o1     { --w:10.5; --x:38; --y:3; }
+    .p-custom .o2     { --w:10.5; --x:43; --y:15.5; }
+    .p-custom .o3     { --w:10.5; --x:38; --y:28; }
+    .p-custom .swatches { --x:33; --y:42.5; }
+
+    /* ---------- Rest of the page ---------- */
+    .install { margin:70px 0; padding:36px; border-radius:var(--radius); background:var(--panel-2); }
+    .install p { color:var(--muted); max-width:600px; }
+    footer { border-top:1px solid var(--line); padding:26px 0 40px; color:var(--muted); font-size:.83rem; }
+    .footer-row { display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+    footer a { text-decoration:none; }
+
+    /* Tablet: keep the wide layout, just tighten the copy */
+    @media (min-width:680px) and (max-width:900px) {
+      .copy { width:50%; padding-block:30px; }
+      .poster h3 { font-size:clamp(1.9rem, 5.2cqw, 3rem); margin:14px 0 12px; }
+      .desc { font-size:.95rem; }
+      .chips { margin-top:16px; gap:6px; }
+      .chips li { font-size:.78rem; }
+    }
+
+    /* ---------- Phones: copy on top, screens underneath ---------- */
+    @media (max-width:679px) {
+      .posters { justify-items:center; }
+      .poster, .poster.flip { width:100%; max-width:560px; }
+      .poster, .poster.flip { min-height:0; flex-direction:column; align-items:stretch; border-radius:32px; }
+      .copy, .flip .copy { width:auto; padding:30px 24px 0; }
+      .poster h3 { font-size:clamp(2.3rem, 12.5cqw, 3.2rem); margin:16px 0 12px; }
+      .desc { font-size:1rem; }
+      .stage { position:relative; inset:auto; height:calc(var(--sh, 92) * 1cqw); margin-top:10px; }
+      .sticker { font-size:.8rem; }
+      .sticker.big { font-size:1.5rem; }
+      .words { font-size:17cqw; }
+      .orb { font-size:.72rem; }
+      .swatches i { width:6cqw; height:6cqw; }
+
+      .p-track { --sh:104; }
+      .p-track .cookie  { --w:84; --x:18; --y:-6; }
+      .p-track .dot     { --w:12; --x:30; --y:78; }
+      .p-track .ph-a    { --w:46; --x:-9; --y:16; }
+      .p-track .ph-b    { --w:60; --x:36; --y:6; }
+      .p-track .sticker { --x:2; --y:3; }
+
+      .p-discover { --sh:104; }
+      .p-discover .clover { --w:90; --x:5; --y:-14; }
+      .p-discover .dot    { --w:14; --x:84; --y:2; }
+      .p-discover .ph-a   { --w:46; --x:-9; --y:18; }
+      .p-discover .ph-b   { --w:60; --x:36; --y:6; }
+      .p-discover .st-a   { --x:3;  --y:9; }
+      .p-discover .st-b   { --x:3;  --y:84; }
+
+      .p-season { --sh:104; }
+      .p-season .flower { --w:80; --x:24; --y:22; }
+      .p-season .dot    { --w:16; --x:80; --y:2; }
+      .p-season .words  { --x:4; --y:4; font-size:14cqw; }
+      .p-season .ph-a   { --w:62; --x:30; --y:8; }
+
+      .p-title { --sh:106; }
+      .p-title .ring   { --w:120; --x:-10; --y:-12; }
+      .p-title .cookie { --w:76; --x:12; --y:28; }
+      .p-title .ph-a   { --w:60; --x:20; --y:10; }
+      .p-title .st-a   { --x:2;  --y:6; }
+      .p-title .st-b   { --x:66; --y:12; }
+      .p-title .st-c   { --x:2;  --y:48; }
+      .p-title .st-d   { --x:72; --y:46; }
+      .p-title .st-e   { display:none; }
+
+      .p-community { --sh:106; }
+      .p-community .flower { --w:84; --x:18; --y:-16; }
+      .p-community .dot    { --w:18; --x:82; --y:2; }
+      .p-community .bubble { --w:20; --x:4; --y:4; }
+      .p-community .ph-a   { --w:44; --x:-18; --y:30; }
+      .p-community .ph-b   { --w:58; --x:21; --y:8; }
+      .p-community .ph-c   { --w:44; --x:74; --y:30; }
+
+      .p-custom { --sh:108; }
+      .p-custom .cookie { --w:80; --x:-8; --y:0; }
+      .p-custom .ph-a   { --w:60; --x:2; --y:8; }
+      .p-custom .o1     { --w:26; --x:68; --y:4; }
+      .p-custom .o2     { --w:26; --x:72; --y:32; }
+      .p-custom .o3     { --w:26; --x:66; --y:60; }
+      .p-custom .swatches { --x:62; --y:90; }
+
+      .install { padding:28px 22px; margin:52px 0; }
+      .section-head { display:block; }
+      .section-head p { margin-top:10px; }
+    }
+    @media (max-width:700px) {
+      .shell { width:min(100% - 28px, 540px); }
+      .nav { gap:14px; font-size:.82rem; }
+      .hero { padding:65px 0 58px; }
+    }
+    @media (max-width:390px) { .nav a:first-child { display:none; } }
+    @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } .button { transition:none; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="#"><span class="mark">K</span><span>Kiko</span></a>
+      <nav class="nav" aria-label="Main navigation">
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/SyHaqi/kiko">GitHub ↗</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="eyebrow">A MyAnimeList app for Android</div>
+        <h1>Your anime.<br>Your way.</h1>
+        <p>Keep track of what you watch and read, discover something new, and stay close to the MyAnimeList community — all in one place.</p>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/SyHaqi/kiko/releases/latest">Download APK ↗</a>
+          <a class="button secondary" href="https://github.com/SyHaqi/kiko">Explore the source</a>
+        </div>
+        <div class="meta" id="release-meta">Free · Open source · Android 8.0+</div>
+      </section>
+
+      <section id="features">
+        <div class="section-head">
+          <h2>Made to keep you in the loop.</h2>
+          <p>A closer look at what you can do with Kiko.</p>
+        </div>
+
+        <div class="posters">
+
+          <!-- 1 · Home + My List -->
+          <article class="poster p-track" aria-labelledby="p1">
+            <div class="copy">
+              <span class="tag">Home · My List</span>
+              <h3 id="p1">Pick up where you left off.</h3>
+              <p class="desc">See what airs next, jump back into your list, and update your progress with a single tap after every episode.</p>
+              <ul class="chips"><li>Airing next</li><li>Status filters</li><li>One-tap progress</li></ul>
+            </div>
+            <div class="stage">
+              <i class="shape cookie"></i><i class="shape dot"></i>
+              <figure class="phone ph-a"><div class="screen"><img src="screenshots/home.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko home screen showing the next episodes to air and news snapshots"></div></figure>
+              <figure class="phone ph-b"><div class="screen"><img src="screenshots/my-list.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko My List screen with status tabs and a +1 progress button"></div></figure>
+              <span class="sticker big" aria-hidden="true">+1</span>
+            </div>
+          </article>
+
+          <!-- 2 · Discover + Interest Stacks -->
+          <article class="poster p-discover flip" aria-labelledby="p2">
+            <div class="copy">
+              <span class="tag">Discover</span>
+              <h3 id="p2">Your next favorite is out there.</h3>
+              <p class="desc">Search with filters, check the rankings, get suggestions picked for you, and dive into community Interest Stacks.</p>
+              <ul class="chips"><li>Filters</li><li>Rankings</li><li>Suggestions</li><li>Interest Stacks</li></ul>
+            </div>
+            <div class="stage">
+              <i class="shape clover"></i><i class="shape dot"></i>
+              <figure class="phone ph-a"><div class="screen"><img src="screenshots/discover.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Discover screen with search, Rankings and Stacks shortcuts, and new seasonal titles"></div></figure>
+              <figure class="phone ph-b"><div class="screen"><img src="screenshots/stacks.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Interest Stacks screen with spotlight and recent stacks"></div></figure>
+              <span class="sticker st-a" aria-hidden="true">Rankings</span>
+              <span class="sticker st-b" aria-hidden="true">Stacks</span>
+            </div>
+          </article>
+
+          <!-- 3 · Seasonal -->
+          <article class="poster p-season" aria-labelledby="p3">
+            <div class="copy">
+              <span class="tag">Seasonal</span>
+              <h3 id="p3">Know what’s airing.</h3>
+              <p class="desc">Browse seasonal anime by year and season, then sort by popularity or score to find what’s worth your time.</p>
+              <ul class="chips"><li>Any year</li><li>Any season</li><li>Popularity or score</li></ul>
+            </div>
+            <div class="stage">
+              <i class="shape flower"></i><i class="shape dot"></i>
+              <div class="words" aria-hidden="true"><span>Winter</span><span>Spring</span><span>Summer</span><span><b>Fall</b></span></div>
+              <figure class="phone ph-a"><div class="screen"><img src="screenshots/seasonal.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Seasonal screen showing a grid of this season’s anime with scores"></div></figure>
+            </div>
+          </article>
+
+          <!-- 4 · Title details -->
+          <article class="poster p-title flip" aria-labelledby="p4">
+            <div class="copy">
+              <span class="tag">Title details</span>
+              <h3 id="p4">Every detail, one page.</h3>
+              <p class="desc">Synopsis, characters, staff, reviews, recommendations and more — without jumping between pages.</p>
+              <ul class="chips"><li>Synopsis</li><li>Characters &amp; staff</li><li>Reviews</li><li>Recommendations</li></ul>
+            </div>
+            <div class="stage">
+              <i class="shape ring"></i><i class="shape cookie"></i>
+              <figure class="phone ph-a"><div class="screen"><img src="screenshots/title.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko title page for Violet Evergarden with synopsis, links and tabs"></div></figure>
+              <span class="sticker st-a" aria-hidden="true">Synopsis</span>
+              <span class="sticker st-b" aria-hidden="true">Characters</span>
+              <span class="sticker st-c" aria-hidden="true">Staff</span>
+              <span class="sticker st-d" aria-hidden="true">Reviews</span>
+              <span class="sticker st-e" aria-hidden="true">Recommendations</span>
+            </div>
+          </article>
+
+          <!-- 5 · Forums + Clubs -->
+          <article class="poster p-community" aria-labelledby="p5">
+            <div class="copy">
+              <span class="tag">Forums · Clubs</span>
+              <h3 id="p5">Join the conversation.</h3>
+              <p class="desc">Read MyAnimeList discussions, polls, announcements and news, then find your people in clubs and their posts.</p>
+              <ul class="chips"><li>Forums</li><li>Polls</li><li>News</li><li>Clubs</li></ul>
+            </div>
+            <div class="stage">
+              <i class="shape flower"></i><i class="shape dot"></i>
+              <span class="bubble" aria-hidden="true">•••</span>
+              <figure class="phone ph-a"><div class="screen"><img src="screenshots/forums.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Forums screen listing MyAnimeList boards"></div></figure>
+              <figure class="phone ph-b"><div class="screen"><img src="screenshots/clubs.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Clubs screen listing popular clubs"></div></figure>
+              <figure class="phone ph-c"><div class="screen"><img src="screenshots/forum-post.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko forum news post with images and a reply box"></div></figure>
+            </div>
+          </article>
+
+          <!-- 6 · Profile, stats, customization, conveniences -->
+          <article class="poster p-custom flip" aria-labelledby="p6">
+            <div class="copy">
+              <span class="tag">Profile · Settings</span>
+              <h3 id="p6">Make it yours.</h3>
+              <p class="desc">Light, dark or system themes with custom colors. See your profile, score breakdowns and genre insights. Kiko even checks for updates and opens MyAnimeList links for you.</p>
+              <ul class="chips"><li>Custom colors</li><li>Profile stats</li><li>Genre insights</li><li>Update checker</li><li>MAL links</li></ul>
+            </div>
+            <div class="stage">
+              <i class="shape cookie"></i>
+              <figure class="phone ph-a"><div class="screen"><img src="screenshots/profile.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko profile screen with avatar, about me and last completed anime"></div></figure>
+              <span class="orb light o1" aria-hidden="true"><span>Light</span></span>
+              <span class="orb dark o2" aria-hidden="true"><span>Dark</span></span>
+              <span class="orb sys o3" aria-hidden="true"><span>System</span></span>
+              <span class="swatches" aria-hidden="true"><i style="background:#2E51A2"></i><i style="background:#7a4fd6"></i><i style="background:#d6336c"></i><i style="background:#1f9d74"></i><i style="background:#e8890c"></i></span>
+            </div>
+          </article>
+
+        </div>
+      </section>
+
+      <section class="install" id="install">
+        <div class="eyebrow">Get started</div>
+        <h2>Ready when you are.</h2>
+        <p>Download the latest APK, install it on your Android device, and sign in with your MyAnimeList account. Android may ask you to allow installs from your browser or file manager.</p>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/SyHaqi/kiko/releases/latest">Get Kiko ↗</a>
+          <a class="button secondary" href="https://discord.gg/KZYQHpDWKH">Join Discord</a>
+        </div>
+        <div class="meta">Kiko is not affiliated with or endorsed by MyAnimeList.</div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-row">
+        <span>© Kiko · Licensed under GPL-3.0</span>
+        <span><a href="https://github.com/SyHaqi/kiko">Source</a> · <a href="https://github.com/SyHaqi/kiko/releases">Releases</a> · <a href="https://github.com/SyHaqi/kiko/issues">Report an issue</a></span>
+      </div>
+    </footer>
+  </div>
+  <script>
+    // Show the latest release version when GitHub's API is available.
+    fetch('https://api.github.com/repos/SyHaqi/kiko/releases/latest')
+      .then(response => { if (!response.ok) throw new Error('Release unavailable'); return response.json(); })
+      .then(release => {
+        const version = (release.tag_name || '').replace(/^v/i, '');
+        if (version) document.getElementById('release-meta').textContent = `Free · Open source · Version ${version} · Android 8.0+`;
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>
