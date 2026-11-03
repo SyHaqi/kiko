@@ -11,6 +11,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
@@ -206,10 +207,35 @@ val ReviewVerdictTags = setOf("Recommended", "Mixed Feelings", "Not Recommended"
 
 fun ReviewEntry.verdict(): String? = tags.firstOrNull { it in ReviewVerdictTags }
 
+// Review sentiment colors. Fixed green/amber/red rather than theme accents: a recommendation
+// should read as "good" whatever accent the user picked. Light/dark variants keep chip text readable
+// on both backgrounds; "bad" reuses the theme's own danger color.
+private fun KikoColors.isDarkTheme() = background.luminance() < 0.5f
+fun sentimentGood(c: KikoColors): Color = if (c.isDarkTheme()) Color(0xFF5ED38D) else Color(0xFF1B8A4C)
+fun sentimentMixed(c: KikoColors): Color = if (c.isDarkTheme()) Color(0xFFFFC857) else Color(0xFFB26A00)
+fun sentimentBad(c: KikoColors): Color = c.danger
+
 fun verdictColor(verdict: String, c: KikoColors): Color = when (verdict) {
-    "Recommended" -> c.primary
-    "Not Recommended" -> c.danger
-    else -> c.muted
+    "Recommended" -> sentimentGood(c)
+    "Not Recommended" -> sentimentBad(c)
+    else -> sentimentMixed(c)
+}
+
+fun verdictIcon(verdict: String): ImageVector = when (verdict) {
+    "Recommended" -> Icons.Rounded.ThumbUp
+    "Not Recommended" -> Icons.Rounded.ThumbDown
+    else -> Icons.Rounded.ThumbsUpDown
+}
+
+// Content color for text/icons sitting on a flat, solid sentiment fill: dark on the light dark-theme
+// tints, white on the deeper light-theme ones.
+fun onSentiment(fill: Color): Color = if (fill.luminance() > 0.5f) Color(0xFF1A1A1A) else Color.White
+
+// 8-10 reads green, 5-7 amber, 1-4 red.
+fun reviewScoreColor(score: Int, c: KikoColors): Color = when {
+    score >= 8 -> sentimentGood(c)
+    score >= 5 -> sentimentMixed(c)
+    else -> sentimentBad(c)
 }
 // Status breakdown counts
 

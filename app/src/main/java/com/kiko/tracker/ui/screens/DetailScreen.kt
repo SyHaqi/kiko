@@ -185,6 +185,8 @@ data class DetailScreenActions(
     // which just returns the same cached list the row already fetched
     // instead of hitting the network again.
     val onOpenReviewList: (MediaItem) -> Unit = {},
+    // Opens the Write a Review editor (TopScreen.WriteReview) for this title.
+    val onWriteReview: (MediaItem) -> Unit = {},
     val onGenreClick: (String) -> Unit = {},
     val onCreatorClick: (String) -> Unit = {},
     // Studio/author chip: resolves the name to its company/person page and opens it. [onDone] is called
@@ -1459,25 +1461,21 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                 }
             }
             Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 9.dp))
-            if (entry.score > 0) {
-                Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(13.dp))
-                Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 3.dp))
-            }
+            if (entry.score > 0) ReviewScoreChip(entry.score, compact = true)
         }
         val verdict = entry.verdict()
         val otherTags = entry.tags.filterNot { it in ReviewVerdictTags }
         if (verdict != null || otherTags.isNotEmpty()) {
             Row(Modifier.padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                 verdict?.let {
-                    Icon(Icons.Rounded.Star, null, tint = verdictColor(it, c), modifier = Modifier.size(11.dp))
-                    Text(it, color = verdictColor(it, c), fontWeight = FontWeight.Bold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
+                    VerdictChip(it, compact = true, showLabel = true)
                 }
                 otherTags.firstOrNull()?.let {
                     Text(it, color = c.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = if (verdict != null) 8.dp else 0.dp))
                 }
             }
         }
-        if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+        if (entry.isSpoiler) Row(Modifier.padding(top = 8.dp)) { SpoilerChip(compact = true, showLabel = true) }
         Text(
             entry.review, color = c.muted, fontSize = 12.sp, lineHeight = 17.sp,
             maxLines = 5, overflow = TextOverflow.Ellipsis,

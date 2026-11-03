@@ -892,24 +892,12 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                             }
                         }
                         Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f).padding(start = 10.dp))
-                        if (entry.score > 0) {
-                            Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp))
-                            Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
-                        }
+                        if (entry.score > 0) ReviewScoreChip(entry.score)
                     }
-                    if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 14.dp))
-                    if (entry.tags.isNotEmpty()) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 14.dp)) {
-                            entry.tags.forEach { tag ->
-                                val verdict = tag in ReviewVerdictTags
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (verdict) Icon(Icons.Rounded.Star, null, tint = verdictColor(tag, c), modifier = Modifier.size(13.dp))
-                                    Text(
-                                        tag, color = if (verdict) verdictColor(tag, c) else c.muted, fontWeight = if (verdict) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 12.sp, modifier = Modifier.padding(start = if (verdict) 4.dp else 0.dp),
-                                    )
-                                }
-                            }
+                    if (entry.isSpoiler || entry.tags.isNotEmpty()) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 14.dp)) {
+                            if (entry.isSpoiler) SpoilerChip(showLabel = true)
+                            entry.tags.forEach { tag -> if (tag in ReviewVerdictTags) VerdictChip(tag, showLabel = true) else ReviewTagChip(tag) }
                         }
                     }
                     SelectionContainer {

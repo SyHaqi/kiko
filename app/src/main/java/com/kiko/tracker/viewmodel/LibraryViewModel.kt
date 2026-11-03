@@ -2829,6 +2829,10 @@ class LibraryViewModel : ViewModel() {
         }
     }
 
+    // Drops this title's cached reviews after the user publishes one, so the Reviews list
+    // refetches from MAL instead of replaying the pre-publish list.
+    fun invalidateReviews(item: MediaItem) { detailCache(item.id, item.type).reviews = null }
+
     // Community score breakdown for
     // Status distribution. Its own
     // above) since it's a

@@ -95,6 +95,7 @@ import com.kiko.tracker.ui.screens.RankingScreen
 import com.kiko.tracker.ui.screens.RecommendationsScreen
 import com.kiko.tracker.ui.screens.ReviewListScreen
 import com.kiko.tracker.ui.screens.ReviewScreen
+import com.kiko.tracker.ui.screens.WriteReviewScreen
 import com.kiko.tracker.ui.screens.ScheduleScreen
 import com.kiko.tracker.ui.screens.ScoreFilterScreen
 import com.kiko.tracker.ui.screens.ScoreStatsSheet
@@ -181,6 +182,8 @@ sealed class TopScreen {
     data class MediaStacks(val item: MediaItem) : TopScreen()
     // Full "Reviews" page opened from Detail's Reviews row "See more" — see DetailScreenActions.onOpenReviewList.
     data class ReviewList(val item: MediaItem) : TopScreen()
+    // Write a Review editor, opened from Detail's Reviews section or the Reviews list header.
+    data class WriteReview(val item: MediaItem) : TopScreen()
     // Dedicated "Saved Stacks" list, opened from Interest Stacks home's
     // 3-dot menu — see StacksHomeScreen/StacksSavedScreen. Single per-user
     // page, no id to carry — same simple boolean-toggle shape as History.
@@ -265,6 +268,7 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.StackDetail -> "stackDetail:$stackId"
     is TopScreen.MediaStacks -> "mediaStacks:${item.id}:${item.type}"
     is TopScreen.ReviewList -> "reviewList:${item.id}:${item.type}"
+    is TopScreen.WriteReview -> "writeReview:${item.id}:${item.type}"
     TopScreen.StacksSaved -> "stacksSaved"
     is TopScreen.ClubDetail -> "clubDetail:${club.id}"
     TopScreen.ProfileStats -> "profileStats"
@@ -287,7 +291,7 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.Tab -> "tab:$destination"
 }
 
-fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.MediaStacks || this is TopScreen.ReviewList || this is TopScreen.StacksSaved || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.MalFriendsFavorites || this is TopScreen.FriendProfile || this is TopScreen.FriendFriendsFavorites || this is TopScreen.FriendListStatus || this is TopScreen.SettingsPage || this is TopScreen.AccountSheet || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage || this is TopScreen.CompanyPage || this is TopScreen.FeaturedArticles || this is TopScreen.FeaturedArticle || this is TopScreen.History
+fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.MediaStacks || this is TopScreen.ReviewList || this is TopScreen.WriteReview || this is TopScreen.StacksSaved || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.MalFriendsFavorites || this is TopScreen.FriendProfile || this is TopScreen.FriendFriendsFavorites || this is TopScreen.FriendListStatus || this is TopScreen.SettingsPage || this is TopScreen.AccountSheet || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage || this is TopScreen.CompanyPage || this is TopScreen.FeaturedArticles || this is TopScreen.FeaturedArticle || this is TopScreen.History
 
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}) {
@@ -625,6 +629,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // (TopScreen.ReviewList), an overlay like mediaStacksOpen. Re-runs the same
     // cached onLoadReviews rather than fetching separately.
     var reviewListOpen by remember { mutableStateOf<MediaItem?>(null) }
+    // Write a Review editor (TopScreen.WriteReview) — an overlay like reviewListOpen.
+    var writeReviewOpen by remember { mutableStateOf<MediaItem?>(null) }
     // "See more" on Detail's Recent Forum Discussion row — same
     // sheet-over-current-screen shape (still a tray). Rendered only
     // while forumTopicOpen == null: tapping a topic inside the sheet pushes
@@ -664,7 +670,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         companyDetailOpenId = null; companyDetailOpen = null
         stackDetailOpen = null; stacksBrowseKind = null; stacksSavedOpen = false; stacksHomeOpen = false
         clubDetailOpen = null
-        mediaStacksOpen = null; reviewListOpen = null
+        mediaStacksOpen = null; reviewListOpen = null; writeReviewOpen = null
         rankingOpen = false; recommendationsOpen = false; scheduleOpen = false
         featuredArticlesOpen = false; featuredArticleOpen = null; historyOpen = false
         forumTopicOpen = null; aboutOpen = false; reviewOpen = null
@@ -681,7 +687,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Prefer live item copy
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !vm.profileDrawerOpen && (vm.destination != Destination.Home || discoverReturnItem != null)) {
+    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && writeReviewOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !vm.profileDrawerOpen && (vm.destination != Destination.Home || discoverReturnItem != null)) {
         val returnItem = discoverReturnItem
         if (returnItem != null && vm.destination == Destination.Discover) {
             discoverReturnItem = null
@@ -708,7 +714,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Top-level destinations are only present at the root of the hierarchy.
     // Calculating this once also lets the app switch between a navigation bar
     // and rail without every detail route owning a slightly different shell.
-    val showNavigation = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !vm.profileDrawerOpen
+    val showNavigation = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && writeReviewOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !vm.profileDrawerOpen
     val selectDestination: (Destination) -> Unit = {
         discoverReturnItem = null
         discoverReturnDestination = null
@@ -785,6 +791,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 forumTopicOpen?.let { add("topic:${it.first}" to TopScreen.Topic(it.first, it.second)) }
                                 mediaStacksOpen?.let { add("mediaStacks" to TopScreen.MediaStacks(it)) }
                                 reviewListOpen?.let { add("reviewList" to TopScreen.ReviewList(it)) }
+                                writeReviewOpen?.let { add("writeReview" to TopScreen.WriteReview(it)) }
                                 stackDetailOpen?.let { add("stack:${it.first}" to TopScreen.StackDetail(it.first, it.second)) }
                                 if (detailOnTopOfTopicOrStack && detailItem != null) add("detail" to TopScreen.Detail(detailItem))
                                 if (castCompanyOnTop) companyDetailOpenId?.let { add("company:$it" to TopScreen.CompanyPage(it, companyDetailOpen)) }
@@ -894,6 +901,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                                 onLoadReviews = { forItem, onFound, onDone -> vm.loadReviews(forItem, onFound, onDone) },
                                                 onOpenReview = { rev -> reviewOpen = rev to screen.item.title },
                                                 onOpenReviewList = { reviewListOpen = it },
+                                                onWriteReview = { writeReviewOpen = it },
                                                 onOpenForumDiscussionList = { forumDiscussionListOpen = it },
                                                 onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, screen.item.type, index, offset) },
                                                 onSelectTab = { tab -> vm.saveDetailTab(screen.item.id, screen.item.type, tab) },
@@ -1034,9 +1042,17 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             onBack = { reviewListOpen = null },
                                             onLoad = { onFound, onDone -> vm.loadReviews(screen.item, onFound, onDone) },
                                             onOpenReview = { rev -> reviewOpen = rev to screen.item.title },
+                                            onWriteReview = { writeReviewOpen = screen.item },
+                                            canWriteReview = vm.trackedStatus(screen.item).let { it != null && it != WatchStatus.Plan },
                                             initialReviews = vm.peekDetailCache(screen.item.id, screen.item.type)?.reviews.orEmpty(),
                                             initialScroll = vm.getReviewListScroll(screen.item.id, screen.item.type),
                                             onLeaveScroll = { offset -> vm.saveReviewListScroll(screen.item.id, screen.item.type, offset) },
+                                        )
+                                        is TopScreen.WriteReview -> WriteReviewScreen(
+                                            item = screen.item,
+                                            onBack = { writeReviewOpen = null },
+                                            // The cached list predates the new review; drop it so the list refetches.
+                                            onPosted = { vm.invalidateReviews(screen.item); writeReviewOpen = null },
                                         )
                                         is TopScreen.MediaStacks -> MediaStacksScreen(vm = vm, item = screen.item, onBack = { mediaStacksOpen = null }, onOpenStack = { id, title -> stackDetailOpen = id to title })
                                         is TopScreen.ClubDetail -> ClubDetailScreen(screen.club, onBack = { clubDetailOpen = null }, onOpenCharacter = { malId -> openCharacter(malId) }, onOpenPerson = { malId -> openPerson(malId) }, onOpenCompany = { malId -> openCompany(malId) })

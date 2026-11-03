@@ -1,10 +1,11 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.kiko.tracker.ui.screens
 
 import androidx.activity.compose.BackHandler
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
+import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
 import kotlinx.coroutines.launch
@@ -15,7 +16,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,12 +41,17 @@ import com.kiko.tracker.data.model.ReviewVerdictTags
 import com.kiko.tracker.data.model.ScoreStats
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.data.model.verdict
+import com.kiko.tracker.data.model.onSentiment
+import com.kiko.tracker.data.model.reviewScoreColor
 import com.kiko.tracker.data.model.verdictColor
+import com.kiko.tracker.data.model.verdictIcon
 import com.kiko.tracker.ui.components.kikoFilterChipColors
+import com.kiko.tracker.ui.components.rememberBelowAnchorTooltipPositionProvider
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.kikoCircleShape
 import com.kiko.tracker.ui.theme.kikoClickable
 import com.kiko.tracker.ui.theme.kikoCorner
+import com.kiko.tracker.ui.theme.kikoPillShape
 
 // Bottom sheet opened from
 // shows that title's community
@@ -93,6 +101,9 @@ import com.kiko.tracker.ui.theme.kikoCorner
     item: MediaItem, onBack: () -> Unit,
     onLoad: ((List<ReviewEntry>) -> Unit, () -> Unit) -> Unit,
     onOpenReview: (ReviewEntry) -> Unit,
+    onWriteReview: () -> Unit = {},
+    // Only titles in the user's list as Watching/Reading, Completed, On Hold or Dropped can be reviewed.
+    canWriteReview: Boolean = true,
     initialReviews: List<ReviewEntry> = emptyList(),
     initialScroll: Int = 0,
     onLeaveScroll: (Int) -> Unit = {},
@@ -111,9 +122,14 @@ import com.kiko.tracker.ui.theme.kikoCorner
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Column(Modifier.headerTitleStart()) {
+            Column(Modifier.weight(1f).headerTitleStart()) {
                 Text("Reviews", style = MaterialTheme.typography.titleLarge, color = c.ink)
                 Text(item.displayTitle(), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+            }
+            if (canWriteReview) {
+                IconButton(onClick = onWriteReview, modifier = Modifier.headerEdgeEnd()) {
+                    Icon(Icons.Rounded.Edit, "Write a review", tint = c.primary, modifier = Modifier.size(24.dp))
+                }
             }
         }
         Box(Modifier.weight(1f)) {
@@ -206,34 +222,104 @@ import com.kiko.tracker.ui.theme.kikoCorner
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (entry.userImage.isNotBlank()) {
-                AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = ContentScale.Crop, modifier = Modifier.size(32.dp).clip(kikoCircleShape()).background(c.warm))
+                AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = ContentScale.Crop, modifier = Modifier.size(34.dp).clip(kikoCircleShape()).background(c.warm))
             } else {
-                Box(Modifier.size(32.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(34.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
                     Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink)
                 }
             }
-            Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 10.dp))
-            if (entry.score > 0) {
-                Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(14.dp))
-                Text(entry.score.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+            Column(Modifier.weight(1f).padding(start = 10.dp, end = 8.dp)) {
+                Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (entry.date.isNotBlank()) Text(entry.date, color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 1.dp))
             }
+            if (entry.score > 0) ReviewScoreChip(entry.score)
         }
         val verdict = entry.verdict()
         val otherTags = entry.tags.filterNot { it in ReviewVerdictTags }
-        if (verdict != null || otherTags.isNotEmpty()) {
-            Row(Modifier.padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                verdict?.let {
-                    Icon(Icons.Rounded.Star, null, tint = verdictColor(it, c), modifier = Modifier.size(12.dp))
-                    Text(it, color = verdictColor(it, c), fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
-                }
-                otherTags.firstOrNull()?.let {
-                    Text(it, color = c.muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = if (verdict != null) 8.dp else 0.dp))
-                }
+        if (verdict != null || entry.isSpoiler || otherTags.isNotEmpty()) {
+            FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                verdict?.let { VerdictChip(it, showLabel = true) }
+                if (entry.isSpoiler) SpoilerChip(showLabel = true)
+                otherTags.forEach { ReviewTagChip(it) }
             }
         }
-        if (entry.isSpoiler) Text("Contains spoilers", color = c.danger, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
-        Text(entry.review, color = c.muted, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 8, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        Text(entry.review, color = c.muted, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 8, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
         ReviewReactions(entry, Modifier.padding(top = 10.dp))
+    }
+}
+
+// Shared review chips — flat, solid fills (Material 3 Expressive style, no tints/alpha): the sentiment color
+// as the container with an auto-contrast content color on top. Used by the Reviews list, the Detail preview
+// cards (compact = true) and the full review page. Verdict and spoiler chips spell out their name (showLabel);
+// the icon-only form (with a long-press tooltip) is still there for any spot that wants it.
+@Composable private fun ReviewChip(container: Color, compact: Boolean, content: @Composable RowScope.() -> Unit) {
+    Row(
+        Modifier.clip(kikoPillShape()).background(container)
+            .padding(horizontal = if (compact) 7.dp else 9.dp, vertical = if (compact) 3.dp else 4.dp),
+        verticalAlignment = Alignment.CenterVertically, content = content,
+    )
+}
+
+// Long-press (or hover) tooltip naming an icon-only element.
+@Composable private fun NameTooltip(name: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    TooltipBox(
+        positionProvider = rememberBelowAnchorTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(name) } },
+        state = rememberTooltipState(),
+        modifier = modifier,
+        content = content,
+    )
+}
+
+// showLabel = true adds the verdict's name next to the icon (used on the full review page, where there's room
+// and the reader has opened that one review); otherwise icon-only with the name as a long-press tooltip.
+@Composable fun VerdictChip(verdict: String, compact: Boolean = false, showLabel: Boolean = false) {
+    val tint = verdictColor(verdict, LocalKikoColors.current)
+    val on = onSentiment(tint)
+    if (showLabel) {
+        ReviewChip(tint, compact) {
+            Icon(verdictIcon(verdict), null, tint = on, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
+            Text(verdict, color = on, fontWeight = FontWeight.Bold, fontSize = if (compact) 10.sp else 12.sp, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
+        }
+    } else {
+        NameTooltip(verdict) {
+            ReviewChip(tint, compact) {
+                Icon(verdictIcon(verdict), verdict, tint = on, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
+            }
+        }
+    }
+}
+
+@Composable fun ReviewScoreChip(score: Int, compact: Boolean = false) {
+    val tint = reviewScoreColor(score, LocalKikoColors.current)
+    val on = onSentiment(tint)
+    ReviewChip(tint, compact) {
+        Icon(Icons.Rounded.Star, null, tint = on, modifier = Modifier.size(if (compact) 12.dp else 14.dp))
+        Text(score.toString(), color = on, fontWeight = FontWeight.Bold, fontSize = if (compact) 12.sp else 13.sp, modifier = Modifier.padding(start = 3.dp))
+    }
+}
+
+@Composable fun SpoilerChip(compact: Boolean = false, showLabel: Boolean = false) {
+    val tint = LocalKikoColors.current.danger
+    val on = onSentiment(tint)
+    if (showLabel) {
+        ReviewChip(tint, compact) {
+            Icon(Icons.Rounded.VisibilityOff, null, tint = on, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
+            Text("Contains spoilers", color = on, fontWeight = FontWeight.Bold, fontSize = if (compact) 10.sp else 12.sp, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
+        }
+    } else {
+        NameTooltip("Contains spoilers") {
+            ReviewChip(tint, compact) {
+                Icon(Icons.Rounded.VisibilityOff, "Contains spoilers", tint = on, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
+            }
+        }
+    }
+}
+
+@Composable fun ReviewTagChip(text: String, compact: Boolean = false) {
+    val c = LocalKikoColors.current
+    ReviewChip(c.surfaceContainerHighest, compact) {
+        Text(text, color = c.onSurfaceVariant, fontSize = if (compact) 10.sp else 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
