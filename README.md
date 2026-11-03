@@ -10,21 +10,23 @@ Track anime & manga, discover new titles, and stay close to the MyAnimeList comm
 
 <br>
 
-[![Download](https://img.shields.io/badge/⬇_Download_Latest_APK-2E51A2?style=for-the-badge&logo=android&logoColor=white)](https://github.com/SyHaqi/kiko/releases/latest)
-[![Website](https://img.shields.io/badge/🌐_Website-syhaqi.github.io%2Fkiko-1f2937?style=for-the-badge)](https://syhaqi.github.io/kiko/)
+<!-- Row 1: main buttons -->
+[![Download](https://img.shields.io/github/v/release/SyHaqi/kiko?style=for-the-badge&label=Download&logo=android&logoColor=white&labelColor=2E51A2&color=1d3470)](https://github.com/SyHaqi/kiko/releases/latest)
+[![Website](https://img.shields.io/badge/Website-syhaqi.github.io%2Fkiko-ffe18a?style=for-the-badge&logo=googlechrome&logoColor=2c2000&labelColor=f2c94c)](https://syhaqi.github.io/kiko/)
 [![Discord](https://img.shields.io/badge/Discord-Join_the_server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/KZYQHpDWKH)
 
-<br>
+<!-- Row 2: live stats, pastel palette from the website -->
+[![Total downloads](https://img.shields.io/github/downloads/SyHaqi/kiko/total?style=for-the-badge&label=Downloads&logo=github&logoColor=052a1d&labelColor=8fd9bb&color=bff0dc)](https://github.com/SyHaqi/kiko/releases)
+[![Stars](https://img.shields.io/github/stars/SyHaqi/kiko?style=for-the-badge&logo=github&logoColor=24114f&labelColor=bfaef5&color=d6c9ff)](https://github.com/SyHaqi/kiko/stargazers)
+[![Report a bug](https://img.shields.io/github/issues/SyHaqi/kiko?style=for-the-badge&label=Issues&logo=github&logoColor=3b0f05&labelColor=ff9d7a&color=ffbda3)](https://github.com/SyHaqi/kiko/issues)
 
-[![Latest release](https://img.shields.io/github/v/release/SyHaqi/kiko?style=flat-square&label=release&color=2E51A2)](https://github.com/SyHaqi/kiko/releases/latest)
-[![Total downloads](https://img.shields.io/github/downloads/SyHaqi/kiko/total?style=flat-square&label=downloads&color=2E51A2)](https://github.com/SyHaqi/kiko/releases)
-[![Latest downloads](https://img.shields.io/github/downloads/SyHaqi/kiko/latest/total?style=flat-square&label=latest%20release%20downloads&color=2E51A2)](https://github.com/SyHaqi/kiko/releases/latest)
-[![Stars](https://img.shields.io/github/stars/SyHaqi/kiko?style=flat-square&color=2E51A2)](https://github.com/SyHaqi/kiko/stargazers)
-[![Issues](https://img.shields.io/github/issues/SyHaqi/kiko?style=flat-square&color=2E51A2)](https://github.com/SyHaqi/kiko/issues)
-[![Last commit](https://img.shields.io/github/last-commit/SyHaqi/kiko?style=flat-square&color=2E51A2)](https://github.com/SyHaqi/kiko/commits)
-[![License](https://img.shields.io/github/license/SyHaqi/kiko?style=flat-square&color=2E51A2)](LICENSE)
+<!-- Row 3: small info pills -->
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack_Compose-7F52FF?style=flat-square&logo=kotlin&logoColor=white)
+![Material 3](https://img.shields.io/badge/Material_3-Compose-2E51A2?style=flat-square&logo=materialdesign&logoColor=white)
+[![Latest release downloads](https://img.shields.io/github/downloads/SyHaqi/kiko/latest/total?style=flat-square&label=this%20release&color=2E51A2)](https://github.com/SyHaqi/kiko/releases/latest)
+[![Last commit](https://img.shields.io/github/last-commit/SyHaqi/kiko?style=flat-square&color=555)](https://github.com/SyHaqi/kiko/commits)
+[![License](https://img.shields.io/github/license/SyHaqi/kiko?style=flat-square&color=555)](LICENSE)
 
 </div>
 
