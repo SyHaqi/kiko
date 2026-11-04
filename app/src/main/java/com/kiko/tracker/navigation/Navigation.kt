@@ -786,7 +786,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                             }
                         }
                         val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
-                        Box(Modifier.fillMaxSize().padding(start = padding.calculateStartPadding(layoutDirection), end = padding.calculateEndPadding(layoutDirection), bottom = padding.calculateBottomPadding())) {
+                        Box(Modifier.fillMaxSize().padding(start = padding.calculateStartPadding(layoutDirection), end = padding.calculateEndPadding(layoutDirection), bottom = padding.calculateBottomPadding()).consumeWindowInsets(PaddingValues(start = padding.calculateStartPadding(layoutDirection), end = padding.calculateEndPadding(layoutDirection), bottom = padding.calculateBottomPadding()))) {
                             // Open pages that can sit on top of each other, listed lowest default priority first (this is the
                             // order used when several appear in the same frame). overlayOrder remembers the order they were
                             // actually opened in; keys include the page's id so replacing one (a different topic, another
