@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
@@ -52,6 +53,7 @@ import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.RelatedEntry
 import com.kiko.tracker.data.model.RelationEdge
+import com.kiko.tracker.data.model.RelationGraphData
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.data.model.graphKey
@@ -66,6 +68,8 @@ import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.viewmodel.LibraryViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -84,6 +88,9 @@ import kotlin.math.roundToInt
 // side gives each pipe its own spot, every pipe is outlined in the background colour so wherever two cross one is
 // clearly over the other, and tapping a card lights up its own pipes and its sequels on to the end of the story,
 // and dims everything else.
+//
+// Speed: the layout is worked out off the main thread (and kept per half), the pipes are turned into Paths once
+// per layout, and a tap walks precomputed neighbour lists, so panning / zooming / tapping only replays drawing.
 //
 // Pan / zoom as before; the Anime / Manga chips flip between the two halves of the franchise; the round-square
 // buttons recentre on the title you came from and explain the colours. Which half you were on and where you had
@@ -145,6 +152,57 @@ private class Flow(
 )
 
 private val EmptyFlow = Flow(emptyMap(), emptyList(), 0f, 0f, Offset.Zero)
+
+// A finished layout of one half (anime or manga) of one graph; [source] ties it to the graph it was built from.
+private class FlowLayout(val source: RelationGraphData, val showManga: Boolean, val nodes: List<RelatedEntry>, val flow: Flow)
+
+// One pipe turned into drawable shapes once (world dp), so drawing a frame is only drawPath calls.
+private class PipeShape(val pipe: Pipe, val line: Path, val head: Path)
+
+private fun buildShapes(pipes: List<Pipe>): List<PipeShape> {
+    val out = ArrayList<PipeShape>(pipes.size)
+    for (p in pipes) {
+        val pts = p.pts
+        val tip = pts.last()
+        val toTip = tip - pts[pts.size - 2]
+        val len = toTip.getDistance()
+        if (len < 0.5f) continue
+        val dir = toTip / len
+        val normal = Offset(-dir.y, dir.x)
+        val back = tip - dir * 10f
+        val head = Path().apply {
+            moveTo(back.x + normal.x * 8f, back.y + normal.y * 8f)
+            lineTo(tip.x, tip.y)
+            lineTo(back.x - normal.x * 8f, back.y - normal.y * 8f)
+        }
+        out.add(PipeShape(p, roundedPath(pts, 16f), head))
+    }
+    return out
+}
+
+// Which pipes touch a title, and the sequel line in each direction, so a tap doesn't scan every pipe.
+private class PipeIndex(pipes: List<Pipe>) {
+    val own = HashMap<String, MutableList<Pipe>>()
+    val seqOut = HashMap<String, MutableList<Pipe>>()
+    val seqIn = HashMap<String, MutableList<Pipe>>()
+    init {
+        for (p in pipes) {
+            own.getOrPut(p.fromKey) { mutableListOf() }.add(p)
+            if (p.toKey != p.fromKey) own.getOrPut(p.toKey) { mutableListOf() }.add(p)
+            if (p.kind == RelKind.Sequel) {
+                seqOut.getOrPut(p.fromKey) { mutableListOf() }.add(p)
+                seqIn.getOrPut(p.toKey) { mutableListOf() }.add(p)
+            }
+        }
+    }
+}
+
+// Strokes in world dp (the canvas is scaled by the screen density when drawing); the casing is the background-coloured
+// outline under each pipe, lit ones are thicker.
+private val LineNormal = Stroke(width = 4f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+private val CasingNormal = Stroke(width = 9f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+private val LineLit = Stroke(width = 5.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+private val CasingLit = Stroke(width = 10.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
 
 // A relation between titles of two columns (or of one), with the "passing" items it uses in the columns between.
 private class FlowEdge(val e: RelationEdge, val u: Int, val v: Int, val chain: List<Int>)
@@ -523,14 +581,32 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
     val rootKey = "${if (item.type == MediaType.Anime) "anime" else "manga"}:${item.id}"
     val graph = data
     val visible = remember(graph, showManga) { graph?.nodes?.filter { (it.malType == "manga") == showManga }.orEmpty() }
-    val flow = remember(graph, showManga) { buildFlow(visible, graph?.edges.orEmpty(), rootKey) }
-    val kindsPresent = remember(flow) { flow.pipes.map { it.kind }.distinct().sortedBy { it.ordinal } }
-    val statusOf: (RelatedEntry) -> WatchStatus? = { n ->
-        vm.trackedStatus(n.malId.toString(), if (n.malType == "manga") MediaType.Manga else MediaType.Anime)
+    // The layout is the heavy part (ordering, lanes, routing): built on a background thread, and kept for each half
+    // so flipping Anime / Manga back and forth is instant. Until a layout matching the graph and half on screen is
+    // ready, a loading indicator shows.
+    val layoutCache = remember(graph) { HashMap<Boolean, FlowLayout>() }
+    val layoutState = produceState<FlowLayout?>(null, graph, showManga) {
+        val g = graph
+        if (g == null || visible.isEmpty()) { value = null; return@produceState }
+        val hit = layoutCache[showManga]
+        if (hit != null) { value = hit; return@produceState }
+        val built = withContext(Dispatchers.Default) { FlowLayout(g, showManga, visible, buildFlow(visible, g.edges, rootKey)) }
+        layoutCache[showManga] = built
+        value = built
+    }
+    val layout = layoutState.value?.takeIf { it.source === graph && it.showManga == showManga }
+    val kindsPresent = remember(layout) { layout?.flow?.pipes?.map { it.kind }?.distinct()?.sortedBy { it.ordinal }.orEmpty() }
+    // List status of every shown title, read once here (and re-read when the list changes) instead of per card.
+    val statuses by remember(visible) {
+        derivedStateOf {
+            visible.associate { n ->
+                n.graphKey() to vm.trackedStatus(n.malId.toString(), if (n.malType == "manga") MediaType.Manga else MediaType.Anime)
+            }
+        }
     }
     val kindLabel = if (showManga) "manga" else "anime"
-    val animeCount = graph?.nodes?.count { it.malType != "manga" } ?: 0
-    val mangaCount = graph?.nodes?.count { it.malType == "manga" } ?: 0
+    val animeCount = remember(graph) { graph?.nodes?.count { it.malType != "manga" } ?: 0 }
+    val mangaCount = remember(graph) { graph?.nodes?.count { it.malType == "manga" } ?: 0 }
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -571,10 +647,11 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
                 }
                 graph.nodes.size <= 1 -> Text("No related titles found.", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 60.dp))
                 visible.isEmpty() -> Text("No related $kindLabel.", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 60.dp))
+                layout == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 36.dp) }
                 else -> RelationFlowCanvas(
-                    viewKey = "$kindKey:$showManga",
-                    flow = flow, nodes = visible, rootKey = rootKey,
-                    statusOf = statusOf, loadingId = vm.relatedLoadingId, onOpenNode = onOpenNode, onShowLegend = { legendOpen = true },
+                    viewKey = "$kindKey:${layout.showManga}",
+                    flow = layout.flow, nodes = layout.nodes, rootKey = rootKey,
+                    statuses = statuses, loadingId = vm.relatedLoadingId, onOpenNode = onOpenNode, onShowLegend = { legendOpen = true },
                 )
             }
         }
@@ -588,7 +665,7 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Read it from left to right: a pipe leaves the right side of one title and arrives at the left side of the other, and its arrow points forward in the story. The colour is the kind of relation.", color = c.muted, fontSize = 13.sp)
                     for (k in kindsPresent) LegendLine(k.color, k.label)
-                    Text("Tap a title to light up its own pipes and the sequels that follow it, all the way to the end of the story; tap an empty spot to go back.", color = c.muted, fontSize = 13.sp)
+                    Text("Tap a title to light up its own pipes, the sequels that follow it all the way to the end of the story, and the prequels before it all the way back to the start; tap an empty spot to go back.", color = c.muted, fontSize = 13.sp)
                     Text("The badge on a cover is your list status:", color = c.muted, fontSize = 13.sp)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         LegendBadge(WatchStatus.Watching, "Watching / Reading")
@@ -624,7 +701,7 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
     flow: Flow,
     nodes: List<RelatedEntry>,
     rootKey: String,
-    statusOf: (RelatedEntry) -> WatchStatus?,
+    statuses: Map<String, WatchStatus?>,
     loadingId: Int?,
     onOpenNode: (RelatedEntry) -> Unit,
     onShowLegend: () -> Unit,
@@ -634,24 +711,31 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
     val byKey = remember(nodes) { nodes.associateBy { it.graphKey() } }
     var selected by remember(viewKey) { mutableStateOf<String?>(null) }
     // What lights up for the selected title: all of its own pipes, plus its sequels followed on to the end of the
-    // story (the sequel of a sequel of a sequel, ...). Those pipes and titles stay bright, the rest dims.
-    val lit = remember(flow, selected) {
+    // story (the sequel of a sequel of a sequel, ...) and its prequels followed back to the start of the story
+    // (the prequel of a prequel of a prequel, ...). Those pipes and titles stay bright, the rest dims.
+    val index = remember(flow) { PipeIndex(flow.pipes) }
+    val lit = remember(index, selected) {
         val sel = selected
         val litPipes = HashSet<Pipe>()
         val litKeys = HashSet<String>()
         if (sel != null) {
             litKeys.add(sel)
-            for (p in flow.pipes) if (p.fromKey == sel || p.toKey == sel) { litPipes.add(p); litKeys.add(p.fromKey); litKeys.add(p.toKey) }
-            val queue = arrayListOf(sel)
-            val seen = hashSetOf(sel)
-            var qh = 0
-            while (qh < queue.size) {
-                val cur = queue[qh++]
-                for (p in flow.pipes) {
-                    if (p.kind != RelKind.Sequel || p.fromKey != cur) continue
-                    litPipes.add(p)
-                    litKeys.add(p.toKey)
-                    if (seen.add(p.toKey)) queue.add(p.toKey)
+            for (p in index.own[sel].orEmpty()) { litPipes.add(p); litKeys.add(p.fromKey); litKeys.add(p.toKey) }
+            // Forward to the end of the story (sequels), then backward to its start (prequels). The two walks are
+            // separate so the prequel walk doesn't branch off into the other sequels of a prequel.
+            for (forward in booleanArrayOf(true, false)) {
+                val walk = if (forward) index.seqOut else index.seqIn
+                val queue = arrayListOf(sel)
+                val seen = hashSetOf(sel)
+                var qh = 0
+                while (qh < queue.size) {
+                    val cur = queue[qh++]
+                    for (p in walk[cur].orEmpty()) {
+                        val next = if (forward) p.toKey else p.fromKey
+                        litPipes.add(p)
+                        litKeys.add(next)
+                        if (seen.add(next)) queue.add(next)
+                    }
                 }
             }
         }
@@ -659,11 +743,19 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
     }
     val litPipes = lit.first
     val litKeys = lit.second
+    val shapes = remember(flow) { buildShapes(flow.pipes) }
+    // With a title selected its pipes are drawn last, so they sit on top.
+    val drawOrder = remember(shapes, litPipes, selected) {
+        if (selected == null) shapes else shapes.sortedBy { if (it.pipe in litPipes) 1 else 0 }
+    }
     var viewport by remember { mutableStateOf(IntSize.Zero) }
     val saved = savedGraphView[viewKey]
     var scale by remember(viewKey) { mutableFloatStateOf(saved?.get(0) ?: InitialScale) }
     var offset by remember(viewKey) { mutableStateOf(if (saved != null) Offset(saved[1], saved[2]) else Offset.Zero) }
-    fun persist() { savedGraphView[viewKey] = floatArrayOf(scale, offset.x, offset.y) }
+    fun persist() {
+        val a = savedGraphView[viewKey] ?: FloatArray(3).also { savedGraphView[viewKey] = it }
+        a[0] = scale; a[1] = offset.x; a[2] = offset.y
+    }
     // Fits as much of the map as stays readable, centred on the title you came from.
     fun centerOnRoot() {
         val fit = minOf(viewport.width / (flow.width * d), viewport.height / (flow.height * d))
@@ -708,32 +800,20 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
             // and all the others fade.
             Canvas(Modifier.fillMaxSize()) {
                 val sel = selected
-                val ordered = if (sel == null) flow.pipes else flow.pipes.sortedBy { if (it in litPipes) 1 else 0 }
-                for (p in ordered) {
-                    val on = sel == null || p in litPipes
-                    val alpha = if (on) 1f else 0.13f
-                    val strokeW = (if (sel != null && on) 5.5f else 4f) * density
-                    val px = p.pts.map { it * density }
-                    val tip = px.last()
-                    val toTip = tip - px[px.size - 2]
-                    val len = toTip.getDistance()
-                    if (len < 1f) continue
-                    val dir = toTip / len
-                    val normal = Offset(-dir.y, dir.x)
-                    val path = roundedPath(px, 16f * density)
-                    val back = tip - dir * (10f * density)
-                    val spread = 8f * density
-                    val chevron = Path().apply {
-                        moveTo(back.x + normal.x * spread, back.y + normal.y * spread)
-                        lineTo(tip.x, tip.y)
-                        lineTo(back.x - normal.x * spread, back.y - normal.y * spread)
+                val dens = density
+                // The shapes are in world dp: scale once, then every pipe is just four drawPath calls.
+                withTransform({ scale(dens, dens, Offset.Zero) }) {
+                    for (shape in drawOrder) {
+                        val on = sel == null || shape.pipe in litPipes
+                        val thick = sel != null && on
+                        val color = shape.pipe.kind.color.copy(alpha = if (on) 1f else 0.13f)
+                        val casing = if (thick) CasingLit else CasingNormal
+                        val line = if (thick) LineLit else LineNormal
+                        drawPath(shape.line, bgColor, style = casing)
+                        drawPath(shape.line, color, style = line)
+                        drawPath(shape.head, bgColor, style = casing)
+                        drawPath(shape.head, color, style = line)
                     }
-                    val casing = Stroke(width = strokeW + 5f * density, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                    val line = Stroke(width = strokeW, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                    drawPath(path, bgColor, style = casing)
-                    drawPath(path, p.kind.color.copy(alpha = alpha), style = line)
-                    drawPath(chevron, bgColor, style = casing)
-                    drawPath(chevron, p.kind.color.copy(alpha = alpha), style = line)
                 }
             }
             for (n in nodes) {
@@ -742,7 +822,7 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
                 key(k) {
                     RelationGraphCard(
                         entry = n, isRoot = k == rootKey, isSelected = k == selected, dim = selected != null && k !in litKeys,
-                        status = statusOf(n), ringColor = ringColor,
+                        status = statuses[k], ringColor = ringColor,
                         loading = n.malId > 0 && loadingId == n.malId,
                         onClick = { selected = if (selected == k) null else k },
                         modifier = Modifier.offset { IntOffset((pos.x * d).roundToInt(), (pos.y * d).roundToInt()) },
@@ -809,7 +889,7 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
     val ring = isSelected
     Box(
         modifier
-            .graphicsLayer { alpha = if (dim) 0.35f else 1f }
+            .then(if (dim) Modifier.graphicsLayer { alpha = 0.35f } else Modifier)
             .drawBehind {
                 if (ring) {
                     val out = 4.dp.toPx()
