@@ -140,6 +140,15 @@ fun List<MediaItem>.nsfwFiltered(allowAdult: Boolean) = if (allowAdult) this els
 // blank and just fall back to the romaji title in displayTitle() below.
 data class RelatedEntry(val relation: String, val title: String, val malId: Int = 0, val malType: String = "anime", val cover: String = "", val titleEnglish: String = "")
 
+// Related graph ("See more" on Detail's Related): one title's own entry plus its relation edges, the franchise
+// walked into nodes + edges, and a stable key per title (anime and manga ids overlap, so the type is part of it).
+data class RelationNode(val self: RelatedEntry, val related: List<RelatedEntry>)
+// from -> to is the in-story direction (a sequel's arrow points at the sequel); [sequel] marks the main
+// Sequel/Prequel line (green) as opposed to side stories, spin-offs, adaptations and the rest (blue).
+data class RelationEdge(val from: String, val to: String, val relation: String, val sequel: Boolean)
+data class RelationGraphData(val nodes: List<RelatedEntry>, val edges: List<RelationEdge>)
+fun RelatedEntry.graphKey(): String = "$malType:$malId"
+
 @Composable
 fun RelatedEntry.displayTitle(): String {
     val pref = LocalTitleLanguage.current

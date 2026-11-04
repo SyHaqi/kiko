@@ -187,6 +187,8 @@ data class DetailScreenActions(
     val onOpenReviewList: (MediaItem) -> Unit = {},
     // Opens the Write a Review editor (TopScreen.WriteReview) for this title.
     val onWriteReview: (MediaItem) -> Unit = {},
+    // "See more" on the Related row: opens the Related graph page (TopScreen.RelationGraph).
+    val onOpenRelationGraph: (MediaItem) -> Unit = {},
     val onGenreClick: (String) -> Unit = {},
     val onCreatorClick: (String) -> Unit = {},
     // Studio/author chip: resolves the name to its company/person page and opens it. [onDone] is called
@@ -861,7 +863,7 @@ private var detailStatusBarOwners = 0
                                     // Related
                                     2 -> {
                                         if (related.isNotEmpty()) {
-                                            SectionTitle("Related", "", {})
+                                            SectionTitle("Related", if (item.id.toIntOrNull() != null) "See more" else "", { actions.onOpenRelationGraph(item) })
                                             LazyRow(state = relatedListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                                 itemsIndexed(related, key = { _, it -> "${it.relation}-${it.malId}-${it.title}" }) { i, rel ->
                                                     StaggeredItem(i, relatedSeen) {

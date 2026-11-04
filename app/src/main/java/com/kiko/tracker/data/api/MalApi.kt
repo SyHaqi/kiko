@@ -20,6 +20,7 @@ import com.kiko.tracker.BuildConfig
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.RelatedEntry
+import com.kiko.tracker.data.model.RelationNode
 import com.kiko.tracker.data.model.StatusDistribution
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.ui.components.normalizeMalMarkup
@@ -410,6 +411,31 @@ class MalApi(private val context: Context) {
         val wrapped = JSONObject().put("node", flat)
         flat.optJSONObject("my_list_status")?.let { wrapped.put("list_status", it) }
         parseEntry(kind, wrapped)
+    }
+
+    // One title's own name/cover plus its relation edges (related_anime + related_manga) and nothing else: the
+    // light per-node call behind the Related graph, so walking a franchise costs one small request per title
+    // instead of detail()'s full field list.
+    suspend fun relationNode(id: Int, type: MediaType): RelationNode = withContext(Dispatchers.IO) {
+        val kind = if (type == MediaType.Anime) "anime" else "manga"
+        val nodeFields = "node{id,title,main_picture,alternative_titles{en}},relation_type"
+        val body = authorized { get("$API/$kind/$id?fields=id,title,main_picture,alternative_titles{en},related_anime{$nodeFields},related_manga{$nodeFields}") }
+        val o = JSONObject(body)
+        fun entry(node: JSONObject, relation: String, malType: String): RelatedEntry {
+            val pic = node.optJSONObject("main_picture")
+            return RelatedEntry(
+                relation = relation, title = node.safeTitle(), malId = node.optInt("id", 0), malType = malType,
+                cover = pic?.optString("large")?.takeIf { it.isNotBlank() } ?: pic?.optString("medium") ?: "",
+                titleEnglish = node.optJSONObject("alternative_titles")?.safeTitle("en") ?: "",
+            )
+        }
+        fun related(field: String, malType: String) = o.optJSONArray(field)?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                val r = arr.getJSONObject(i)
+                r.optJSONObject("node")?.let { entry(it, prettify(r.optString("relation_type")), malType) }
+            }
+        } ?: emptyList()
+        RelationNode(entry(o, "", kind), related("related_anime", "anime") + related("related_manga", "manga"))
     }
 
     // Website user recommendations

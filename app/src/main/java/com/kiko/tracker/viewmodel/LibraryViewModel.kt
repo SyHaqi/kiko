@@ -91,6 +91,9 @@ import com.kiko.tracker.data.model.PersonDetail
 import com.kiko.tracker.data.model.PersonSummary
 import com.kiko.tracker.data.model.RankingSort
 import com.kiko.tracker.data.model.RelatedEntry
+import com.kiko.tracker.data.model.RelationEdge
+import com.kiko.tracker.data.model.RelationGraphData
+import com.kiko.tracker.data.model.graphKey
 import com.kiko.tracker.data.model.ReviewEntry
 import com.kiko.tracker.data.model.ScoreStats
 import com.kiko.tracker.data.model.SeasonName
@@ -151,6 +154,7 @@ class LibraryViewModel : ViewModel() {
     // on every call, so
     // of only after the
     fun trackedStatus(item: MediaItem): WatchStatus? = itemsByKey[item.id to item.type]?.status
+    fun trackedStatus(id: String, type: MediaType): WatchStatus? = itemsByKey[id to type]?.status
     var destination by mutableStateOf(Destination.Home)
     // Avatar popup menu (profile/settings),
     // that avatar's on-screen bounds
@@ -2746,6 +2750,64 @@ class LibraryViewModel : ViewModel() {
             if (merged.isNotEmpty()) onFound(merged)
             onDone()
         }
+    }
+
+    // Related graph (Detail's Related "See more"): walks the franchise breadth-first from [root] with one light
+    // MalApi.relationNode call per title, a few at a time, and stops expanding after relationGraphMaxExpanded
+    // titles so a huge franchise can't turn into hundreds of requests (titles past that still show up as leaves,
+    // just without their own relations). Finished graphs are cached per title; [onProgress] gets the number of
+    // titles found so far.
+    private val relationGraphMaxExpanded = 40
+    private val relationGraphCache = mutableMapOf<Pair<String, MediaType>, RelationGraphData>()
+    fun cachedRelationGraph(item: MediaItem): RelationGraphData? = relationGraphCache[item.id to item.type]
+    fun clearRelationGraph(item: MediaItem) { relationGraphCache.remove(item.id to item.type) }
+    suspend fun buildRelationGraph(context: Context, root: MediaItem, onProgress: (Int) -> Unit): RelationGraphData {
+        relationGraphCache[root.id to root.type]?.let { return it }
+        val rootId = root.id.toIntOrNull() ?: return RelationGraphData(emptyList(), emptyList())
+        val api = MalApi(context)
+        val rootKind = if (root.type == MediaType.Anime) "anime" else "manga"
+        val nodes = LinkedHashMap<String, RelatedEntry>()
+        val edges = LinkedHashMap<String, RelationEdge>()
+        val rootEntry = RelatedEntry(relation = "", title = root.title, malId = rootId, malType = rootKind, cover = root.cover, titleEnglish = root.titleEnglish)
+        nodes[rootEntry.graphKey()] = rootEntry
+        val queue = mutableListOf(rootEntry.graphKey())
+        var expanded = 0
+        while (queue.isNotEmpty() && expanded < relationGraphMaxExpanded) {
+            val batch = ArrayList<String>()
+            while (batch.size < 4 && queue.isNotEmpty() && expanded + batch.size < relationGraphMaxExpanded) batch.add(queue.removeAt(0))
+            expanded += batch.size
+            val results = coroutineScope {
+                batch.map { k ->
+                    async {
+                        val e = nodes.getValue(k)
+                        k to runCatching { api.relationNode(e.malId, if (e.malType == "manga") MediaType.Manga else MediaType.Anime) }.getOrNull()
+                    }
+                }.map { it.await() }
+            }
+            for ((k, node) in results) {
+                if (node == null) continue
+                // Refresh the node's own cover/title from its own response, keeping how it was first reached.
+                nodes[k] = node.self.copy(relation = nodes.getValue(k).relation)
+                for (r in node.related) {
+                    if (r.malId <= 0) continue
+                    val rk = r.graphKey()
+                    if (rk == k) continue
+                    if (rk !in nodes) { nodes[rk] = r; queue.add(rk) }
+                    // MAL's relation_type describes the related title as seen from this one, so a Prequel /
+                    // Parent story / Full story points INTO this title; everything else points out of it.
+                    val rel = r.relation.lowercase()
+                    val reversed = rel == "prequel" || rel == "parent story" || rel == "full story"
+                    val from = if (reversed) rk else k
+                    val to = if (reversed) k else rk
+                    val edgeKey = if (from < to) "$from|$to" else "$to|$from"
+                    if (edgeKey !in edges) edges[edgeKey] = RelationEdge(from, to, r.relation, sequel = rel == "sequel" || rel == "prequel")
+                }
+            }
+            onProgress(nodes.size)
+        }
+        val graph = RelationGraphData(nodes.values.toList(), edges.values.toList())
+        if (graph.nodes.size > 1) relationGraphCache[root.id to root.type] = graph
+        return graph
     }
 
     // Backfill empty theme fields
