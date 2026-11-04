@@ -9,7 +9,6 @@ import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
-import com.kiko.tracker.util.openInBrowser
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -361,7 +360,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     Column(Modifier.fillMaxSize()) {
         val titleProgress = rememberTitleProgress(scrollState)
         KikoTopBar(title = content?.title?.ifBlank { title } ?: title, onBack = onBack, progress = { titleProgress.value }) {
-            IconButton(onClick = { context.openInBrowser(url) }) { Icon(Icons.Rounded.OpenInNew, "Open in browser") }
+            ShareMoreMenu(title = content?.title?.ifBlank { title } ?: title, shareUrl = url)
         }
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {

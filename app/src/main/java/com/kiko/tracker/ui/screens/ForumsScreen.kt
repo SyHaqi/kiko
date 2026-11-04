@@ -9,7 +9,6 @@ import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.ui.components.headerEdgeEnd
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
-import com.kiko.tracker.util.openInBrowser
 import android.util.Log
 import android.content.Context
 import android.net.Uri
@@ -667,7 +666,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     Column(Modifier.fillMaxSize()) {
         val titleProgress = rememberTitleProgress(listState)
         KikoTopBar(title = title, onBack = goBack, progress = { titleProgress.value }) {
-            IconButton(onClick = { context.openInBrowser("https://myanimelist.net/forum/?topicid=$topicId") }) { Icon(Icons.Rounded.OpenInNew, "Open in browser") }
+            ShareMoreMenu(title = title, shareUrl = "https://myanimelist.net/forum/?topicid=$topicId")
         }
         Box(Modifier.weight(1f)) {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
@@ -874,9 +873,9 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text(itemTitle, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
             if (entry.url.isNotBlank()) {
-                // Open review in browser
-                IconButton(onClick = { context.openInBrowser(entry.url) }, modifier = Modifier.headerEdgeEnd()) {
-                    Icon(Icons.Rounded.OpenInNew, "Open in browser", tint = c.primary, modifier = Modifier.size(24.dp))
+                // Share / open the review in the browser (3-dot menu)
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides c.ink) {
+                    Box(Modifier.headerEdgeEnd()) { ShareMoreMenu(title = itemTitle, shareUrl = entry.url) }
                 }
             }
         }

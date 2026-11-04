@@ -227,7 +227,7 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, lineHeight = 24.sp, letterSpacing = 0.sp)) },
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, "Back") } },
         actions = {
-            if (url.isNotBlank()) IconButton(onClick = { context.openInBrowser(url) }) { Icon(Icons.Rounded.OpenInNew, "Open on MyAnimeList") }
+            if (url.isNotBlank()) ShareMoreMenu(title = title, shareUrl = url)
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = c.background.copy(alpha = p),
