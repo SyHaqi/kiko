@@ -110,6 +110,7 @@ import com.kiko.tracker.ui.components.AppHeader
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.SwitcherHeader
 import com.kiko.tracker.ui.components.Avatar
+import com.kiko.tracker.ui.components.NotificationBell
 import com.kiko.tracker.ui.components.Cover
 import com.kiko.tracker.ui.components.SearchTopBar
 import com.kiko.tracker.ui.components.statusColor
@@ -125,7 +126,7 @@ import com.kiko.tracker.ui.theme.pressScale
 import com.kiko.tracker.ui.theme.rememberStaggerMemory
 import com.kiko.tracker.viewmodel.LibraryViewModel
 
-@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onSeeHistory: () -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onSeeFeaturedArticles: () -> Unit = {}, onOpenFeaturedArticle: (String, String) -> Unit = { _, _ -> }, onOpenGenre: (String, Boolean) -> Unit = { _, _ -> }) {
+@Composable fun HomeScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onSeeHistory: () -> Unit, onDiscover: () -> Unit, onRanking: () -> Unit, onSeasonal: () -> Unit, onSchedule: (java.time.DayOfWeek) -> Unit, onOpenTopic: (Int, String) -> Unit, onSeeNews: () -> Unit, onOpenStack: (Int, String) -> Unit, onOpenStacks: () -> Unit, onSignIn: () -> Unit, onSeeFeaturedArticles: () -> Unit = {}, onOpenFeaturedArticle: (String, String) -> Unit = { _, _ -> }, onOpenGenre: (String, Boolean) -> Unit = { _, _ -> }, onOpenNotifications: () -> Unit = {}) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     LaunchedEffect(vm.signedIn) { vm.loadNewsSnapshots(context) }
@@ -191,7 +192,16 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     ) {
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 90.dp)) {
             item {
-                AppHeader("kiko", 14.dp) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
+                AppHeader("kiko", 14.dp) {
+                    // Same spacing as My List's header: 43dp slots, 10dp apart (centre to centre), the avatar's
+                    // slot offset 5dp so its right edge stays on the screen margin.
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (vm.signedIn) NotificationBell(vm.notificationsUnread, onOpenNotifications)
+                        Box(Modifier.size(43.dp).offset(x = 5.dp), contentAlignment = Alignment.Center) {
+                            Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
+                        }
+                    }
+                }
                 Column(Modifier.padding(horizontal = 14.dp)) {
                     // Use device current date
                     Text(

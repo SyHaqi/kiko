@@ -64,12 +64,32 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
  * only when it is tapped (which opens its page) or via "mark all" — read state is local, see
  * MalNotificationTracker.
  */
+// The strip is fixed: every tab is always there (even with nothing in it) so it never grows or
+// shifts while the inbox loads; only the page under it changes.
+private val JumpToPostKinds = setOf(
+    NotificationCategory.ForumQuotes, NotificationCategory.UserMentions,
+    NotificationCategory.WatchedTopics, NotificationCategory.ClubMessages,
+)
+
+private val NotificationTabs = listOf(
+    NotificationCategory.All,
+    NotificationCategory.FriendRequests,
+    NotificationCategory.ForumQuotes,
+    NotificationCategory.UserMentions,
+    NotificationCategory.WatchedTopics,
+    NotificationCategory.ClubMessages,
+    NotificationCategory.RelatedAnime,
+    NotificationCategory.NowAiring,
+)
+
 @Composable fun NotificationsScreen(
     vm: LibraryViewModel,
+    selectedTab: NotificationCategory,
+    onSelectTab: (NotificationCategory) -> Unit,
     onBack: () -> Unit,
     onOpenUser: (username: String, avatarUrl: String?) -> Unit,
     onOpenTitle: (Int, MediaType) -> Unit,
-    onOpenTopic: (topicId: Int, title: String) -> Unit = { _, _ -> },
+    onOpenTopic: (topicId: Int, title: String, postId: Int?) -> Unit = { _, _, _ -> },
     onOpenClub: (MalClub) -> Unit = {},
 ) {
     val c = LocalKikoColors.current
@@ -77,9 +97,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     BackHandler(onBack = onBack)
     val scope = rememberCoroutineScope()
 
+    // False until the first fetch has been kicked off, so a page shows its spinner (not "nothing here") on the first frame.
+    var requested by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         vm.loadFriendResponses(context) // answered requests show their outcome, not Accept / Deny
         vm.refreshNotifications(context)
+        requested = true
         // Read items live on the per-category pages, not on /notification. Started a beat later so
         // the page's first draw and first scroll aren't competing with 10 requests + state updates.
         kotlinx.coroutines.delay(400)
@@ -91,10 +114,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         (vm.notifications + vm.notificationHistory).distinctBy { it.id }.sortedByDescending { it.createdAtEpoch }
     }
     val readIds = vm.notificationsRead
-    // Only categories that actually have something, in MAL's sidebar order.
-    val tabs = remember(inbox) { listOf(NotificationCategory.All) + NotificationCategory.entries.filter { cat -> cat != NotificationCategory.All && inbox.any { it.kind == cat } } }
-    var selected by rememberSaveable { mutableStateOf(NotificationCategory.All) }
-    val current = if (selected in tabs) selected else NotificationCategory.All
+    val tabs = NotificationTabs
+    // The selected tab lives in the caller (Navigation) so it survives opening a notification's page and
+    // coming back; the caller resets it to All whenever the inbox is closed.
+    val current = if (selectedTab in tabs) selectedTab else NotificationCategory.All
     // One pass over the inbox for every tab's badge, instead of a full scan per tab per recomposition.
     val unreadCounts = remember(inbox, readIds) {
         val m = HashMap<NotificationCategory, Int>()
@@ -117,13 +140,16 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         val isForumMessage = Regex("myanimelist\\.net/forum/message/\\d+").containsMatchIn(url)
         val clubId = Regex("myanimelist\\.net/clubs\\.php\\?(?:[^#]*&)?(?:cid|id)=(\\d+)").find(url)?.groupValues?.get(1)?.toIntOrNull()
         val topicTitle = n.body?.takeIf { it.isNotBlank() } ?: n.title
+        // Quotes, mentions, watched topics and club shares jump to the exact post when the link names one
+        // (forum/message/<id>, #msg<id> or msgid=<id>); otherwise the topic just opens at the top.
+        val postId = if (n.kind in JumpToPostKinds) Regex("myanimelist\\.net/forum/message/(\\d+)|#msg(\\d+)|[?&]msgid=(\\d+)").find(url)?.groupValues?.drop(1)?.firstOrNull { it.isNotEmpty() }?.toIntOrNull() else null
         when {
             profile != null -> onOpenUser(runCatching { java.net.URLDecoder.decode(profile, "UTF-8") }.getOrDefault(profile), n.avatarUrl)
             title != null -> onOpenTitle(title.groupValues[2].toInt(), if (title.groupValues[1] == "anime") MediaType.Anime else MediaType.Manga)
-            topicId != null -> onOpenTopic(topicId, topicTitle)
+            topicId != null -> onOpenTopic(topicId, topicTitle, postId)
             isForumMessage -> scope.launch {
                 val id = runCatching { MalFriendApi(context).resolveForumTopicId(url) }.getOrNull()
-                if (id != null) onOpenTopic(id, topicTitle) else context.openInBrowser(url)
+                if (id != null) onOpenTopic(id, topicTitle, postId) else context.openInBrowser(url)
             }
             clubId != null -> scope.launch {
                 runCatching { ClubsApi().fetchClub(clubId) }
@@ -150,24 +176,23 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         KikoTabPager(
             items = tabs,
             selected = current,
-            onSelect = { selected = it },
+            onSelect = onSelectTab,
             tab = { cat, isSelected ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    KikoTabText(cat.label, isSelected)
                     val n = unreadIn(cat)
-                    if (n > 0) {
-                        Box(Modifier.padding(start = 6.dp).clip(RoundedCornerShape(50)).background(c.primary).padding(horizontal = 6.dp, vertical = 1.dp)) {
-                            Text(if (n > 99) "99+" else n.toString(), color = c.onPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
+                    // The badge hangs off the label's corner instead of sitting in the row, so a count
+                    // arriving later never widens the tab or moves the indicator.
+                    BadgedBox(badge = {
+                        if (n > 0) Badge(containerColor = c.primary, contentColor = c.onPrimary) { Text(if (n > 99) "99+" else n.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                    }) { KikoTabText(cat.label, isSelected) }
                 }
             },
-            page = { cat -> NotificationPage(vm, cat, inbox, onTap = onTap) },
+            page = { cat -> NotificationPage(vm, cat, inbox, awaitingFirstLoad = !requested, onTap = onTap) },
         )
     }
 }
 
-@Composable private fun NotificationPage(vm: LibraryViewModel, category: NotificationCategory, inbox: List<MalNotification>, onTap: (MalNotification) -> Unit) {
+@Composable private fun NotificationPage(vm: LibraryViewModel, category: NotificationCategory, inbox: List<MalNotification>, awaitingFirstLoad: Boolean, onTap: (MalNotification) -> Unit) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     val items = remember(inbox, category) { if (category == NotificationCategory.All) inbox else inbox.filter { it.kind == category } }
@@ -187,12 +212,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     ) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             when {
-                items.isEmpty() && (vm.notificationsLoading || vm.notificationHistoryLoading) -> item(key = "loading") {
+                items.isEmpty() && (awaitingFirstLoad || vm.notificationsLoading || vm.notificationHistoryLoading) -> item(key = "loading") {
                     Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary) }
                 }
                 items.isEmpty() -> item(key = "empty") {
                     Text(
-                        vm.notificationsError ?: "No notifications yet — friend requests, replies and other MAL activity will show up here.",
+                        vm.notificationsError ?: if (category == NotificationCategory.All) "No notifications yet — friend requests, replies and other MAL activity will show up here." else "No ${category.label.lowercase()} yet.",
                         color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
                     )
                 }

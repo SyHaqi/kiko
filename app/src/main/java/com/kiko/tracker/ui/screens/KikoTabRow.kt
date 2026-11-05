@@ -98,7 +98,10 @@ import kotlinx.coroutines.launch
         edgePadding = 14.dp,
         divider = { HorizontalDivider(color = c.outlineVariant) },
         indicator = { tabPositions ->
-            if (tabPositions.isNotEmpty()) {
+            // Wait for the label widths: before they're measured the indicator would span the whole tab
+            // and then snap to the label's width, which read as a jump on a cold start.
+            val tabCount = tabPositions.size
+            if (tabCount > 0 && (0 until tabCount).all { textWidths[it] != null }) {
                 val rawPage = (pagerState.currentPage + pagerState.currentPageOffsetFraction).coerceIn(0f, (tabPositions.size - 1).toFloat())
                 val from = floor(rawPage).toInt().coerceIn(0, tabPositions.size - 1)
                 val to = (from + 1).coerceAtMost(tabPositions.size - 1)

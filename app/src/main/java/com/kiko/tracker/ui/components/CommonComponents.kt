@@ -736,6 +736,19 @@ fun statusColor(label: String): Color = when {
 // main activity window don't
 // to appear offset from
 
+// Header notification bell: round 43dp tap target (same slot as My List's header buttons), count badge hanging off the icon's top-end corner
+// (99+ caps it), nothing drawn for 0 unread.
+@Composable fun NotificationBell(unread: Int, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Box(Modifier.size(43.dp).clip(kikoCircleShape()).kikoClickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        BadgedBox(badge = {
+            if (unread > 0) Badge(containerColor = c.primary, contentColor = c.onPrimary) { Text(if (unread > 99) "99+" else unread.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+        }) {
+            Icon(Icons.Rounded.Notifications, if (unread > 0) "Notifications, $unread unread" else "Notifications", tint = c.ink, modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
 @Composable fun Avatar(picture: String = "", name: String = "", showUpdateBadge: Boolean = false, size: Dp = 43.dp, circle: Boolean = false, onClick: ((Rect) -> Unit)? = null) {
     val c = LocalKikoColors.current
     var bounds by remember { mutableStateOf(Rect.Zero) }

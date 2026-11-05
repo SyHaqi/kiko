@@ -39,6 +39,8 @@ import com.kiko.tracker.data.api.FavoriteKind
 import com.kiko.tracker.data.api.MalApi
 import com.kiko.tracker.data.api.MalClub
 import com.kiko.tracker.data.api.MalFriend
+import com.kiko.tracker.data.api.NotificationCategory
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.kiko.tracker.data.api.StackBrowseKind
 import com.kiko.tracker.data.api.StackDetail
 import com.kiko.tracker.data.model.CharacterDetail
@@ -524,6 +526,9 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     }
     // Forum topic screen state
     var forumTopicOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    // (topicId, postId): set when a notification opens a topic at one specific post; cleared when the topic closes.
+    var forumTopicJump by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    LaunchedEffect(forumTopicOpen) { if (forumTopicOpen == null) forumTopicJump = null }
     // Handle tapped MAL link
     LaunchedEffect(malLink) {
         val uri = malLink ?: return@LaunchedEffect
@@ -556,6 +561,9 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // it's a single per-user page with no id to carry.
     var historyOpen by remember { mutableStateOf(false) }
     var notificationsOpen by remember { mutableStateOf(false) }
+    // Kept here (not inside the screen) so the tab survives opening a notification's page; reset to All each time the inbox closes.
+    var notificationsTab by rememberSaveable { mutableStateOf(NotificationCategory.All) }
+    LaunchedEffect(notificationsOpen) { if (!notificationsOpen) notificationsTab = NotificationCategory.All }
     // Schedule day to open
     var scheduleOpen by remember { mutableStateOf(false) }
     var scheduleInitialDay by remember { mutableStateOf(java.time.LocalDate.now().dayOfWeek) }
@@ -1046,12 +1054,12 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         )
                                         TopScreen.FeaturedArticles -> FeaturedArticlesScreen(vm, onBack = { featuredArticlesOpen = false }, onOpenArticle = { url, articleTitle -> featuredArticleOpen = url to articleTitle })
                                         TopScreen.History -> HistoryScreen(vm, onBack = { historyOpen = false }, onOpenDetail = ::openDetail)
-                                        TopScreen.Notifications -> NotificationsScreen(vm, onBack = { notificationsOpen = false }, onOpenUser = ::openUserProfile, onOpenTitle = { malId, type -> openFavoriteTitle(malId, type) }, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onOpenClub = { clubDetailOpen = it })
+                                        TopScreen.Notifications -> NotificationsScreen(vm, selectedTab = notificationsTab, onSelectTab = { notificationsTab = it }, onBack = { notificationsOpen = false }, onOpenUser = ::openUserProfile, onOpenTitle = { malId, type -> openFavoriteTitle(malId, type) }, onOpenTopic = { id, title, postId -> forumTopicJump = postId?.let { id to it }; forumTopicOpen = id to title }, onOpenClub = { clubDetailOpen = it })
                                         is TopScreen.FeaturedArticle -> FeaturedArticleScreen(vm = vm, url = screen.url, title = screen.title, onBack = { featuredArticleOpen = null }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
                                         TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                                         TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
                                         is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)
-                                        is TopScreen.Topic -> ForumTopicScreen(vm, topicId = screen.topicId, title = screen.title, onBack = { forumTopicOpen = null }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
+                                        is TopScreen.Topic -> ForumTopicScreen(vm, topicId = screen.topicId, title = screen.title, jumpToPostId = forumTopicJump?.takeIf { it.first == screen.topicId }?.second, onBack = { forumTopicOpen = null }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
                                         TopScreen.About -> AboutScreen(
                                             onBack = { aboutOpen = false },
                                             updateInfo = vm.updateInfo, updateChecking = vm.updateChecking, updateUpToDate = vm.updateUpToDateMessage,
@@ -1168,7 +1176,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             onOpenUpdate = { vm.updateDialogOpen = true },
                                         )
                                         is TopScreen.Tab -> when (screen.destination) {
-                                            Destination.Home -> HomeScreen(vm, onOpenDetail = ::openDetail, onSeeHistory = { historyOpen = true }, onDiscover = { vm.destination = Destination.Discover; vm.runDiscoverSearch(context, "", vm.discoverTypeFilter); vm.requestDiscoverFilterSheet() }, onRanking = { rankingOpen = true }, onSeasonal = { vm.destination = Destination.Seasonal }, onSchedule = ::openSchedule, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onSeeNews = { vm.destination = Destination.Community; vm.selectCommunityTab(context, CommunityTab.Forums); vm.openNewsBoard(context) }, onOpenStack = { id, title -> stackDetailOpen = id to title }, onOpenStacks = ::openStacks, onSignIn = onSignIn, onSeeFeaturedArticles = { featuredArticlesOpen = true }, onOpenFeaturedArticle = { url, title -> featuredArticleOpen = url to title }, onOpenGenre = { genre, isTheme -> vm.destination = Destination.Discover; vm.runDiscoverSearch(context, "", "Anime", if (isTheme) DiscoverFilters(themes = setOf(genre)) else DiscoverFilters(genres = setOf(genre))) })
+                                            Destination.Home -> HomeScreen(vm, onOpenDetail = ::openDetail, onSeeHistory = { historyOpen = true }, onDiscover = { vm.destination = Destination.Discover; vm.runDiscoverSearch(context, "", vm.discoverTypeFilter); vm.requestDiscoverFilterSheet() }, onRanking = { rankingOpen = true }, onSeasonal = { vm.destination = Destination.Seasonal }, onSchedule = ::openSchedule, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onSeeNews = { vm.destination = Destination.Community; vm.selectCommunityTab(context, CommunityTab.Forums); vm.openNewsBoard(context) }, onOpenStack = { id, title -> stackDetailOpen = id to title }, onOpenStacks = ::openStacks, onSignIn = onSignIn, onSeeFeaturedArticles = { featuredArticlesOpen = true }, onOpenFeaturedArticle = { url, title -> featuredArticleOpen = url to title }, onOpenNotifications = { notificationsOpen = true }, onOpenGenre = { genre, isTheme -> vm.destination = Destination.Discover; vm.runDiscoverSearch(context, "", "Anime", if (isTheme) DiscoverFilters(themes = setOf(genre)) else DiscoverFilters(genres = setOf(genre))) })
                                             Destination.List -> ListScreen(vm, onOpenDetail = ::openDetail, onIncrement = { vm.saveLive(context, it) }, onEdit = { editor = it }, selectedItem = editor)
                                             Destination.Discover -> DiscoverScreen(
                                                 vm,

@@ -14,6 +14,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -421,10 +422,15 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
 }
 // Single topic posts screen
 
-@Composable fun ForumTopicScreen(vm: LibraryViewModel, topicId: Int, title: String, onBack: () -> Unit, onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {}) {
+@Composable fun ForumTopicScreen(vm: LibraryViewModel, topicId: Int, title: String, onBack: () -> Unit, onOpenCharacter: (Int) -> Unit = {}, onOpenPerson: (Int) -> Unit = {}, onOpenCompany: (Int) -> Unit = {}, jumpToPostId: Int? = null) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // Set when opened from a notification that points at one post (a quote, a mention, ...): the list
+    // pages in until that post is loaded, scrolls to it and flashes it briefly.
+    var jumping by remember(topicId, jumpToPostId) { mutableStateOf(jumpToPostId != null) }
+    var jumpFailed by remember(topicId, jumpToPostId) { mutableStateOf(false) }
+    var highlightedPostId by remember(topicId, jumpToPostId) { mutableStateOf<Int?>(null) }
     var posts by remember(topicId) { mutableStateOf<List<ForumPost>>(emptyList()) }
     var poll by remember(topicId) { mutableStateOf<ForumPoll?>(null) }
     var loading by remember(topicId) { mutableStateOf(true) }
@@ -610,6 +616,33 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
             pendingScrollToComposer = false
         }
     }
+    // Jump to a notification's post. Pages through the topic (same REST paging as the auto-load below,
+    // sharing its loadingMore flag so the two never fetch at once) until the post shows up, then scrolls
+    // to it and highlights it for a moment. Gives up quietly if it's gone (deleted) or past 3000 posts.
+    LaunchedEffect(topicId, jumpToPostId, loading) {
+        val target = jumpToPostId ?: return@LaunchedEffect
+        if (loading || !jumping) return@LaunchedEffect
+        if (posts.isEmpty()) { jumping = false; jumpFailed = true; return@LaunchedEffect }
+        while (true) {
+            val index = posts.indexOfFirst { it.id == target }
+            if (index >= 0) {
+                listState.scrollToItem(index + 1) // item 0 is the header
+                highlightedPostId = target
+                jumping = false
+                kotlinx.coroutines.delay(2500)
+                highlightedPostId = null
+                return@LaunchedEffect
+            }
+            if (!hasMore || posts.size >= 3000) { jumping = false; jumpFailed = true; return@LaunchedEffect }
+            while (loadingMore) kotlinx.coroutines.delay(50)
+            if (posts.any { it.id == target }) continue // the auto-load just brought it in
+            loadingMore = true
+            runCatching { MalApi(context).forumTopic(topicId, limit = 100, offset = posts.size) }
+                .onSuccess { page -> posts = posts + page.posts.filter { p -> posts.none { it.id == p.id } }; hasMore = page.hasMore && page.posts.isNotEmpty() }
+                .onFailure { hasMore = false }
+            loadingMore = false
+        }
+    }
     val goBack = { vm.saveForumTopicScroll(topicId, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset); onBack() }
     BackHandler(onBack = goBack)
     if (showLogin) {
@@ -675,7 +708,8 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                     // detail screens (e.g. PersonDetailScreen): plain row at the top of the
                     // scrolling content, no background fade, no overlay.
                     Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 18.dp))
-                    if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
+                    if (loading || jumping) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
+                    if (jumpFailed) Text("Couldn't find that post — it may have been deleted.", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
                     error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                     // Distinguishes "still loading" from
                     // topic's posts yet" —
@@ -700,7 +734,8 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                 }
                 itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
                     StaggeredItem(index) {
-                        Column {
+                        val highlight by animateColorAsState(if (highlightedPostId == post.id) c.primary.copy(alpha = 0.14f) else Color.Transparent, tween(500), label = "postHighlight")
+                        Column(Modifier.background(highlight, RoundedCornerShape(12.dp))) {
                             ForumPostCard(
                                 post, isOriginalPost = post.number == 1, onOpenProfileLink = onOpenProfileLink,
                                 canReply = connected,
