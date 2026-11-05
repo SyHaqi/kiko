@@ -91,10 +91,13 @@ fun AnnotatedString.Builder.appendBb(tokens: List<BbToken>, from: Int, stopAt: S
 fun inlineAnnotated(raw: String, linkColor: Color): AnnotatedString = buildAnnotatedString { appendBb(tokenizeBb(raw), 0, null, linkColor) }
 
 
+private val BlankLineSplit = Regex("\n{2,}")
+private val ListItemSplit = Regex("""\[\*\]""", RegexOption.IGNORE_CASE)
+
 fun paragraphsFrom(text: String, linkColor: Color, center: Boolean = false): List<ForumBlock> {
     val trimmed = text.trim('\n', '\r')
     if (trimmed.isBlank()) return emptyList()
-    return trimmed.split(Regex("\n{2,}")).map { it.trim() }.filter { it.isNotBlank() }.map { ForumBlock.Paragraph(inlineAnnotated(it, linkColor), center) }
+    return trimmed.split(BlankLineSplit).map { it.trim() }.filter { it.isNotBlank() }.map { ForumBlock.Paragraph(inlineAnnotated(it, linkColor), center) }
 }
 // Convert stray HTML fragments
 
@@ -227,7 +230,7 @@ fun parseBlocks(raw: String, linkColor: Color): List<ForumBlock> {
                 else blocks += paragraphsFrom(stripBbTags(inner), linkColor)
             }
             "list" -> {
-                val items = inner.split(Regex("""\[\*\]""", RegexOption.IGNORE_CASE)).map { it.trim() }.filter { it.isNotBlank() }
+                val items = inner.split(ListItemSplit).map { it.trim() }.filter { it.isNotBlank() }
                 if (items.isNotEmpty()) blocks += ForumBlock.ListBlock(items.map { inlineAnnotated(it, linkColor) }, ordered = m.value.take(20).contains("=1"))
             }
             "quote" -> inner.trim().takeIf { it.isNotBlank() }?.let { blocks += ForumBlock.Quote(parseBlocks(it, linkColor)) }

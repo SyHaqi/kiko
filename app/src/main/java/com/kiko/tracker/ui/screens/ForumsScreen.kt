@@ -638,7 +638,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
             if (posts.any { it.id == target }) continue // the auto-load just brought it in
             loadingMore = true
             runCatching { MalApi(context).forumTopic(topicId, limit = 100, offset = posts.size) }
-                .onSuccess { page -> posts = posts + page.posts.filter { p -> posts.none { it.id == p.id } }; hasMore = page.hasMore && page.posts.isNotEmpty() }
+                .onSuccess { page -> val have = posts.mapTo(HashSet()) { it.id }; posts = posts + page.posts.filter { it.id !in have }; hasMore = page.hasMore && page.posts.isNotEmpty() }
                 .onFailure { hasMore = false }
             loadingMore = false
         }
@@ -735,7 +735,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                 itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
                     StaggeredItem(index) {
                         val highlight by animateColorAsState(if (highlightedPostId == post.id) c.primary.copy(alpha = 0.14f) else Color.Transparent, tween(500), label = "postHighlight")
-                        Column(Modifier.background(highlight, RoundedCornerShape(12.dp))) {
+                        Column(if (highlight != Color.Transparent) Modifier.background(highlight, RoundedCornerShape(12.dp)) else Modifier) {
                             ForumPostCard(
                                 post, isOriginalPost = post.number == 1, onOpenProfileLink = onOpenProfileLink,
                                 canReply = connected,
@@ -1350,8 +1350,10 @@ private fun openForumLink(url: String, uriHandler: androidx.compose.ui.platform.
 // still bracket-tag BBCode (see MalForumScrapeApi's doc comment) at that point, not the rendered
 // text ForumBody would show, so this is a plain best-effort strip rather than real BBCode parsing:
 // good enough for a one-line muted quote preview, not meant to survive round-tripping.
+private val BbTagRegex = Regex("\\[/?[^\\]]*\\]")
+private val WhitespaceRegex = Regex("\\s+")
 private fun plainBodyPreview(bbBody: String, maxLen: Int = 140): String {
-    val plain = bbBody.replace(Regex("\\[/?[^\\]]*\\]"), " ").replace(Regex("\\s+"), " ").trim()
+    val plain = bbBody.replace(BbTagRegex, " ").replace(WhitespaceRegex, " ").trim()
     return if (plain.length > maxLen) plain.take(maxLen).trimEnd() + "…" else plain
 }
 // Parse forum ISO timestamp
