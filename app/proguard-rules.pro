@@ -19,3 +19,10 @@
 # raw stack traces to a file — without this they'd be de-obfuscated garbage).
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# WorkManager (MalNotificationWorker) builds its Room database by reflection: Room looks up the
+# generated WorkDatabase_Impl's no-arg constructor at runtime. R8 saw no direct caller, stripped it,
+# and the release app crashed on launch with
+#   NoSuchMethodException: androidx.work.impl.WorkDatabase_Impl.<init> []
+-keep class * extends androidx.room.RoomDatabase { <init>(); }
+-keep class androidx.work.impl.WorkDatabase_Impl { <init>(); }
