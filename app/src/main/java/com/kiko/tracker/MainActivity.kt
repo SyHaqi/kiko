@@ -29,6 +29,10 @@ import com.kiko.tracker.navigation.KikoApp
 import com.kiko.tracker.ui.components.CrashDialog
 import com.kiko.tracker.util.AppUpdateChecker
 import com.kiko.tracker.util.AppUpdateInfo
+import com.kiko.tracker.util.EXTRA_OPEN_NOTIFICATIONS
+import com.kiko.tracker.util.MalNotificationTracker
+import com.kiko.tracker.util.canPostNotifications
+import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.util.copyCrashLogToClipboard
 import com.kiko.tracker.util.postUpdateNotification
 import com.kiko.tracker.util.saveCrashLogToDownloads
@@ -39,6 +43,8 @@ class MainActivity : ComponentActivity() {
     private var callback by mutableStateOf<Uri?>(null)
     // Opened via MAL link
     private var malLink by mutableStateOf<Uri?>(null)
+    // Set when the activity is opened by tapping a MAL notification pushed by Kiko
+    private var openNotifications by mutableStateOf(false)
     // Pending update during permission
     private var pendingUpdateNotification: AppUpdateInfo? = null
     private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -132,6 +138,7 @@ class MainActivity : ComponentActivity() {
                 .build()
         )
         routeIntentUri(intent?.data)
+        if (intent?.getBooleanExtra(EXTRA_OPEN_NOTIFICATIONS, false) == true) openNotifications = true
         // If the app crashed
         // report, then clear it
         val crashFile = java.io.File(filesDir, "last_crash.txt")
@@ -159,6 +166,25 @@ class MainActivity : ComponentActivity() {
                     vm.checkForUpdate(this@MainActivity, manual = false, onFound = ::notifyUpdateAvailable)
                 }
             }
+            // MAL notifications (friend requests, accepted requests, comments, ...): check on launch and
+            // then every 5 minutes while the app is open, pushing a local notification for new unread
+            // items. There's no background worker, so nothing is checked while Kiko is closed.
+            LaunchedEffect(Unit) {
+                while (true) {
+                    // The web cookie can be connected at any point (e.g. from a profile page), so check
+                    // for it every cycle instead of only at launch.
+                    if (MalSessionCookie(this@MainActivity).has()) {
+                        val tracker = MalNotificationTracker(this@MainActivity)
+                        // Ask for notification permission once (Android 13+), the first time there's a session.
+                        if (!canPostNotifications(this@MainActivity) && !tracker.permissionAsked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            tracker.permissionAsked = true
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        vm.checkNotificationsInBackground(this@MainActivity)
+                    }
+                    kotlinx.coroutines.delay(5 * 60 * 1000L)
+                }
+            }
             LaunchedEffect(callback) {
                 callback?.let { uri ->
                     vm.loading = true
@@ -176,6 +202,8 @@ class MainActivity : ComponentActivity() {
                 onSignOut = { vm.signOut(this@MainActivity) },
                 malLink = malLink,
                 onMalLinkHandled = { malLink = null },
+                openNotifications = openNotifications,
+                onNotificationsHandled = { openNotifications = false },
             )
 
             // Shows once, right after
@@ -195,7 +223,10 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); routeIntentUri(intent.data) }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent); setIntent(intent); routeIntentUri(intent.data)
+        if (intent.getBooleanExtra(EXTRA_OPEN_NOTIFICATIONS, false)) openNotifications = true
+    }
 }
 
 // Sync system bars theme

@@ -41,6 +41,10 @@ import com.kiko.tracker.data.api.MalDetailScrapeApi
 import com.kiko.tracker.data.api.MalFavoriteEntry
 import com.kiko.tracker.data.api.MalFavorites
 import com.kiko.tracker.data.api.MalFriend
+import com.kiko.tracker.data.api.MalFriendApi
+import com.kiko.tracker.data.api.MalNotification
+import com.kiko.tracker.data.api.FriendRelation
+import com.kiko.tracker.data.api.FriendRequestInfo
 import com.kiko.tracker.data.api.MalFriendProfile
 import com.kiko.tracker.data.api.MalGenreApi
 import com.kiko.tracker.data.api.MalGenreLookup
@@ -117,6 +121,8 @@ import com.kiko.tracker.ui.screens.sortedWithListSort
 import com.kiko.tracker.ui.theme.parseHexColor
 import com.kiko.tracker.util.AppUpdateChecker
 import com.kiko.tracker.util.AppUpdateInfo
+import com.kiko.tracker.util.MalNotificationTracker
+import com.kiko.tracker.util.postMalNotifications
 import com.kiko.tracker.util.settingsPrefs
 
 // @Stable, not @Immutable: this
@@ -843,6 +849,177 @@ class LibraryViewModel : ViewModel() {
     // into a friend's page starts from a clean scrape rather than showing
     // whatever was cached from a previous visit.
     fun clearFriendProfileCache() { friendProfileStates.clear() }
+
+    // ---- Friend requests (Add Friend button beside the name on FriendProfileScreen) ----
+    // Per-username so stepping through a chain of friend-of-a-friend pages keeps each page's own
+    // state. [info] is null until the profile page's "Add friend" link has been checked.
+    data class FriendRequestState(
+        val info: FriendRequestInfo? = null,
+        val checking: Boolean = false,
+        val sending: Boolean = false,
+        val sent: Boolean = false,
+        val removing: Boolean = false,
+        val removed: Boolean = false,
+        val error: String? = null,
+    )
+    private val friendRequestStates = mutableStateMapOf<String, FriendRequestState>()
+    fun getFriendRequestState(username: String): FriendRequestState = friendRequestStates[username] ?: FriendRequestState()
+    fun loadFriendRequestInfo(context: Context, username: String, force: Boolean = false) {
+        if (username.isBlank()) return
+        val current = friendRequestStates[username] ?: FriendRequestState()
+        if (current.checking || current.sent || (!force && current.info != null)) return
+        friendRequestStates[username] = current.copy(checking = true, error = null)
+        viewModelScope.launch {
+            runCatching { MalFriendApi(context).requestInfo(username) }
+                .onSuccess { info -> friendRequestStates[username] = (friendRequestStates[username] ?: FriendRequestState()).copy(info = info, checking = false) }
+                .onFailure { e ->
+                    if (e is MalSessionExpired) MalSessionCookie(context).clear()
+                    friendRequestStates[username] = (friendRequestStates[username] ?: FriendRequestState()).copy(checking = false)
+                }
+        }
+    }
+    fun sendFriendRequest(context: Context, username: String, message: String) {
+        val current = friendRequestStates[username] ?: FriendRequestState()
+        val userId = current.info?.userId ?: return
+        if (current.sending || current.sent) return
+        friendRequestStates[username] = current.copy(sending = true, error = null)
+        viewModelScope.launch {
+            runCatching { MalFriendApi(context).sendRequest(userId, message) }
+                .onSuccess { friendRequestStates[username] = (friendRequestStates[username] ?: FriendRequestState()).copy(sending = false, sent = true, error = null) }
+                .onFailure { e ->
+                    if (e is MalSessionExpired) MalSessionCookie(context).clear()
+                    friendRequestStates[username] = (friendRequestStates[username] ?: FriendRequestState()).copy(
+                        sending = false,
+                        error = if (e is MalSessionExpired) "Your MAL login expired — reconnect and try again." else (e.message ?: "Couldn't send the friend request."),
+                    )
+                }
+        }
+    }
+    fun removeFriend(context: Context, username: String) {
+        val current = friendRequestStates[username] ?: FriendRequestState()
+        val userId = current.info?.userId ?: return
+        if (current.info?.relation != FriendRelation.CanRemove || current.removing) return
+        friendRequestStates[username] = current.copy(removing = true, removed = false, error = null)
+        viewModelScope.launch {
+            runCatching { MalFriendApi(context).removeFriend(userId) }
+                .onSuccess {
+                    // Re-read the profile's own link so the button flips to "add" if MAL now offers it.
+                    friendRequestStates[username] = (friendRequestStates[username] ?: FriendRequestState()).copy(removing = false, removed = true, sent = false, error = null)
+                    loadFriendRequestInfo(context, username, force = true)
+                }
+                .onFailure { e ->
+                    if (e is MalSessionExpired) MalSessionCookie(context).clear()
+                    friendRequestStates[username] = (friendRequestStates[username] ?: FriendRequestState()).copy(
+                        removing = false,
+                        error = if (e is MalSessionExpired) "Your MAL login expired — reconnect and try again." else (e.message ?: "Couldn't remove the friend."),
+                    )
+                }
+        }
+    }
+    fun clearFriendRequestError(username: String) {
+        friendRequestStates[username]?.let { friendRequestStates[username] = it.copy(error = null) }
+    }
+
+    // ---- MAL notifications (friend requests, accepted requests, comments, ...) ----
+    var notifications by mutableStateOf<List<MalNotification>>(emptyList()); private set
+    var notificationsLoading by mutableStateOf(false); private set
+    var notificationsError by mutableStateOf<String?>(null); private set
+    var notificationsUnread by mutableStateOf(0); private set
+    // Ids of notifications that are read (local, per item). The inbox shows the rest under "New"
+    // and these under "History"; an item only moves when it's tapped open or "mark all" is used.
+    var notificationsRead by mutableStateOf<Set<String>>(emptySet()); private set
+
+    /** Fetches /notification. With [push] (background checks) also posts a local notification for new unread items. */
+    fun refreshNotifications(context: Context, push: Boolean = false) {
+        if (notificationsLoading || !MalSessionCookie(context).has()) return
+        notificationsLoading = true
+        if (!push) notificationsError = null
+        val appContext = context.applicationContext
+        viewModelScope.launch {
+            val tracker = MalNotificationTracker(appContext)
+            runCatching { MalFriendApi(appContext).notifications() }
+                .onSuccess { all ->
+                    tracker.syncRead(all)
+                    notificationsRead = tracker.readIds()
+                    notifications = all
+                    notificationsError = null
+                    tracker.lastCheckedAt = System.currentTimeMillis()
+                    if (tracker.isFirstRun()) {
+                        // Baseline: don't announce years of old items, only what arrives from now on.
+                        // Whatever is unread right now still shows on the badge.
+                        val pushedBaseline = all
+                        tracker.seedPushedOnly(pushedBaseline)
+                    } else if (push) {
+                        postMalNotifications(appContext, tracker.takeNewForPush(all))
+                    } else {
+                        tracker.takeNewForPush(all) // visiting the inbox counts as having been told
+                    }
+                    notificationsUnread = tracker.unreadCount(all)
+                }
+                .onFailure { e ->
+                    if (e is MalSessionExpired) MalSessionCookie(appContext).clear()
+                    if (!push) notificationsError = if (e is MalSessionExpired) "Your MAL login expired — reconnect from a profile page." else "Couldn't load notifications — pull to retry."
+                }
+            notificationsLoading = false
+        }
+    }
+    // ---- Accept / deny incoming friend requests from the inbox ----
+    /** Per notification id: busy while the call is running, the outcome once done, or an error to show. */
+    data class FriendResponseState(val busy: Boolean = false, val accepted: Boolean? = null, val error: String? = null)
+    private val friendResponses = mutableStateMapOf<String, FriendResponseState>()
+    fun friendResponseState(notificationId: String): FriendResponseState = friendResponses[notificationId] ?: FriendResponseState()
+    fun respondToFriendRequest(context: Context, notificationId: String, accept: Boolean) {
+        val current = friendResponses[notificationId] ?: FriendResponseState()
+        if (current.busy || current.accepted != null) return
+        friendResponses[notificationId] = FriendResponseState(busy = true)
+        val appContext = context.applicationContext
+        viewModelScope.launch {
+            runCatching { MalFriendApi(appContext).respondToRequest(notificationId, accept) }
+                .onSuccess {
+                    friendResponses[notificationId] = FriendResponseState(accepted = accept)
+                    // Pull the fresh inbox so MAL's own state (and the friends list) catches up.
+                    refreshNotifications(appContext)
+                }
+                .onFailure { e ->
+                    if (e is MalSessionExpired) MalSessionCookie(appContext).clear()
+                    friendResponses[notificationId] = FriendResponseState(
+                        error = if (e is MalSessionExpired) "Your MAL login expired — reconnect and try again." else (e.message ?: "Couldn't update the friend request."),
+                    )
+                }
+        }
+    }
+
+    /** Throttled check for app start / periodic polling while the app is open. */
+    fun checkNotificationsInBackground(context: Context, minIntervalMs: Long = 5 * 60 * 1000L) {
+        val tracker = MalNotificationTracker(context)
+        if (System.currentTimeMillis() - tracker.lastCheckedAt < minIntervalMs) return
+        refreshNotifications(context, push = true)
+    }
+    /** Marks one notification read (called after its page has been opened), locally and on MAL. */
+    fun markNotificationRead(context: Context, id: String) {
+        val wasUnread = id !in notificationsRead
+        val tracker = MalNotificationTracker(context)
+        tracker.markRead(listOf(id))
+        notificationsRead = tracker.readIds()
+        notificationsUnread = tracker.unreadCount(notifications)
+        // Keep the website in step — only for a first-time read that MAL still lists as unread.
+        if (wasUnread && notifications.any { it.id == id && !it.isRead }) syncReadToMal(context, listOf(id))
+    }
+    fun markAllNotificationsRead(context: Context) {
+        val unreadOnMal = notifications.filter { it.id !in notificationsRead && !it.isRead }.map { it.id }
+        val tracker = MalNotificationTracker(context)
+        tracker.markRead(notifications.map { it.id })
+        notificationsRead = tracker.readIds()
+        notificationsUnread = 0
+        syncReadToMal(context, unreadOnMal)
+    }
+    // Fire-and-forget: the local state above is what the UI shows, so a failed call (offline, expired
+    // login) just leaves the website unread; it isn't surfaced as an error.
+    private fun syncReadToMal(context: Context, ids: List<String>) {
+        if (ids.isEmpty() || !MalSessionCookie(context).has()) return
+        val appContext = context.applicationContext
+        viewModelScope.launch { runCatching { MalFriendApi(appContext).markRead(ids) } }
+    }
     // NSFW off by default
     var nsfwEnabled by mutableStateOf(false); private set
     var amoledDark by mutableStateOf(false); private set

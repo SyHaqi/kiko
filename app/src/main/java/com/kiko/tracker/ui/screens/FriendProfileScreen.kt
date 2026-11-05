@@ -19,6 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material.icons.rounded.PersonRemove
 import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.MoreVert
@@ -40,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.browser.customtabs.CustomTabsIntent
 import coil.compose.AsyncImage
 import com.kiko.tracker.data.api.MalFriend
+import com.kiko.tracker.data.api.FriendRelation
 import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.ui.components.MalLoginWebView
@@ -96,7 +100,57 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // so the next visit starts from a fresh scrape rather than stale data.
     val state = vm.getFriendProfileState(username)
 
-    LaunchedEffect(connected, username) { if (connected) vm.loadFriendProfile(context, username) }
+    LaunchedEffect(connected, username) { if (connected) { vm.loadFriendProfile(context, username); vm.loadFriendRequestInfo(context, username) } }
+
+    // Add Friend: state lives in the ViewModel (per username) so it survives this screen being
+    // rebuilt when a title/character page is opened on top and closed again.
+    val requestState = vm.getFriendRequestState(username)
+    var showRequestDialog by remember(username) { mutableStateOf(false) }
+    var showRemoveDialog by remember(username) { mutableStateOf(false) }
+    var wasRemoving by remember(username) { mutableStateOf(false) }
+    LaunchedEffect(requestState.removing, requestState.removed) {
+        if (wasRemoving && requestState.removed) android.widget.Toast.makeText(context, "Removed $username from your friends", android.widget.Toast.LENGTH_SHORT).show()
+        wasRemoving = requestState.removing
+    }
+    // Toast only on the sending -> sent transition, not every time this screen is rebuilt.
+    var wasSending by remember(username) { mutableStateOf(false) }
+    LaunchedEffect(requestState.sending, requestState.sent) {
+        if (wasSending && requestState.sent) android.widget.Toast.makeText(context, "Friend request sent to $username", android.widget.Toast.LENGTH_SHORT).show()
+        wasSending = requestState.sending
+    }
+    LaunchedEffect(requestState.error) {
+        requestState.error?.let { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show(); vm.clearFriendRequestError(username) }
+    }
+    if (showRemoveDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveDialog = false },
+            title = { Text("Remove friend") },
+            text = { Text("Remove $username from your MyAnimeList friends?", color = c.muted, fontSize = 14.sp) },
+            confirmButton = { TextButton(onClick = { showRemoveDialog = false; vm.removeFriend(context, username) }) { Text("Remove") } },
+            dismissButton = { TextButton(onClick = { showRemoveDialog = false }) { Text("Cancel") } },
+        )
+    }
+    if (showRequestDialog) {
+        var message by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showRequestDialog = false },
+            title = { Text("Send friend request") },
+            text = {
+                Column {
+                    Text("Send a friend request to $username on MyAnimeList?", color = c.muted, fontSize = 14.sp)
+                    OutlinedTextField(
+                        value = message, onValueChange = { message = it.take(255) },
+                        label = { Text("Personal message (optional)") },
+                        supportingText = { Text("${message.length}/255") },
+                        minLines = 2, maxLines = 4,
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { showRequestDialog = false; vm.sendFriendRequest(context, username, message.trim()) }) { Text("Send") } },
+            dismissButton = { TextButton(onClick = { showRequestDialog = false }) { Text("Cancel") } },
+        )
+    }
 
     if (showLogin) {
         Box(Modifier.fillMaxSize()) {
@@ -190,6 +244,14 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 header.birthday?.let { DetailPill(Icons.Rounded.Cake, it) },
                                 header.joined?.let { DetailPill(Icons.Rounded.Event, it) },
                             )
+                            val addFriendSlot: (@Composable () -> Unit)? =
+                                when {
+                                    requestState.info?.relation == FriendRelation.CanRemove ->
+                                        ({ FriendActionButton(FriendAction.Remove, busy = requestState.removing, onClick = { showRemoveDialog = true }) })
+                                    requestState.info?.relation == FriendRelation.CanRequest || requestState.sent ->
+                                        ({ FriendActionButton(FriendAction.Add, busy = requestState.sending, done = requestState.sent, onClick = { showRequestDialog = true }) })
+                                    else -> null
+                                }
                             Box(Modifier.padding(bottom = 24.dp)) {
                                 ProfileStatsSection(
                                     connected = true, profile = state.profile.stats, items = emptyList(), onConnect = {},
@@ -205,12 +267,41 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                     friendsFavoritesLoading = state.friendsFavoritesLoading,
                                     detailsPills = aboutPills,
                                     cachedAboutMe = state.aboutMe,
+                                    nameTrailing = addFriendSlot,
                                 )
                             }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+// Icon-only friend button beside the username in the profile header (no label). Shows "add" when
+// MAL printed its Add-friend link for this user, "remove" when it printed Remove-friend (existing
+// friends); never composed on your own page. After a request is sent the add icon flips to a
+// disabled check for the rest of the visit.
+private enum class FriendAction { Add, Remove }
+
+@Composable private fun FriendActionButton(action: FriendAction, busy: Boolean, onClick: () -> Unit, done: Boolean = false) {
+    val c = LocalKikoColors.current
+    val isAdd = action == FriendAction.Add
+    FilledTonalIconButton(
+        onClick = onClick,
+        enabled = !busy && !done,
+        colors = IconButtonDefaults.filledTonalIconButtonColors(
+            containerColor = if (isAdd) c.primary else c.secondaryContainer,
+            contentColor = if (isAdd) c.onPrimary else c.onSecondaryContainer,
+            disabledContainerColor = c.secondaryContainer,
+            disabledContentColor = c.onSecondaryContainer,
+        ),
+    ) {
+        when {
+            busy -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = c.onSecondaryContainer)
+            done -> Icon(Icons.Rounded.Check, contentDescription = "Friend request sent", modifier = Modifier.size(20.dp))
+            isAdd -> Icon(Icons.Rounded.PersonAdd, contentDescription = "Add friend", modifier = Modifier.size(20.dp))
+            else -> Icon(Icons.Rounded.PersonRemove, contentDescription = "Remove friend", modifier = Modifier.size(20.dp))
         }
     }
 }

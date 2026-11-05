@@ -337,6 +337,9 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     // Horizontal padding the CALLER already applies around this whole section (FriendProfileScreen
     // wraps it in 14dp); added to this section's own 20dp so About Me still reaches the screen edge.
     outerInset: androidx.compose.ui.unit.Dp = 0.dp,
+    // Optional action sitting at the end of the avatar/name row, right beside the username —
+    // FriendProfileScreen's "Add friend" button. Null on your own profile.
+    nameTrailing: (@Composable () -> Unit)? = null,
 ) {    val c = LocalKikoColors.current
     val context = LocalContext.current
     // Friends/favorites aren't in MAL's official API — scraped off the
@@ -393,6 +396,9 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                                 profile.name.ifBlank { "MyAnimeList" }, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
                                 color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
                             )
+                        }
+                        if (nameTrailing != null) {
+                            Box(Modifier.padding(start = 8.dp)) { nameTrailing() }
                         }
                     }
                     // "Open in browser" / sign out live in the 3-dot menu up in

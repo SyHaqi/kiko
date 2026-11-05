@@ -14,6 +14,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Login
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SystemUpdate
@@ -46,6 +47,8 @@ import com.kiko.tracker.ui.theme.kikoClickable
     onOpenProfile: () -> Unit, onOpenSettings: () -> Unit,
     onOpenHistory: (() -> Unit)? = null,
     onOpenFriends: (() -> Unit)? = null,
+    onOpenNotifications: (() -> Unit)? = null,
+    notificationsUnread: Int = 0,
     onOpenAbout: (() -> Unit)? = null,
     onSignIn: (() -> Unit)? = null,
     updateVersion: String? = null,
@@ -110,11 +113,14 @@ import com.kiko.tracker.ui.theme.kikoClickable
             val pages = buildList<Triple<ImageVector, String, () -> Unit>> {
                 if (onOpenHistory != null) add(Triple(Icons.Rounded.History, "History", onOpenHistory))
                 if (connected && onOpenFriends != null) add(Triple(Icons.Rounded.People, "Friends", onOpenFriends))
+                if (connected && onOpenNotifications != null) add(Triple(Icons.Rounded.Notifications, "Notifications", onOpenNotifications))
             }
             if (pages.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     pages.forEachIndexed { i, (icon, label, action) ->
-                        MenuRow(icon, label, shape = groupShape(i, pages.size)) { action() }
+                        // Unread count rides on the Notifications row as a subtitle.
+                        val unread = if (label == "Notifications" && notificationsUnread > 0) "$notificationsUnread new" else null
+                        MenuRow(icon, label, shape = groupShape(i, pages.size), subtitle = unread) { action() }
                     }
                 }
             }
