@@ -937,8 +937,11 @@ class LibraryViewModel : ViewModel() {
     // Read items ("history") only exist on MAL's per-category pages — the All page embeds none — so
     // they're collected here, one category at a time, and merged with [notifications] by the screen.
     var notificationHistory by mutableStateOf<List<MalNotification>>(emptyList()); private set
-    var notificationHistoryLoading by mutableStateOf(false); private set
+    // Slugs of the categories whose history page is being fetched right now, and the ones already
+    // fetched this session (kept in memory until the app is closed, so reopening a tab is instant).
+    var historyLoadingSlugs by mutableStateOf<Set<String>>(emptySet()); private set
     private val historyLoaded = mutableSetOf<String>()
+    fun isHistoryLoading(category: NotificationCategory): Boolean = category.slug?.let { it in historyLoadingSlugs } == true
 
     /** Fetches /notification. With [push] (background checks) also posts a local notification for new unread items. */
     fun refreshNotifications(context: Context, push: Boolean = false) {
@@ -1022,35 +1025,31 @@ class LibraryViewModel : ViewModel() {
         refreshNotifications(context, push = true)
     }
     /**
-     * Loads each category page's history (10 small requests, one after another, once per session —
-     * [force] re-fetches, e.g. on pull-to-refresh). Failures on one category are skipped silently.
+     * Loads one category's history (its read items live only on MAL's per-category page), called when that
+     * tab is opened — one small request instead of ten up front. Fetched once per app session and kept in
+     * memory; [force] re-fetches (pull-to-refresh). A failure isn't remembered, so the next visit retries.
      */
-    fun loadNotificationHistory(context: Context, force: Boolean = false) {
-        if (notificationHistoryLoading || !MalSessionCookie(context).has()) return
+    fun loadNotificationHistory(context: Context, category: NotificationCategory, force: Boolean = false) {
+        val slug = category.slug ?: return // "All" has no history page
+        if (slug in historyLoadingSlugs || (!force && slug in historyLoaded) || !MalSessionCookie(context).has()) return
         val appContext = context.applicationContext
-        notificationHistoryLoading = true
+        historyLoadingSlugs = historyLoadingSlugs + slug
         viewModelScope.launch {
-            val api = MalFriendApi(appContext)
-            val tracker = MalNotificationTracker(appContext)
-            for (cat in NotificationCategory.entries) {
-                val slug = cat.slug ?: continue
-                if (!force && slug in historyLoaded) continue
-                val result = runCatching { api.notifications(cat) }
-                result.onSuccess { list ->
-                    historyLoaded += slug
-                    val merged = (notificationHistory + list.filter { it.isHistory }).distinctBy { it.id }
-                    // Nothing new from this category -> skip the state write, prefs I/O and the
-                    // inbox re-sort/recomposition it would trigger (up to 10x per load otherwise).
-                    if (merged.size != notificationHistory.size) {
-                        notificationHistory = merged
-                        tracker.syncRead(notifications + notificationHistory)
-                        val read = tracker.readIds()
-                        if (read != notificationsRead) notificationsRead = read
-                    }
+            val result = runCatching { MalFriendApi(appContext).notifications(category) }
+            result.onSuccess { list ->
+                historyLoaded += slug
+                val merged = (notificationHistory + list.filter { it.isHistory }).distinctBy { it.id }
+                // Nothing new from this category -> skip the state write, prefs I/O and the inbox re-sort.
+                if (merged.size != notificationHistory.size) {
+                    val tracker = MalNotificationTracker(appContext)
+                    notificationHistory = merged
+                    tracker.syncRead(notifications + notificationHistory)
+                    val read = tracker.readIds()
+                    if (read != notificationsRead) notificationsRead = read
                 }
-                if (result.exceptionOrNull() is MalSessionExpired) { MalSessionCookie(appContext).clear(); break }
             }
-            notificationHistoryLoading = false
+            if (result.exceptionOrNull() is MalSessionExpired) MalSessionCookie(appContext).clear()
+            historyLoadingSlugs = historyLoadingSlugs - slug
         }
     }
 

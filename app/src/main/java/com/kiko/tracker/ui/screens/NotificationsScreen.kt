@@ -103,10 +103,6 @@ private val NotificationTabs = listOf(
         vm.loadFriendResponses(context) // answered requests show their outcome, not Accept / Deny
         vm.refreshNotifications(context)
         requested = true
-        // Read items live on the per-category pages, not on /notification. Started a beat later so
-        // the page's first draw and first scroll aren't competing with 10 requests + state updates.
-        kotlinx.coroutines.delay(400)
-        vm.loadNotificationHistory(context)
     }
 
     // New items come from /notification, read ones from the category pages — merged here.
@@ -118,6 +114,9 @@ private val NotificationTabs = listOf(
     // The selected tab lives in the caller (Navigation) so it survives opening a notification's page and
     // coming back; the caller resets it to All whenever the inbox is closed.
     val current = if (selectedTab in tabs) selectedTab else NotificationCategory.All
+    // Read items live on the per-category pages, not on /notification, so a tab's history is fetched the
+    // first time that tab is opened (and then kept for the rest of the session).
+    LaunchedEffect(current) { vm.loadNotificationHistory(context, current) }
     // One pass over the inbox for every tab's badge, instead of a full scan per tab per recomposition.
     val unreadCounts = remember(inbox, readIds) {
         val m = HashMap<NotificationCategory, Int>()
@@ -206,18 +205,18 @@ private val NotificationTabs = listOf(
     var historyExpanded by rememberSaveable(category) { mutableStateOf(false) }
     val listState = rememberLazyListState()
     KikoPullToRefreshBox(
-        isRefreshing = (vm.notificationsLoading && vm.notifications.isNotEmpty()) || vm.notificationHistoryLoading,
-        onRefresh = { vm.refreshNotifications(context); vm.loadNotificationHistory(context, force = true) },
+        isRefreshing = (vm.notificationsLoading && vm.notifications.isNotEmpty()) || vm.isHistoryLoading(category),
+        onRefresh = { vm.refreshNotifications(context); vm.loadNotificationHistory(context, category, force = true) },
         modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             when {
-                items.isEmpty() && (awaitingFirstLoad || vm.notificationsLoading || vm.notificationHistoryLoading) -> item(key = "loading") {
+                items.isEmpty() && (awaitingFirstLoad || vm.notificationsLoading || vm.isHistoryLoading(category)) -> item(key = "loading") {
                     Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary) }
                 }
                 items.isEmpty() -> item(key = "empty") {
                     Text(
-                        vm.notificationsError ?: if (category == NotificationCategory.All) "No notifications yet — friend requests, replies and other MAL activity will show up here." else "No ${category.label.lowercase()} yet.",
+                        vm.notificationsError ?: if (category == NotificationCategory.All) "You're all caught up" else "No ${category.label.lowercase()} yet.",
                         color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
                     )
                 }
