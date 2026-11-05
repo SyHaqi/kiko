@@ -29,4 +29,21 @@ class BaselineProfileGenerator {
             kikoJourney()
         }
     }
+
+    // Wider, slower pass: crawls every page / dropdown / button that can't change account data (see
+    // KikoCrawler.kt). Merged with generate()'s profile by the Baseline Profile Gradle plugin.
+    @Test
+    fun generateCrawl() {
+        rule.collect(
+            packageName = InstrumentationRegistry.getArguments().getString("targetAppId")
+                ?: throw Exception("targetAppId not passed as instrumentation runner arg"),
+            maxIterations = 3,
+            stableIterations = 2,
+            includeInStartupProfile = false
+        ) {
+            pressHome()
+            startActivityAndWait()
+            kikoCrawl()
+        }
+    }
 }

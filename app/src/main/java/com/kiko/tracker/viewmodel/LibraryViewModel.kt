@@ -2247,6 +2247,7 @@ class LibraryViewModel : ViewModel() {
     var forumHasMore by mutableStateOf(false); private set
     var forumLoadingMore by mutableStateOf(false); private set
     private var forumTopicsJob: kotlinx.coroutines.Job? = null
+    private var forumLoadMoreJob: kotlinx.coroutines.Job? = null
     // Forum scroll position slots
     var forumBoardsScrollIndex by mutableStateOf(0); private set
     var forumBoardsScrollOffset by mutableStateOf(0); private set
@@ -2265,10 +2266,19 @@ class LibraryViewModel : ViewModel() {
         forumBoardsLoaded = true
         forumBoardsLoading = true
         viewModelScope.launch {
-            runCatching { api.forumBoards() }
-                .onSuccess { forumCategories = it; forumBoardsError = null }
-                .onFailure { forumBoardsError = it.message ?: "Could not load forums" }
-            forumBoardsLoading = false
+            try {
+                runCatching { api.forumBoards() }
+                    .onSuccess { forumCategories = it; forumBoardsError = null }
+                    .onFailure {
+                        // runCatching also catches CancellationException; a cancelled load is not an
+                        // error ("StandaloneCoroutine was cancelled"), so let it propagate.
+                        if (it is kotlinx.coroutines.CancellationException) throw it
+                        forumBoardsLoaded = false // allow another try instead of staying empty forever
+                        forumBoardsError = it.message ?: "Could not load forums"
+                    }
+            } finally {
+                forumBoardsLoading = false
+            }
         }
     }
     // Open board's topic list
@@ -2294,16 +2304,27 @@ class LibraryViewModel : ViewModel() {
     // Is News Discussion board?
     val forumIsNewsBoard: Boolean get() = forumBoardTitle.equals("News Discussion", ignoreCase = true)
     private fun runForumTopics(context: Context) {
-        forumTopicsJob?.cancel()
+        forumTopicsJob?.cancel(); forumLoadMoreJob?.cancel()
+        forumLoadingMore = false
         val api = MalApi(context)
         if (!api.signedIn) { forumTopicsError = "Sign in from Profile to browse the forums"; return }
         val newsBoard = forumIsNewsBoard
+        forumTopicsError = null
         forumTopicsJob = viewModelScope.launch {
             forumTopicsLoading = true
-            runCatching { api.forumTopics(boardId = forumBoardId, subboardId = forumSubboardId, query = forumQuery, withThumbnails = newsBoard) }
-                .onSuccess { forumTopics = it.items; forumHasMore = it.hasMore; forumTopicsError = null }
-                .onFailure { forumTopicsError = it.message ?: "Could not load topics" }
-            forumTopicsLoading = false
+            try {
+                runCatching { api.forumTopics(boardId = forumBoardId, subboardId = forumSubboardId, query = forumQuery, withThumbnails = newsBoard) }
+                    .onSuccess { forumTopics = it.items; forumHasMore = it.hasMore; forumTopicsError = null }
+                    .onFailure {
+                        // A newer load (or leaving the board) cancels this one. That must not surface as an
+                        // error, and it must not switch the spinner off while the newer load is running.
+                        if (it is kotlinx.coroutines.CancellationException) throw it
+                        forumTopicsError = it.message ?: "Could not load topics"
+                    }
+            } finally {
+                // Only the newest job owns the loading flag (a cancelled older one lands here too).
+                if (forumTopicsJob === coroutineContext[kotlinx.coroutines.Job]) forumTopicsLoading = false
+            }
         }
     }
     // Load more forum topics
@@ -2311,17 +2332,21 @@ class LibraryViewModel : ViewModel() {
         if (forumTopicsLoading || forumLoadingMore || !forumHasMore) return
         val api = MalApi(context); if (!api.signedIn) return
         val newsBoard = forumIsNewsBoard
-        viewModelScope.launch {
+        forumLoadMoreJob = viewModelScope.launch {
             forumLoadingMore = true
-            runCatching { api.forumTopics(boardId = forumBoardId, subboardId = forumSubboardId, query = forumQuery, offset = forumTopics.size, withThumbnails = newsBoard) }
-                .onSuccess { forumTopics = forumTopics + it.items; forumHasMore = it.hasMore }
-                .onFailure { forumHasMore = false }
-            forumLoadingMore = false
+            try {
+                runCatching { api.forumTopics(boardId = forumBoardId, subboardId = forumSubboardId, query = forumQuery, offset = forumTopics.size, withThumbnails = newsBoard) }
+                    .onSuccess { forumTopics = forumTopics + it.items; forumHasMore = it.hasMore }
+                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; forumHasMore = false }
+            } finally {
+                forumLoadingMore = false
+            }
         }
     }
     // Return to board list
     fun exitForumTopics() {
-        forumTopicsJob?.cancel()
+        forumTopicsJob?.cancel(); forumLoadMoreJob?.cancel()
+        forumTopicsLoading = false; forumLoadingMore = false
         forumMode = ForumMode.Boards; forumBoardTitle = ""; forumBoardId = null; forumSubboards = emptyList(); forumSubboardId = null; forumQuery = ""
         forumTopics = emptyList(); forumTopicsError = null; forumHasMore = false
     }
