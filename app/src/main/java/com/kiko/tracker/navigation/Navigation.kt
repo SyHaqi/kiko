@@ -854,6 +854,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 personDetailOpenId != null -> TopScreen.PersonPage(personDetailOpenId!!, personDetailOpen)
                                 companyDetailOpenId != null -> TopScreen.CompanyPage(companyDetailOpenId!!, companyDetailOpen)
                                 featuredArticlesOpen -> TopScreen.FeaturedArticles
+                                clubDetailOpen != null -> TopScreen.ClubDetail(clubDetailOpen!!)
                                 historyOpen -> TopScreen.History
                                 notificationsOpen -> TopScreen.Notifications
                                 rankingOpen -> TopScreen.Ranking
@@ -862,7 +863,6 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 stacksBrowseKind != null -> TopScreen.StacksBrowse(stacksBrowseKind!!)
                                 stacksSavedOpen -> TopScreen.StacksSaved
                                 stacksHomeOpen -> TopScreen.StacksHome
-                                clubDetailOpen != null -> TopScreen.ClubDetail(clubDetailOpen!!)
                                 aboutOpen -> TopScreen.About
                                 scoreFilterOpen != null -> TopScreen.ScoreFilter(scoreFilterOpen!!.first, scoreFilterOpen!!.second)
                                 yearFilterOpen != null -> TopScreen.YearFilter(yearFilterOpen!!.first, yearFilterOpen!!.second)
@@ -1046,7 +1046,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         )
                                         TopScreen.FeaturedArticles -> FeaturedArticlesScreen(vm, onBack = { featuredArticlesOpen = false }, onOpenArticle = { url, articleTitle -> featuredArticleOpen = url to articleTitle })
                                         TopScreen.History -> HistoryScreen(vm, onBack = { historyOpen = false }, onOpenDetail = ::openDetail)
-                                        TopScreen.Notifications -> NotificationsScreen(vm, onBack = { notificationsOpen = false }, onOpenUser = ::openUserProfile, onOpenTitle = { malId, type -> openFavoriteTitle(malId, type) })
+                                        TopScreen.Notifications -> NotificationsScreen(vm, onBack = { notificationsOpen = false }, onOpenUser = ::openUserProfile, onOpenTitle = { malId, type -> openFavoriteTitle(malId, type) }, onOpenTopic = { id, title -> forumTopicOpen = id to title }, onOpenClub = { clubDetailOpen = it })
                                         is TopScreen.FeaturedArticle -> FeaturedArticleScreen(vm = vm, url = screen.url, title = screen.title, onBack = { featuredArticleOpen = null }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
                                         TopScreen.Ranking -> RankingScreen(vm, onBack = { rankingOpen = false }, onOpenDetail = ::openDetail)
                                         TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)

@@ -100,7 +100,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // so the next visit starts from a fresh scrape rather than stale data.
     val state = vm.getFriendProfileState(username)
 
-    LaunchedEffect(connected, username) { if (connected) { vm.loadFriendProfile(context, username); vm.loadFriendRequestInfo(context, username) } }
+    LaunchedEffect(connected, username) { if (connected) { vm.loadFriendProfile(context, username); vm.loadFriendRequestInfo(context, username, force = true) } }
 
     // Add Friend: state lives in the ViewModel (per username) so it survives this screen being
     // rebuilt when a title/character page is opened on top and closed again.
@@ -244,12 +244,23 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 header.birthday?.let { DetailPill(Icons.Rounded.Cake, it) },
                                 header.joined?.let { DetailPill(Icons.Rounded.Event, it) },
                             )
+                            // MAL prints neither the Add nor the Remove link on a profile when a request
+                            // from you is already waiting for an answer (or on your own page, which can
+                            // show up here via a friend-of-a-friend chain) — so "no link" on someone
+                            // else's page is shown as a greyed-out "pending" button.
+                            val isOwnPage = username.equals(vm.malProfile?.name, ignoreCase = true)
+                            val relation = requestState.info?.relation
                             val addFriendSlot: (@Composable () -> Unit)? =
                                 when {
-                                    requestState.info?.relation == FriendRelation.CanRemove ->
+                                    relation == FriendRelation.CanRemove ->
                                         ({ FriendActionButton(FriendAction.Remove, busy = requestState.removing, onClick = { showRemoveDialog = true }) })
-                                    requestState.info?.relation == FriendRelation.CanRequest || requestState.sent ->
-                                        ({ FriendActionButton(FriendAction.Add, busy = requestState.sending, done = requestState.sent, onClick = { showRequestDialog = true }) })
+                                    // Just sent from this screen: flip to pending straight away.
+                                    requestState.sent ->
+                                        ({ FriendActionButton(FriendAction.Pending, busy = false, onClick = {}) })
+                                    relation == FriendRelation.CanRequest ->
+                                        ({ FriendActionButton(FriendAction.Add, busy = requestState.sending, onClick = { showRequestDialog = true }) })
+                                    relation == FriendRelation.Unavailable && !isOwnPage ->
+                                        ({ FriendActionButton(FriendAction.Pending, busy = false, onClick = {}) })
                                     else -> null
                                 }
                             Box(Modifier.padding(bottom = 24.dp)) {
@@ -280,26 +291,35 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 
 // Icon-only friend button beside the username in the profile header (no label). Shows "add" when
 // MAL printed its Add-friend link for this user, "remove" when it printed Remove-friend (existing
-// friends); never composed on your own page. After a request is sent the add icon flips to a
-// disabled check for the rest of the visit.
-private enum class FriendAction { Add, Remove }
+// friends), and a greyed-out, non-clickable "pending" person icon with a small clock badge while a
+// request you sent hasn't been answered yet. Never composed on your own page.
+private enum class FriendAction { Add, Remove, Pending }
 
-@Composable private fun FriendActionButton(action: FriendAction, busy: Boolean, onClick: () -> Unit, done: Boolean = false) {
+@Composable private fun FriendActionButton(action: FriendAction, busy: Boolean, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     val isAdd = action == FriendAction.Add
+    val isPending = action == FriendAction.Pending
     FilledTonalIconButton(
         onClick = onClick,
-        enabled = !busy && !done,
+        enabled = !busy && !isPending,
         colors = IconButtonDefaults.filledTonalIconButtonColors(
             containerColor = if (isAdd) c.primary else c.secondaryContainer,
             contentColor = if (isAdd) c.onPrimary else c.onSecondaryContainer,
-            disabledContainerColor = c.secondaryContainer,
-            disabledContentColor = c.onSecondaryContainer,
+            disabledContainerColor = if (isPending) c.surfaceContainerHigh else c.secondaryContainer,
+            disabledContentColor = if (isPending) c.muted else c.onSecondaryContainer,
         ),
     ) {
         when {
             busy -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = c.onSecondaryContainer)
-            done -> Icon(Icons.Rounded.Check, contentDescription = "Friend request sent", modifier = Modifier.size(20.dp))
+            isPending -> Box(Modifier.size(20.dp)) {
+                // Same person glyph as add/remove, with a clock where the + / - would be.
+                Icon(Icons.Rounded.Person, contentDescription = "Friend request pending", modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Rounded.Schedule, contentDescription = null,
+                    modifier = Modifier.size(12.dp).align(Alignment.BottomEnd).offset(x = 4.dp, y = 3.dp)
+                        .clip(kikoCircleShape()).background(c.surfaceContainerHigh),
+                )
+            }
             isAdd -> Icon(Icons.Rounded.PersonAdd, contentDescription = "Add friend", modifier = Modifier.size(20.dp))
             else -> Icon(Icons.Rounded.PersonRemove, contentDescription = "Remove friend", modifier = Modifier.size(20.dp))
         }

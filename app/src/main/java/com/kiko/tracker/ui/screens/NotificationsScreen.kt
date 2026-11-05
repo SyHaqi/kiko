@@ -7,11 +7,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.DoneAll
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.HowToReg
 import androidx.compose.material.icons.rounded.Movie
@@ -19,18 +22,26 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
+import coil.request.ImageRequest
+import com.kiko.tracker.data.api.ClubsApi
+import com.kiko.tracker.data.api.MalClub
+import com.kiko.tracker.data.api.MalFriendApi
 import com.kiko.tracker.data.api.MalNotification
+import com.kiko.tracker.data.api.NotificationCategory
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
@@ -47,8 +58,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 /**
  * MAL notification inbox (myanimelist.net/notification): accepted/denied/incoming friend
  * requests, profile comments, forum quotes, club shares, new related anime, and the rest.
- * Laid out like a Material 3 list page: small top app bar with a "mark all as read" action, then a
- * "New" section and a "History" section of connected tonal rows. A row moves from New to History
+ * Laid out like a Material 3 list page: small top app bar with a "mark all as read" action, scrollable
+ * category tabs (MAL's sidebar filters, same strip as My List), then per page a "New" section and a
+ * "History" section of connected tonal rows. A row moves from New to History
  * only when it is tapped (which opens its page) or via "mark all" — read state is local, see
  * MalNotificationTracker.
  */
@@ -57,66 +69,155 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     onBack: () -> Unit,
     onOpenUser: (username: String, avatarUrl: String?) -> Unit,
     onOpenTitle: (Int, MediaType) -> Unit,
+    onOpenTopic: (topicId: Int, title: String) -> Unit = { _, _ -> },
+    onOpenClub: (MalClub) -> Unit = {},
 ) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     BackHandler(onBack = onBack)
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) { vm.refreshNotifications(context) }
+    LaunchedEffect(Unit) {
+        vm.loadFriendResponses(context) // answered requests show their outcome, not Accept / Deny
+        vm.refreshNotifications(context)
+        // Read items live on the per-category pages, not on /notification. Started a beat later so
+        // the page's first draw and first scroll aren't competing with 10 requests + state updates.
+        kotlinx.coroutines.delay(400)
+        vm.loadNotificationHistory(context)
+    }
 
-    val unread = vm.notifications.filter { it.id !in vm.notificationsRead }
-    val history = vm.notifications.filter { it.id in vm.notificationsRead }
+    // New items come from /notification, read ones from the category pages — merged here.
+    val inbox = remember(vm.notifications, vm.notificationHistory) {
+        (vm.notifications + vm.notificationHistory).distinctBy { it.id }.sortedByDescending { it.createdAtEpoch }
+    }
+    val readIds = vm.notificationsRead
+    // Only categories that actually have something, in MAL's sidebar order.
+    val tabs = remember(inbox) { listOf(NotificationCategory.All) + NotificationCategory.entries.filter { cat -> cat != NotificationCategory.All && inbox.any { it.kind == cat } } }
+    var selected by rememberSaveable { mutableStateOf(NotificationCategory.All) }
+    val current = if (selected in tabs) selected else NotificationCategory.All
+    // One pass over the inbox for every tab's badge, instead of a full scan per tab per recomposition.
+    val unreadCounts = remember(inbox, readIds) {
+        val m = HashMap<NotificationCategory, Int>()
+        var total = 0
+        for (n in inbox) if (n.id !in readIds) { total++; m[n.kind] = (m[n.kind] ?: 0) + 1 }
+        m[NotificationCategory.All] = total
+        m
+    }
+    fun unreadIn(cat: NotificationCategory) = unreadCounts[cat] ?: 0
 
+    // Opens what a notification points at inside Kiko whenever Kiko has a page for it (profiles,
+    // titles, forum topics, clubs); anything else falls back to the browser.
     fun open(n: MalNotification) {
-        val url = n.url ?: return
+        val url = n.url?.let { if (it.startsWith("/")) "https://myanimelist.net$it" else it } ?: return
         val profile = Regex("myanimelist\\.net/profile/([^/?#]+)").find(url)?.groupValues?.get(1)
         val title = Regex("myanimelist\\.net/(anime|manga)/(\\d+)").find(url)
+        // Forum topics (quotes, watched topics, mentions, club-shared discussions all link to one).
+        val topicId = Regex("[?&]topicid=(\\d+)").find(url)?.groupValues?.get(1)?.toIntOrNull()
+        // A single post's link: MAL redirects it to its topic, so the topic id has to be looked up.
+        val isForumMessage = Regex("myanimelist\\.net/forum/message/\\d+").containsMatchIn(url)
+        val clubId = Regex("myanimelist\\.net/clubs\\.php\\?(?:[^#]*&)?(?:cid|id)=(\\d+)").find(url)?.groupValues?.get(1)?.toIntOrNull()
+        val topicTitle = n.body?.takeIf { it.isNotBlank() } ?: n.title
         when {
             profile != null -> onOpenUser(runCatching { java.net.URLDecoder.decode(profile, "UTF-8") }.getOrDefault(profile), n.avatarUrl)
             title != null -> onOpenTitle(title.groupValues[2].toInt(), if (title.groupValues[1] == "anime") MediaType.Anime else MediaType.Manga)
+            topicId != null -> onOpenTopic(topicId, topicTitle)
+            isForumMessage -> scope.launch {
+                val id = runCatching { MalFriendApi(context).resolveForumTopicId(url) }.getOrNull()
+                if (id != null) onOpenTopic(id, topicTitle) else context.openInBrowser(url)
+            }
+            clubId != null -> scope.launch {
+                runCatching { ClubsApi().fetchClub(clubId) }
+                    .onSuccess(onOpenClub)
+                    .onFailure { context.openInBrowser(url) }
+            }
             else -> context.openInBrowser(url)
         }
     }
     // Tapping opens the page the notification points at, then marks it read.
     fun tap(n: MalNotification) { open(n); vm.markNotificationRead(context, n.id) }
+    val tapState = rememberUpdatedState(::tap)
+    val onTap = remember { { n: MalNotification -> tapState.value(n) } }
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
             Text("Notifications", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
-            IconButton(onClick = { vm.markAllNotificationsRead(context) }, enabled = unread.isNotEmpty(), modifier = Modifier.headerEdgeEnd()) {
-                Icon(Icons.Rounded.DoneAll, "Mark all as read", tint = c.ink.copy(alpha = if (unread.isNotEmpty()) 1f else 0.38f), modifier = Modifier.size(24.dp))
+            val canMarkAll = unreadIn(current) > 0
+            IconButton(onClick = { vm.markAllNotificationsRead(context, current) }, enabled = canMarkAll, modifier = Modifier.headerEdgeEnd()) {
+                Icon(Icons.Rounded.DoneAll, "Mark all as read", tint = c.ink.copy(alpha = if (canMarkAll) 1f else 0.38f), modifier = Modifier.size(24.dp))
             }
         }
-        KikoPullToRefreshBox(
-            isRefreshing = vm.notificationsLoading && vm.notifications.isNotEmpty(),
-            onRefresh = { vm.refreshNotifications(context) },
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-        ) {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                when {
-                    vm.notificationsLoading && vm.notifications.isEmpty() -> item(key = "loading") {
-                        Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary) }
-                    }
-                    vm.notifications.isEmpty() -> item(key = "empty") {
-                        Text(
-                            vm.notificationsError ?: "No notifications yet — friend requests, replies and other MAL activity will show up here.",
-                            color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-                        )
-                    }
-                    else -> {
-                        vm.notificationsError?.let { err -> item(key = "error") { Text(err, color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)) } }
-                        item(key = "new_header") { SectionLabel("New", if (unread.isNotEmpty()) unread.size else null) }
-                        if (unread.isEmpty()) item(key = "caught_up") {
-                            Text("You're all caught up", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
+        KikoTabPager(
+            items = tabs,
+            selected = current,
+            onSelect = { selected = it },
+            tab = { cat, isSelected ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    KikoTabText(cat.label, isSelected)
+                    val n = unreadIn(cat)
+                    if (n > 0) {
+                        Box(Modifier.padding(start = 6.dp).clip(RoundedCornerShape(50)).background(c.primary).padding(horizontal = 6.dp, vertical = 1.dp)) {
+                            Text(if (n > 99) "99+" else n.toString(), color = c.onPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
-                        itemsIndexed(unread, key = { _, n -> n.id }) { index, n ->
-                            NotificationEntry(vm, n, isNew = true, shape = segmentedShape(index, unread.size), modifier = Modifier.animateItem(), onTap = { tap(n) })
+                    }
+                }
+            },
+            page = { cat -> NotificationPage(vm, cat, inbox, onTap = onTap) },
+        )
+    }
+}
+
+@Composable private fun NotificationPage(vm: LibraryViewModel, category: NotificationCategory, inbox: List<MalNotification>, onTap: (MalNotification) -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    val items = remember(inbox, category) { if (category == NotificationCategory.All) inbox else inbox.filter { it.kind == category } }
+    val readIds = vm.notificationsRead
+    // Split once per change, not on every recomposition (which happens a lot while scrolling/animating).
+    val unread = remember(items, readIds) { items.filter { it.id !in readIds } }
+    // The "All" tab only lists what's new; read items live under their own category's History.
+    val showHistory = category != NotificationCategory.All
+    val history = remember(items, readIds, showHistory) { if (showHistory) items.filter { it.id in readIds } else emptyList() }
+    // History starts collapsed (and stays that way per tab, even across rotation / page recycling).
+    var historyExpanded by rememberSaveable(category) { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    KikoPullToRefreshBox(
+        isRefreshing = (vm.notificationsLoading && vm.notifications.isNotEmpty()) || vm.notificationHistoryLoading,
+        onRefresh = { vm.refreshNotifications(context); vm.loadNotificationHistory(context, force = true) },
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            when {
+                items.isEmpty() && (vm.notificationsLoading || vm.notificationHistoryLoading) -> item(key = "loading") {
+                    Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary) }
+                }
+                items.isEmpty() -> item(key = "empty") {
+                    Text(
+                        vm.notificationsError ?: "No notifications yet — friend requests, replies and other MAL activity will show up here.",
+                        color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                    )
+                }
+                else -> {
+                    vm.notificationsError?.let { err -> item(key = "error") { Text(err, color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp)) } }
+                    item(key = "new_header") { SectionLabel("New", if (unread.isNotEmpty()) unread.size else null) }
+                    if (unread.isEmpty()) item(key = "caught_up") {
+                        Text("You're all caught up", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
+                    }
+                    itemsIndexed(unread, key = { _, n -> n.id }, contentType = { _, _ -> "notification" }) { index, n ->
+                        NotificationEntry(vm, n, isNew = true, shape = segmentedShape(index, unread.size), modifier = Modifier.animateItem(), onTap = { onTap(n) })
+                    }
+                    if (showHistory && history.isNotEmpty()) {
+                        item(key = "history_header", contentType = "history_header") {
+                            HistoryHeader(history.size, historyExpanded) { historyExpanded = !historyExpanded }
                         }
-                        if (history.isNotEmpty()) {
-                            item(key = "history_header") { SectionLabel("History", null) }
-                            itemsIndexed(history, key = { _, n -> n.id }) { index, n ->
-                                NotificationEntry(vm, n, isNew = false, shape = segmentedShape(index, history.size), modifier = Modifier.animateItem(), onTap = { tap(n) })
+                        // Collapsed by default: none of these rows are composed until the header is opened.
+                        if (historyExpanded) {
+                            itemsIndexed(history, key = { _, n -> n.id }, contentType = { _, _ -> "notification" }) { index, n ->
+                                NotificationEntry(vm, n, isNew = false, shape = segmentedShape(index, history.size), modifier = Modifier, onTap = { onTap(n) })
+                            }
+                            // MAL embeds only the latest 10 per category; older ones are behind its "View more".
+                            val more = category.moreHistoryUrl
+                            if (more != null && history.size >= 10) item(key = "more_history", contentType = "more") {
+                                TextButton(onClick = { context.openInBrowser(more) }) { Text("View older on MAL") }
                             }
                         }
                     }
@@ -134,6 +235,22 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         style = MaterialTheme.typography.titleSmall, color = c.primary,
         modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 16.dp, bottom = 8.dp),
     )
+}
+
+// Tappable "History · N" header with a chevron; toggles the collapsed history list.
+@Composable private fun HistoryHeader(count: Int, expanded: Boolean, onToggle: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).kikoClickable(scale = 1f, onClick = onToggle).padding(start = 4.dp, top = 16.dp, bottom = 8.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("History · $count", style = MaterialTheme.typography.titleSmall, color = c.primary, modifier = Modifier.weight(1f))
+        Icon(
+            if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+            contentDescription = if (expanded) "Collapse history" else "Expand history",
+            tint = c.primary, modifier = Modifier.size(24.dp),
+        )
+    }
 }
 
 @Composable private fun NotificationEntry(
@@ -163,12 +280,15 @@ private fun iconFor(n: MalNotification): ImageVector = when {
 }
 
 // Connected tonal list: big outer corners on the first/last row, small ones where rows meet.
-private fun segmentedShape(index: Int, count: Int): Shape {
-    val outer = 20.dp; val inner = 4.dp
-    return RoundedCornerShape(
-        topStart = if (index == 0) outer else inner, topEnd = if (index == 0) outer else inner,
-        bottomStart = if (index == count - 1) outer else inner, bottomEnd = if (index == count - 1) outer else inner,
-    )
+private val ShapeSingle = RoundedCornerShape(20.dp)
+private val ShapeFirst = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+private val ShapeLast = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 20.dp, bottomEnd = 20.dp)
+private val ShapeMiddle = RoundedCornerShape(4.dp)
+private fun segmentedShape(index: Int, count: Int): Shape = when {
+    count <= 1 -> ShapeSingle
+    index == 0 -> ShapeFirst
+    index == count - 1 -> ShapeLast
+    else -> ShapeMiddle
 }
 
 @Composable private fun NotificationRow(
@@ -186,7 +306,9 @@ private fun segmentedShape(index: Int, count: Int): Shape {
         ),
         leadingContent = {
             if (!n.avatarUrl.isNullOrBlank()) {
-                AsyncImage(model = n.avatarUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(44.dp).clip(kikoCircleShape()).background(c.warm))
+                val ctx = LocalContext.current
+                val request = remember(n.avatarUrl) { ImageRequest.Builder(ctx).data(n.avatarUrl).size(132).crossfade(false).build() }
+                AsyncImage(model = request, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(44.dp).clip(kikoCircleShape()).background(c.warm))
             } else {
                 Box(Modifier.size(44.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
                     Icon(iconFor(n), null, tint = c.primary, modifier = Modifier.size(22.dp))

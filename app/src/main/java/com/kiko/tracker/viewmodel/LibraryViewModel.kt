@@ -43,6 +43,7 @@ import com.kiko.tracker.data.api.MalFavorites
 import com.kiko.tracker.data.api.MalFriend
 import com.kiko.tracker.data.api.MalFriendApi
 import com.kiko.tracker.data.api.MalNotification
+import com.kiko.tracker.data.api.NotificationCategory
 import com.kiko.tracker.data.api.FriendRelation
 import com.kiko.tracker.data.api.FriendRequestInfo
 import com.kiko.tracker.data.api.MalFriendProfile
@@ -122,6 +123,7 @@ import com.kiko.tracker.ui.theme.parseHexColor
 import com.kiko.tracker.util.AppUpdateChecker
 import com.kiko.tracker.util.AppUpdateInfo
 import com.kiko.tracker.util.MalNotificationTracker
+import com.kiko.tracker.util.cancelMalNotification
 import com.kiko.tracker.util.postMalNotifications
 import com.kiko.tracker.util.settingsPrefs
 
@@ -903,9 +905,13 @@ class LibraryViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching { MalFriendApi(context).removeFriend(userId) }
                 .onSuccess {
-                    // Re-read the profile's own link so the button flips to "add" if MAL now offers it.
-                    friendRequestStates[username] = (friendRequestStates[username] ?: FriendRequestState()).copy(removing = false, removed = true, sent = false, error = null)
-                    loadFriendRequestInfo(context, username, force = true)
+                    // They're no longer a friend, so flip straight to "add" with the id we already have
+                    // (MAL's own page can lag or be cached right after the removal). The next time the
+                    // profile opens it re-reads MAL and corrects this if MAL disagrees.
+                    friendRequestStates[username] = (friendRequestStates[username] ?: FriendRequestState()).copy(
+                        info = FriendRequestInfo(FriendRelation.CanRequest, userId),
+                        removing = false, removed = true, sent = false, error = null,
+                    )
                 }
                 .onFailure { e ->
                     if (e is MalSessionExpired) MalSessionCookie(context).clear()
@@ -928,6 +934,11 @@ class LibraryViewModel : ViewModel() {
     // Ids of notifications that are read (local, per item). The inbox shows the rest under "New"
     // and these under "History"; an item only moves when it's tapped open or "mark all" is used.
     var notificationsRead by mutableStateOf<Set<String>>(emptySet()); private set
+    // Read items ("history") only exist on MAL's per-category pages — the All page embeds none — so
+    // they're collected here, one category at a time, and merged with [notifications] by the screen.
+    var notificationHistory by mutableStateOf<List<MalNotification>>(emptyList()); private set
+    var notificationHistoryLoading by mutableStateOf(false); private set
+    private val historyLoaded = mutableSetOf<String>()
 
     /** Fetches /notification. With [push] (background checks) also posts a local notification for new unread items. */
     fun refreshNotifications(context: Context, push: Boolean = false) {
@@ -941,6 +952,7 @@ class LibraryViewModel : ViewModel() {
                 .onSuccess { all ->
                     tracker.syncRead(all)
                     notificationsRead = tracker.readIds()
+                    loadFriendResponses(appContext)
                     notifications = all
                     notificationsError = null
                     tracker.lastCheckedAt = System.currentTimeMillis()
@@ -968,6 +980,12 @@ class LibraryViewModel : ViewModel() {
     data class FriendResponseState(val busy: Boolean = false, val accepted: Boolean? = null, val error: String? = null)
     private val friendResponses = mutableStateMapOf<String, FriendResponseState>()
     fun friendResponseState(notificationId: String): FriendResponseState = friendResponses[notificationId] ?: FriendResponseState()
+    /** Brings in answers saved on disk (incl. ones given from the system notification's buttons). */
+    fun loadFriendResponses(context: Context) {
+        MalNotificationTracker(context).friendResponses().forEach { (id, accepted) ->
+            if (friendResponses[id]?.accepted != accepted) friendResponses[id] = FriendResponseState(accepted = accepted)
+        }
+    }
     fun respondToFriendRequest(context: Context, notificationId: String, accept: Boolean) {
         val current = friendResponses[notificationId] ?: FriendResponseState()
         if (current.busy || current.accepted != null) return
@@ -977,6 +995,14 @@ class LibraryViewModel : ViewModel() {
             runCatching { MalFriendApi(appContext).respondToRequest(notificationId, accept) }
                 .onSuccess {
                     friendResponses[notificationId] = FriendResponseState(accepted = accept)
+                    // Remember the answer (so Accept / Deny never come back), move the item out of
+                    // "New" into History with its outcome, and drop its system notification.
+                    val tracker = MalNotificationTracker(appContext)
+                    tracker.saveFriendResponse(notificationId, accept)
+                    tracker.markRead(listOf(notificationId))
+                    notificationsRead = tracker.readIds()
+                    notificationsUnread = tracker.unreadCount(notifications + notificationHistory)
+                    cancelMalNotification(appContext, notificationId)
                     // Pull the fresh inbox so MAL's own state (and the friends list) catches up.
                     refreshNotifications(appContext)
                 }
@@ -995,22 +1021,57 @@ class LibraryViewModel : ViewModel() {
         if (System.currentTimeMillis() - tracker.lastCheckedAt < minIntervalMs) return
         refreshNotifications(context, push = true)
     }
+    /**
+     * Loads each category page's history (10 small requests, one after another, once per session —
+     * [force] re-fetches, e.g. on pull-to-refresh). Failures on one category are skipped silently.
+     */
+    fun loadNotificationHistory(context: Context, force: Boolean = false) {
+        if (notificationHistoryLoading || !MalSessionCookie(context).has()) return
+        val appContext = context.applicationContext
+        notificationHistoryLoading = true
+        viewModelScope.launch {
+            val api = MalFriendApi(appContext)
+            val tracker = MalNotificationTracker(appContext)
+            for (cat in NotificationCategory.entries) {
+                val slug = cat.slug ?: continue
+                if (!force && slug in historyLoaded) continue
+                val result = runCatching { api.notifications(cat) }
+                result.onSuccess { list ->
+                    historyLoaded += slug
+                    val merged = (notificationHistory + list.filter { it.isHistory }).distinctBy { it.id }
+                    // Nothing new from this category -> skip the state write, prefs I/O and the
+                    // inbox re-sort/recomposition it would trigger (up to 10x per load otherwise).
+                    if (merged.size != notificationHistory.size) {
+                        notificationHistory = merged
+                        tracker.syncRead(notifications + notificationHistory)
+                        val read = tracker.readIds()
+                        if (read != notificationsRead) notificationsRead = read
+                    }
+                }
+                if (result.exceptionOrNull() is MalSessionExpired) { MalSessionCookie(appContext).clear(); break }
+            }
+            notificationHistoryLoading = false
+        }
+    }
+
     /** Marks one notification read (called after its page has been opened), locally and on MAL. */
     fun markNotificationRead(context: Context, id: String) {
         val wasUnread = id !in notificationsRead
         val tracker = MalNotificationTracker(context)
         tracker.markRead(listOf(id))
         notificationsRead = tracker.readIds()
-        notificationsUnread = tracker.unreadCount(notifications)
+        notificationsUnread = tracker.unreadCount(notifications + notificationHistory)
         // Keep the website in step — only for a first-time read that MAL still lists as unread.
         if (wasUnread && notifications.any { it.id == id && !it.isRead }) syncReadToMal(context, listOf(id))
     }
-    fun markAllNotificationsRead(context: Context) {
-        val unreadOnMal = notifications.filter { it.id !in notificationsRead && !it.isRead }.map { it.id }
+    /** Marks everything in [category] (default: the whole inbox) read, locally and on MAL. */
+    fun markAllNotificationsRead(context: Context, category: NotificationCategory = NotificationCategory.All) {
+        val targets = notifications.filter { category == NotificationCategory.All || it.kind == category }
+        val unreadOnMal = targets.filter { it.id !in notificationsRead && !it.isRead }.map { it.id }
         val tracker = MalNotificationTracker(context)
-        tracker.markRead(notifications.map { it.id })
+        tracker.markRead(targets.map { it.id })
         notificationsRead = tracker.readIds()
-        notificationsUnread = 0
+        notificationsUnread = tracker.unreadCount(notifications + notificationHistory)
         syncReadToMal(context, unreadOnMal)
     }
     // Fire-and-forget: the local state above is what the UI shows, so a failed call (offline, expired

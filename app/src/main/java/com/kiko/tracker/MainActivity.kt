@@ -31,6 +31,7 @@ import com.kiko.tracker.util.AppUpdateChecker
 import com.kiko.tracker.util.AppUpdateInfo
 import com.kiko.tracker.util.EXTRA_OPEN_NOTIFICATIONS
 import com.kiko.tracker.util.MalNotificationTracker
+import com.kiko.tracker.util.MalNotificationWorker
 import com.kiko.tracker.util.canPostNotifications
 import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.util.copyCrashLogToClipboard
@@ -168,7 +169,7 @@ class MainActivity : ComponentActivity() {
             }
             // MAL notifications (friend requests, accepted requests, comments, ...): check on launch and
             // then every 5 minutes while the app is open, pushing a local notification for new unread
-            // items. There's no background worker, so nothing is checked while Kiko is closed.
+            // items. While Kiko is closed, MalNotificationWorker (WorkManager, ~every 15 min) does the same.
             LaunchedEffect(Unit) {
                 while (true) {
                     // The web cookie can be connected at any point (e.g. from a profile page), so check
@@ -181,6 +182,9 @@ class MainActivity : ComponentActivity() {
                             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                         vm.checkNotificationsInBackground(this@MainActivity)
+                        // Keeps notifications coming while the app is closed. Idempotent (KEEP), and the
+                        // worker unschedules itself if the MAL session is gone.
+                        MalNotificationWorker.schedule(this@MainActivity)
                     }
                     kotlinx.coroutines.delay(5 * 60 * 1000L)
                 }

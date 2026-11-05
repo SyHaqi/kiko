@@ -3,6 +3,7 @@ package com.kiko.tracker.data.api
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.CacheControl
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -26,6 +27,44 @@ enum class FriendRelation {
 /** The profile page's friend-request link, as scraped: the target's numeric id plus relation. */
 data class FriendRequestInfo(val relation: FriendRelation, val userId: Int?)
 
+/**
+ * The filters in MAL's notification sidebar (verified against each captured category page). [slug] is
+ * the path under /notification/. The "All" page only embeds the NEW items — read items ("history")
+ * are embedded only on the individual category pages, which is why history is loaded per category.
+ */
+enum class NotificationCategory(val slug: String?, val label: String) {
+    All(null, "All"),
+    FriendRequests("friend_request", "Friend requests"),
+    ProfileComments("profile_comment", "Profile comments"),
+    BlogComments("blog_comment", "Blog comments"),
+    ForumQuotes("forum_quote", "Forum quotes"),
+    UserMentions("user_mention", "User mentions"),
+    WatchedTopics("watched_topic_message", "Watched topics"),
+    ClubMessages("club_mass_message", "Club messages"),
+    RelatedAnime("related_anime", "New related anime"),
+    NowAiring("on_air", "Now airing"),
+    Payment("payment", "Payment");
+
+    /** MAL's "View more" page of older items for this category (not parsed — opened in the browser). */
+    val moreHistoryUrl: String? get() = slug?.let { "https://myanimelist.net/notification/$it/history" }
+
+    companion object {
+        fun of(type: String): NotificationCategory = when {
+            type.startsWith("friend_request") -> FriendRequests
+            type == "profile_comment" -> ProfileComments
+            type == "blog_comment" -> BlogComments
+            type == "forum_quote" -> ForumQuotes
+            type.startsWith("user_mention") -> UserMentions
+            type == "watched_topic_message" -> WatchedTopics
+            type.startsWith("club_mass_message") -> ClubMessages
+            type == "related_anime_add" -> RelatedAnime
+            type == "on_air" -> NowAiring
+            type.startsWith("payment") -> Payment
+            else -> All
+        }
+    }
+}
+
 /** One entry from myanimelist.net/notification, flattened into something a row can render. */
 data class MalNotification(
     val id: String,
@@ -44,6 +83,8 @@ data class MalNotification(
     /** Friend requests only: MAL says this request has already been accepted. */
     val isApproved: Boolean = false,
 ) {
+    /** Which sidebar category this belongs to (never [NotificationCategory.All]) — drives the tabs. */
+    val kind: NotificationCategory get() = NotificationCategory.of(type)
     val isFriendRelated: Boolean get() = type.startsWith("friend_request")
     val isFriendAccepted: Boolean get() = type.startsWith("friend_request") && type.contains("accept")
     val isIncomingFriendRequest: Boolean get() = type == "friend_request"
@@ -84,8 +125,12 @@ class MalFriendApi(context: Context) {
         if (finalUrl.contains("login.php") || body.contains("id=\"loginForm\"")) throw MalSessionExpired()
     }
 
+    // Everything here is per-user state (friend relation, inbox, confirm forms), so never serve it
+    // from NetworkClient.shared's disk cache — a cached profile page kept showing the old relation
+    // right after a friend was removed.
     private fun get(url: String): Pair<String, Document> {
         val request = Request.Builder().url(url)
+            .cacheControl(CacheControl.FORCE_NETWORK)
             .header("Cookie", cookieOrThrow()).header("User-Agent", MAL_DESKTOP_USER_AGENT).build()
         client.newCall(request).execute().use { resp ->
             val finalUrl = resp.request.url.toString()
@@ -110,6 +155,19 @@ class MalFriendApi(context: Context) {
             addLink != null && idOf(addLink) != null -> FriendRequestInfo(FriendRelation.CanRequest, idOf(addLink))
             else -> FriendRequestInfo(FriendRelation.Unavailable, null)
         }
+    }
+
+    /**
+     * Forum message links (`/forum/message/{id}`) carry no topic id — MAL redirects them to the topic
+     * page. Loads one and reads the topic id off where it ended up.
+     */
+    suspend fun resolveForumTopicId(url: String): Int? = withContext(Dispatchers.IO) {
+        val (_, doc) = get(url)
+        listOfNotNull(
+            doc.location(),
+            doc.selectFirst("link[rel=canonical]")?.attr("href"),
+            doc.selectFirst("meta[property=og:url]")?.attr("content"),
+        ).firstNotNullOfOrNull { Regex("[?&]topicid=(\\d+)").find(it)?.groupValues?.get(1)?.toIntOrNull() }
     }
 
     /**
@@ -251,8 +309,8 @@ class MalFriendApi(context: Context) {
     }
 
     /** All items currently on /notification (new + history), newest first. */
-    suspend fun notifications(): List<MalNotification> = withContext(Dispatchers.IO) {
-        val (body, _) = get("https://myanimelist.net/notification")
+    suspend fun notifications(category: NotificationCategory = NotificationCategory.All): List<MalNotification> = withContext(Dispatchers.IO) {
+        val (body, _) = get(category.slug?.let { "https://myanimelist.net/notification/$it" } ?: "https://myanimelist.net/notification")
         val json = extractNotificationJson(body) ?: throw IOException("Couldn't find the notification data on the page")
         val root = JSONObject(json)
         val out = ArrayList<MalNotification>()
@@ -296,7 +354,7 @@ class MalFriendApi(context: Context) {
             type == "profile_comment" -> "${s("commentUserName") ?: "Someone"} commented on your profile" to s("text")
             type == "forum_quote" -> "${s("quoteUserName") ?: "Someone"} quoted your post" to s("topicTitle")
             type == "blog_comment" -> "${s("commentUserName") ?: "Someone"} commented on your blog" to null
-            type == "watched_topic_message" -> "New reply in a topic you watch" to s("topicTitle")
+            type == "watched_topic_message" -> "${s("postedUserName") ?: "Someone"} replied in a topic you watch" to s("topicTitle")
             type.startsWith("club_mass_message") -> "${s("sharedUserName") ?: "A club member"} shared a discussion in ${s("clubName") ?: "your club"}" to s("topicTitle")
             type.startsWith("user_mention") -> "${s("senderName") ?: "Someone"} mentioned you" to s("pageTitle")
             type == "on_air" -> "Anime you plan to watch started airing" to
