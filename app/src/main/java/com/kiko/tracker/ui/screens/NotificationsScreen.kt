@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -176,18 +177,34 @@ private val NotificationTabs = listOf(
             items = tabs,
             selected = current,
             onSelect = onSelectTab,
-            tab = { cat, isSelected ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val n = unreadIn(cat)
-                    // The badge hangs off the label's corner instead of sitting in the row, so a count
-                    // arriving later never widens the tab or moves the indicator.
-                    BadgedBox(badge = {
-                        if (n > 0) Badge(containerColor = c.primary, contentColor = c.onPrimary) { Text(if (n > 99) "99+" else n.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-                    }) { KikoTabText(cat.label, isSelected) }
-                }
-            },
+            tab = { cat, isSelected -> NotificationTabLabel(cat.label, isSelected, unreadIn(cat)) },
             page = { cat -> NotificationPage(vm, cat, inbox, awaitingFirstLoad = !requested, onTap = onTap) },
         )
+    }
+}
+
+// Tab label with its unread count hanging off the top-right corner. The badge is placed by a custom layout
+// that reports zero size, so a count arriving later never widens the tab or moves the indicator (the strip
+// measures this Box for the indicator width), and it starts just past the label's last letter. M3's
+// BadgedBox sat 4dp *inside* the label's end, so the badge covered the last character.
+@Composable private fun NotificationTabLabel(label: String, selected: Boolean, count: Int) {
+    val c = LocalKikoColors.current
+    Box(contentAlignment = Alignment.TopEnd) {
+        KikoTabText(label, selected)
+        if (count > 0) {
+            Box(
+                Modifier.layout { measurable, constraints ->
+                    val badge = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                    // Zero-size anchor at the label's top-right; the badge is drawn from there: a small gap to
+                    // the right of the label, centred on the label's top edge (the tab has room above it).
+                    layout(0, 0) { badge.place(2.dp.roundToPx(), -badge.height / 2) }
+                },
+            ) {
+                Badge(containerColor = c.primary, contentColor = c.onPrimary) {
+                    Text(if (count > 99) "99+" else count.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                }
+            }
+        }
     }
 }
 
