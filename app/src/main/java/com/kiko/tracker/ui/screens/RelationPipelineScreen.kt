@@ -27,7 +27,12 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.CompositingStrategy
+import coil.request.ImageRequest
+import kotlin.math.ceil
+import kotlin.math.floor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -157,7 +162,7 @@ private val EmptyFlow = Flow(emptyMap(), emptyList(), 0f, 0f, Offset.Zero)
 private class FlowLayout(val source: RelationGraphData, val showManga: Boolean, val nodes: List<RelatedEntry>, val flow: Flow)
 
 // One pipe turned into drawable shapes once (world dp), so drawing a frame is only drawPath calls.
-private class PipeShape(val pipe: Pipe, val line: Path, val head: Path)
+private class PipeShape(val pipe: Pipe, val line: Path, val bounds: Rect) // line includes the arrow head; bounds in world dp
 
 private fun buildShapes(pipes: List<Pipe>): List<PipeShape> {
     val out = ArrayList<PipeShape>(pipes.size)
@@ -175,7 +180,9 @@ private fun buildShapes(pipes: List<Pipe>): List<PipeShape> {
             lineTo(tip.x, tip.y)
             lineTo(back.x - normal.x * 8f, back.y - normal.y * 8f)
         }
-        out.add(PipeShape(p, roundedPath(pts, 16f), head))
+        val line = roundedPath(pts, 16f)
+        line.addPath(head)
+        out.add(PipeShape(p, line, line.getBounds()))
     }
     return out
 }
@@ -767,6 +774,26 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
     LaunchedEffect(flow, viewport, viewKey) { if (viewport != IntSize.Zero && savedGraphView[viewKey] == null) centerOnRoot() }
     val bgColor = c.background
     val ringColor = c.primary
+    // The part of the map on screen (world dp), snapped to 300dp steps so it only changes when you have really moved.
+    // Only the cards inside it exist; a franchise of 130 titles keeps ~20 cards alive instead of all of them.
+    val visRect by remember(viewport, flow) {
+        derivedStateOf {
+            val k = scale * d
+            val snap = 300f
+            Rect(
+                floor((-offset.x / k - snap) / snap) * snap,
+                floor((-offset.y / k - snap) / snap) * snap,
+                ceil(((viewport.width - offset.x) / k + snap) / snap) * snap,
+                ceil(((viewport.height - offset.y) / k + snap) / snap) * snap,
+            )
+        }
+    }
+    val shown = remember(nodes, flow, visRect) {
+        nodes.filter { n ->
+            val pos = flow.cardPos[n.graphKey()] ?: return@filter false
+            pos.x + CardW > visRect.left && pos.x < visRect.right && pos.y + CardH > visRect.top && pos.y < visRect.bottom
+        }
+    }
 
     Box(
         Modifier.fillMaxSize().clipToBounds()
@@ -783,51 +810,49 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
                 }
             },
     ) {
-        Box(
-            Modifier.layout { measurable, constraints ->
-                val placeable = measurable.measure(Constraints.fixed((flow.width * d).roundToInt(), (flow.height * d).roundToInt()))
-                layout(constraints.maxWidth, constraints.maxHeight) {
-                    placeable.placeWithLayer(0, 0) {
-                        transformOrigin = TransformOrigin(0f, 0f)
-                        scaleX = scale; scaleY = scale
-                        translationX = offset.x; translationY = offset.y
-                    }
-                }
-            },
-        ) {
-            // The pipes, under the cards. Each is first drawn wider in the background colour, so where two cross the
-            // one drawn later is clearly on top. With a title selected its pipes are drawn last, bright and thick,
-            // and all the others fade.
-            Canvas(Modifier.fillMaxSize()) {
-                val sel = selected
-                val dens = density
-                // The shapes are in world dp: scale once, then every pipe is just four drawPath calls.
-                withTransform({ scale(dens, dens, Offset.Zero) }) {
-                    for (shape in drawOrder) {
-                        val on = sel == null || shape.pipe in litPipes
-                        val thick = sel != null && on
-                        val color = shape.pipe.kind.color.copy(alpha = if (on) 1f else 0.13f)
-                        val casing = if (thick) CasingLit else CasingNormal
-                        val line = if (thick) LineLit else LineNormal
-                        drawPath(shape.line, bgColor, style = casing)
-                        drawPath(shape.line, color, style = line)
-                        drawPath(shape.head, bgColor, style = casing)
-                        drawPath(shape.head, color, style = line)
-                    }
+        // Nothing below is map-sized. The pipes are drawn straight into a viewport-sized Canvas (translate + scale in
+        // the draw scope, so panning only redraws) and every card is its own small layer moved to its spot. A
+        // map-sized layout used to exceed Compose's Constraints limit on tall franchises and crash the app.
+        // Pipes off screen are skipped. With a title selected its pipes are drawn last, bright and thick, and all
+        // the others fade; each pipe is first drawn wider in the background colour so a crossing reads clearly.
+        Canvas(Modifier.fillMaxSize()) {
+            val sel = selected
+            val k = scale * density
+            val ox = offset.x
+            val oy = offset.y
+            val pad = 16f
+            val left = -ox / k - pad
+            val top = -oy / k - pad
+            val right = (size.width - ox) / k + pad
+            val bottom = (size.height - oy) / k + pad
+            withTransform({ translate(ox, oy); scale(k, k, Offset.Zero) }) {
+                for (shape in drawOrder) {
+                    val b = shape.bounds
+                    if (b.right < left || b.left > right || b.bottom < top || b.top > bottom) continue
+                    val on = sel == null || shape.pipe in litPipes
+                    val thick = sel != null && on
+                    val color = shape.pipe.kind.color.copy(alpha = if (on) 1f else 0.13f)
+                    drawPath(shape.line, bgColor, style = if (thick) CasingLit else CasingNormal)
+                    drawPath(shape.line, color, style = if (thick) LineLit else LineNormal)
                 }
             }
-            for (n in nodes) {
-                val k = n.graphKey()
-                val pos = flow.cardPos[k] ?: continue
-                key(k) {
-                    RelationGraphCard(
-                        entry = n, isRoot = k == rootKey, isSelected = k == selected, dim = selected != null && k !in litKeys,
-                        status = statuses[k], ringColor = ringColor,
-                        loading = n.malId > 0 && loadingId == n.malId,
-                        onClick = { selected = if (selected == k) null else k },
-                        modifier = Modifier.offset { IntOffset((pos.x * d).roundToInt(), (pos.y * d).roundToInt()) },
-                    )
-                }
+        }
+        for (n in shown) {
+            val k = n.graphKey()
+            val pos = flow.cardPos[k] ?: continue
+            key(k) {
+                RelationGraphCard(
+                    entry = n, isRoot = k == rootKey, isSelected = k == selected, dim = selected != null && k !in litKeys,
+                    status = statuses[k], ringColor = ringColor,
+                    loading = n.malId > 0 && loadingId == n.malId,
+                    onClick = { selected = if (selected == k) null else k },
+                    modifier = Modifier.graphicsLayer {
+                        transformOrigin = TransformOrigin(0f, 0f)
+                        scaleX = scale; scaleY = scale
+                        translationX = offset.x + pos.x * d * scale
+                        translationY = offset.y + pos.y * d * scale
+                    },
+                )
             }
         }
         val sel = selected
@@ -887,9 +912,16 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
     val title = entry.displayTitle()
     val ringRadius = with(LocalDensity.current) { kikoCorner(14.dp).toPx() }
     val ring = isSelected
+    val context = LocalContext.current
+    val density = LocalDensity.current.density
+    // Decoded at the card's own size and shown at once (no fade), so dozens of cards don't animate / over-decode.
+    val imageModel = remember(entry.cover, density) {
+        if (entry.cover.isBlank()) null
+        else ImageRequest.Builder(context).data(entry.cover).size((CardW * density).roundToInt(), (CoverH * density).roundToInt()).crossfade(false).build()
+    }
     Box(
         modifier
-            .then(if (dim) Modifier.graphicsLayer { alpha = 0.35f } else Modifier)
+            .then(if (dim) Modifier.graphicsLayer { alpha = 0.35f; compositingStrategy = CompositingStrategy.ModulateAlpha } else Modifier)
             .drawBehind {
                 if (ring) {
                     val out = 4.dp.toPx()
@@ -903,7 +935,7 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
         DetailRowCard(
             imageUrl = entry.cover, fallbackLetter = title.take(1), title = title,
             label = if (isRoot) "This title" else entry.relation.ifBlank { entry.malType.replaceFirstChar { it.uppercase() } },
-            loading = loading, onClick = onClick, myStatus = status,
+            loading = loading, onClick = onClick, myStatus = status, imageModel = imageModel,
             cardWidth = CardW.dp, textBlockHeight = TextH.dp, coverBottomCorner = 14.dp,
         )
     }

@@ -1359,6 +1359,8 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
     subtitleFontSize: TextUnit = 9.sp,
     // Rounds the cover's bottom corners (Play Store-style); defaults to the card's own corner radius, 0 keeps the flat edge.
     coverBottomCorner: Dp = cornerRadius,
+    // Optional ready-made image request (size / fade); the plain imageUrl is used when null.
+    imageModel: Any? = null,
 ) {
     val c = LocalKikoColors.current
     Column(
@@ -1367,7 +1369,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(topStart = kikoCorner(cornerRadius), topEnd = kikoCorner(cornerRadius), bottomStart = kikoCorner(coverBottomCorner), bottomEnd = kikoCorner(coverBottomCorner))).background(c.surfaceLow)) {
             if (imageUrl.isNotBlank()) {
-                AsyncImage(model = imageUrl, contentDescription = title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                AsyncImage(model = imageModel ?: imageUrl, contentDescription = title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
                 Text(fallbackLetter, fontWeight = FontWeight.Bold, fontSize = fallbackFontSize, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }
