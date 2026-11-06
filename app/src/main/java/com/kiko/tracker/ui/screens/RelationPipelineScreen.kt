@@ -73,7 +73,15 @@ import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.viewmodel.LibraryViewModel
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -95,7 +103,12 @@ import kotlin.math.roundToInt
 // and dims everything else.
 //
 // Speed: the layout is worked out off the main thread (and kept per half), the pipes are turned into Paths once
-// per layout, and a tap walks precomputed neighbour lists, so panning / zooming / tapping only replays drawing.
+// per layout, and a tap walks precomputed neighbour lists. The pipes themselves are drawn into a bitmap on a
+// background thread as small tiles (see TileSet), so panning / zooming only moves and scales pictures instead of
+// stroking hundreds of paths every frame. The pipes lit by a selected title are tiles too (drawn bright on top of the
+// faded ones), so highlighting something doesn't make panning heavier; they are only drawn live for the instant
+// before their tiles are ready.
+// Cards come into existence two per frame (not all at once) so panning never has to build a batch in one frame.
 //
 // Pan / zoom as before; the Anime / Manga chips flip between the two halves of the franchise; the round-square
 // buttons recentre on the title you came from and explain the colours. Which half you were on and where you had
@@ -185,6 +198,85 @@ private fun buildShapes(pipes: List<Pipe>): List<PipeShape> {
         out.add(PipeShape(p, line, line.getBounds()))
     }
     return out
+}
+
+// The pipes drawn once into small bitmap tiles (TilePx square, laid on a grid of the map), then only moved / scaled while
+// you pan and zoom. Panning only needs the few tiles that scroll into view, made on a background thread one at a
+// time (a few ms each, nothing big to allocate or upload), and tiles already made are reused. After a zoom settles a new
+// set is made at the new scale; the old set is shown (scaled) until the new tiles are ready.
+private const val TilePx = 512
+
+// [owner] is only used by the highlight tiles: the set of lit pipes they were drawn for.
+private class TileSet(val k: Float, val owner: Any? = null) { // k = pixels per world dp the tiles were drawn at
+    val map = HashMap<Long, ImageBitmap?>() // tile column / row -> picture (null = nothing in that tile)
+}
+
+private class TileState {
+    var cur: TileSet? = null // every pipe, normal strokes
+    var old: TileSet? = null // the same at the previous zoom, shown scaled until [cur] is ready
+    var lit: TileSet? = null // only the pipes lit by the selected title, bright and thick; drawn on top of [cur]
+    var oldLit: TileSet? = null
+    var tick by mutableIntStateOf(0) // read while drawing, bumped when tiles change so the canvas redraws
+}
+
+private fun tileKey(tx: Int, ty: Int): Long = (tx.toLong() shl 32) or (ty.toLong() and 0xffffffffL)
+private fun tileX(key: Long): Int = (key shr 32).toInt()
+private fun tileY(key: Long): Int = key.toInt()
+
+// Tile columns / rows at scale [k] that touch the screen (from [o] over [viewportPx] px), grown by [extra] tiles.
+private fun tileRange(k: Float, o: Float, viewportPx: Int, extra: Int): IntRange {
+    val tileWorld = TilePx / k
+    val first = floor((-o / k) / tileWorld).toInt() - extra
+    val last = floor(((viewportPx - o) / k) / tileWorld).toInt() + extra
+    return first..last
+}
+
+// True when every tile that touches the screen has been made.
+private fun TileSet.coversScreen(ox: Float, oy: Float, w: Int, h: Int): Boolean {
+    for (ty in tileRange(k, oy, h, 0)) for (tx in tileRange(k, ox, w, 0)) if (!map.containsKey(tileKey(tx, ty))) return false
+    return true
+}
+
+// One tile: every given pipe that touches it on a transparent background (normal strokes, or the bright thick ones for
+// the highlight). Null when nothing touches it.
+private fun renderTile(shapes: List<PipeShape>, bg: Color, k: Float, tx: Int, ty: Int, lit: Boolean): ImageBitmap? {
+    val span = TilePx / k
+    val wx0 = tx * span
+    val wy0 = ty * span
+    val pad = if (lit) 12f else 8f
+    fun touches(b: Rect) = !(b.right < wx0 - pad || b.left > wx0 + span + pad || b.bottom < wy0 - pad || b.top > wy0 + span + pad)
+    if (shapes.none { touches(it.bounds) }) return null
+    val image = ImageBitmap(TilePx, TilePx)
+    val canvas = androidx.compose.ui.graphics.Canvas(image)
+    CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, canvas, Size(TilePx.toFloat(), TilePx.toFloat())) {
+        withTransform({ translate(-wx0 * k, -wy0 * k); scale(k, k, Offset.Zero) }) {
+            for (shape in shapes) {
+                if (!touches(shape.bounds)) continue
+                drawPath(shape.line, bg, style = if (lit) CasingLit else CasingNormal)
+                drawPath(shape.line, shape.pipe.kind.color, style = if (lit) LineLit else LineNormal)
+            }
+        }
+    }
+    return image
+}
+
+// Draws a tile set moved and scaled to where the map is now. Tile edges are rounded to whole pixels so neighbours meet
+// exactly (no hairline gaps between tiles).
+private fun DrawScope.drawPipeTiles(set: TileSet, k: Float, ox: Float, oy: Float, alpha: Float) {
+    val t = TilePx * (k / set.k)
+    for ((key, img) in set.map) {
+        if (img == null) continue
+        val x0 = ox + tileX(key) * t
+        val y0 = oy + tileY(key) * t
+        if (x0 > size.width || y0 > size.height || x0 + t < 0f || y0 + t < 0f) continue
+        val l = x0.roundToInt()
+        val tp = y0.roundToInt()
+        drawImage(
+            img, srcOffset = IntOffset.Zero, srcSize = IntSize(TilePx, TilePx),
+            dstOffset = IntOffset(l, tp), dstSize = IntSize(maxOf(1, (x0 + t).roundToInt() - l), maxOf(1, (y0 + t).roundToInt() - tp)),
+            alpha = alpha,
+        )
+    }
 }
 
 // Which pipes touch a title, and the sequel line in each direction, so a tap doesn't scan every pipe.
@@ -755,6 +847,8 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
     val drawOrder = remember(shapes, litPipes, selected) {
         if (selected == null) shapes else shapes.sortedBy { if (it.pipe in litPipes) 1 else 0 }
     }
+    // With the picture on screen only the pipes of the selected title are still drawn live (thick, on top).
+    val litShapes = remember(shapes, litPipes, selected) { if (selected == null) emptyList() else shapes.filter { it.pipe in litPipes } }
     var viewport by remember { mutableStateOf(IntSize.Zero) }
     val saved = savedGraphView[viewKey]
     var scale by remember(viewKey) { mutableFloatStateOf(saved?.get(0) ?: InitialScale) }
@@ -774,6 +868,68 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
     LaunchedEffect(flow, viewport, viewKey) { if (viewport != IntSize.Zero && savedGraphView[viewKey] == null) centerOnRoot() }
     val bgColor = c.background
     val ringColor = c.primary
+    // The pipes as tiles (see TileSet). A separate copy of the shapes is used on the background thread so it never
+    // touches the Paths the main thread draws.
+    val renderShapes = remember(flow) { buildShapes(flow.pipes) }
+    val tiles = remember(flow, bgColor) { TileState() }
+    // The pipes lit by the selected title, as shapes for the background thread.
+    val renderLit = remember(renderShapes, litPipes) { renderShapes.filter { it.pipe in litPipes } }
+    LaunchedEffect(flow, viewport, bgColor, selected) {
+        if (viewport == IntSize.Zero) return@LaunchedEffect
+        snapshotFlow { Triple(scale, offset.x, offset.y) }.collectLatest { (s, ox, oy) ->
+            var set = tiles.cur
+            if (set == null || abs(s * d / set.k - 1f) >= 0.01f) {
+                // Zoomed: wait until it settles (a new value cancels this wait); the old tiles are only scaled meanwhile.
+                if (set != null) delay(120)
+                tiles.old = set
+                tiles.oldLit = tiles.lit
+                set = TileSet(s * d)
+                tiles.cur = set
+                tiles.lit = null
+                tiles.tick++
+            }
+            val k = set.k
+            // The highlight tiles belong to the current selection (a new selection or zoom starts a fresh set).
+            var litSet = tiles.lit
+            if (selected == null) {
+                if (litSet != null) { tiles.lit = null; litSet = null; tiles.tick++ }
+            } else if (litSet == null || litSet.owner !== litPipes || litSet.k != k) {
+                litSet = TileSet(k, litPipes)
+                tiles.lit = litSet
+                tiles.tick++
+            }
+            val xs = tileRange(k, ox, viewport.width, 1)
+            val ys = tileRange(k, oy, viewport.height, 1)
+            val cx = (xs.first + xs.last) / 2f
+            val cy = (ys.first + ys.last) / 2f
+            fun missing(of: TileSet): ArrayList<Long> {
+                val out = ArrayList<Long>()
+                for (ty in ys) for (tx in xs) { val key = tileKey(tx, ty); if (!of.map.containsKey(key)) out.add(key) }
+                // Middle of the screen first.
+                out.sortBy { val dx = tileX(it) - cx; val dy = tileY(it) - cy; dx * dx + dy * dy }
+                return out
+            }
+            // The highlight first (it is what you just asked for), then the normal pipes.
+            val ls = litSet
+            if (ls != null) for (key in missing(ls)) {
+                // Not cancelled half way: a finished tile is kept even if you have moved on meanwhile.
+                val img = withContext(NonCancellable + Dispatchers.Default) { renderTile(renderLit, bgColor, k, tileX(key), tileY(key), true) }
+                ls.map[key] = img
+                tiles.tick++
+            }
+            for (key in missing(set)) {
+                val img = withContext(NonCancellable + Dispatchers.Default) { renderTile(renderShapes, bgColor, k, tileX(key), tileY(key), false) }
+                set.map[key] = img
+                tiles.tick++
+            }
+            // Everything near the screen is sharp now: the previous scale is no longer needed, and tiles far away are let go.
+            if (tiles.old != null || tiles.oldLit != null) { tiles.old = null; tiles.oldLit = null; tiles.tick++ }
+            val keepX = tileRange(k, ox, viewport.width, 3)
+            val keepY = tileRange(k, oy, viewport.height, 3)
+            set.map.keys.removeAll { tileX(it) !in keepX || tileY(it) !in keepY }
+            ls?.map?.keys?.removeAll { tileX(it) !in keepX || tileY(it) !in keepY }
+        }
+    }
     // The part of the map on screen (world dp), snapped to 300dp steps so it only changes when you have really moved.
     // Only the cards inside it exist; a franchise of 130 titles keeps ~20 cards alive instead of all of them.
     val visRect by remember(viewport, flow) {
@@ -788,12 +944,31 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
             )
         }
     }
-    val shown = remember(nodes, flow, visRect) {
-        nodes.filter { n ->
-            val pos = flow.cardPos[n.graphKey()] ?: return@filter false
-            pos.x + CardW > visRect.left && pos.x < visRect.right && pos.y + CardH > visRect.top && pos.y < visRect.bottom
+    val wantedKeys = remember(nodes, flow, visRect) {
+        nodes.mapNotNullTo(HashSet<String>()) { n ->
+            val key = n.graphKey()
+            val pos = flow.cardPos[key] ?: return@mapNotNullTo null
+            if (pos.x + CardW > visRect.left && pos.x < visRect.right && pos.y + CardH > visRect.top && pos.y < visRect.bottom) key else null
         }
     }
+    // Cards that left the area go at once; new ones are added two per frame, nearest the middle first, so building a
+    // batch of cards never lands in one frame while you pan.
+    var shownKeys by remember(flow) { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(wantedKeys) {
+        shownKeys = shownKeys.filterTo(HashSet()) { it in wantedKeys }
+        val k0 = scale * d
+        val cx = (viewport.width / 2f - offset.x) / k0
+        val cy = (viewport.height / 2f - offset.y) / k0
+        val todo = wantedKeys.filter { it !in shownKeys }.sortedBy { key ->
+            val p = flow.cardPos[key]
+            if (p == null) 0f else (p.x - cx) * (p.x - cx) + (p.y - cy) * (p.y - cy)
+        }
+        for (chunk in todo.chunked(2)) {
+            withFrameNanos { }
+            shownKeys = shownKeys + chunk
+        }
+    }
+    val shown = remember(nodes, shownKeys) { nodes.filter { it.graphKey() in shownKeys } }
 
     Box(
         Modifier.fillMaxSize().clipToBounds()
@@ -820,13 +995,28 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
             val k = scale * density
             val ox = offset.x
             val oy = offset.y
+            tiles.tick // read so the canvas redraws whenever a tile is finished
+            val cur = tiles.cur
+            val old = tiles.old
+            // Highlight tiles count only while they belong to the current selection.
+            val lit = tiles.lit?.takeIf { sel != null && it.owner === litPipes }
+            val oldLit = tiles.oldLit?.takeIf { sel != null && it.owner === litPipes }
+            // Live drawing is only a stop-gap: for the very first frames (no tile yet), and for the instant after a tap
+            // before the highlight tiles are ready.
+            val baseLive = old == null && (cur == null || cur.map.isEmpty())
+            val litLive = sel != null && oldLit == null && (lit == null || !lit.coversScreen(ox, oy, size.width.toInt(), size.height.toInt()))
+            val a = if (sel == null) 1f else 0.13f
+            if (old != null) drawPipeTiles(old, k, ox, oy, a)
+            if (cur != null) drawPipeTiles(cur, k, ox, oy, a)
+            if (oldLit != null) drawPipeTiles(oldLit, k, ox, oy, 1f)
+            if (lit != null) drawPipeTiles(lit, k, ox, oy, 1f)
             val pad = 16f
             val left = -ox / k - pad
             val top = -oy / k - pad
             val right = (size.width - ox) / k + pad
             val bottom = (size.height - oy) / k + pad
             withTransform({ translate(ox, oy); scale(k, k, Offset.Zero) }) {
-                for (shape in drawOrder) {
+                for (shape in (if (baseLive) drawOrder else if (litLive) litShapes else emptyList<PipeShape>())) {
                     val b = shape.bounds
                     if (b.right < left || b.left > right || b.bottom < top || b.top > bottom) continue
                     val on = sel == null || shape.pipe in litPipes
@@ -840,9 +1030,11 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
         for (n in shown) {
             val k = n.graphKey()
             val pos = flow.cardPos[k] ?: continue
+            // Dimming rides on the card's one outer layer (no second layer per faded card); only cards whose state changes rebuild.
+            val dimmed = selected != null && k !in litKeys
             key(k) {
                 RelationGraphCard(
-                    entry = n, isRoot = k == rootKey, isSelected = k == selected, dim = selected != null && k !in litKeys,
+                    entry = n, isRoot = k == rootKey, isSelected = k == selected,
                     status = statuses[k], ringColor = ringColor,
                     loading = n.malId > 0 && loadingId == n.malId,
                     onClick = { selected = if (selected == k) null else k },
@@ -851,6 +1043,7 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
                         scaleX = scale; scaleY = scale
                         translationX = offset.x + pos.x * d * scale
                         translationY = offset.y + pos.y * d * scale
+                        if (dimmed) { alpha = 0.35f; compositingStrategy = CompositingStrategy.ModulateAlpha }
                     },
                 )
             }
@@ -906,7 +1099,7 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
 // Same card as Detail's Related row; only the selected title gets a primary outline (the title you came from is
 // marked by its "This title" label alone, so it doesn't look as if it were tapped).
 @Composable private fun RelationGraphCard(
-    entry: RelatedEntry, isRoot: Boolean, isSelected: Boolean, dim: Boolean, status: WatchStatus?, ringColor: Color,
+    entry: RelatedEntry, isRoot: Boolean, isSelected: Boolean, status: WatchStatus?, ringColor: Color,
     loading: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier,
 ) {
     val title = entry.displayTitle()
@@ -921,7 +1114,6 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
     }
     Box(
         modifier
-            .then(if (dim) Modifier.graphicsLayer { alpha = 0.35f; compositingStrategy = CompositingStrategy.ModulateAlpha } else Modifier)
             .drawBehind {
                 if (ring) {
                     val out = 4.dp.toPx()
