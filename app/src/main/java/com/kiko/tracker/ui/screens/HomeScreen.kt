@@ -709,6 +709,14 @@ fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLangu
     ListSort.Score -> sortedWith(compareByDescending<MediaItem> { it.myRating > 0 }.thenByDescending { it.myRating })
     ListSort.LastUpdated -> sortedWith(compareByDescending<MediaItem> { it.updatedAt.isNotBlank() }.thenByDescending { it.updatedAt })
     ListSort.StartDate -> sortedWith(compareByDescending<MediaItem> { it.watchStartDate.isNotBlank() }.thenByDescending { it.watchStartDate })
+    ListSort.NextAirSoonest -> sortedByNextAir(latestFirst = false)
+    ListSort.NextAirLatest -> sortedByNextAir(latestFirst = true)
+}
+// Air time is computed once per item (it parses broadcast strings), not once per comparison. Items without a next air time stay last.
+private fun List<MediaItem>.sortedByNextAir(latestFirst: Boolean): List<MediaItem> {
+    val (airing, other) = map { it to it.nextAirDateTime() }.partition { it.second != null }
+    val ordered = if (latestFirst) airing.sortedByDescending { it.second } else airing.sortedBy { it.second }
+    return ordered.map { it.first } + other.map { it.first }
 }
 // Compact sort dropdown
 
@@ -760,6 +768,8 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
     ListSort.Score -> Icons.Rounded.Star
     ListSort.LastUpdated -> Icons.Rounded.Update
     ListSort.StartDate -> Icons.Rounded.Event
+    ListSort.NextAirSoonest -> Icons.Rounded.Alarm
+    ListSort.NextAirLatest -> Icons.Rounded.HourglassBottom
 }
 // Shared sort sheet (My List, Profile's Score/Year/Format/Genre screens, friend lists), opened from the
 // header's sort button. No reset/apply: tapping an option sorts straight away and closes the sheet.

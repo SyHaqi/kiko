@@ -510,7 +510,12 @@ enum class SeasonalSort(val api: String, val label: String) {
 }
 // My list sort order
 
-enum class ListSort(val label: String) { Title("Title"), Score("Score"), LastUpdated("Last Updated"), StartDate("Start Date") }
+// NextAirSoonest / NextAirLatest order currently airing anime by when their next episode airs; titles with no next air time
+// (finished, not airing, manga) always go last in both directions.
+enum class ListSort(val label: String) {
+    Title("Title"), Score("Score"), LastUpdated("Last Updated"), StartDate("Start Date"),
+    NextAirSoonest("Next Air · Soonest"), NextAirLatest("Next Air · Latest"),
+}
 // My list display mode
 
 enum class ListViewMode { List, Grid }
