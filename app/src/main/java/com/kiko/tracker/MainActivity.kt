@@ -150,6 +150,12 @@ class MainActivity : ComponentActivity() {
         val earlyVm: LibraryViewModel by viewModels()
         earlyVm.loadTheme(this); earlyVm.loadColorSource(this); earlyVm.loadPaletteStyle(this); earlyVm.loadCustomColor(this)
         earlyVm.loadAmoledDark(this); earlyVm.loadTitleLanguage(this); earlyVm.loadCompactList(this)
+        // My List's saved status tab / type / sort / layout must be in place before the first frame too. They used to
+        // load in the LaunchedEffect below, which is fine when Home opens first, but when My List is the default tab it
+        // would draw (and build its pager) with "All"/Anime first and then jump to the saved status tab.
+        earlyVm.loadListFilter(this); earlyVm.loadListTypeTab(this); earlyVm.loadListSort(this)
+        earlyVm.loadListViewMode(this); earlyVm.loadGridColumns(this)
+        earlyVm.applyStartTab(this)
         setContent {
             val vm: LibraryViewModel = viewModel()
             // Note: vm.loadHomeExtras() (Discover's "You

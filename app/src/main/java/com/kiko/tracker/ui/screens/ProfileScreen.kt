@@ -1121,6 +1121,7 @@ private fun formatCacheBytes(b: Long): String = when {
     var listViewDialog by remember { mutableStateOf(false) }
     var gridColumnsDialog by remember { mutableStateOf(false) }
     var airTimerDialog by remember { mutableStateOf(false) }
+    var startTabDialog by remember { mutableStateOf(false) }
     var listSortDialog by remember { mutableStateOf(false) }
     var clearCacheDialog by remember { mutableStateOf(false) }
     var signOutDialog by remember { mutableStateOf(false) }
@@ -1145,6 +1146,7 @@ private fun formatCacheBytes(b: Long): String = when {
             ),
         ))
         SettingsGroup("Library", listOf(
+            SettingsItem("Default tab", if (com.kiko.tracker.data.model.StartTabPrefs.tab == com.kiko.tracker.data.model.Destination.Home) "Home (default)" else com.kiko.tracker.data.model.StartTabPrefs.tab.label, icon = Icons.Rounded.Home, onClick = { startTabDialog = true }),
             SettingsItem("Title language", titleLanguage.label, icon = Icons.Rounded.Translate, onClick = onTitleLanguageClick),
             SettingsItem("Air timer style", if (AirTimerPrefs.countdown) "Countdown" else "Air time", icon = Icons.Rounded.Timer, onClick = { airTimerDialog = true }),
             SettingsItem("List layout", listViewMode.name, icon = Icons.Rounded.ViewAgenda, onClick = { listViewDialog = true }),
@@ -1190,6 +1192,11 @@ private fun formatCacheBytes(b: Long): String = when {
         ))
     }
 
+    if (startTabDialog) ChoiceDialog(
+        title = "Default tab", options = com.kiko.tracker.data.model.Destination.entries, selected = com.kiko.tracker.data.model.StartTabPrefs.tab,
+        label = { if (it == com.kiko.tracker.data.model.Destination.Home) "Home (default)" else it.label },
+        onSelect = { com.kiko.tracker.data.model.StartTabPrefs.set(context, it); startTabDialog = false }, onDismiss = { startTabDialog = false },
+    )
     if (airTimerDialog) ChoiceDialog(
         title = "Air timer style", options = listOf(false, true), selected = AirTimerPrefs.countdown,
         label = { if (it) "Countdown" else "Air time" },

@@ -164,6 +164,14 @@ class LibraryViewModel : ViewModel() {
     fun trackedStatus(item: MediaItem): WatchStatus? = itemsByKey[item.id to item.type]?.status
     fun trackedStatus(id: String, type: MediaType): WatchStatus? = itemsByKey[id to type]?.status
     var destination by mutableStateOf(Destination.Home)
+    // Applies Settings > Default tab once per ViewModel (rotation keeps the VM, so it won't yank the user back).
+    private var startTabApplied = false
+    fun applyStartTab(context: Context) {
+        if (startTabApplied) return
+        startTabApplied = true
+        com.kiko.tracker.data.model.StartTabPrefs.ensureLoaded(context)
+        destination = com.kiko.tracker.data.model.StartTabPrefs.tab
+    }
     // Avatar popup menu (profile/settings),
     // that avatar's on-screen bounds
     // itself, so the popup

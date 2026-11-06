@@ -607,6 +607,23 @@ object AirTimerPrefs {
     }
 }
 
+// Settings > "Default tab": which tab the app opens on. Read once at launch (see LibraryViewModel.applyStartTab).
+object StartTabPrefs {
+    private const val KEY = "start_tab"
+    var tab by mutableStateOf(Destination.Home); private set
+    private var loaded = false
+    fun ensureLoaded(context: android.content.Context) {
+        if (loaded) return
+        loaded = true
+        tab = runCatching { Destination.valueOf(com.kiko.tracker.util.settingsPrefs(context).getString(KEY, Destination.Home.name)!!) }.getOrDefault(Destination.Home)
+    }
+    fun set(context: android.content.Context, value: Destination) {
+        loaded = true
+        tab = value
+        com.kiko.tracker.util.settingsPrefs(context).edit().putString(KEY, value.name).apply()
+    }
+}
+
 // "in 2d 3h" / "in 2h 15m" / "in 45m" until [next].
 private fun countdownText(next: java.time.LocalDateTime): String? {
     val mins = java.time.Duration.between(java.time.LocalDateTime.now(), next).toMinutes()
@@ -659,6 +676,28 @@ fun MediaItem.airTimerLabel(confirmed: AiringInfo? = null, is24Hour: Boolean = f
     val day = next.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
     return if (epNum != null) "Ep. $epNum airs on $day, $time" else "Airs on $day, $time"
 }
+
+// How many aired episodes the user hasn't watched yet, for a title they're currently watching. Null when they're
+// caught up, not watching it, or it isn't airing. The latest aired episode is the one before the next-to-air one.
+fun MediaItem.episodesBehind(confirmed: AiringInfo? = null): Int? {
+    if (status != WatchStatus.Watching) return null
+    if (!airStatus.equals("Currently Airing", ignoreCase = true)) return null
+    // Only while the airing timer row would exist (same conditions as airTimerLabel): a next air time and an episode still to come.
+    if (nextAirDateTime(confirmed) == null) return null
+    val nextEp = confirmed?.episode ?: nextEpisodeNumber() ?: return null
+    if (total > 0 && nextEp > total) return null
+    val latestAired = if (total > 0) minOf(nextEp - 1, total) else nextEp - 1
+    val behind = latestAired - progress
+    return if (behind > 0) behind else null
+}
+
+// "3 episodes behind" — replaces the air timer on the My List row while the user is behind.
+fun MediaItem.behindLabel(confirmed: AiringInfo? = null): String? =
+    episodesBehind(confirmed)?.let { if (it == 1) "1 episode behind" else "$it episodes behind" }
+
+// Compact twin for grid tiles: "3 behind".
+fun MediaItem.behindCompactLabel(confirmed: AiringInfo? = null): String? =
+    episodesBehind(confirmed)?.let { "$it behind" }
 
 // Short countdown for tight spots (grid tiles): "2d 3h" / "2h 15m" / "45m" / "<1m". Null once [next] has passed.
 private fun countdownCompactText(next: java.time.LocalDateTime): String? {

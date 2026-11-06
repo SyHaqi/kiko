@@ -99,6 +99,8 @@ import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.data.model.AirTimerPrefs
 import com.kiko.tracker.data.model.airTimerLabel
 import com.kiko.tracker.data.model.airTimerCompactLabel
+import com.kiko.tracker.data.model.behindLabel
+import com.kiko.tracker.data.model.behindCompactLabel
 import com.kiko.tracker.data.model.upcomingLabel
 import com.kiko.tracker.data.model.localizedTimeLabel
 import com.kiko.tracker.data.model.next
@@ -1157,8 +1159,8 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
     val is24Hour = if (isAiring) systemIs24Hour() else false
     val countdownStyle = if (isAiring) AirTimerPrefs.countdown else false
     // A rated tile has to fit the score next to the timer, so in air-time style it drops the "E14 · " prefix.
-    val timer = if (vm == null || !isAiring) null else remember(item, confirmed, is24Hour, countdownStyle) {
-        item.airTimerCompactLabel(confirmed, is24Hour, showEpisode = item.myRating <= 0 || countdownStyle)
+    val timer = if (vm == null || !isAiring) null else remember(item, confirmed, is24Hour, countdownStyle, item.progress, item.status) {
+        item.behindCompactLabel(confirmed) ?: item.airTimerCompactLabel(confirmed, is24Hour, showEpisode = item.myRating <= 0 || countdownStyle)
     }
     // The tile itself is not clipped: only the cover has rounded corners (Cover() clips its own image), so
     // the title / progress text can never be cut off by a card corner.
@@ -1449,7 +1451,8 @@ private val IncrementPillSize = DpSize(44.dp, 34.dp)
     val is24Hour = if (isAiring) systemIs24Hour() else false
     val countdownStyle = if (isAiring) AirTimerPrefs.countdown else false
     val upcoming = remember(item.airStatus, item.type) { item.upcomingLabel() }
-    val timer = remember(item, confirmed, is24Hour, countdownStyle, upcoming) { item.airTimerLabel(confirmed, is24Hour) ?: upcoming }
+    // Behind on a title they're watching -> "N episodes behind" takes the timer row's place.
+    val timer = remember(item, confirmed, is24Hour, countdownStyle, upcoming, item.progress, item.status) { item.behindLabel(confirmed) ?: item.airTimerLabel(confirmed, is24Hour) ?: upcoming }
     // Accent for the live air timer, muted for the quieter "Not Yet Aired" label.
     val timerTint = c.muted
     Row(
