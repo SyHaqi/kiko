@@ -109,15 +109,23 @@ fun cancelMalNotification(context: Context, notificationId: String) {
     NotificationManagerCompat.from(context).cancel(malSystemNotificationId(notificationId))
 }
 
-/** Status-bar icon for a notification, by kind (mirrors the row icons in the in-app inbox). */
+/**
+ * Status-bar icon for a notification. Friend requests / accepted requests keep their own person
+ * icons; every other kind of notification (comments, quotes, mentions, clubs, airing, ...) uses
+ * the monochrome Kiko (キコ) glyph.
+ */
 @DrawableRes fun malNotificationIcon(n: MalNotification): Int = when {
     n.isFriendAccepted -> R.drawable.ic_stat_friend_accepted
     n.isFriendRelated -> R.drawable.ic_stat_friend_add
-    n.type.contains("comment") || n.type.contains("quote") || n.type.contains("mention") || n.type.contains("watched") -> R.drawable.ic_stat_comment
-    n.type.startsWith("club") -> R.drawable.ic_stat_club
-    n.type == "on_air" || n.type == "related_anime_add" -> R.drawable.ic_stat_media
-    else -> R.drawable.ic_stat_default
+    else -> R.drawable.ic_stat_kiko
 }
+
+/**
+ * Icon for the bundled summary. A burst made up only of friend notifications keeps the friend
+ * icon; as soon as anything else is in the mix the summary wears the Kiko glyph.
+ */
+@DrawableRes fun malSummaryIcon(fresh: List<MalNotification>): Int =
+    if (fresh.all { it.isFriendRelated }) malNotificationIcon(fresh.first()) else R.drawable.ic_stat_kiko
 
 private fun openInboxIntent(context: Context, requestCode: Int): PendingIntent {
     val openIntent = Intent(context, MainActivity::class.java)
@@ -155,7 +163,7 @@ fun postMalNotifications(context: Context, fresh: List<MalNotification>, avatars
     fresh.take(6).forEach { style.addLine(it.title) }
     if (fresh.size > 6) style.setSummaryText("+${fresh.size - 6} more")
     val summary = NotificationCompat.Builder(context, MAL_NOTIFICATION_CHANNEL)
-        .setSmallIcon(malNotificationIcon(fresh.first()))
+        .setSmallIcon(malSummaryIcon(fresh))
         .setContentTitle(if (fresh.size == 1) fresh.first().title else "${fresh.size} new MyAnimeList notifications")
         .setContentText(fresh.first().title)
         .setStyle(style)
