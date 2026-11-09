@@ -32,7 +32,8 @@ const val MAX_INDIVIDUAL_NOTIFICATIONS = 5
  * [unreadCount] = items that haven't been tapped open in Kiko's inbox yet (see [syncRead]).
  */
 class MalNotificationTracker(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences("kiko_mal_notifications", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences("kiko_mal_notifications", Context.MODE_PRIVATE)
 
     private fun ids(key: String): Set<String> = prefs.getStringSet(key, emptySet()) ?: emptySet()
     private fun putIds(key: String, v: Set<String>, cap: Int = 300) {
@@ -49,6 +50,9 @@ class MalNotificationTracker(context: Context) {
 
     /** Unread items never pushed before. Marks them pushed. */
     fun takeNewForPush(all: List<MalNotification>): List<MalNotification> {
+        // Without the permission nothing can be shown, so don't mark anything as announced
+        // (otherwise those items would never be pushed once the permission is granted).
+        if (!canPostNotifications(appContext)) return emptyList()
         val pushed = ids("pushed")
         val fresh = all.filter { !it.isRead && it.id !in pushed }
         if (fresh.isNotEmpty()) putIds("pushed", pushed + fresh.map { it.id })
@@ -82,6 +86,19 @@ class MalNotificationTracker(context: Context) {
     var lastCheckedAt: Long
         get() = prefs.getLong("last_checked", 0L)
         set(v) { prefs.edit().putLong("last_checked", v).apply() }
+
+    /** Last time the background worker finished a check / the error that stopped it (debugging aid). */
+    var lastWorkerRun: Long
+        get() = prefs.getLong("worker_last_run", 0L)
+        set(v) { prefs.edit().putLong("worker_last_run", v).apply() }
+    var lastWorkerError: String?
+        get() = prefs.getString("worker_last_error", null)
+        set(v) { prefs.edit().putString("worker_last_error", v).apply() }
+
+    /** The "let Kiko run in the background" battery prompt is only shown once. */
+    var batteryAsked: Boolean
+        get() = prefs.getBoolean("battery_asked", false)
+        set(v) { prefs.edit().putBoolean("battery_asked", v).apply() }
 
     var permissionAsked: Boolean
         get() = prefs.getBoolean("permission_asked", false)

@@ -1,8 +1,16 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Kiko isn't on the Play Store, so update notifications go through a plain local
          notification instead of Play's push-based update prompts. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Background MAL notification checks: restart the alarm chain after a reboot / app update,
+         ask once to be exempt from battery optimisation (Doze otherwise stalls the checks for
+         hours), and let expedited checks run as a foreground service on Android 11 and older. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" tools:ignore="BatteryLife" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Lets Kiko hand a freshly downloaded release APK straight to the system installer instead
          of only being able to point the person at a browser download. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -59,6 +67,20 @@
                 <data android:pathPrefix="/manga" />
             </intent-filter>
         </activity>
+
+        <!-- WorkManager's own foreground service, with the type the expedited MAL check declares
+             (see MalNotificationWorker.getForegroundInfo). Merged into the library's entry. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+
+        <receiver android:name=".util.MalNotificationReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Serves the downloaded update APK (from cacheDir) to the system package installer as a
              content:// URI, since a plain file:// URI is blocked on API 24+. -->

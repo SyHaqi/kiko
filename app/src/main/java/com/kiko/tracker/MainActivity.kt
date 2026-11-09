@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
@@ -31,7 +32,9 @@ import com.kiko.tracker.util.AppUpdateChecker
 import com.kiko.tracker.util.AppUpdateInfo
 import com.kiko.tracker.util.EXTRA_OPEN_NOTIFICATIONS
 import com.kiko.tracker.util.MalNotificationTracker
-import com.kiko.tracker.util.MalNotificationWorker
+import com.kiko.tracker.util.MalNotificationScheduler
+import com.kiko.tracker.util.isIgnoringBatteryOptimizations
+import com.kiko.tracker.util.requestIgnoreBatteryOptimizations
 import com.kiko.tracker.util.canPostNotifications
 import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.util.copyCrashLogToClipboard
@@ -175,7 +178,7 @@ class MainActivity : ComponentActivity() {
             }
             // MAL notifications (friend requests, accepted requests, comments, ...): check on launch and
             // then every 5 minutes while the app is open, pushing a local notification for new unread
-            // items. While Kiko is closed, MalNotificationWorker (WorkManager, ~every 15 min) does the same.
+            // items. While Kiko is closed, MalNotificationWorker (WorkManager + alarm chain, ~every 10-15 min) does the same.
             LaunchedEffect(Unit) {
                 while (true) {
                     // The web cookie can be connected at any point (e.g. from a profile page), so check
@@ -188,9 +191,18 @@ class MainActivity : ComponentActivity() {
                             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                         vm.checkNotificationsInBackground(this@MainActivity)
-                        // Keeps notifications coming while the app is closed. Idempotent (KEEP), and the
-                        // worker unschedules itself if the MAL session is gone.
-                        MalNotificationWorker.schedule(this@MainActivity)
+                        // Keeps notifications coming while the app is closed: periodic WorkManager job +
+                        // Doze-friendly alarm chain. Idempotent; both stop if the MAL session is gone.
+                        MalNotificationScheduler.scheduleAll(this@MainActivity)
+                        // Battery savers are the #1 reason background checks stall for hours, so ask once
+                        // (system dialog) to let Kiko run in the background. Only while Kiko is on screen,
+                        // and after the notification permission has been dealt with.
+                        if (!tracker.batteryAsked && canPostNotifications(this@MainActivity) &&
+                            lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) &&
+                            !isIgnoringBatteryOptimizations(this@MainActivity)) {
+                            tracker.batteryAsked = true
+                            requestIgnoreBatteryOptimizations(this@MainActivity)
+                        }
                     }
                     kotlinx.coroutines.delay(5 * 60 * 1000L)
                 }
