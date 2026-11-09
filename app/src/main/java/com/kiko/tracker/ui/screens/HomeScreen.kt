@@ -633,7 +633,7 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(kikoCorner(20.dp)),
+        shape = RoundedCornerShape(kikoCorner(12.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
         modifier = Modifier.width(210.dp).pressScale(interactionSource),
     ) {
@@ -642,7 +642,7 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
                 Modifier
                     .fillMaxWidth()
                     .height(120.dp)
-                    .clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp), bottomStart = kikoCorner(20.dp), bottomEnd = kikoCorner(20.dp)))
+                    .clip(RoundedCornerShape(kikoCorner(12.dp)))
                     .background(c.surfaceContainerHigh),
             ) {
                 if (article.image.isNotBlank()) {

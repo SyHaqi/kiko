@@ -391,12 +391,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(kikoCorner(22.dp)),
+        shape = RoundedCornerShape(kikoCorner(14.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).pressScale(interactionSource),
     ) {
         Column {
-            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(topStart = kikoCorner(22.dp), topEnd = kikoCorner(22.dp))))
+            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(kikoCorner(14.dp))))
             Column(Modifier.padding(16.dp)) {
                 Text(stack.title, style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (stack.tags.isNotEmpty()) Box(Modifier.padding(top = 9.dp)) { StackTagsRow(stack.tags) }
@@ -426,12 +426,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(kikoCorner(22.dp)),
+        shape = RoundedCornerShape(kikoCorner(14.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
         modifier = modifier.width(250.dp).pressScale(interactionSource),
     ) {
         Column(Modifier.fillMaxHeight()) {
-            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(kikoCorner(22.dp))))
+            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(kikoCorner(14.dp))))
             // weight(1f) lets this text
             // gave the card (see
             // stats row to the
@@ -466,12 +466,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(kikoCorner(20.dp)),
+        shape = RoundedCornerShape(kikoCorner(14.dp)),
         colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
         modifier = Modifier.width(210.dp).pressScale(interactionSource),
     ) {
         Column {
-            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(topStart = kikoCorner(20.dp), topEnd = kikoCorner(20.dp), bottomStart = kikoCorner(20.dp), bottomEnd = kikoCorner(20.dp))))
+            StackCoverBanner(covers, modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(kikoCorner(14.dp))))
             Column(Modifier.padding(13.dp)) {
                 // minLines/always-rendered author line/fixed-height stats box
                 // below all exist so every card in the row lands on the same
