@@ -1,8 +1,9 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 
 package com.kiko.tracker.ui.screens
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -43,6 +44,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
@@ -87,6 +89,8 @@ import com.kiko.tracker.data.model.DiscoverSort
 import com.kiko.tracker.data.model.FeaturedArticleEntry
 import com.kiko.tracker.data.model.ListSort
 import com.kiko.tracker.data.model.GridColumns
+import com.kiko.tracker.data.model.ListStatusStyle
+import com.kiko.tracker.data.model.ListStatusStylePrefs
 import com.kiko.tracker.data.model.ListViewMode
 import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.LocalGridColumns
@@ -836,14 +840,19 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
     val labels = remember(typeTab) { statusFilterLabels(typeTab) }
     val selectedIndex = labels.indexOf(effectiveFilter).coerceAtLeast(0)
     val scope = rememberCoroutineScope()
+    // Settings > Status filter: swipeable tabs (default) or the M3 FAB menu.
+    ListStatusStylePrefs.ensureLoaded(context)
+    val fabMode = ListStatusStylePrefs.style == ListStatusStyle.Fab
+    var fabExpanded by remember { mutableStateOf(false) }
+    BackHandler(enabled = fabMode && fabExpanded) { fabExpanded = false }
 
     // Swipeable status pages — one per StatusFilterTabs label, in the
     // same order, so a tab tap and a swipe always land on the same page.
     val pagerState = rememberPagerState(initialPage = selectedIndex) { labels.size }
 
     // Tapping a tab (or the filter changing elsewhere) scrolls the pager.
-    LaunchedEffect(selectedIndex) {
-        if (pagerState.currentPage != selectedIndex) pagerState.animateScrollToPage(selectedIndex)
+    LaunchedEffect(selectedIndex, fabMode) {
+        if (!fabMode && pagerState.currentPage != selectedIndex) pagerState.animateScrollToPage(selectedIndex)
     }
     // Swiping the pager updates the filter, which keeps the tab indicator in sync.
     // Reads vm.listFilter/vm.listTypeTab live on each page change rather than
@@ -856,7 +865,8 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
     // still moving — which flipped selectedIndex below and made the OTHER
     // effect call animateScrollToPage() to fight the live gesture, causing the
     // stutter. settledPage only changes once a swipe has actually finished.
-    LaunchedEffect(pagerState) {
+    LaunchedEffect(pagerState, fabMode) {
+        if (fabMode) return@LaunchedEffect
         snapshotFlow { pagerState.settledPage }.collect { page ->
             val currentType = vm.listTypeTab
             val label = statusFilterLabels(currentType).getOrNull(page) ?: return@collect
@@ -865,106 +875,191 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
-        if (listSortSheetOpen) ListSortSheet(vm.listSort, onDismiss = { listSortSheetOpen = false }) { vm.setListSort(context, it) }
-        // Header: Anime/Manga switcher + search icon + avatar. Tapping the icon swaps the
-        // WHOLE header for the same empty Play Store-style search bar Search & Discover uses
-        // (back arrow, flat text field, hairline divider); back / system back restores it.
-        AnimatedContent(
-            targetState = searchExpanded,
-            transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(120)) },
-            label = "listHeaderSearch",
-        ) { expanded ->
-            if (!expanded) {
-                SwitcherHeader(
-                    current = typeTab,
-                    options = MediaType.entries.toList(),
-                    labelFor = { if (it == MediaType.Anime) "Anime" else "Manga" },
-                    onSelect = { vm.selectListTypeTab(context, it) },
-                    horizontalPadding = 14.dp,
-                    switchDescription = "Switch between Anime and Manga",
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // Search, sort and avatar each get the same 43dp slot, so the three are evenly spaced
-                        // (centre to centre) like Google Keep's toolbar.
-                        Box(
-                            Modifier.size(43.dp).clip(kikoCircleShape()).kikoClickable { searchExpanded = true },
-                            contentAlignment = Alignment.Center,
-                        ) { Icon(Icons.Rounded.Search, "Search your list", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                        Box(
-                            Modifier.size(43.dp).clip(kikoCircleShape()).kikoClickable { listSortSheetOpen = true },
-                            contentAlignment = Alignment.Center,
-                        ) { Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp)) }
-                        // The avatar's slot is 5dp wider on each side than the avatar; the offset keeps its right
-                        // edge on the same margin as the other screens.
-                        Box(Modifier.size(43.dp).offset(x = 5.dp), contentAlignment = Alignment.Center) {
-                            Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            if (listSortSheetOpen) ListSortSheet(vm.listSort, onDismiss = { listSortSheetOpen = false }) { vm.setListSort(context, it) }
+            // Header: Anime/Manga switcher + search icon + avatar. Tapping the icon swaps the
+            // WHOLE header for the same empty Play Store-style search bar Search & Discover uses
+            // (back arrow, flat text field, hairline divider); back / system back restores it.
+            AnimatedContent(
+                targetState = searchExpanded,
+                transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(120)) },
+                label = "listHeaderSearch",
+            ) { expanded ->
+                if (!expanded) {
+                    SwitcherHeader(
+                        current = typeTab,
+                        options = MediaType.entries.toList(),
+                        labelFor = { if (it == MediaType.Anime) "Anime" else "Manga" },
+                        onSelect = { vm.selectListTypeTab(context, it) },
+                        horizontalPadding = 14.dp,
+                        switchDescription = "Switch between Anime and Manga",
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            // Search, sort and avatar each get the same 43dp slot, so the three are evenly spaced
+                            // (centre to centre) like Google Keep's toolbar.
+                            Box(
+                                Modifier.size(43.dp).clip(kikoCircleShape()).kikoClickable { searchExpanded = true },
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(Icons.Rounded.Search, "Search your list", tint = c.ink, modifier = Modifier.size(24.dp)) }
+                            Box(
+                                Modifier.size(43.dp).clip(kikoCircleShape()).kikoClickable { listSortSheetOpen = true },
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp)) }
+                            // The avatar's slot is 5dp wider on each side than the avatar; the offset keeps its right
+                            // edge on the same margin as the other screens.
+                            Box(Modifier.size(43.dp).offset(x = 5.dp), contentAlignment = Alignment.Center) {
+                                Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect }
+                            }
                         }
                     }
-                }
-            } else {
-                val focusRequester = remember { FocusRequester() }
-                val keyboard = LocalSoftwareKeyboardController.current
-                val focusManager = LocalFocusManager.current
-                val closeSearch = { focusManager.clearFocus(); keyboard?.hide(); searchExpanded = false; query = ""; submittedQuery = "" }
-                BackHandler { closeSearch() }
-                LaunchedEffect(Unit) { focusRequester.requestFocus(); keyboard?.show() }
-                // Debounce so we don't re-filter/sort the list on every single keystroke.
-                LaunchedEffect(query) {
-                    if (query.isEmpty()) submittedQuery = ""
-                    else { kotlinx.coroutines.delay(250); submittedQuery = query }
-                }
-                // Same 72dp slot as the normal header so the tabs below don't jump.
-                Box(Modifier.fillMaxWidth().height(KikoHeader.Height).padding(bottom = KikoHeader.BottomGap), contentAlignment = Alignment.Center) {
-                    SearchTopBar(
-                        value = query,
-                        onValueChange = { query = it },
-                        hint = "Search your list",
-                        onSearch = { submittedQuery = query },
-                        onBack = closeSearch,
-                        focusRequester = focusRequester,
-                        showDivider = false,
-                    )
+                } else {
+                    val focusRequester = remember { FocusRequester() }
+                    val keyboard = LocalSoftwareKeyboardController.current
+                    val focusManager = LocalFocusManager.current
+                    val closeSearch = { focusManager.clearFocus(); keyboard?.hide(); searchExpanded = false; query = ""; submittedQuery = "" }
+                    BackHandler { closeSearch() }
+                    LaunchedEffect(Unit) { focusRequester.requestFocus(); keyboard?.show() }
+                    // Debounce so we don't re-filter/sort the list on every single keystroke.
+                    LaunchedEffect(query) {
+                        if (query.isEmpty()) submittedQuery = ""
+                        else { kotlinx.coroutines.delay(250); submittedQuery = query }
+                    }
+                    // Same 72dp slot as the normal header so the tabs below don't jump.
+                    Box(Modifier.fillMaxWidth().height(KikoHeader.Height).padding(bottom = KikoHeader.BottomGap), contentAlignment = Alignment.Center) {
+                        SearchTopBar(
+                            value = query,
+                            onValueChange = { query = it },
+                            hint = "Search your list",
+                            onSearch = { submittedQuery = query },
+                            onBack = closeSearch,
+                            focusRequester = focusRequester,
+                            showDivider = false,
+                        )
+                    }
                 }
             }
-        }
-        // Status switcher — Material3 scrollable tabs
-        // (replaces the old bottom-right filter FAB)
-        // Header is the standard 72dp (same as Discover, so it doesn't jump between
-        // screens); pull the tabs up 8dp into its empty bottom padding to keep the
-        // tighter header->tabs gap.
-        StatusFilterTabs(typeTab, pagerState, modifier = Modifier.layout { measurable, constraints ->
-            val placeable = measurable.measure(constraints)
-            val trim = 8.dp.roundToPx()
-            layout(placeable.width, (placeable.height - trim).coerceAtLeast(0)) { placeable.place(0, -trim) }
-        }) { label ->
-            vm.setListFilter(context, label)
-            scope.launch { pagerState.animateScrollToPage(labels.indexOf(label).coerceAtLeast(0)) }
-        }
+            // Status switcher — Material3 scrollable tabs
+            // (replaces the old bottom-right filter FAB)
+            // Header is the standard 72dp (same as Discover, so it doesn't jump between
+            // screens); pull the tabs up 8dp into its empty bottom padding to keep the
+            // tighter header->tabs gap.
+            if (!fabMode) StatusFilterTabs(typeTab, pagerState, modifier = Modifier.layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                val trim = 8.dp.roundToPx()
+                layout(placeable.width, (placeable.height - trim).coerceAtLeast(0)) { placeable.place(0, -trim) }
+            }) { label ->
+                vm.setListFilter(context, label)
+                scope.launch { pagerState.animateScrollToPage(labels.indexOf(label).coerceAtLeast(0)) }
+            }
 
-        // Everything below the tab row — title count, grid/sort controls,
-        // and the actual titles — swipes between statuses.
-        // beyondViewportPageCount = 1: pre-compose the pages on either side
-        // of the current one, so a swipe reveals an already-built page
-        // instead of building one mid-gesture (which was the other source
-        // of stutter alongside the settledPage fix above).
-        HorizontalPager(state = pagerState, modifier = Modifier.weight(1f).fillMaxWidth(), beyondViewportPageCount = 1) { page ->
-            val pageLabel = labels.getOrElse(page) { "All" }
-            StatusListPage(
-                vm = vm,
-                type = typeTab,
-                statusLabel = pageLabel,
-                submittedQuery = submittedQuery,
-                onOpenDetail = onOpenDetail,
-                onIncrement = onIncrement,
-                onEdit = onEdit,
-                selectedItem = selectedItem,
-                // Only restore the saved scroll position on the page matching
-                // the currently-active filter — swiped-to pages start fresh.
-                restoreScroll = pageLabel == effectiveFilter,
+            // Everything below the tab row — title count, grid/sort controls,
+            // and the actual titles — swipes between statuses.
+            // beyondViewportPageCount = 1: pre-compose the pages on either side
+            // of the current one, so a swipe reveals an already-built page
+            // instead of building one mid-gesture (which was the other source
+            // of stutter alongside the settledPage fix above).
+            if (fabMode) {
+                // FAB mode: no tabs and no swiping between statuses — one page for the chosen status. Keyed on the
+                // status so each one starts with fresh scroll state.
+                androidx.compose.runtime.key(effectiveFilter) {
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        StatusListPage(
+                            vm = vm,
+                            type = typeTab,
+                            statusLabel = effectiveFilter,
+                            submittedQuery = submittedQuery,
+                            onOpenDetail = onOpenDetail,
+                            onIncrement = onIncrement,
+                            onEdit = onEdit,
+                            selectedItem = selectedItem,
+                            restoreScroll = true,
+                            fabMode = true,
+                        )
+                    }
+                }
+            } else HorizontalPager(state = pagerState, modifier = Modifier.weight(1f).fillMaxWidth(), beyondViewportPageCount = 1) { page ->
+                val pageLabel = labels.getOrElse(page) { "All" }
+                StatusListPage(
+                    vm = vm,
+                    type = typeTab,
+                    statusLabel = pageLabel,
+                    submittedQuery = submittedQuery,
+                    onOpenDetail = onOpenDetail,
+                    onIncrement = onIncrement,
+                    onEdit = onEdit,
+                    selectedItem = selectedItem,
+                    // Only restore the saved scroll position on the page matching
+                    // the currently-active filter — swiped-to pages start fresh.
+                    restoreScroll = pageLabel == effectiveFilter,
+                )
+            }
+        }
+        if (fabMode) StatusFabMenu(
+            labels = labels,
+            selected = effectiveFilter,
+            expanded = fabExpanded,
+            onExpandedChange = { fabExpanded = it },
+            onSelect = { label -> vm.setListFilter(context, label); fabExpanded = false },
+            modifier = Modifier.align(Alignment.BottomEnd),
+        )
+    }
+}
+
+// FAB-mode status switcher: the Material 3 FAB menu (https://m3.material.io/components/fab-menu/overview).
+// A toggle FAB bottom-end that opens a column of labelled items, one per status; the active one is filled
+// with the primary colour. A scrim behind it closes the menu on tap.
+@Composable private fun StatusFabMenu(
+    labels: List<String>,
+    selected: String,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = LocalKikoColors.current
+    Box(modifier.fillMaxSize()) {
+        AnimatedVisibility(visible = expanded, enter = fadeIn(), exit = fadeOut()) {
+            Box(
+                Modifier.fillMaxSize().background(c.surface.copy(alpha = 0.82f))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onExpandedChange(false) },
             )
         }
+        FloatingActionButtonMenu(
+            expanded = expanded,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp),
+            button = {
+                // Same colours as the Seasonal button (primary / onPrimary), not the stock Material container colour.
+                ToggleFloatingActionButton(checked = expanded, onCheckedChange = { onExpandedChange(!expanded) }, containerColor = { c.primary }) {
+                    // Shows the selected status's icon; becomes a close icon while the menu is open (no animateIcon/checkedProgress: not in this material3 alpha).
+                    androidx.compose.animation.Crossfade(targetState = if (expanded) null else selected, animationSpec = tween(150), label = "status-fab-icon") { shown ->
+                        Icon(if (shown == null) Icons.Rounded.Close else statusMenuIcon(shown), contentDescription = "Filter by status: $selected", tint = c.onPrimary)
+                    }
+                }
+            },
+        ) {
+            labels.forEach { label ->
+                val active = label == selected
+                FloatingActionButtonMenuItem(
+                    onClick = { onSelect(label) },
+                    text = { Text(label) },
+                    icon = { Icon(statusMenuIcon(label), contentDescription = null) },
+                    containerColor = if (active) c.primary else c.primaryContainer,
+                    contentColor = if (active) c.onPrimary else c.onPrimaryContainer,
+                )
+            }
+        }
     }
+}
+
+private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.ImageVector = when {
+    label == "All" -> Icons.Rounded.GridView
+    label.startsWith("Watch", true) -> Icons.Rounded.PlayArrow
+    label.startsWith("Read", true) -> Icons.Rounded.AutoStories
+    label.startsWith("Plan", true) -> Icons.Rounded.Bookmark
+    label.startsWith("Complet", true) -> Icons.Rounded.CheckCircle
+    label.contains("hold", true) -> Icons.Rounded.PauseCircle
+    else -> Icons.Rounded.Cancel
 }
 
 // One swipeable page of ListScreen — the titles count/toggle/sort row plus
@@ -979,6 +1074,7 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
     onEdit: (MediaItem) -> Unit,
     selectedItem: MediaItem?,
     restoreScroll: Boolean,
+    fabMode: Boolean = false,
 ) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
@@ -1092,7 +1188,9 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
         // Even spacing: the gap under the status tabs' divider equals the gap above the first entry, which
         // is the entry's own top padding in list mode (10/14dp) or the grid's 16dp row spacing. So the row
         // only pads its top; its bottom edge is the entry's padding.
-        val gap = countRowTopGap(isGrid)
+        // FAB mode has no tab row under the header, which already leaves ~10dp of empty space below its icons,
+        // so the count row trims that much off its top gap to keep the space above and below it even.
+        val gap = if (fabMode) countRowTopGap(isGrid) - 10.dp else countRowTopGap(isGrid)
         Row(Modifier.fillMaxWidth().padding(top = gap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Start) {
             Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
         }
@@ -1150,7 +1248,8 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
         GoToTopButton(
             visible = showGoToTop,
             onClick = { scope.launch { if (isGrid) gridState.animateScrollToItem(0) else listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+            // FAB mode: bottom-left like the Seasonal screen, since the status FAB owns the bottom-right.
+            modifier = if (fabMode) Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 20.dp) else Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
         )
     }
 }

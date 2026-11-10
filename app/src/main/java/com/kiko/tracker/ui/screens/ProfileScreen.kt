@@ -86,6 +86,8 @@ import com.kiko.tracker.data.api.MalSessionCookie
 import com.kiko.tracker.data.api.fullResMalImage
 import com.kiko.tracker.data.model.ColorSource
 import com.kiko.tracker.data.model.GridColumns
+import com.kiko.tracker.data.model.ListStatusStyle
+import com.kiko.tracker.data.model.ListStatusStylePrefs
 import com.kiko.tracker.data.model.ListViewMode
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
@@ -1119,6 +1121,8 @@ private fun formatCacheBytes(b: Long): String = when {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var listViewDialog by remember { mutableStateOf(false) }
+    var statusStyleDialog by remember { mutableStateOf(false) }
+    ListStatusStylePrefs.ensureLoaded(context)
     var gridColumnsDialog by remember { mutableStateOf(false) }
     var airTimerDialog by remember { mutableStateOf(false) }
     var startTabDialog by remember { mutableStateOf(false) }
@@ -1150,6 +1154,7 @@ private fun formatCacheBytes(b: Long): String = when {
             SettingsItem("Title language", titleLanguage.label, icon = Icons.Rounded.Translate, onClick = onTitleLanguageClick),
             SettingsItem("Air timer style", if (AirTimerPrefs.countdown) "Countdown" else "Air time", icon = Icons.Rounded.Timer, onClick = { airTimerDialog = true }),
             SettingsItem("List layout", listViewMode.name, icon = Icons.Rounded.ViewAgenda, onClick = { listViewDialog = true }),
+            SettingsItem("Status filter", if (ListStatusStylePrefs.style == ListStatusStyle.Tabs) "Status tabs" else "FAB menu", icon = Icons.Rounded.FilterList, onClick = { statusStyleDialog = true }),
             // Layout-specific option: Compact list only applies to the list layout, Grid columns to the grid layout.
             if (listViewMode == ListViewMode.List) SettingsItem(
                 "Compact list", "Smaller covers and shorter rows in list layout",
@@ -1206,6 +1211,12 @@ private fun formatCacheBytes(b: Long): String = when {
     if (listViewDialog) ChoiceDialog(
         title = "List layout", options = ListViewMode.entries, selected = listViewMode, label = { it.name },
         onSelect = { onListViewModeChange(it); listViewDialog = false }, onDismiss = { listViewDialog = false },
+    )
+    if (statusStyleDialog) ChoiceDialog(
+        title = "Status filter", options = ListStatusStyle.entries, selected = ListStatusStylePrefs.style,
+        label = { if (it == ListStatusStyle.Tabs) "Status tabs" else "FAB menu" },
+        description = { if (it == ListStatusStyle.Tabs) "Swipeable tabs under the header (All, Watching, …)" else "A floating button in My List that opens a menu of statuses" },
+        onSelect = { ListStatusStylePrefs.set(context, it); statusStyleDialog = false }, onDismiss = { statusStyleDialog = false },
     )
     if (gridColumnsDialog) ChoiceDialog(
         title = "Grid columns", options = GridColumns.entries, selected = gridColumns, label = { it.label },

@@ -612,6 +612,25 @@ object AirTimerPrefs {
     }
 }
 
+// Settings > "Status filter": how My List switches between statuses — swipeable tabs, or an M3 FAB menu.
+enum class ListStatusStyle { Tabs, Fab }
+
+object ListStatusStylePrefs {
+    private const val KEY = "list_status_style"
+    var style by mutableStateOf(ListStatusStyle.Tabs); private set
+    private var loaded = false
+    fun ensureLoaded(context: android.content.Context) {
+        if (loaded) return
+        loaded = true
+        style = runCatching { ListStatusStyle.valueOf(com.kiko.tracker.util.settingsPrefs(context).getString(KEY, ListStatusStyle.Tabs.name)!!) }.getOrDefault(ListStatusStyle.Tabs)
+    }
+    fun set(context: android.content.Context, value: ListStatusStyle) {
+        loaded = true
+        style = value
+        com.kiko.tracker.util.settingsPrefs(context).edit().putString(KEY, value.name).apply()
+    }
+}
+
 // Settings > "Default tab": which tab the app opens on. Read once at launch (see LibraryViewModel.applyStartTab).
 object StartTabPrefs {
     private const val KEY = "start_tab"
