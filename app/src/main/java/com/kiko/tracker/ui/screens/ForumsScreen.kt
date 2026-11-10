@@ -929,7 +929,7 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                         if (entry.score > 0) ReviewScoreChip(entry.score)
                     }
                     if (entry.isSpoiler || entry.tags.isNotEmpty()) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 14.dp)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 14.dp)) {
                             if (entry.isSpoiler) SpoilerChip(showLabel = true)
                             entry.tags.forEach { tag -> if (tag in ReviewVerdictTags) VerdictChip(tag, showLabel = true) else ReviewTagChip(tag) }
                         }

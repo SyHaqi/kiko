@@ -1454,7 +1454,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
 @Composable fun ReviewCard(entry: ReviewEntry, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Column(
-        modifier.width(260.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh).kikoClickable(onClick = onClick).padding(14.dp),
+        modifier.width(260.dp).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh).kikoClickable(onClick = onClick).padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (entry.userImage.isNotBlank()) {

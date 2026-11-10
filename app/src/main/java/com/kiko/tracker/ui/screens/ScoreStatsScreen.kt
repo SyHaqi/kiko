@@ -234,7 +234,7 @@ import com.kiko.tracker.ui.theme.kikoPillShape
         val verdict = entry.verdict()
         val otherTags = entry.tags.filterNot { it in ReviewVerdictTags }
         if (verdict != null || entry.isSpoiler || otherTags.isNotEmpty()) {
-            FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 verdict?.let { VerdictChip(it, showLabel = true) }
                 if (entry.isSpoiler) SpoilerChip(showLabel = true)
                 otherTags.forEach { ReviewTagChip(it) }
@@ -245,16 +245,13 @@ import com.kiko.tracker.ui.theme.kikoPillShape
     }
 }
 
-// Shared review chips — flat, solid fills (Material 3 Expressive style, no tints/alpha): the sentiment color
-// as the container with an auto-contrast content color on top. Used by the Reviews list, the Detail preview
-// cards (compact = true) and the full review page. Verdict and spoiler chips spell out their name (showLabel);
-// the icon-only form (with a long-press tooltip) is still there for any spot that wants it.
-@Composable private fun ReviewChip(container: Color, compact: Boolean, content: @Composable RowScope.() -> Unit) {
-    Row(
-        Modifier.clip(kikoPillShape()).background(container)
-            .padding(horizontal = if (compact) 6.dp else 9.dp, vertical = if (compact) 2.dp else 4.dp),
-        verticalAlignment = Alignment.CenterVertically, content = content,
-    )
+// Shared review labels — flat inline "icon + text" with no container, the same plain metadata treatment the
+// rest of the app uses (star + score, layers + entry count, eye + views). The sentiment color tints the
+// icon and text; no pill backgrounds. Used by the Reviews list, the Detail preview cards (compact = true)
+// and the full review page. Verdict and spoiler labels spell out their name (showLabel); the icon-only
+// form (with a long-press tooltip) is still there for any spot that wants it.
+@Composable private fun ReviewChip(compact: Boolean, content: @Composable RowScope.() -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, content = content)
 }
 
 // Long-press (or hover) tooltip naming an icon-only element.
@@ -272,16 +269,15 @@ import com.kiko.tracker.ui.theme.kikoPillShape
 // and the reader has opened that one review); otherwise icon-only with the name as a long-press tooltip.
 @Composable fun VerdictChip(verdict: String, compact: Boolean = false, showLabel: Boolean = false) {
     val tint = verdictColor(verdict, LocalKikoColors.current)
-    val on = onSentiment(tint)
     if (showLabel) {
-        ReviewChip(tint, compact) {
-            Icon(verdictIcon(verdict), null, tint = on, modifier = Modifier.size(if (compact) 10.dp else 15.dp))
-            Text(verdict, color = on, fontWeight = FontWeight.Bold, fontSize = if (compact) 9.sp else 12.sp, lineHeight = if (compact) 12.sp else TextUnit.Unspecified, maxLines = 1, modifier = Modifier.padding(start = if (compact) 4.dp else 6.dp))
+        ReviewChip(compact) {
+            Icon(verdictIcon(verdict), null, tint = tint, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
+            Text(verdict, color = tint, fontWeight = FontWeight.Bold, fontSize = if (compact) 11.sp else 12.sp, lineHeight = if (compact) 14.sp else TextUnit.Unspecified, maxLines = 1, modifier = Modifier.padding(start = if (compact) 4.dp else 5.dp))
         }
     } else {
         NameTooltip(verdict) {
-            ReviewChip(tint, compact) {
-                Icon(verdictIcon(verdict), verdict, tint = on, modifier = Modifier.size(if (compact) 10.dp else 15.dp))
+            ReviewChip(compact) {
+                Icon(verdictIcon(verdict), verdict, tint = tint, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
             }
         }
     }
@@ -298,26 +294,24 @@ import com.kiko.tracker.ui.theme.kikoPillShape
 
 @Composable fun SpoilerChip(compact: Boolean = false, showLabel: Boolean = false) {
     val tint = LocalKikoColors.current.danger
-    val on = onSentiment(tint)
     if (showLabel) {
-        ReviewChip(tint, compact) {
-            Icon(Icons.Rounded.VisibilityOff, null, tint = on, modifier = Modifier.size(if (compact) 10.dp else 15.dp))
-            Text("Contains spoilers", color = on, fontWeight = FontWeight.Bold, fontSize = if (compact) 9.sp else 12.sp, lineHeight = if (compact) 12.sp else TextUnit.Unspecified, maxLines = 1, modifier = Modifier.padding(start = if (compact) 4.dp else 6.dp))
+        ReviewChip(compact) {
+            Icon(Icons.Rounded.VisibilityOff, null, tint = tint, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
+            Text("Contains spoilers", color = tint, fontWeight = FontWeight.Bold, fontSize = if (compact) 11.sp else 12.sp, lineHeight = if (compact) 14.sp else TextUnit.Unspecified, maxLines = 1, modifier = Modifier.padding(start = if (compact) 4.dp else 5.dp))
         }
     } else {
         NameTooltip("Contains spoilers") {
-            ReviewChip(tint, compact) {
-                Icon(Icons.Rounded.VisibilityOff, "Contains spoilers", tint = on, modifier = Modifier.size(if (compact) 10.dp else 15.dp))
+            ReviewChip(compact) {
+                Icon(Icons.Rounded.VisibilityOff, "Contains spoilers", tint = tint, modifier = Modifier.size(if (compact) 12.dp else 15.dp))
             }
         }
     }
 }
 
+// Plain muted text, like the "Anime · Challenge" detail line on stack rows.
 @Composable fun ReviewTagChip(text: String, compact: Boolean = false) {
     val c = LocalKikoColors.current
-    ReviewChip(c.surfaceContainerHighest, compact) {
-        Text(text, color = c.onSurfaceVariant, fontSize = if (compact) 10.sp else 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
+    Text(text, color = c.muted, fontSize = if (compact) 11.sp else 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
 
 // MAL reactions for a review: the three most-used emojis, then the total number of
