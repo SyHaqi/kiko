@@ -1328,7 +1328,7 @@ private fun formatCacheBytes(b: Long): String = when {
             itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                 StaggeredItem(index, staggerSeen) {
                     Column {
-                        ListRow(it, onOpenDetail, showType = false)
+                        MyListRow(it, onOpenDetail)
                     }
                 }
             }
@@ -1397,7 +1397,7 @@ private fun formatCacheBytes(b: Long): String = when {
                         itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                             StaggeredItem(index, staggerSeen) {
                                 Column {
-                                    ListRow(it, onOpenDetail, showType = false)
+                                    MyListRow(it, onOpenDetail)
                                 }
                             }
                         }
@@ -1510,7 +1510,7 @@ private fun formatCacheBytes(b: Long): String = when {
             itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                 StaggeredItem(index, staggerSeen) {
                     Column {
-                        ListRow(it, onOpenDetail, showType = false)
+                        MyListRow(it, onOpenDetail)
                     }
                 }
             }
@@ -1576,7 +1576,7 @@ private fun formatCacheBytes(b: Long): String = when {
                         itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
                             StaggeredItem(index, staggerSeen) {
                                 Column {
-                                    ListRow(it, onOpenDetail, showType = false)
+                                    MyListRow(it, onOpenDetail)
                                 }
                             }
                         }

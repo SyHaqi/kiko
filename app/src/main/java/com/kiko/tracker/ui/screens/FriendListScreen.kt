@@ -442,7 +442,7 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
         Column(Modifier.padding(top = if (roomy) 8.dp else 6.dp)) {
             Text(friendGridCounterLabel(entry, type), color = c.muted, fontSize = if (roomy) 12.sp else 10.sp, lineHeight = if (roomy) 16.sp else 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             LinearProgressIndicator(
-                progress = { if (entry.total > 0) (entry.progress.toFloat() / entry.total).coerceIn(0f, 1f) else 0f },
+                progress = { progressFraction(entry.progress, entry.total) },
                 modifier = Modifier.padding(top = if (roomy) 8.dp else 6.dp).fillMaxWidth().height(if (roomy) 5.dp else 4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
                 color = statusColor(entry.status), trackColor = c.surfaceLow, drawStopIndicator = {},
             )
@@ -450,11 +450,10 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
     }
 }
 
-// Same layout as ListRow (My List / Profile): 88x132 cover, text column exactly as
-// tall as the cover — title, then the score under it, pinned to the top; progress
-// bar and counter pinned to the bottom. MAL's scraped list-table data has no
-// format / airing-status field (see MalUserListEntry's doc comment), so unlike
-// ListRow there is no format line or air-timer row here.
+// Same design as My List's row (MyListRow): 88x132 cover, text column exactly as tall as the cover — title,
+// then the score under it, pinned to the top; counter (right-aligned to the bar's end) above a flat, thicker
+// progress bar pinned to the bottom. MAL's scraped list-table data has no format / airing-status field (see
+// MalUserListEntry's doc comment), so unlike MyListRow there is no format line, air timer or +1 button here.
 @Composable
 private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.tracker.ui.theme.KikoColors, onClick: () -> Unit) {
     val compact = LocalCompactList.current
@@ -479,7 +478,7 @@ private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.
             }
         }
         Column(
-            Modifier.weight(1f).height(coverH).padding(start = 16.dp, end = 6.dp),
+            Modifier.weight(1f).height(coverH).padding(start = 16.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column {
@@ -492,13 +491,13 @@ private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.
                 }
             }
             Column {
-                // Counter on top, bar underneath (bar is the bottom-most element), same as My List's row.
-                Text(friendProgressLabel(entry, type), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1)
-                // Always drawn, even when the total is unknown: the track just stays empty.
+                // Counter above the bar, right-aligned to the bar's end; the bar is the bottom-most element, same as My List's row.
+                Text(friendProgressLabel(entry, type), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth())
+                // Flat, thicker, round-capped bar. Always drawn, even when the total is unknown: the track just stays empty.
                 LinearProgressIndicator(
-                    progress = { if (entry.total > 0) (entry.progress.toFloat() / entry.total).coerceIn(0f, 1f) else 0f },
-                    modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
-                    color = statusColor(entry.status), trackColor = c.surfaceLow, drawStopIndicator = {},
+                    progress = { progressFraction(entry.progress, entry.total) },
+                    modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
+                    color = statusColor(entry.status), trackColor = c.surfaceContainerHigh, drawStopIndicator = {},
                 )
             }
         }

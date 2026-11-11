@@ -685,6 +685,15 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
     }
 }
 
+// How full a title's progress bar is. Known total: progress / total. Unknown total (long runners, ongoing titles that
+// haven't announced a length): there is nothing to divide by, so the bar still fills, on a log scale against ~1000
+// episodes / chapters - ep. 12 is about a third, ep. 200 about three quarters, ep. 500 about nine tenths - so a longer
+// watch always reads fuller than a shorter one, but never looks finished (capped at 95%). Nothing watched yet: empty.
+fun progressFraction(progress: Int, total: Int): Float = when {
+    progress <= 0 -> 0f
+    total > 0 -> (progress.toFloat() / total).coerceIn(0f, 1f)
+    else -> (kotlin.math.ln(1.0 + progress) / kotlin.math.ln(1001.0)).toFloat().coerceIn(0.05f, 0.95f)
+}
 fun progressLabel(i: MediaItem) = if (i.progress == 0) i.status.displayLabel(i.type) else "${i.progress} of ${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "ep." else "ch."}"
 // Same as progressLabel, but
 // the grid tile, where
@@ -1349,7 +1358,7 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
             Column(blockModifier) {
                 Text(gridCounterLabel(item), color = c.muted, fontSize = if (roomy) 12.sp else 10.sp, lineHeight = if (roomy) 16.sp else 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 LinearProgressIndicator(
-                    progress = { if (item.total > 0) (item.progress.toFloat() / item.total).coerceIn(0f, 1f) else 0f },
+                    progress = { progressFraction(item.progress, item.total) },
                     modifier = Modifier.padding(top = if (roomy) 8.dp else 6.dp).fillMaxWidth().height(if (roomy) 5.dp else 4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
                     color = statusColor(item.status), trackColor = c.surfaceLow, drawStopIndicator = {},
                 )
@@ -1668,7 +1677,7 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
                     // Always drawn, even when the total is unknown (e.g. a not-yet-aired
                     // "Plan to Watch" title): the track just stays empty until a total exists.
                     LinearProgressIndicator(
-                        progress = { if (item.total > 0) (item.progress.toFloat() / item.total).coerceIn(0f, 1f) else 0f },
+                        progress = { progressFraction(item.progress, item.total) },
                         modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
                         color = statusColor(item.status), trackColor = c.surfaceLow, drawStopIndicator = {},
                     )
@@ -1761,7 +1770,7 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
                     Text(progressLabel(item), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.fillMaxWidth())
                     // Flat, thicker, round-capped bar (no wave). Always drawn; the track stays empty until a total exists.
                     LinearProgressIndicator(
-                        progress = { if (item.total > 0) (item.progress.toFloat() / item.total).coerceIn(0f, 1f) else 0f },
+                        progress = { progressFraction(item.progress, item.total) },
                         modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
                         color = statusColor(item.status), trackColor = c.surfaceContainerHigh, drawStopIndicator = {},
                     )
