@@ -1267,9 +1267,9 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                     if (vm.loading && filtered.isEmpty()) {
                         item { KikoSectionLoading() }
                     } else {
-                        // No wrapper Box/Column and no per-row animation modifiers: each row is just ListRow.
+                        // No wrapper Box/Column and no per-row animation modifiers: each row is just MyListRow.
                         items(filtered, key = { it.id }, contentType = { "row" }) { it ->
-                            ListRow(it, openItem, onIncrementHeld, showType = false, onLongPress = onEdit, vm = vm, showStatus = fabMode || statusLabel == "All")
+                            MyListRow(it, openItem, onIncrementHeld, onLongPress = onEdit, vm = vm, showStatus = fabMode || statusLabel == "All")
                         }
                     }
                     if (!vm.loading && filtered.isEmpty()) item { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
@@ -1682,6 +1682,126 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
         if (onIncrement == null && showChevron) {
             // No increment action here (e.g. a read-only list), so show a chevron in the trailing slot instead.
             Icon(Icons.Rounded.ChevronRight, null, tint = c.muted, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+// My List row (list view only). The grid tile (ListGridCard) and the Profile / Friend lists (ListRow) are untouched.
+// Minimal Material 3 Expressive take on the row: flat, no chips, one muted meta line, one tonal action.
+//   cover | title (1-2 lines)
+//         | meta line: "TV · ★ 8" (or the air timer while airing / not yet aired / behind), replay icon if rewatched
+//         | counter + thin flat progress bar ........ [+] tonal squircle button
+// The text column is exactly as tall as the cover; title + meta sit at the top, counter + bar + button at the
+// bottom, so the bar and the button always end on the cover's bottom edge.
+@Composable fun MyListRow(
+    item: MediaItem,
+    onOpenDetail: (MediaItem) -> Unit,
+    onIncrement: ((MediaItem) -> Unit)? = null,
+    modifier: Modifier = Modifier,
+    onLongPress: ((MediaItem) -> Unit)? = null,
+    vm: LibraryViewModel? = null,
+    showStatus: Boolean = false,
+) {
+    val c = LocalKikoColors.current
+    val compact = LocalCompactList.current
+    val coverW = if (compact) 72.dp else 88.dp
+    val coverH = if (compact) 108.dp else 132.dp
+    val rowVPad = if (compact) 10.dp else 12.dp
+    // Same airing lookup as ListRow: only currently-airing titles hit the network / read the shared cache.
+    val isAiring = item.airStatus.equals("Currently Airing", ignoreCase = true)
+    if (vm != null && isAiring) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
+    val confirmed by remember(item.id, vm, isAiring) { derivedStateOf { if (isAiring) vm?.getCachedAiring(item.id) else null } }
+    val is24Hour = if (isAiring) systemIs24Hour() else false
+    val countdownStyle = if (isAiring) AirTimerPrefs.countdown else false
+    val upcoming = remember(item.airStatus, item.type) { item.upcomingLabel() }
+    // Currently airing: the air timer ("Ep. 14 airs in 2d 3h" / "airs on Sat, 9:30 PM") always takes the format's place
+    // on the meta line. Not yet aired: "Not Yet Aired" does. Everything else shows the format.
+    val timer = remember(item, confirmed, is24Hour, countdownStyle, upcoming, isAiring, item.progress, item.status) {
+        if (isAiring) item.airTimerLabel(confirmed, is24Hour) ?: item.behindLabel(confirmed) else upcoming
+    }
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(16.dp)))
+            .kikoCombinedClickable(
+                scale = 1f,
+                onClick = { onOpenDetail(item) },
+                onLongClick = onLongPress?.let { edit -> { edit(item) } },
+            )
+            .padding(vertical = rowVPad),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Cover(item, Modifier.size(width = coverW, height = coverH), showStatus = showStatus)
+        Column(
+            Modifier.weight(1f).height(coverH).padding(start = 16.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column {
+                Text(
+                    item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp,
+                    color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+                Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (timer != null) {
+                        Icon(Icons.Rounded.Schedule, null, tint = c.muted, modifier = Modifier.size(12.dp))
+                        Text(timer, color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp).weight(1f, fill = false))
+                    } else {
+                        Text(formatLabel(item), color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    }
+                    if (item.myRating > 0) {
+                        Text("  ·  ", color = c.muted, fontSize = 13.sp)
+                        Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
+                        Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+                    }
+                }
+            }
+            // Counter above the bar, right-aligned to the bar's end, then the add button. The bar and the button end on the cover's bottom edge.
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                Column(Modifier.weight(1f)) {
+                    Text(progressLabel(item), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.fillMaxWidth())
+                    // Flat, thicker, round-capped bar (no wave). Always drawn; the track stays empty until a total exists.
+                    LinearProgressIndicator(
+                        progress = { if (item.total > 0) (item.progress.toFloat() / item.total).coerceIn(0f, 1f) else 0f },
+                        modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
+                        color = statusColor(item.status), trackColor = c.surfaceContainerHigh, drawStopIndicator = {},
+                    )
+                }
+                if (onIncrement != null) {
+                    Spacer(Modifier.width(12.dp))
+                    MyListAddButton(item, onIncrement)
+                }
+            }
+        }
+    }
+}
+
+// "+1" for My List rows: M3 Expressive tonal button. 40dp squircle at rest that morphs towards a circle
+// while pressed; the label dims once the last episode / chapter is reached. 48x40dp tap area,
+// visible container flush with the row's bottom edge.
+@Composable private fun MyListAddButton(item: MediaItem, onIncrement: (MediaItem) -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    val atMax = item.total > 0 && item.progress >= item.total
+    val press = remember { MutableInteractionSource() }
+    val pressed by press.collectIsPressedAsState()
+    val corner by androidx.compose.animation.core.animateDpAsState(if (pressed) 20.dp else kikoCorner(14.dp), label = "add-button-morph")
+    Box(
+        modifier
+            .size(width = 48.dp, height = 40.dp)
+            .clickable(interactionSource = press, indication = null, enabled = !atMax) {
+                val next = (item.progress + 1).let { p -> if (item.total > 0) minOf(p, item.total) else p }
+                onIncrement(item.copy(progress = next))
+            },
+        contentAlignment = Alignment.CenterEnd,
+    ) {
+        Box(
+            Modifier.size(40.dp).clip(RoundedCornerShape(corner)).background(if (atMax) c.surfaceContainerHigh else c.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "+1",
+                color = if (atMax) c.muted else c.onPrimaryContainer,
+                fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+            )
         }
     }
 }
