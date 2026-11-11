@@ -1380,7 +1380,6 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                 Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(if (roomy) 13.dp else 11.dp))
                 Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = if (roomy) 13.sp else 11.sp, modifier = Modifier.padding(start = 2.dp))
             }
-            if (item.timesRewatched > 0) RewatchTag(item.timesRewatched, fontSize = if (roomy) 11.sp else 10.sp, iconSize = if (roomy) 12.dp else 10.dp, modifier = Modifier.padding(start = if (roomy) 8.dp else 5.dp))
         }
         // Counter on top, bar underneath, as one block (same as list view); the bar is the bottom-most
         // element. It is always drawn, even for Plan to Watch/Read or an unknown total (empty track).
@@ -1600,19 +1599,6 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
     }
 }
 
-// "Has been rewatched / reread" tag, shown beside the score: a small tonal chip with a replay icon, plus the count
-// only when it is more than one.
-@Composable private fun RewatchTag(times: Int, fontSize: androidx.compose.ui.unit.TextUnit = 11.sp, iconSize: androidx.compose.ui.unit.Dp = 12.dp, modifier: Modifier = Modifier) {
-    val c = LocalKikoColors.current
-    Row(
-        modifier.clip(RoundedCornerShape(kikoCorner(6.dp))).background(c.primaryContainer).padding(horizontal = 5.dp, vertical = 1.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Rounded.Replay, null, tint = c.onPrimaryContainer, modifier = Modifier.size(iconSize))
-        if (times > 1) Text(times.toString(), color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = fontSize, lineHeight = fontSize, modifier = Modifier.padding(start = 2.dp))
-    }
-}
-
 // Shared media row (My List, Profile lists). The text column is exactly as tall as
 // the cover. Title (1-2 lines), the format line, and (while airing) an
 // "Ep. N airs on ..." row are pinned to the top; counter -> progress bar pinned
@@ -1686,7 +1672,6 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
                             Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
                             Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
                         }
-                        if (item.timesRewatched > 0) RewatchTag(item.timesRewatched, modifier = Modifier.padding(start = 8.dp))
                     }
                     // Currently airing / not yet aired: the status gets its own row under the format.
                     timer?.let { label ->
@@ -1699,7 +1684,6 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
                                 Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
                                 Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
                             }
-                            if (timerReplacesFormat && item.timesRewatched > 0) RewatchTag(item.timesRewatched, modifier = Modifier.padding(start = 8.dp))
                         }
                     }
                 }
@@ -1731,7 +1715,7 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
 // My List row (list view only). The grid tile (ListGridCard) and the Profile / Friend lists (ListRow) are untouched.
 // Minimal Material 3 Expressive take on the row: flat, no chips, one muted meta line, one tonal action.
 //   cover | title (1-2 lines)
-//         | meta line: "TV · ★ 8" (or the air timer while airing / not yet aired / behind), replay icon if rewatched
+//         | meta line: "TV · ★ 8" (or the air timer while airing / not yet aired / behind)
 //         | counter + thin flat progress bar ........ [+] tonal squircle button
 // The text column is exactly as tall as the cover; title + meta sit at the top, counter + bar + button at the
 // bottom, so the bar and the button always end on the cover's bottom edge.

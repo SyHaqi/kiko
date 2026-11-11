@@ -226,13 +226,15 @@
     .p-season .ph-a   { --w:24.5; --x:69; --y:7; --r:6; --z:3; }
     /* 4 · Title details */
     .p-title .ring    { --c:var(--blue);   --w:62; --x:-8; --y:-6; }
-    .p-title .cookie  { --c:var(--blue);   --w:36; --x:8;  --y:18; }
-    .p-title .ph-a    { --w:27; --x:13; --y:7; --r:-4; --z:2; }
-    .p-title .st-a    { --x:2;  --y:12; --r:-9; --sb:var(--blue-soft); --sf:#0f1d45; }
-    .p-title .st-b    { --x:40; --y:9;  --r:7;  --sb:var(--mint);      --sf:#052a1d; }
-    .p-title .st-c    { --x:1;  --y:30; --r:6;  --sb:var(--butter);    --sf:#2c2000; }
-    .p-title .st-d    { --x:42; --y:27; --r:-7; --sb:var(--coral);     --sf:#3b0f05; }
-    .p-title .st-e    { --x:33; --y:43; --r:5;  --sb:var(--lav);       --sf:#24114f; }
+    .p-title .cookie  { --c:var(--blue);   --w:40; --x:6;  --y:16; }
+    .p-title .ph-a    { --w:23; --x:5;  --y:8;  --r:-5; --z:2; }
+    .p-title .ph-b    { --w:23; --x:27; --y:15; --r:4;  --z:3; }
+    .p-title .st-a    { --x:1;  --y:8;  --r:-9; --sb:var(--blue-soft); --sf:#0f1d45; }
+    .p-title .st-b    { --x:17; --y:2;  --r:6;  --sb:var(--mint);      --sf:#052a1d; }
+    .p-title .st-c    { --x:0;  --y:36; --r:6;  --sb:var(--butter);    --sf:#2c2000; }
+    .p-title .st-d    { --x:41; --y:6;  --r:-7; --sb:var(--coral);     --sf:#3b0f05; }
+    .p-title .st-e    { --x:11; --y:44; --r:5;  --sb:var(--lav);       --sf:#24114f; }
+    .p-title .st-f    { --x:43; --y:27; --r:-6; --sb:#fff;             --sf:var(--blue); }
     /* 5 · Community */
     .p-community .flower { --c:var(--butter); --w:44; --x:56; --y:-14; }
     .p-community .dot    { --c:var(--blue);   --w:13; --x:88; --y:-4; }
@@ -303,12 +305,14 @@
       .p-title { --sh:106; }
       .p-title .ring   { --w:120; --x:-10; --y:-12; }
       .p-title .cookie { --w:76; --x:12; --y:28; }
-      .p-title .ph-a   { --w:60; --x:20; --y:10; }
+      .p-title .ph-a   { --w:60; --x:36; --y:6;  --z:3; }
+      .p-title .ph-b   { --w:46; --x:-4; --y:18; --r:-4; --z:2; }
       .p-title .st-a   { --x:2;  --y:6; }
       .p-title .st-b   { --x:66; --y:12; }
-      .p-title .st-c   { --x:2;  --y:48; }
+      .p-title .st-c   { --x:2;  --y:56; }
       .p-title .st-d   { --x:72; --y:46; }
       .p-title .st-e   { display:none; }
+      .p-title .st-f   { --x:4;  --y:84; }
 
       .p-community { --sh:106; }
       .p-community .flower { --w:84; --x:18; --y:-16; }
@@ -440,16 +444,18 @@
             <span class="tag">Title details</span>
             <h3 id="p4">Every detail, one page.</h3>
             <p class="desc">Synopsis, characters, staff, reviews, recommendations and more. All this without jumping between pages!</p>
-            <ul class="chips"><li>Synopsis</li><li>Characters &amp; staff</li><li>Reviews</li><li>Recommendations</li></ul>
+            <ul class="chips"><li>Synopsis</li><li>Characters &amp; staff</li><li>Reviews</li><li>Recommendations</li><li>Relation pipelines</li></ul>
           </div>
           <div class="stage">
             <i class="shape ring"></i><i class="shape cookie"></i>
             <figure class="phone ph-a"><div class="screen"><img src="screenshots/title.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko title page for Violet Evergarden with synopsis, links and tabs"></div></figure>
+            <figure class="phone ph-b"><div class="screen"><img src="screenshots/relation-pipeline.jpg" width="720" height="1624" loading="lazy" decoding="async" alt="Kiko Relation pipelines screen mapping how Fate/Zero connects to its prequels, side stories and alternative versions"></div></figure>
             <span class="sticker st-a" aria-hidden="true">Synopsis</span>
             <span class="sticker st-b" aria-hidden="true">Characters</span>
             <span class="sticker st-c" aria-hidden="true">Staff</span>
             <span class="sticker st-d" aria-hidden="true">Reviews</span>
             <span class="sticker st-e" aria-hidden="true">Recommendations</span>
+            <span class="sticker st-f" aria-hidden="true">Relations</span>
           </div>
         </article>
 
@@ -501,7 +507,7 @@
       <p>Download the latest APK, install it on your Android device, and sign in with your MyAnimeList account. Android may ask you to allow installs from your browser or file manager.</p>
       <div class="actions">
         <a class="button primary" id="dl-install" data-download href="https://github.com/SyHaqi/kiko/releases/latest">Get Kiko</a>
-        <a class="button secondary" href="https://discord.gg/KZYQHpDWKH">Join Discord</a>
+        <a class="button secondary" href="https://discord.gg/qytyH7efp6">Join Discord</a>
       </div>
       <div class="meta">Kiko is not affiliated with or endorsed by MyAnimeList.</div>
     </section>

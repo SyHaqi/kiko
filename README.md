@@ -13,7 +13,7 @@ Track anime & manga, discover new titles, and stay close to the MyAnimeList comm
 <!-- Row 1: main buttons -->
 [![Download](https://img.shields.io/github/v/release/SyHaqi/kiko?style=for-the-badge&label=Download&logo=android&logoColor=white&labelColor=2E51A2&color=1d3470)](https://github.com/SyHaqi/kiko/releases/latest)
 [![Website](https://img.shields.io/badge/Website-syhaqi.github.io%2Fkiko-ffe18a?style=for-the-badge&logo=googlechrome&logoColor=2c2000&labelColor=f2c94c)](https://syhaqi.github.io/kiko/)
-[![Discord](https://img.shields.io/badge/Discord-Join_the_server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/KZYQHpDWKH)
+[![Discord](https://img.shields.io/badge/Discord-Join_the_server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/qytyH7efp6)
 
 <!-- Row 2: live stats, pastel palette from the website -->
 [![Total downloads](https://img.shields.io/github/downloads/SyHaqi/kiko/total?style=for-the-badge&label=Downloads&logo=github&logoColor=052a1d&labelColor=8fd9bb&color=bff0dc)](https://github.com/SyHaqi/kiko/releases)
@@ -137,7 +137,7 @@ Copyright © 2026 Kiko contributors.
 
 ## 💬 Community
 
-Questions, feedback, or bug reports? [Open an issue](https://github.com/SyHaqi/kiko/issues) or join the [Discord](https://discord.gg/KZYQHpDWKH).
+Questions, feedback, or bug reports? [Open an issue](https://github.com/SyHaqi/kiko/issues) or join the [Discord](https://discord.gg/qytyH7efp6).
 
 <div align="center">
 

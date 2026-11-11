@@ -6,7 +6,6 @@ import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -41,7 +40,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.browser.customtabs.CustomTabsIntent
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import com.kiko.tracker.BuildConfig
@@ -56,6 +54,7 @@ import com.kiko.tracker.ui.theme.kikoClickable
 import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.ui.theme.kikoPillShape
 import com.kiko.tracker.util.AppUpdateInfo
+import com.kiko.tracker.util.openInBrowser
 
 @Composable fun AboutScreen(
     onBack: () -> Unit,
@@ -113,12 +112,16 @@ import com.kiko.tracker.util.AppUpdateInfo
                 Spacer(Modifier.height(28.dp))
                 // Community links row
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://github.com/SyHaqi/kiko")) }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
+                    IconButton(onClick = { context.openInBrowser("https://github.com/SyHaqi/kiko") }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
                         Icon(painterResource(R.drawable.ic_github), "GitHub", tint = c.ink)
                     }
                     Spacer(Modifier.width(24.dp))
-                    IconButton(onClick = { CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse("https://discord.gg/KZYQHpDWKH")) }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
+                    IconButton(onClick = { context.openInBrowser("https://discord.gg/qytyH7efp6") }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
                         Icon(painterResource(R.drawable.ic_discord), "Discord", tint = c.ink)
+                    }
+                    Spacer(Modifier.width(24.dp))
+                    IconButton(onClick = { context.openInBrowser("https://syhaqi.github.io/kiko/") }, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)) {
+                        Icon(Icons.Rounded.Language, "Website", tint = c.ink)
                     }
                 }
                 Spacer(Modifier.height(24.dp))
