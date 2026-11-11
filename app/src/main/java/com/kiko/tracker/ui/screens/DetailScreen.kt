@@ -1514,6 +1514,8 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
     var startDate by remember { mutableStateOf(item.watchStartDate) }
     var endDate by remember { mutableStateOf(item.watchEndDate) }
     var rewatching by remember { mutableStateOf(item.isRewatching) }
+    // The count before "Currently rewatching" was switched on, so switching it off can put it back.
+    var progressBeforeRewatch by remember { mutableStateOf<Int?>(null) }
     var timesRewatched by remember { mutableStateOf(item.timesRewatched) }
     var rewatchValue by remember { mutableStateOf(item.rewatchValue) }
     var priority by remember { mutableStateOf(item.priority) }
@@ -1678,7 +1680,19 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text("Currently ${rewatchWord.lowercase()}ing", color = c.ink, fontSize = 14.sp)
-                Switch(checked = rewatching, onCheckedChange = { rewatching = it }, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary))
+                Switch(checked = rewatching, onCheckedChange = { on ->
+                    rewatching = on
+                    if (on) {
+                        // Starting a rewatch / reread: the count restarts at 1. The stored status (e.g. Completed) is not
+                        // touched; My List just lists the title under Watching / Reading while this is on.
+                        progressBeforeRewatch = progress
+                        progress = 1
+                    } else {
+                        // Switching it off puts the count back (a Completed title goes back to all its episodes).
+                        progress = progressBeforeRewatch ?: if (status == WatchStatus.Completed && item.total > 0) item.total else progress
+                        progressBeforeRewatch = null
+                    }
+                }, colors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary))
             }
             Row(
                 Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh).padding(horizontal = 6.dp),

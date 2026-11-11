@@ -99,6 +99,7 @@ import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.TitleLanguage
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayLabel
+import com.kiko.tracker.data.model.listTabStatus
 import com.kiko.tracker.data.model.displayTitle
 import com.kiko.tracker.data.model.AirTimerPrefs
 import com.kiko.tracker.data.model.airTimerLabel
@@ -396,13 +397,14 @@ private fun homeImageRequest(context: android.content.Context, data: Any?, size:
 }
 
 // Same row as Discover's search results (SearchResultRow); the only difference is that
-// these sit side by side in the snapping LazyRow above instead of stacked in a column.
+// these sit side by side in the snapping LazyRow above instead of stacked in a column. They keep the original
+// 100x150 cover size rather than the tighter list-row size.
 @Composable fun AiringNextCard(item: MediaItem, vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, modifier: Modifier = Modifier) {
     // The "Compact list" setting is for the list screens; Home's snapping carousel always keeps the full-size row.
     CompositionLocalProvider(LocalCompactList provides false) {
         SearchResultRow(
             item, loading = false, onTap = { onOpenDetail(item) },
-            myStatus = vm.trackedStatus(item), modifier = modifier, vm = vm,
+            myStatus = vm.trackedStatus(item), modifier = modifier, vm = vm, originalSize = true,
         )
     }
 }
@@ -683,7 +685,7 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
     }
 }
 
-fun progressLabel(i: MediaItem) = if (i.progress == 0) i.status.displayLabel(i.type) else "${i.progress} of ${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "episodes" else "chapters"}"
+fun progressLabel(i: MediaItem) = if (i.progress == 0) i.status.displayLabel(i.type) else "${i.progress} of ${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "ep." else "ch."}"
 // Same as progressLabel, but
 // the grid tile, where
 fun compactProgressLabel(i: MediaItem) = if (i.progress == 0) i.status.displayLabel(i.type) else "${i.progress} of ${if (i.total > 0) i.total.toString() else "?"} ${if (i.type == MediaType.Anime) "ep." else "ch."}"
@@ -765,7 +767,7 @@ fun GridColumns.count(availableDp: Float, gapDp: Float = 11f): Int = when (this)
 // Grid cover shape: width / height. The cover's height follows the tile's width so 2, 3 or more columns all
 // keep a poster shape (1 / 1.55 gives the old 160dp cover on a 360dp-wide phone at 3 columns).
 const val GridCoverAspect = 1f / 1.55f
-@Composable fun countRowTopGap(isGrid: Boolean): androidx.compose.ui.unit.Dp = if (isGrid) 16.dp else if (LocalCompactList.current) 10.dp else 14.dp
+@Composable fun countRowTopGap(isGrid: Boolean): androidx.compose.ui.unit.Dp = if (isGrid) 16.dp else if (LocalCompactList.current) 10.dp else 12.dp
 // One icon per My List sort option, shown in the sort sheets.
 fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
     ListSort.Title -> Icons.Rounded.SortByAlpha
@@ -995,8 +997,15 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
                 )
             }
         }
+        val statusCounts = remember(vm.items, vm.nsfwEnabled, typeTab, submittedQuery, labels, fabMode) {
+            if (!fabMode) emptyMap<String, Int>() else {
+                val base = vm.visibleItems.filter { it.type == typeTab && (submittedQuery.isEmpty() || it.title.contains(submittedQuery, true) || it.titleEnglish.contains(submittedQuery, true)) }
+                labels.associateWith { l -> if (l == "All") base.size else base.count { it.listTabStatus().displayLabel(typeTab) == l } }
+            }
+        }
         if (fabMode) StatusFabMenu(
             labels = labels,
+            counts = statusCounts,
             selected = effectiveFilter,
             expanded = fabExpanded,
             onExpandedChange = { fabExpanded = it },
@@ -1008,9 +1017,10 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
 
 // FAB-mode status switcher: the Material 3 FAB menu (https://m3.material.io/components/fab-menu/overview).
 // A toggle FAB bottom-end that opens a column of labelled items, one per status; the active one is filled
-// with the primary colour. A scrim behind it closes the menu on tap.
+// with the primary colour, and each item carries that status's title count. A scrim behind it closes the menu on tap.
 @Composable private fun StatusFabMenu(
     labels: List<String>,
+    counts: Map<String, Int>,
     selected: String,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
@@ -1025,28 +1035,50 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onExpandedChange(false) },
             )
         }
-        FloatingActionButtonMenu(
-            expanded = expanded,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp),
-            button = {
-                // Same colours as the Seasonal button (primary / onPrimary), not the stock Material container colour.
-                ToggleFloatingActionButton(checked = expanded, onCheckedChange = { onExpandedChange(!expanded) }, containerColor = { c.primary }) {
-                    // Shows the selected status's icon; becomes a close icon while the menu is open (no animateIcon/checkedProgress: not in this material3 alpha).
-                    androidx.compose.animation.Crossfade(targetState = if (expanded) null else selected, animationSpec = tween(150), label = "status-fab-icon") { shown ->
-                        Icon(if (shown == null) Icons.Rounded.Close else statusMenuIcon(shown), contentDescription = "Filter by status: $selected", tint = c.onPrimary)
-                    }
-                }
-            },
+        // The menu's open/close motion comes from MaterialTheme.motionScheme. The app theme uses the standard scheme
+        // (critically damped, no bounce), so give just the menu the Expressive one (the springy open): the app's
+        // own colours, typography and shapes are passed through unchanged.
+        MaterialExpressiveTheme(
+            colorScheme = MaterialTheme.colorScheme,
+            motionScheme = MotionScheme.expressive(),
+            shapes = MaterialTheme.shapes,
+            typography = MaterialTheme.typography,
         ) {
-            labels.forEach { label ->
-                val active = label == selected
-                FloatingActionButtonMenuItem(
-                    onClick = { onSelect(label) },
-                    text = { Text(label) },
-                    icon = { Icon(statusMenuIcon(label), contentDescription = null) },
-                    containerColor = if (active) c.primary else c.primaryContainer,
-                    contentColor = if (active) c.onPrimary else c.onPrimaryContainer,
-                )
+            FloatingActionButtonMenu(
+                expanded = expanded,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp),
+                button = {
+                    // Same colours as the Seasonal button (primary / onPrimary), not the stock Material container colour.
+                    ToggleFloatingActionButton(checked = expanded, onCheckedChange = { onExpandedChange(!expanded) }, containerColor = { c.primary }) {
+                        // Shows the selected status's icon; becomes a close icon while the menu is open (no animateIcon/checkedProgress: not in this material3 alpha).
+                        androidx.compose.animation.Crossfade(targetState = if (expanded) null else selected, animationSpec = tween(150), label = "status-fab-icon") { shown ->
+                            Icon(if (shown == null) Icons.Rounded.Close else statusMenuIcon(shown), contentDescription = "Filter by status: $selected", tint = c.onPrimary)
+                        }
+                    }
+                },
+            ) {
+                labels.forEach { label ->
+                    val active = label == selected
+                    FloatingActionButtonMenuItem(
+                        onClick = { onSelect(label) },
+                        // Stock item sizing (each item wraps its content, end-aligned): the label, then that status's
+                        // title count in a quieter weight.
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(label)
+                                Text(
+                                    (counts[label] ?: 0).toString(),
+                                    fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                    color = LocalContentColor.current.copy(alpha = 0.72f),
+                                    modifier = Modifier.padding(start = 8.dp),
+                                )
+                            }
+                        },
+                        icon = { Icon(statusMenuIcon(label), contentDescription = null) },
+                        containerColor = if (active) c.primary else c.primaryContainer,
+                        contentColor = if (active) c.onPrimary else c.onPrimaryContainer,
+                    )
+                }
             }
         }
     }
@@ -1084,7 +1116,7 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
     // remember(...) pattern ScoreFilterScreen/YearFilterScreen already
     val sortedItems = remember(vm.items, vm.nsfwEnabled, type, statusLabel, submittedQuery, vm.listSort, vm.titleLanguage) {
         vm.visibleItems
-            .filter { it.type == type && (statusLabel == "All" || it.status.displayLabel(type) == statusLabel) && (submittedQuery.isEmpty() || it.title.contains(submittedQuery, true) || it.titleEnglish.contains(submittedQuery, true)) }
+            .filter { it.type == type && (statusLabel == "All" || it.listTabStatus().displayLabel(type) == statusLabel) && (submittedQuery.isEmpty() || it.title.contains(submittedQuery, true) || it.titleEnglish.contains(submittedQuery, true)) }
             .sortedWithListSort(vm.listSort, vm.titleLanguage)
     }
     // Tapping "+1" under "Last Updated" sort used to re-sort instantly, so the entry jumped
@@ -1138,7 +1170,7 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
         val compactCovers = LocalCompactList.current
         val density = androidx.compose.ui.platform.LocalDensity.current
         LaunchedEffect(filtered, compactCovers, density.density) {
-            val size = with(density) { Size((if (compactCovers) 72 else 100).dp.roundToPx(), (if (compactCovers) 108 else 150).dp.roundToPx()) }
+            val size = with(density) { Size((if (compactCovers) 72 else 88).dp.roundToPx(), (if (compactCovers) 108 else 132).dp.roundToPx()) }
             val loader = coil.Coil.imageLoader(context)
             var done = -1
             snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->
@@ -1160,14 +1192,15 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
         val density = androidx.compose.ui.platform.LocalDensity.current
         val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
         val columns = vm.gridColumns.count((screenW - 14 * 2).toFloat())
-        LaunchedEffect(filtered, screenW, density.density, columns) {
+        val countItems = if (fabMode) 0 else 1 // the count row is grid item 0 except in FAB mode
+        LaunchedEffect(filtered, screenW, density.density, columns, countItems) {
             val tileW = (screenW - 14 * 2 - 11f * (columns - 1)) / columns
             val size = with(density) { Size(tileW.dp.roundToPx(), (tileW / GridCoverAspect).dp.roundToPx()) }
             val loader = coil.Coil.imageLoader(context)
             var done = -1
             snapshotFlow { gridState.firstVisibleItemIndex }.collect { first ->
-                val from = maxOf(first - 1 + 4 * columns, done + 1)
-                val to = minOf(first - 1 + 10 * columns, filtered.lastIndex)
+                val from = maxOf(first - countItems + 4 * columns, done + 1)
+                val to = minOf(first - countItems + 10 * columns, filtered.lastIndex)
                 for (i in from..to) {
                     val cover = filtered[i].cover
                     if (cover.isNotBlank()) loader.enqueue(ImageRequest.Builder(context).data(cover).size(size).allowHardware(true).build())
@@ -1188,10 +1221,8 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
         // Even spacing: the gap under the status tabs' divider equals the gap above the first entry, which
         // is the entry's own top padding in list mode (10/14dp) or the grid's 16dp row spacing. So the row
         // only pads its top; its bottom edge is the entry's padding.
-        // FAB mode has no tab row under the header, which already leaves ~10dp of empty space below its icons,
-        // so the count row trims that much off its top gap to keep the space above and below it even.
-        val gap = if (fabMode) countRowTopGap(isGrid) - 10.dp else countRowTopGap(isGrid)
-        Row(Modifier.fillMaxWidth().padding(top = gap), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Start) {
+        // (FAB mode has no count row at all: the counts live in the status FAB menu.)
+        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Start) {
             Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
         }
     }
@@ -1218,11 +1249,11 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                     state = gridState,
                     columns = vm.gridColumns.cells(),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = bottomInset),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = if (fabMode) 6.dp else 0.dp, bottom = bottomInset),
                     horizontalArrangement = Arrangement.spacedBy(11.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { countRow() }
+                    if (!fabMode) item(span = { GridItemSpan(maxLineSpan) }) { countRow() }
                     if (vm.loading && filtered.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
                     } else {
@@ -1232,7 +1263,7 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = bottomInset)) {
-                    item { countRow() }
+                    if (!fabMode) item { countRow() }
                     if (vm.loading && filtered.isEmpty()) {
                         item { KikoSectionLoading() }
                     } else {
@@ -1307,6 +1338,7 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                 Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(if (roomy) 13.dp else 11.dp))
                 Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = if (roomy) 13.sp else 11.sp, modifier = Modifier.padding(start = 2.dp))
             }
+            if (item.timesRewatched > 0) RewatchTag(item.timesRewatched, fontSize = if (roomy) 11.sp else 10.sp, iconSize = if (roomy) 12.dp else 10.dp, modifier = Modifier.padding(start = if (roomy) 8.dp else 5.dp))
         }
         // Counter on top, bar underneath, as one block (same as list view); the bar is the bottom-most
         // element. It is always drawn, even for Plan to Watch/Read or an unknown total (empty track).
@@ -1319,7 +1351,7 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                 LinearProgressIndicator(
                     progress = { if (item.total > 0) (item.progress.toFloat() / item.total).coerceIn(0f, 1f) else 0f },
                     modifier = Modifier.padding(top = if (roomy) 8.dp else 6.dp).fillMaxWidth().height(if (roomy) 5.dp else 4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
-                    color = statusColor(item.status), trackColor = c.surfaceLow,
+                    color = statusColor(item.status), trackColor = c.surfaceLow, drawStopIndicator = {},
                 )
             }
         }
@@ -1478,11 +1510,11 @@ fun filterLabelIcon(label: String): ImageVector = when (label) {
     else -> Icons.Rounded.FilterList
 }
 
-// Visible size of the "+1" capsule. ListRow reads the width too, so the progress bar's reserved space
-// follows the pill instead of a hard-coded number.
-private val IncrementPillSize = DpSize(44.dp, 34.dp)
-// The "+1" pill used by ListRow.
-// 44x34dp capsule with a "+1" label, bottom-right of the row. Its bottom edge is the row's bottom edge,
+// Visible size of the "+1" button (a rounded square). ListRow reads the width too, so the progress bar's reserved
+// space follows the button instead of a hard-coded number.
+private val IncrementPillSize = DpSize(34.dp, 34.dp)
+// The "+1" button used by ListRow.
+// 34x34dp rounded square with a "+1" label, bottom-right of the row. Its bottom edge is the row's bottom edge,
 // the same line the progress bar ends on, so counter + bar + pill read as one section. The outer Box is a
 // 64x48dp tap target; the visible capsule sits in its bottom-end corner (alignment).
 @Composable private fun IncrementPill(
@@ -1513,7 +1545,7 @@ private val IncrementPillSize = DpSize(44.dp, 34.dp)
         Box(
             Modifier
                 .size(pillSize)
-                .clip(kikoPillShape())
+                .clip(RoundedCornerShape(kikoCorner(11.dp)))
                 .background((if (atMax) c.surfaceContainerHigh else c.primaryContainer).copy(alpha = if (pressed) 0.7f else 1f)),
             contentAlignment = Alignment.Center,
         ) {
@@ -1523,6 +1555,19 @@ private val IncrementPillSize = DpSize(44.dp, 34.dp)
                 fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
             )
         }
+    }
+}
+
+// "Has been rewatched / reread" tag, shown beside the score: a small tonal chip with a replay icon, plus the count
+// only when it is more than one.
+@Composable private fun RewatchTag(times: Int, fontSize: androidx.compose.ui.unit.TextUnit = 11.sp, iconSize: androidx.compose.ui.unit.Dp = 12.dp, modifier: Modifier = Modifier) {
+    val c = LocalKikoColors.current
+    Row(
+        modifier.clip(RoundedCornerShape(kikoCorner(6.dp))).background(c.primaryContainer).padding(horizontal = 5.dp, vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Replay, null, tint = c.onPrimaryContainer, modifier = Modifier.size(iconSize))
+        if (times > 1) Text(times.toString(), color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = fontSize, lineHeight = fontSize, modifier = Modifier.padding(start = 2.dp))
     }
 }
 
@@ -1544,9 +1589,9 @@ private val IncrementPillSize = DpSize(44.dp, 34.dp)
 ) {
     val c = LocalKikoColors.current
     val compact = LocalCompactList.current
-    val coverW = if (compact) 72.dp else 100.dp
-    val coverH = if (compact) 108.dp else 150.dp
-    val rowVPad = if (compact) 10.dp else 14.dp
+    val coverW = if (compact) 72.dp else 88.dp
+    val coverH = if (compact) 108.dp else 132.dp
+    val rowVPad = if (compact) 10.dp else 12.dp
     // Only currently-airing titles have a "confirmed" air time to look up. Skipping the rest avoids a
     // network call per scrolled-in row, and keeps those rows from reading the shared airing cache,
     // which would otherwise recompose EVERY visible row each time any lookup finishes mid-scroll.
@@ -1599,6 +1644,7 @@ private val IncrementPillSize = DpSize(44.dp, 34.dp)
                             Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
                             Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
                         }
+                        if (item.timesRewatched > 0) RewatchTag(item.timesRewatched, modifier = Modifier.padding(start = 8.dp))
                     }
                     // Currently airing / not yet aired: the status gets its own row under the format.
                     timer?.let { label ->
@@ -1611,6 +1657,7 @@ private val IncrementPillSize = DpSize(44.dp, 34.dp)
                                 Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
                                 Text(item.myRating.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
                             }
+                            if (timerReplacesFormat && item.timesRewatched > 0) RewatchTag(item.timesRewatched, modifier = Modifier.padding(start = 8.dp))
                         }
                     }
                 }
@@ -1623,7 +1670,7 @@ private val IncrementPillSize = DpSize(44.dp, 34.dp)
                     LinearProgressIndicator(
                         progress = { if (item.total > 0) (item.progress.toFloat() / item.total).coerceIn(0f, 1f) else 0f },
                         modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
-                        color = statusColor(item.status), trackColor = c.surfaceLow,
+                        color = statusColor(item.status), trackColor = c.surfaceLow, drawStopIndicator = {},
                     )
                 }
             }

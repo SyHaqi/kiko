@@ -548,13 +548,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // Recent-stacks list row —
 @Composable fun StackListRow(stack: StackSummary, vm: LibraryViewModel, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    // Same row structure and sizing as the My List row (ListRow / SearchResultRow): 100x150 cover, a text
+    // Same row structure and sizing as the My List row (ListRow / SearchResultRow): 88x132 cover, a text
     // column exactly as tall as the cover with title + detail line pinned to the top and the stat line
     // pinned to the bottom, no divider lines between rows.
     val compact = LocalCompactList.current
-    val coverW = if (compact) 72.dp else 100.dp
-    val coverH = if (compact) 108.dp else 150.dp
-    val rowVPad = if (compact) 10.dp else 14.dp
+    val coverW = if (compact) 72.dp else 88.dp
+    val coverH = if (compact) 108.dp else 132.dp
+    val rowVPad = if (compact) 10.dp else 12.dp
     // Only read the (snapshot) cover cache when the row actually has no covers of its own — reading it
     // unconditionally made every visible row recompose each time ANY stack's covers finished loading.
     val covers = (if (stack.covers.isNotEmpty()) stack.covers else vm.getCachedStackCovers(stack.id) ?: emptyList()).take(2)

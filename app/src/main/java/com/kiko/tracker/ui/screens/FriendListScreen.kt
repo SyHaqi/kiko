@@ -101,10 +101,10 @@ private fun List<MalUserListEntry>.sortedWithFriendSort(sort: FriendListSort): L
     FriendListSort.StartDate -> sortedWith(compareByDescending<MalUserListEntry> { it.startDate.isNotBlank() }.thenByDescending { it.startDate })
 }
 
-// Same wording as My List's progressLabel(): "5 of 12 episodes" / "30 of ? chapters".
+// Same wording as My List's progressLabel(): "5 of 12 ep." / "30 of ? ch.".
 private fun friendProgressLabel(entry: MalUserListEntry, type: MediaType): String =
     if (entry.progress == 0) entry.status.displayLabel(type)
-    else "${entry.progress} of ${if (entry.total > 0) entry.total.toString() else "?"} ${if (type == MediaType.Anime) "episodes" else "chapters"}"
+    else "${entry.progress} of ${if (entry.total > 0) entry.total.toString() else "?"} ${if (type == MediaType.Anime) "ep." else "ch."}"
 
 // Grid tile counter row, same wording as My List's grid tile: "5/12 ep." / "30/? ch."; a Plan to Watch/Read
 // entry that hasn't been started reads "Plan to Watch" / "Plan to Read" instead of "0/12 ep.".
@@ -313,7 +313,7 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
         val density = LocalDensity.current
         LaunchedEffect(filtered, compactCovers, density.density) {
             val list = filtered ?: return@LaunchedEffect
-            val size = with(density) { Size((if (compactCovers) 72 else 100).dp.roundToPx(), (if (compactCovers) 108 else 150).dp.roundToPx()) }
+            val size = with(density) { Size((if (compactCovers) 72 else 88).dp.roundToPx(), (if (compactCovers) 108 else 132).dp.roundToPx()) }
             val loader = coil.Coil.imageLoader(context)
             var done = -1
             snapshotFlow { listState.firstVisibleItemIndex }.collect { first ->
@@ -444,13 +444,13 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
             LinearProgressIndicator(
                 progress = { if (entry.total > 0) (entry.progress.toFloat() / entry.total).coerceIn(0f, 1f) else 0f },
                 modifier = Modifier.padding(top = if (roomy) 8.dp else 6.dp).fillMaxWidth().height(if (roomy) 5.dp else 4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
-                color = statusColor(entry.status), trackColor = c.surfaceLow,
+                color = statusColor(entry.status), trackColor = c.surfaceLow, drawStopIndicator = {},
             )
         }
     }
 }
 
-// Same layout as ListRow (My List / Profile): 100x150 cover, text column exactly as
+// Same layout as ListRow (My List / Profile): 88x132 cover, text column exactly as
 // tall as the cover — title, then the score under it, pinned to the top; progress
 // bar and counter pinned to the bottom. MAL's scraped list-table data has no
 // format / airing-status field (see MalUserListEntry's doc comment), so unlike
@@ -458,9 +458,9 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
 @Composable
 private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.tracker.ui.theme.KikoColors, onClick: () -> Unit) {
     val compact = LocalCompactList.current
-    val coverW = if (compact) 72.dp else 100.dp
-    val coverH = if (compact) 108.dp else 150.dp
-    val rowVPad = if (compact) 10.dp else 14.dp
+    val coverW = if (compact) 72.dp else 88.dp
+    val coverH = if (compact) 108.dp else 132.dp
+    val rowVPad = if (compact) 10.dp else 12.dp
     val coverShape = RoundedCornerShape(kikoCorner(16.dp))
     Row(
         Modifier
@@ -498,7 +498,7 @@ private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.
                 LinearProgressIndicator(
                     progress = { if (entry.total > 0) (entry.progress.toFloat() / entry.total).coerceIn(0f, 1f) else 0f },
                     modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
-                    color = statusColor(entry.status), trackColor = c.surfaceLow,
+                    color = statusColor(entry.status), trackColor = c.surfaceLow, drawStopIndicator = {},
                 )
             }
         }

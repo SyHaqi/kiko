@@ -275,6 +275,11 @@ enum class WatchStatus(val label: String) { Watching("Watching"), Reading("Readi
 fun WatchStatus.displayLabel(type: MediaType): String =
     if (this == WatchStatus.Plan && type == MediaType.Manga) "Plan to Read" else label
 
+// The status tab a title sits under in My List. A title that is currently being rewatched / reread shows up under
+// Watching / Reading, while its stored status (e.g. Completed) stays exactly as it is.
+fun MediaItem.listTabStatus(): WatchStatus =
+    if (isRewatching) (if (type == MediaType.Anime) WatchStatus.Watching else WatchStatus.Reading) else status
+
 enum class Destination(val label: String, val icon: ImageVector) { Home("Home", Icons.Rounded.Home), List("My list", Icons.Rounded.List), Discover("Discover", Icons.Rounded.Search), Seasonal("Seasonal", Icons.Rounded.DateRange), Community("Hub", Icons.Rounded.Groups) }
 
 // Sub-tab within the combined

@@ -1066,12 +1066,13 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 }
 // Discover search result row
 
-@Composable fun SearchResultRow(item: MediaItem, loading: Boolean, onTap: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null, modifier: Modifier = Modifier, vm: LibraryViewModel? = null) {
+@Composable fun SearchResultRow(item: MediaItem, loading: Boolean, onTap: () -> Unit, onLongPress: (() -> Unit)? = null, isSelected: Boolean = false, myStatus: WatchStatus? = null, modifier: Modifier = Modifier, vm: LibraryViewModel? = null, originalSize: Boolean = false) {
     val c = LocalKikoColors.current
     val compact = LocalCompactList.current
-    val coverW = if (compact) 72.dp else 100.dp
-    val coverH = if (compact) 108.dp else 150.dp
-    val rowVPad = if (compact) 10.dp else 14.dp
+    // [originalSize]: Home's Airing next cards keep the original 100x150 cover / 14dp padding instead of the tighter list-row size.
+    val coverW = if (compact) 72.dp else if (originalSize) 100.dp else 88.dp
+    val coverH = if (compact) 108.dp else if (originalSize) 150.dp else 132.dp
+    val rowVPad = if (compact) 10.dp else if (originalSize) 14.dp else 12.dp
     // Optional vm (Home's Airing next row): use the confirmed episode air time, same as ListRow.
     if (vm != null) LaunchedEffect(item.id) { vm.loadAiringEpisode(item) }
     val confirmed = vm?.getCachedAiring(item.id)
@@ -1109,7 +1110,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .padding(horizontal = hPad, vertical = rowVPad),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Same 100x150 cover as ListRow so search results line up with My List.
+        // Same 88x132 cover as ListRow so search results line up with My List.
         Box(Modifier.size(width = coverW, height = coverH)) {
             Cover(item, Modifier.fillMaxSize(), showStatus = true, overrideStatus = myStatus, selected = isSelected)
             if (loading) {
@@ -1201,9 +1202,9 @@ private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies",
 @Composable fun CharacterSearchResultRow(entry: CharacterSummary, loading: Boolean, onTap: () -> Unit) {
     val c = LocalKikoColors.current
     val compact = LocalCompactList.current
-    val coverW = if (compact) 72.dp else 100.dp
-    val coverH = if (compact) 108.dp else 150.dp
-    val rowVPad = if (compact) 10.dp else 14.dp
+    val coverW = if (compact) 72.dp else 88.dp
+    val coverH = if (compact) 108.dp else 132.dp
+    val rowVPad = if (compact) 10.dp else 12.dp
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = rowVPad),
         verticalAlignment = Alignment.Top,
@@ -1238,9 +1239,9 @@ private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies",
 @Composable fun PersonSearchResultRow(entry: PersonSummary, loading: Boolean, onTap: () -> Unit) {
     val c = LocalKikoColors.current
     val compact = LocalCompactList.current
-    val coverW = if (compact) 72.dp else 100.dp
-    val coverH = if (compact) 108.dp else 150.dp
-    val rowVPad = if (compact) 10.dp else 14.dp
+    val coverW = if (compact) 72.dp else 88.dp
+    val coverH = if (compact) 108.dp else 132.dp
+    val rowVPad = if (compact) 10.dp else 12.dp
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = rowVPad),
         verticalAlignment = Alignment.Top,
@@ -1273,8 +1274,8 @@ private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies",
 @Composable fun CompanySearchResultRow(entry: CompanySummary, loading: Boolean, onTap: () -> Unit) {
     val c = LocalKikoColors.current
     val compact = LocalCompactList.current
-    val logoSize = if (compact) 72.dp else 100.dp
-    val rowVPad = if (compact) 10.dp else 14.dp
+    val logoSize = if (compact) 72.dp else 88.dp
+    val rowVPad = if (compact) 10.dp else 12.dp
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !loading, onClick = onTap).padding(vertical = rowVPad),
         verticalAlignment = Alignment.Top,

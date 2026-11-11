@@ -191,9 +191,9 @@ private fun rankingIcon(sort: RankingSort): androidx.compose.ui.graphics.vector.
     val c = LocalKikoColors.current
     // Same pieces as SearchResultRow / My List: "format · episodes, year", plus the air timer while airing.
     val compact = LocalCompactList.current
-    val coverW = if (compact) 72.dp else 100.dp
-    val coverH = if (compact) 108.dp else 150.dp
-    val rowVPad = if (compact) 10.dp else 14.dp
+    val coverW = if (compact) 72.dp else 88.dp
+    val coverH = if (compact) 108.dp else 132.dp
+    val rowVPad = if (compact) 10.dp else 12.dp
     val timer = item.airTimerLabel(null, systemIs24Hour()) ?: item.upcomingLabel()
     val timerTint = c.muted
     val details = listOf(formatLabel(item), episodeAndYear(item)).filter { it.isNotBlank() }.joinToString(" · ")
