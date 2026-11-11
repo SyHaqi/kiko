@@ -196,6 +196,7 @@ class LibraryViewModel : ViewModel() {
     // Hoisted scroll state
     var listTypeTab by mutableStateOf(MediaType.Anime); private set
     var listSort by mutableStateOf(ListSort.Title); private set
+    var listSortReversed by mutableStateOf(false); private set
     var listViewMode by mutableStateOf(ListViewMode.List); private set
     var listScrollIndex by mutableStateOf(0); private set
     var listScrollOffset by mutableStateOf(0); private set
@@ -625,8 +626,8 @@ class LibraryViewModel : ViewModel() {
     var communityTab by mutableStateOf(CommunityTab.Forums); private set
     fun selectCommunityTab(context: Context, t: CommunityTab) { communityTab = t; settingsPrefs(context).edit().putString("community_tab", t.name).apply() }
     fun loadCommunityTab(context: Context) { communityTab = runCatching { CommunityTab.valueOf(settingsPrefs(context).getString("community_tab", CommunityTab.Forums.name)!!) }.getOrDefault(CommunityTab.Forums) }
-    fun setListSort(context: Context, sort: ListSort) { listSort = sort; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_sort", sort.name).apply() }
-    fun loadListSort(context: Context) { listSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("list_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
+    fun setListSort(context: Context, sort: ListSort, reversed: Boolean = false) { listSort = sort; listSortReversed = reversed; listScrollIndex = 0; listScrollOffset = 0; settingsPrefs(context).edit().putString("list_sort", sort.name).putBoolean("list_sort_reversed", reversed).apply() }
+    fun loadListSort(context: Context) { listSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("list_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title); listSortReversed = settingsPrefs(context).getBoolean("list_sort_reversed", false) }
     fun setListViewMode(context: Context, mode: ListViewMode) { listViewMode = mode; settingsPrefs(context).edit().putString("list_view_mode", mode.name).apply() }
     fun loadListViewMode(context: Context) { listViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("list_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
     // Grid layout column count (Settings > Grid columns).
@@ -641,22 +642,25 @@ class LibraryViewModel : ViewModel() {
     // Score distribution drill-down sort
     // changing one screen's sort
     var scoreFilterSort by mutableStateOf(ListSort.Score); private set
-    fun setScoreFilterSort(context: Context, sort: ListSort) { scoreFilterSort = sort; settingsPrefs(context).edit().putString("score_filter_sort", sort.name).apply() }
-    fun loadScoreFilterSort(context: Context) { scoreFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("score_filter_sort", ListSort.Score.name)!!) }.getOrDefault(ListSort.Score) }
+    var scoreFilterSortReversed by mutableStateOf(false); private set
+    fun setScoreFilterSort(context: Context, sort: ListSort, reversed: Boolean = false) { scoreFilterSort = sort; scoreFilterSortReversed = reversed; settingsPrefs(context).edit().putString("score_filter_sort", sort.name).putBoolean("score_filter_sort_reversed", reversed).apply() }
+    fun loadScoreFilterSort(context: Context) { scoreFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("score_filter_sort", ListSort.Score.name)!!) }.getOrDefault(ListSort.Score); scoreFilterSortReversed = settingsPrefs(context).getBoolean("score_filter_sort_reversed", false) }
     // Year distribution drill-down view
     // screen's own prefs above,
     var yearFilterViewMode by mutableStateOf(ListViewMode.List); private set
     fun setYearFilterViewMode(context: Context, mode: ListViewMode) { yearFilterViewMode = mode; settingsPrefs(context).edit().putString("year_filter_view_mode", mode.name).apply() }
     fun loadYearFilterViewMode(context: Context) { yearFilterViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("year_filter_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
     var yearFilterSort by mutableStateOf(ListSort.Title); private set
-    fun setYearFilterSort(context: Context, sort: ListSort) { yearFilterSort = sort; settingsPrefs(context).edit().putString("year_filter_sort", sort.name).apply() }
-    fun loadYearFilterSort(context: Context) { yearFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("year_filter_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
+    var yearFilterSortReversed by mutableStateOf(false); private set
+    fun setYearFilterSort(context: Context, sort: ListSort, reversed: Boolean = false) { yearFilterSort = sort; yearFilterSortReversed = reversed; settingsPrefs(context).edit().putString("year_filter_sort", sort.name).putBoolean("year_filter_sort_reversed", reversed).apply() }
+    fun loadYearFilterSort(context: Context) { yearFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("year_filter_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title); yearFilterSortReversed = settingsPrefs(context).getBoolean("year_filter_sort_reversed", false) }
     var formatFilterViewMode by mutableStateOf(ListViewMode.List); private set
     fun setFormatFilterViewMode(context: Context, mode: ListViewMode) { formatFilterViewMode = mode; settingsPrefs(context).edit().putString("format_filter_view_mode", mode.name).apply() }
     fun loadFormatFilterViewMode(context: Context) { formatFilterViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("format_filter_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
     var formatFilterSort by mutableStateOf(ListSort.Title); private set
-    fun setFormatFilterSort(context: Context, sort: ListSort) { formatFilterSort = sort; settingsPrefs(context).edit().putString("format_filter_sort", sort.name).apply() }
-    fun loadFormatFilterSort(context: Context) { formatFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("format_filter_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
+    var formatFilterSortReversed by mutableStateOf(false); private set
+    fun setFormatFilterSort(context: Context, sort: ListSort, reversed: Boolean = false) { formatFilterSort = sort; formatFilterSortReversed = reversed; settingsPrefs(context).edit().putString("format_filter_sort", sort.name).putBoolean("format_filter_sort_reversed", reversed).apply() }
+    fun loadFormatFilterSort(context: Context) { formatFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("format_filter_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title); formatFilterSortReversed = settingsPrefs(context).getBoolean("format_filter_sort_reversed", false) }
     // Genre breakdown drill-down view
     // screen's own prefs above,
     var genreFilterViewMode by mutableStateOf(ListViewMode.List); private set
@@ -667,8 +671,9 @@ class LibraryViewModel : ViewModel() {
     fun setDiscoverViewMode(context: Context, mode: ListViewMode) { discoverViewMode = mode; settingsPrefs(context).edit().putString("discover_view_mode", mode.name).apply() }
     fun loadDiscoverViewMode(context: Context) { discoverViewMode = runCatching { ListViewMode.valueOf(settingsPrefs(context).getString("discover_view_mode", ListViewMode.List.name)!!) }.getOrDefault(ListViewMode.List) }
     var genreFilterSort by mutableStateOf(ListSort.Title); private set
-    fun setGenreFilterSort(context: Context, sort: ListSort) { genreFilterSort = sort; settingsPrefs(context).edit().putString("genre_filter_sort", sort.name).apply() }
-    fun loadGenreFilterSort(context: Context) { genreFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("genre_filter_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title) }
+    var genreFilterSortReversed by mutableStateOf(false); private set
+    fun setGenreFilterSort(context: Context, sort: ListSort, reversed: Boolean = false) { genreFilterSort = sort; genreFilterSortReversed = reversed; settingsPrefs(context).edit().putString("genre_filter_sort", sort.name).putBoolean("genre_filter_sort_reversed", reversed).apply() }
+    fun loadGenreFilterSort(context: Context) { genreFilterSort = runCatching { ListSort.valueOf(settingsPrefs(context).getString("genre_filter_sort", ListSort.Title.name)!!) }.getOrDefault(ListSort.Title); genreFilterSortReversed = settingsPrefs(context).getBoolean("genre_filter_sort_reversed", false) }
     // Profile stats page scroll
     // verticalScroll Column, not a
     var profileScrollOffset by mutableStateOf(0); private set

@@ -1281,7 +1281,7 @@ private fun formatCacheBytes(b: Long): String = when {
                 Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
             }
         }
-        if (sortSheetOpen) SortSheet("Titles", com.kiko.tracker.data.model.ListSort.entries, vm.scoreFilterSort, { it.label }, { listSortIcon(it) }, onDismiss = { sortSheetOpen = false }) { vm.setScoreFilterSort(sortCtx, it) }
+        if (sortSheetOpen) ListSortSheet(vm.scoreFilterSort, vm.scoreFilterSortReversed, onDismiss = { sortSheetOpen = false }, heading = "Titles") { sort, reversed -> vm.setScoreFilterSort(sortCtx, sort, reversed) }
         KikoTabPager(
             items = scoreOptions,
             selected = score,
@@ -1300,8 +1300,8 @@ private fun formatCacheBytes(b: Long): String = when {
 @Composable private fun ScoreFilterPage(vm: LibraryViewModel, typeItems: List<MediaItem>, score: Int, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
-    val filtered = remember(typeItems, score, vm.scoreFilterSort, vm.titleLanguage) {
-        typeItems.filter { it.myRating > 0 && (score == 0 || it.myRating == score) }.sortedWithListSort(vm.scoreFilterSort, vm.titleLanguage)
+    val filtered = remember(typeItems, score, vm.scoreFilterSort, vm.scoreFilterSortReversed, vm.titleLanguage) {
+        typeItems.filter { it.myRating > 0 && (score == 0 || it.myRating == score) }.sortedWithListSort(vm.scoreFilterSort, vm.titleLanguage, vm.scoreFilterSortReversed)
     }
     val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.listViewMode == ListViewMode.Grid
@@ -1354,8 +1354,8 @@ private fun formatCacheBytes(b: Long): String = when {
     // here line up with
     fun releaseYear(item: MediaItem) = item.startDate.take(4).toIntOrNull()?.takeIf { it in 1900..2100 }
     val years = remember(typeItems) { typeItems.mapNotNull(::releaseYear).distinct().sortedDescending() }
-    val filtered = remember(typeItems, year, vm.yearFilterSort, vm.titleLanguage) {
-        typeItems.filter { val y = releaseYear(it); y != null && (year == 0 || y == year) }.sortedWithListSort(vm.yearFilterSort, vm.titleLanguage)
+    val filtered = remember(typeItems, year, vm.yearFilterSort, vm.yearFilterSortReversed, vm.titleLanguage) {
+        typeItems.filter { val y = releaseYear(it); y != null && (year == 0 || y == year) }.sortedWithListSort(vm.yearFilterSort, vm.titleLanguage, vm.yearFilterSortReversed)
     }
     val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.listViewMode == ListViewMode.Grid
@@ -1376,7 +1376,7 @@ private fun formatCacheBytes(b: Long): String = when {
                 Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
             }
         }
-        if (sortSheetOpen) SortSheet("Titles", com.kiko.tracker.data.model.ListSort.entries, vm.yearFilterSort, { it.label }, { listSortIcon(it) }, onDismiss = { sortSheetOpen = false }) { vm.setYearFilterSort(sortCtx, it) }
+        if (sortSheetOpen) ListSortSheet(vm.yearFilterSort, vm.yearFilterSortReversed, onDismiss = { sortSheetOpen = false }, heading = "Titles") { sort, reversed -> vm.setYearFilterSort(sortCtx, sort, reversed) }
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {
                 if (isGrid) {
@@ -1469,7 +1469,7 @@ private fun formatCacheBytes(b: Long): String = when {
                 Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
             }
         }
-        if (sortSheetOpen) SortSheet("Titles", com.kiko.tracker.data.model.ListSort.entries, vm.formatFilterSort, { it.label }, { listSortIcon(it) }, onDismiss = { sortSheetOpen = false }) { vm.setFormatFilterSort(sortCtx, it) }
+        if (sortSheetOpen) ListSortSheet(vm.formatFilterSort, vm.formatFilterSortReversed, onDismiss = { sortSheetOpen = false }, heading = "Titles") { sort, reversed -> vm.setFormatFilterSort(sortCtx, sort, reversed) }
         KikoTabPager(
             items = formatOptions,
             selected = format,
@@ -1482,8 +1482,8 @@ private fun formatCacheBytes(b: Long): String = when {
 @Composable private fun FormatFilterPage(vm: LibraryViewModel, typeItems: List<MediaItem>, format: String, onOpenDetail: (MediaItem) -> Unit) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
-    val filtered = remember(typeItems, format, vm.formatFilterSort, vm.titleLanguage) {
-        typeItems.filter { it.format.isNotBlank() && (format.isBlank() || it.format == format) }.sortedWithListSort(vm.formatFilterSort, vm.titleLanguage)
+    val filtered = remember(typeItems, format, vm.formatFilterSort, vm.formatFilterSortReversed, vm.titleLanguage) {
+        typeItems.filter { it.format.isNotBlank() && (format.isBlank() || it.format == format) }.sortedWithListSort(vm.formatFilterSort, vm.titleLanguage, vm.formatFilterSortReversed)
     }
     val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.listViewMode == ListViewMode.Grid
@@ -1533,8 +1533,8 @@ private fun formatCacheBytes(b: Long): String = when {
     // Ranked most → least,
     // without the chart's top-6
     val genreCounts = remember(typeItems) { typeItems.flatMap { it.genres }.filter { it.isNotBlank() }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key to it.value } }
-    val filtered = remember(typeItems, genre, vm.genreFilterSort, vm.titleLanguage) {
-        typeItems.filter { genre.isBlank() || it.genres.any { g -> g == genre } }.sortedWithListSort(vm.genreFilterSort, vm.titleLanguage)
+    val filtered = remember(typeItems, genre, vm.genreFilterSort, vm.genreFilterSortReversed, vm.titleLanguage) {
+        typeItems.filter { genre.isBlank() || it.genres.any { g -> g == genre } }.sortedWithListSort(vm.genreFilterSort, vm.titleLanguage, vm.genreFilterSortReversed)
     }
     val staggerSeen = rememberStaggerMemory()
     val isGrid = vm.listViewMode == ListViewMode.Grid
@@ -1555,7 +1555,7 @@ private fun formatCacheBytes(b: Long): String = when {
                 Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
             }
         }
-        if (sortSheetOpen) SortSheet("Titles", com.kiko.tracker.data.model.ListSort.entries, vm.genreFilterSort, { it.label }, { listSortIcon(it) }, onDismiss = { sortSheetOpen = false }) { vm.setGenreFilterSort(sortCtx, it) }
+        if (sortSheetOpen) ListSortSheet(vm.genreFilterSort, vm.genreFilterSortReversed, onDismiss = { sortSheetOpen = false }, heading = "Titles") { sort, reversed -> vm.setGenreFilterSort(sortCtx, sort, reversed) }
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {
                 if (isGrid) {

@@ -94,11 +94,12 @@ private fun WatchStatus?.tabLabel(type: MediaType): String = this?.displayLabel(
 // sort newest-first, matching sortedWithListSort in HomeScreen.
 private enum class FriendListSort(val label: String) { Title("Title"), Score("Score"), LastUpdated("Last Updated"), StartDate("Start Date") }
 
-private fun List<MalUserListEntry>.sortedWithFriendSort(sort: FriendListSort): List<MalUserListEntry> = when (sort) {
-    FriendListSort.Title -> sortedBy { it.title.lowercase() }
-    FriendListSort.Score -> sortedWith(compareByDescending<MalUserListEntry> { it.score > 0 }.thenByDescending { it.score })
-    FriendListSort.LastUpdated -> sortedWith(compareByDescending<MalUserListEntry> { it.updatedAt > 0L }.thenByDescending { it.updatedAt })
-    FriendListSort.StartDate -> sortedWith(compareByDescending<MalUserListEntry> { it.startDate.isNotBlank() }.thenByDescending { it.startDate })
+// [reversed] flips each option's default direction (Z-A, lowest score first, oldest first); entries with no value stay last.
+private fun List<MalUserListEntry>.sortedWithFriendSort(sort: FriendListSort, reversed: Boolean = false): List<MalUserListEntry> = when (sort) {
+    FriendListSort.Title -> if (reversed) sortedByDescending { it.title.lowercase() } else sortedBy { it.title.lowercase() }
+    FriendListSort.Score -> compareByDescending<MalUserListEntry> { it.score > 0 }.let { sortedWith(if (reversed) it.thenBy { e -> e.score } else it.thenByDescending { e -> e.score }) }
+    FriendListSort.LastUpdated -> compareByDescending<MalUserListEntry> { it.updatedAt > 0L }.let { sortedWith(if (reversed) it.thenBy { e -> e.updatedAt } else it.thenByDescending { e -> e.updatedAt }) }
+    FriendListSort.StartDate -> compareByDescending<MalUserListEntry> { it.startDate.isNotBlank() }.let { sortedWith(if (reversed) it.thenBy { e -> e.startDate } else it.thenByDescending { e -> e.startDate }) }
 }
 
 // Same wording as My List's progressLabel(): "5 of 12 ep." / "30 of ? ch.".
@@ -149,6 +150,7 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
     // Grid/list comes from the global "List layout" setting.
     val viewMode = vm.listViewMode
     var sort by remember { mutableStateOf(FriendListSort.Title) }
+    var sortReversed by remember { mutableStateOf(false) }
     var sortSheetOpen by remember { mutableStateOf(false) }
 
     fun load() {
@@ -219,7 +221,7 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
                 Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
             }
         }
-        if (sortSheetOpen) SortSheet(if (type == MediaType.Anime) "Anime List" else "Manga List", FriendListSort.entries, sort, { it.label }, { friendSortIcon(it) }, onDismiss = { sortSheetOpen = false }) { sort = it }
+        if (sortSheetOpen) SortSheet(if (type == MediaType.Anime) "Anime List" else "Manga List", FriendListSort.entries, sort, { it.label }, { friendSortIcon(it) }, onDismiss = { sortSheetOpen = false }, reversed = sortReversed, onToggleDirection = { sortReversed = !sortReversed }) { sort = it; sortReversed = false }
         if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent)
 
         // Keyed on username/type: switching to a different friend (or
@@ -229,7 +231,7 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
             FriendListBody(
                 vm = vm, username = username,
                 entries = entries, loading = loading, error = error, type = type, initialStatus = initialStatus,
-                viewMode = viewMode, sort = sort,
+                viewMode = viewMode, sort = sort, sortReversed = sortReversed,
                 onSetSort = { sort = it },
                 onRetry = ::load, onOpenTitle = onOpenTitle,
             )
@@ -240,7 +242,7 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
 @Composable private fun ColumnScope.FriendListBody(
     vm: LibraryViewModel, username: String,
     entries: List<MalUserListEntry>?, loading: Boolean, error: String?, type: MediaType, initialStatus: WatchStatus?,
-    viewMode: ListViewMode, sort: FriendListSort,
+    viewMode: ListViewMode, sort: FriendListSort, sortReversed: Boolean,
     onSetSort: (FriendListSort) -> Unit,
     onRetry: () -> Unit, onOpenTitle: (Int, MediaType) -> Unit,
 ) {
@@ -261,7 +263,7 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
             vm = vm, username = username,
             entries = entries, loading = loading, error = error, tabStatus = tabs.getOrNull(page), type = type,
             active = pagerState.currentPage == page,
-            viewMode = viewMode, sort = sort, onSetSort = onSetSort,
+            viewMode = viewMode, sort = sort, sortReversed = sortReversed, onSetSort = onSetSort,
             onRetry = onRetry, onOpenTitle = onOpenTitle,
         )
     }
@@ -274,13 +276,13 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
     vm: LibraryViewModel, username: String,
     entries: List<MalUserListEntry>?, loading: Boolean, error: String?, tabStatus: WatchStatus?, type: MediaType,
     active: Boolean,
-    viewMode: ListViewMode, sort: FriendListSort,
+    viewMode: ListViewMode, sort: FriendListSort, sortReversed: Boolean,
     onSetSort: (FriendListSort) -> Unit,
     onRetry: () -> Unit, onOpenTitle: (Int, MediaType) -> Unit,
 ) {
     val c = LocalKikoColors.current
-    val filtered = remember(entries, tabStatus, sort) {
-        entries?.filter { tabStatus == null || it.status == tabStatus }?.sortedWithFriendSort(sort)
+    val filtered = remember(entries, tabStatus, sort, sortReversed) {
+        entries?.filter { tabStatus == null || it.status == tabStatus }?.sortedWithFriendSort(sort, sortReversed)
     }
     val isGrid = viewMode == ListViewMode.Grid
     val staggerSeen = rememberStaggerMemory()

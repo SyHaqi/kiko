@@ -719,13 +719,16 @@ fun normalizeFilterForType(filter: String, type: MediaType): String = when (filt
 fun MediaItem.resolvedTitle(pref: TitleLanguage): String =
     if (pref == TitleLanguage.English && titleEnglish.isNotBlank()) titleEnglish else title
 
-fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLanguage): List<MediaItem> = when (sort) {
-    ListSort.Title -> sortedBy { it.resolvedTitle(titleLanguage).lowercase() }
-    ListSort.Score -> sortedWith(compareByDescending<MediaItem> { it.myRating > 0 }.thenByDescending { it.myRating })
-    ListSort.LastUpdated -> sortedWith(compareByDescending<MediaItem> { it.updatedAt.isNotBlank() }.thenByDescending { it.updatedAt })
-    ListSort.StartDate -> sortedWith(compareByDescending<MediaItem> { it.watchStartDate.isNotBlank() }.thenByDescending { it.watchStartDate })
-    ListSort.NextAirSoonest -> sortedByNextAir(latestFirst = false)
-    ListSort.NextAirLatest -> sortedByNextAir(latestFirst = true)
+// [reversed] flips the default direction of every option: Title Z-A, lowest score first, oldest first, latest air time first.
+// Titles with no value for the field (unrated, no date, no next air time) stay last in both directions.
+fun List<MediaItem>.sortedWithListSort(sort: ListSort, titleLanguage: TitleLanguage, reversed: Boolean = false): List<MediaItem> = when (sort) {
+    ListSort.Title -> if (reversed) sortedByDescending { it.resolvedTitle(titleLanguage).lowercase() } else sortedBy { it.resolvedTitle(titleLanguage).lowercase() }
+    ListSort.Score -> compareByDescending<MediaItem> { it.myRating > 0 }.let { sortedWith(if (reversed) it.thenBy { i -> i.myRating } else it.thenByDescending { i -> i.myRating }) }
+    ListSort.LastUpdated -> compareByDescending<MediaItem> { it.updatedAt.isNotBlank() }.let { sortedWith(if (reversed) it.thenBy { i -> i.updatedAt } else it.thenByDescending { i -> i.updatedAt }) }
+    ListSort.StartDate -> compareByDescending<MediaItem> { it.watchStartDate.isNotBlank() }.let { sortedWith(if (reversed) it.thenBy { i -> i.watchStartDate } else it.thenByDescending { i -> i.watchStartDate }) }
+    // "Soonest" and "Latest" are the two directions of one option now; the older Latest value still works.
+    ListSort.NextAirSoonest -> sortedByNextAir(latestFirst = reversed)
+    ListSort.NextAirLatest -> sortedByNextAir(latestFirst = !reversed)
 }
 // Air time is computed once per item (it parses broadcast strings), not once per comparison. Items without a next air time stay last.
 private fun List<MediaItem>.sortedByNextAir(latestFirst: Boolean): List<MediaItem> {
@@ -788,7 +791,14 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
 }
 // Shared sort sheet (My List, Profile's Score/Year/Format/Genre screens, friend lists), opened from the
 // header's sort button. No reset/apply: tapping an option sorts straight away and closes the sheet.
-@Composable fun <T> SortSheet(heading: String, options: List<T>, current: T, label: (T) -> String, icon: (T) -> ImageVector, onDismiss: () -> Unit, onSelect: (T) -> Unit) {
+// Shared sort sheet (My List, Profile's Score/Year/Format/Genre screens, friend lists), opened from the
+// header's sort button. Tapping another option sorts straight away and closes the sheet. When [onToggleDirection]
+// is given, the selected option shows an arrow instead of a check: down = the option's default order, up = reversed,
+// and tapping the selected option again flips it (the sheet stays open so the arrow visibly turns).
+@Composable fun <T> SortSheet(
+    heading: String, options: List<T>, current: T, label: (T) -> String, icon: (T) -> ImageVector, onDismiss: () -> Unit,
+    reversed: Boolean = false, onToggleDirection: (() -> Unit)? = null, onSelect: (T) -> Unit,
+) {
     val c = LocalKikoColors.current
     val sheetState = rememberModalBottomSheetState()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
@@ -798,19 +808,42 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
             options.forEach { option ->
                 val selected = option == current
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable { if (!selected) onSelect(option); onDismiss() }.padding(horizontal = 4.dp, vertical = 14.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable {
+                        if (!selected) { onSelect(option); onDismiss() }
+                        else if (onToggleDirection != null) onToggleDirection()
+                        else onDismiss()
+                    }.padding(horizontal = 4.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(icon(option), null, tint = if (selected) c.accent else c.muted, modifier = Modifier.size(22.dp))
                     Text(label(option), color = if (selected) c.accent else c.ink, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, fontSize = 16.sp, modifier = Modifier.weight(1f).padding(start = 16.dp))
-                    if (selected) Icon(Icons.Rounded.Check, "Selected", tint = c.accent, modifier = Modifier.size(20.dp))
+                    if (selected) {
+                        if (onToggleDirection != null) {
+                            val rotation by androidx.compose.animation.core.animateFloatAsState(if (reversed) 180f else 0f, tween(220), label = "sort-direction")
+                            Icon(
+                                Icons.Rounded.ArrowDownward, if (reversed) "Reversed order" else "Default order", tint = c.accent,
+                                modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = rotation },
+                            )
+                        } else Icon(Icons.Rounded.Check, "Selected", tint = c.accent, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
         }
     }
 }
-@Composable fun ListSortSheet(current: ListSort, onDismiss: () -> Unit, onSelect: (ListSort) -> Unit) =
-    SortSheet("My List", ListSort.entries, current, { it.label }, { listSortIcon(it) }, onDismiss, onSelect)
+// My List's own sort options (also used by Profile's filter screens). "Next Air · Soonest" and "Next Air · Latest" are
+// one "Next Air" option here: the arrow picks soonest (down) or latest (up). Picking another option starts at the
+// default direction (arrow down).
+@Composable fun ListSortSheet(current: ListSort, reversed: Boolean, onDismiss: () -> Unit, heading: String = "My List", onSelect: (ListSort, Boolean) -> Unit) {
+    val legacyLatest = current == ListSort.NextAirLatest
+    val shown = if (legacyLatest) ListSort.NextAirSoonest else current
+    val shownReversed = if (legacyLatest) !reversed else reversed
+    SortSheet(
+        heading, ListSort.entries.filter { it != ListSort.NextAirLatest }, shown,
+        { if (it == ListSort.NextAirSoonest) "Next Air" else it.label }, { listSortIcon(it) }, onDismiss,
+        reversed = shownReversed, onToggleDirection = { onSelect(shown, !shownReversed) },
+    ) { onSelect(it, false) }
+}
 // Discover results sort dropdown
 
 @Composable fun DiscoverSortMenu(current: DiscoverSort, onSelect: (DiscoverSort) -> Unit, modifier: Modifier = Modifier) {
@@ -888,7 +921,7 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            if (listSortSheetOpen) ListSortSheet(vm.listSort, onDismiss = { listSortSheetOpen = false }) { vm.setListSort(context, it) }
+            if (listSortSheetOpen) ListSortSheet(vm.listSort, vm.listSortReversed, onDismiss = { listSortSheetOpen = false }) { sort, reversed -> vm.setListSort(context, sort, reversed) }
             // Header: Anime/Manga switcher + search icon + avatar. Tapping the icon swaps the
             // WHOLE header for the same empty Play Store-style search bar Search & Discover uses
             // (back arrow, flat text field, hairline divider); back / system back restores it.
@@ -1123,10 +1156,10 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
     // ones triggered by unrelated
     // — instead of only
     // remember(...) pattern ScoreFilterScreen/YearFilterScreen already
-    val sortedItems = remember(vm.items, vm.nsfwEnabled, type, statusLabel, submittedQuery, vm.listSort, vm.titleLanguage) {
+    val sortedItems = remember(vm.items, vm.nsfwEnabled, type, statusLabel, submittedQuery, vm.listSort, vm.listSortReversed, vm.titleLanguage) {
         vm.visibleItems
             .filter { it.type == type && (statusLabel == "All" || it.listTabStatus().displayLabel(type) == statusLabel) && (submittedQuery.isEmpty() || it.title.contains(submittedQuery, true) || it.titleEnglish.contains(submittedQuery, true)) }
-            .sortedWithListSort(vm.listSort, vm.titleLanguage)
+            .sortedWithListSort(vm.listSort, vm.titleLanguage, vm.listSortReversed)
     }
     // Tapping "+1" under "Last Updated" sort used to re-sort instantly, so the entry jumped
     // to the top and the next tap hit whichever entry slid into its place. While the user is
@@ -1141,7 +1174,7 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
         }
     }
     // Changing the sort mode should take effect immediately, not wait for the hold to expire.
-    LaunchedEffect(vm.listSort) { frozenOrder = null }
+    LaunchedEffect(vm.listSort, vm.listSortReversed) { frozenOrder = null }
     val filtered = remember(sortedItems, frozenOrder) {
         val order = frozenOrder
         if (order == null) sortedItems
