@@ -1226,7 +1226,7 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                     if (vm.loading && filtered.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
                     } else {
-                        items(filtered, key = { it.id }, contentType = { "grid" }) { item -> ListGridCard(item, openItem, onIncrementHeld, onLongPress = onEdit, showStatus = statusLabel == "All", vm = vm) }
+                        items(filtered, key = { it.id }, contentType = { "grid" }) { item -> ListGridCard(item, openItem, onIncrementHeld, onLongPress = onEdit, showStatus = statusLabel == "All" || fabMode, vm = vm) }
                     }
                     if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
@@ -1238,7 +1238,7 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                     } else {
                         // No wrapper Box/Column and no per-row animation modifiers: each row is just ListRow.
                         items(filtered, key = { it.id }, contentType = { "row" }) { it ->
-                            ListRow(it, openItem, onIncrementHeld, showType = false, onLongPress = onEdit, vm = vm)
+                            ListRow(it, openItem, onIncrementHeld, showType = false, onLongPress = onEdit, vm = vm, showStatus = fabMode || statusLabel == "All")
                         }
                     }
                     if (!vm.loading && filtered.isEmpty()) item { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
@@ -1540,6 +1540,7 @@ private val IncrementPillSize = DpSize(44.dp, 34.dp)
     isSelected: Boolean = false,
     showChevron: Boolean = false,
     vm: LibraryViewModel? = null,
+    showStatus: Boolean = false, // My List: status tag on the cover (All tab, or every status in FAB mode)
 ) {
     val c = LocalKikoColors.current
     val compact = LocalCompactList.current
@@ -1576,7 +1577,7 @@ private val IncrementPillSize = DpSize(44.dp, 34.dp)
             .padding(vertical = rowVPad),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Cover(item, Modifier.size(width = coverW, height = coverH))
+        Cover(item, Modifier.size(width = coverW, height = coverH), showStatus = showStatus)
         // Text column + (optional) +1 pill share one cover-tall Box, so the pill can sit on the
         // bottom-right corner while the title and airing rows still use the full width above it.
         Box(Modifier.weight(1f).height(coverH)) {

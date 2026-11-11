@@ -282,7 +282,7 @@ object KikoHeader {
         else Text(displayTitle.take(1), fontWeight = FontWeight.Bold, fontSize = 36.sp, color = Color.White.copy(.85f))
         // Optional tracking mark —
         // items that weren't sourced
-        if (showStatus) (overrideStatus ?: trackedBadgeStatus(item))?.let { CoverStatusMark(it, Modifier.align(statusAlignment).padding(6.dp)) }
+        if (showStatus) (overrideStatus ?: trackedBadgeStatus(item))?.let { CoverStatusMark(it, Modifier.align(statusAlignment)) }
         // User's own score, bottom-right
         if (showRating && item.myRating > 0) CoverRatingMark(item.myRating, Modifier.align(Alignment.BottomStart).padding(6.dp))
     }
@@ -300,15 +300,15 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
     WatchStatus.Dropped -> Icons.Rounded.Close
     WatchStatus.Plan -> Icons.Rounded.Bookmark
 }
-// Status tag: M3-style rounded-square container in the status colour (no outline), lifted off
-// the cover with a standard neutral elevation shadow. The corner radius is the cover's 16dp
-// corner minus the 6dp inset callers place it at, so the corners stay concentric. The shadow
-// belongs to the mark itself, so it only exists on covers that have a tag.
+// Status tag: a corner tab that is part of the cover — flush with its top-start corner (callers place it with
+// no inset), status colour, no shadow. The cover clips its content to its own rounded shape, so the tab's outer
+// corner follows the cover's curve; only the inner (bottom-end) corner is rounded here. Anything that hosts it
+// must therefore clip to its rounded shape (every cover does).
 
 @Composable fun CoverStatusMark(status: WatchStatus, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(kikoCorner(10.dp))
+    val shape = RoundedCornerShape(bottomEnd = kikoCorner(12.dp))
     Box(
-        modifier.size(28.dp).shadow(elevation = 4.dp, shape = shape).clip(shape).background(statusColor(status)),
+        modifier.size(width = 34.dp, height = 28.dp).clip(shape).background(statusColor(status)),
         contentAlignment = Alignment.Center,
     ) { Icon(status.badgeIcon(), status.label, tint = Color.White, modifier = Modifier.size(18.dp)) }
 }

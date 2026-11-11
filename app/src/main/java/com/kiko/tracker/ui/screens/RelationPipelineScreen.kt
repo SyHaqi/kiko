@@ -790,7 +790,8 @@ private fun roundedPath(pts: List<Offset>, radius: Float): Path {
 @Composable private fun LegendBadge(status: WatchStatus, label: String) {
     val c = LocalKikoColors.current
     Row(verticalAlignment = Alignment.CenterVertically) {
-        CoverStatusMark(status)
+        // The tag is a cover-corner tab now; as a legend swatch it gets all four corners rounded.
+        Box(Modifier.clip(RoundedCornerShape(10.dp))) { CoverStatusMark(status) }
         Text(label, color = c.ink, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
     }
 }

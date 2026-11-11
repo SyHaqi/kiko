@@ -1379,7 +1379,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                 }
             }
             // Own tracking mark
-            myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopStart).padding(6.dp)) }
+            myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopStart)) }
         }
         // Fixed height text block
         Column(Modifier.fillMaxWidth().height(textBlockHeight).padding(10.dp)) {

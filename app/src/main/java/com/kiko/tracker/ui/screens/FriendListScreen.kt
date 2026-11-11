@@ -421,7 +421,7 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
             }
             // Same icon+border badge as Cover()'s showStatus, top-start; only on the All tab, since every
             // tile on a status tab has the same status. The score is no longer drawn on the cover.
-            if (showStatus) CoverStatusMark(entry.status, Modifier.align(Alignment.TopStart).padding(6.dp))
+            if (showStatus) CoverStatusMark(entry.status, Modifier.align(Alignment.TopStart))
         }
         Text(
             entry.title, fontWeight = FontWeight.SemiBold, fontSize = if (roomy) 15.sp else 12.sp, lineHeight = if (roomy) 20.sp else 15.sp, color = c.ink,

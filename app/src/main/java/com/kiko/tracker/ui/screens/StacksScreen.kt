@@ -950,7 +950,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             Box(Modifier.align(Alignment.TopEnd).padding(6.dp).clip(kikoPillShape()).background(Color.Black.copy(alpha = .55f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
                 Text(number.toString(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
-            myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopStart).padding(6.dp)) }
+            myStatus?.let { CoverStatusMark(it, Modifier.align(Alignment.TopStart)) }
             if (loading) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .35f)), contentAlignment = Alignment.Center) {
                     KikoLoadingIndicator(color = Color.White, size = 26.dp)
