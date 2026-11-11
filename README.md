@@ -39,7 +39,7 @@ Track anime & manga, discover new titles, and stay close to the MyAnimeList comm
 <img src="docs/screenshots/my-list.jpg" alt="My List" width="19%">
 <img src="docs/screenshots/discover.jpg" alt="Discover" width="19%">
 <img src="docs/screenshots/title.jpg" alt="Title details" width="19%">
-<img src="docs/screenshots/profile.jpg" alt="Profile" width="19%">
+<img src="docs/screenshots/relation-pipeline.jpg" alt="Profile" width="19%">
 </div>
 
 <details>
@@ -50,7 +50,7 @@ Track anime & manga, discover new titles, and stay close to the MyAnimeList comm
 <img src="docs/screenshots/stacks.jpg" alt="Interest Stacks" width="19%">
 <img src="docs/screenshots/forums.jpg" alt="Forums" width="19%">
 <img src="docs/screenshots/forum-post.jpg" alt="Forum post" width="19%">
-<img src="docs/screenshots/clubs.jpg" alt="Clubs" width="19%">
+<img src="docs/screenshots/profile.jpg" alt="Clubs" width="19%">
 </div>
 </details>
 
