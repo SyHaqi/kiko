@@ -1585,6 +1585,14 @@ class LibraryViewModel : ViewModel() {
     // Switches the Discover type
     // each have a real
     // runPersonSearch/runCompanySearch); any other value
+    // True when the search currently shown for [type] ended in an error (so a re-submit should retry it).
+    fun discoverFailed(type: String): Boolean = when (type) {
+        "Characters" -> characterError
+        "People" -> personError
+        "Companies" -> companyError
+        "Users" -> userError
+        else -> discoverError
+    } != null
     fun selectDiscoverType(context: Context, type: String, query: String) {
         when (type) {
             "Anime", "Manga" -> runDiscoverSearch(context, query, type)

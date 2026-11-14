@@ -60,6 +60,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.Color
@@ -92,6 +93,7 @@ import com.kiko.tracker.data.model.ListViewMode
 import com.kiko.tracker.data.model.MediaItem
 import com.kiko.tracker.data.model.MediaType
 import com.kiko.tracker.data.model.PaletteStyle
+import com.kiko.tracker.data.model.ProgressBarPrefs
 import com.kiko.tracker.data.model.ThemeMode
 import com.kiko.tracker.data.model.TitleLanguage
 import com.kiko.tracker.data.model.WatchStatus
@@ -1061,6 +1063,7 @@ private class SettingsItem(
     val subtitleColor: Color? = null,
     val trailing: (@Composable () -> Unit)? = null,
     val icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    val enabled: Boolean = true, // false: dimmed and not tappable (the subtitle should say why)
     val onClick: () -> Unit,
 )
 
@@ -1083,7 +1086,8 @@ private fun settingsGroupShape(index: Int, count: Int): androidx.compose.ui.grap
             items.forEachIndexed { i, item ->
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(settingsGroupShape(i, items.size)).background(c.surfaceContainer)
-                        .kikoClickable(scale = 0.98f, onClick = item.onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+                        .then(if (item.enabled) Modifier.kikoClickable(scale = 0.98f, onClick = item.onClick) else Modifier.alpha(0.5f))
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     item.icon?.let { Icon(it, null, tint = item.titleColor ?: c.primary, modifier = Modifier.size(24.dp)) }
@@ -1138,33 +1142,54 @@ private fun formatCacheBytes(b: Long): String = when {
     val switchColors = SwitchDefaults.colors(checkedThumbColor = c.onPrimary, checkedTrackColor = c.primary)
 
     Column {
+        // Grouped by what the person is trying to change, most-used first: how the app looks, how My List is laid
+        // out, how each entry is drawn, then general behaviour, data, and finally account / about.
         SettingsGroup("Appearance", listOf(
             SettingsItem("Theme", themeMode.label, icon = Icons.Rounded.DarkMode, onClick = onThemeClick),
-            SettingsItem("Color", colorSource.label, icon = Icons.Rounded.Palette, onClick = onColorClick),
-            SettingsItem("Color palette", paletteStyle.label, icon = Icons.Rounded.ColorLens, onClick = onPaletteClick),
             SettingsItem(
-                "AMOLED black", "True black backgrounds in dark mode, saves battery on AMOLED screens",
+                "AMOLED black", if (amoledDark) "True black backgrounds in dark mode" else "Off · dark mode uses dark gray",
                 trailing = { Switch(checked = amoledDark, onCheckedChange = null, colors = switchColors) },
                 icon = Icons.Rounded.Smartphone,
                 onClick = { onAmoledDarkChange(!amoledDark) },
             ),
+            SettingsItem("Color", colorSource.label, icon = Icons.Rounded.Palette, onClick = onColorClick),
+            SettingsItem("Color palette", paletteStyle.label, icon = Icons.Rounded.ColorLens, onClick = onPaletteClick),
         ))
-        SettingsGroup("Library", listOf(
+        SettingsGroup("My List layout", listOf(
+            SettingsItem("List layout", listViewMode.name, icon = Icons.Rounded.ViewAgenda, onClick = { listViewDialog = true }),
+            // Both layout-specific options are always listed so they can be found; the one that does not apply to
+            // the current layout is dimmed and says what to switch to.
+            SettingsItem(
+                "Compact list",
+                if (listViewMode == ListViewMode.List) "Smaller covers and shorter rows" else "Only applies to the list layout",
+                trailing = { Switch(checked = compactList, onCheckedChange = null, enabled = listViewMode == ListViewMode.List, colors = switchColors) },
+                icon = Icons.Rounded.ViewAgenda,
+                enabled = listViewMode == ListViewMode.List,
+                onClick = { onCompactListChange(!compactList) },
+            ),
+            SettingsItem(
+                "Grid columns",
+                if (listViewMode == ListViewMode.Grid) gridColumns.label else "Only applies to the grid layout",
+                icon = Icons.Rounded.GridView,
+                enabled = listViewMode == ListViewMode.Grid,
+                onClick = { gridColumnsDialog = true },
+            ),
+            SettingsItem("Status filter", if (ListStatusStylePrefs.style == ListStatusStyle.Tabs) "Status tabs" else "FAB menu", icon = Icons.Rounded.FilterList, onClick = { statusStyleDialog = true }),
+            SettingsItem("Sort order", listSort.label, icon = Icons.Rounded.Sort, onClick = { listSortDialog = true }),
+        ))
+        SettingsGroup("Entries", listOf(
+            SettingsItem(
+                "Color-coded progress bars",
+                if (ProgressBarPrefs.colorCoded) "Colored by status: Watching, Completed, On Hold…" else "Using your theme's accent color",
+                trailing = { Switch(checked = ProgressBarPrefs.colorCoded, onCheckedChange = null, colors = switchColors) },
+                icon = Icons.Rounded.LinearScale,
+                onClick = { ProgressBarPrefs.set(context, !ProgressBarPrefs.colorCoded) },
+            ),
+            SettingsItem("Air timer style", if (AirTimerPrefs.countdown) "Countdown" else "Air time", icon = Icons.Rounded.Timer, onClick = { airTimerDialog = true }),
+        ))
+        SettingsGroup("General", listOf(
             SettingsItem("Default tab", if (com.kiko.tracker.data.model.StartTabPrefs.tab == com.kiko.tracker.data.model.Destination.Home) "Home (default)" else com.kiko.tracker.data.model.StartTabPrefs.tab.label, icon = Icons.Rounded.Home, onClick = { startTabDialog = true }),
             SettingsItem("Title language", titleLanguage.label, icon = Icons.Rounded.Translate, onClick = onTitleLanguageClick),
-            SettingsItem("Air timer style", if (AirTimerPrefs.countdown) "Countdown" else "Air time", icon = Icons.Rounded.Timer, onClick = { airTimerDialog = true }),
-            SettingsItem("List layout", listViewMode.name, icon = Icons.Rounded.ViewAgenda, onClick = { listViewDialog = true }),
-            SettingsItem("Status filter", if (ListStatusStylePrefs.style == ListStatusStyle.Tabs) "Status tabs" else "FAB menu", icon = Icons.Rounded.FilterList, onClick = { statusStyleDialog = true }),
-            // Layout-specific option: Compact list only applies to the list layout, Grid columns to the grid layout.
-            if (listViewMode == ListViewMode.List) SettingsItem(
-                "Compact list", "Smaller covers and shorter rows in list layout",
-                trailing = { Switch(checked = compactList, onCheckedChange = null, colors = switchColors) },
-                icon = Icons.Rounded.ViewAgenda,
-                onClick = { onCompactListChange(!compactList) },
-            ) else SettingsItem("Grid columns", gridColumns.label, icon = Icons.Rounded.GridView, onClick = { gridColumnsDialog = true }),
-            SettingsItem("List sort order", listSort.label, icon = Icons.Rounded.Sort, onClick = { listSortDialog = true }),
-        ))
-        SettingsGroup("Content", listOf(
             SettingsItem(
                 "Adult content", if (nsfwEnabled) "Hentai-rated titles are shown" else "Hentai-rated titles are hidden",
                 trailing = { Switch(checked = nsfwEnabled, onCheckedChange = null, colors = switchColors) },
@@ -1172,7 +1197,7 @@ private fun formatCacheBytes(b: Long): String = when {
                 onClick = { onNsfwChange(!nsfwEnabled) },
             ),
         ))
-        SettingsGroup("Storage", listOf(
+        SettingsGroup("Data & storage", listOf(
             SettingsItem(
                 "Clear image cache",
                 cacheBytes?.let { "Covers and images saved on this device · ${formatCacheBytes(it)}" } ?: "Covers and images saved on this device",

@@ -617,6 +617,24 @@ object AirTimerPrefs {
     }
 }
 
+// Settings > "Progress bar color": true = each bar takes its status color (green Watching, blue Completed, ...),
+// false = every bar uses the theme's accent color. Compose state so visible bars flip as soon as the switch does.
+object ProgressBarPrefs {
+    private const val KEY = "progress_bar_color_coded"
+    var colorCoded by mutableStateOf(true); private set
+    private var loaded = false
+    fun ensureLoaded(context: android.content.Context) {
+        if (loaded) return
+        loaded = true
+        colorCoded = com.kiko.tracker.util.settingsPrefs(context).getBoolean(KEY, true)
+    }
+    fun set(context: android.content.Context, value: Boolean) {
+        loaded = true
+        colorCoded = value
+        com.kiko.tracker.util.settingsPrefs(context).edit().putBoolean(KEY, value).apply()
+    }
+}
+
 // Settings > "Status filter": how My List switches between statuses — swipeable tabs, or an M3 FAB menu.
 enum class ListStatusStyle { Tabs, Fab }
 

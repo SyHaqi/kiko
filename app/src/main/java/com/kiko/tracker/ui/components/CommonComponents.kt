@@ -534,16 +534,15 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 
 /**
  * Read-only twin of [SearchTopBar] for a results page: [back arrow] [the query that produced these
- * results] [clear] [trailing action]. Nothing is typed here - tapping the query (or the clear button)
- * opens the dedicated search page, like the Play Store does. [onClear] should open that page with an
- * empty field; the results underneath are left alone until a new search is submitted.
+ * results] [trailing action]. Nothing is typed here - the whole bar acts like a button: tapping it opens the
+ * dedicated search page, like the Play Store does (no clear "x"; the field is cleared from that page). The
+ * results underneath are left alone until a new search is submitted.
  */
 @Composable fun SearchResultsTopBar(
     query: String,
     hint: String,
     onBack: () -> Unit,
     onOpenSearch: () -> Unit,
-    onClear: () -> Unit,
     modifier: Modifier = Modifier,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
@@ -560,9 +559,6 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
             ) {
                 if (query.isEmpty()) Text(hint, color = c.muted, fontSize = 16.sp, maxLines = 1)
                 else Text(query, color = c.ink, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            if (query.isNotEmpty()) {
-                IconButton(onClick = onClear) { Icon(Icons.Rounded.Close, "Clear search", tint = c.muted, modifier = Modifier.size(20.dp)) }
             }
             trailing()
         }
@@ -717,6 +713,12 @@ fun statusColor(status: WatchStatus): Color = when (status) {
     WatchStatus.OnHold -> StatusOnHoldColor
     WatchStatus.Dropped -> StatusDroppedColor
     WatchStatus.Plan -> StatusPlanColor
+}
+// Color of a progress bar: the status color, or the theme accent when Settings > "Progress bar color" is off.
+@androidx.compose.runtime.Composable
+fun progressBarColor(status: WatchStatus): Color {
+    com.kiko.tracker.data.model.ProgressBarPrefs.ensureLoaded(androidx.compose.ui.platform.LocalContext.current)
+    return if (com.kiko.tracker.data.model.ProgressBarPrefs.colorCoded) statusColor(status) else LocalKikoColors.current.primary
 }
 // Status color by label
 

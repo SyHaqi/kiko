@@ -518,7 +518,6 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 hint = "Search ${vm.discoverTypeFilter}",
                 onBack = onExitResults,
                 onOpenSearch = { openSearchPage(null) },
-                onClear = { openSearchPage("") },
             ) {
                 // Advanced filters (format/genre/year/score) only apply to Anime/Manga; Users have
                 // their own sheet (location/age/gender). Characters/People/Companies have none.
@@ -779,8 +778,11 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         val q = text.trim()
         focusManager.clearFocus(); keyboard?.hide()
         if (q.isNotEmpty()) vm.addSearchHistory(context, type, q)
-        // Re-submitting the query (and type) that's already showing just goes back instead of re-running it.
-        if (!(vm.discoverMode == DiscoverMode.Results && q == vm.discoverQuery && type == vm.discoverTypeFilter)) vm.selectDiscoverType(context, type, q)
+        // Re-submitting the query (and type) that's already showing just goes back instead of re-running it, unless
+        // that search failed: then submitting again must actually retry (it used to skip the retry, so a failed
+        // search stayed failed until you switched type or left Discover).
+        val alreadyShowing = vm.discoverMode == DiscoverMode.Results && q == vm.discoverQuery && type == vm.discoverTypeFilter && !vm.discoverFailed(type)
+        if (!alreadyShowing) vm.selectDiscoverType(context, type, q)
         vm.closeDiscoverSearchPage()
     }
     // Advanced filters, same sheets as the results page. Applying one runs the search straight away with

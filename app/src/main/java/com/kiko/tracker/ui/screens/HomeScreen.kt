@@ -119,6 +119,8 @@ import com.kiko.tracker.ui.components.SwitcherHeader
 import com.kiko.tracker.ui.components.Avatar
 import com.kiko.tracker.ui.components.NotificationBell
 import com.kiko.tracker.ui.components.Cover
+import com.kiko.tracker.ui.components.progressBarColor
+import com.kiko.tracker.data.model.ProgressBarPrefs
 import com.kiko.tracker.ui.components.SearchTopBar
 import com.kiko.tracker.ui.components.statusColor
 import com.kiko.tracker.ui.components.CoverStatusMark
@@ -890,6 +892,21 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
     var fabExpanded by remember { mutableStateOf(false) }
     BackHandler(enabled = fabMode && fabExpanded) { fabExpanded = false }
 
+    // Entries per status tab ("All" first), for the count pills. One pass over the list; ignores the search query on
+    // purpose so the numbers stay put while typing. Uses the same status rule as the pages (rewatching counts as
+    // Watching / Reading).
+    val tabCounts = remember(vm.items, vm.nsfwEnabled, typeTab, labels) {
+        val perStatus = HashMap<String, Int>()
+        var total = 0
+        for (it in vm.visibleItems) {
+            if (it.type != typeTab) continue
+            total++
+            val key = it.listTabStatus().displayLabel(typeTab)
+            perStatus[key] = (perStatus[key] ?: 0) + 1
+        }
+        labels.map { if (it == "All") total else perStatus[it] ?: 0 }
+    }
+
     // Swipeable status pages — one per StatusFilterTabs label, in the
     // same order, so a tab tap and a swipe always land on the same page.
     val pagerState = rememberPagerState(initialPage = selectedIndex) { labels.size }
@@ -988,7 +1005,7 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
             // Header is the standard 72dp (same as Discover, so it doesn't jump between
             // screens); pull the tabs up 8dp into its empty bottom padding to keep the
             // tighter header->tabs gap.
-            if (!fabMode) StatusFilterTabs(typeTab, pagerState, modifier = Modifier.layout { measurable, constraints ->
+            if (!fabMode) StatusFilterTabs(typeTab, pagerState, counts = tabCounts, modifier = Modifier.layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints)
                 val trim = 8.dp.roundToPx()
                 layout(placeable.width, (placeable.height - trim).coerceAtLeast(0)) { placeable.place(0, -trim) }
@@ -1234,7 +1251,7 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
         val density = androidx.compose.ui.platform.LocalDensity.current
         val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
         val columns = vm.gridColumns.count((screenW - 14 * 2).toFloat())
-        val countItems = if (fabMode) 0 else 1 // the count row is grid item 0 except in FAB mode
+        val countItems = 0 // the grid starts straight with the first tile now (the status tabs carry the counts)
         LaunchedEffect(filtered, screenW, density.density, columns, countItems) {
             val tileW = (screenW - 14 * 2 - 11f * (columns - 1)) / columns
             val size = with(density) { Size(tileW.dp.roundToPx(), (tileW / GridCoverAspect).dp.roundToPx()) }
@@ -1257,15 +1274,6 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
             if (isGrid) vm.saveListScroll(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
             else vm.saveListScroll(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
             onOpenDetail(item)
-        }
-    }
-    val countRow: @Composable () -> Unit = {
-        // Even spacing: the gap under the status tabs' divider equals the gap above the first entry, which
-        // is the entry's own top padding in list mode (10/14dp) or the grid's 16dp row spacing. So the row
-        // only pads its top; its bottom edge is the entry's padding.
-        // (FAB mode has no count row at all: the counts live in the status FAB menu.)
-        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Start) {
-            Text("${filtered.size} titles" + if (vm.loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
         }
     }
     val scope = rememberCoroutineScope()
@@ -1291,11 +1299,10 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                     state = gridState,
                     columns = vm.gridColumns.cells(),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = if (fabMode) 6.dp else 0.dp, bottom = bottomInset),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = if (fabMode) 6.dp else 16.dp, bottom = bottomInset),
                     horizontalArrangement = Arrangement.spacedBy(11.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    if (!fabMode) item(span = { GridItemSpan(maxLineSpan) }) { countRow() }
                     if (vm.loading && filtered.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
                     } else {
@@ -1305,7 +1312,6 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = bottomInset)) {
-                    if (!fabMode) item { countRow() }
                     if (vm.loading && filtered.isEmpty()) {
                         item { KikoSectionLoading() }
                     } else {
@@ -1392,7 +1398,7 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                 LinearProgressIndicator(
                     progress = { progressFraction(item.progress, item.total) },
                     modifier = Modifier.padding(top = if (roomy) 8.dp else 6.dp).fillMaxWidth().height(if (roomy) 5.dp else 4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
-                    color = statusColor(item.status), trackColor = c.surfaceLow, drawStopIndicator = {},
+                    color = progressBarColor(item.listTabStatus()), trackColor = c.surfaceLow, drawStopIndicator = {},
                 )
             }
         }
@@ -1427,16 +1433,17 @@ fun statusFilterLabels(type: MediaType): List<String> {
     return listOf("All", progressLabel, planLabel, "Completed", "On Hold", "Dropped")
 }
 
-@Composable fun StatusFilterTabs(type: MediaType, pagerState: PagerState, modifier: Modifier = Modifier, onSelect: (String) -> Unit) {
+@Composable fun StatusFilterTabs(type: MediaType, pagerState: PagerState, modifier: Modifier = Modifier, counts: List<Int>? = null, onSelect: (String) -> Unit) {
     val labels = remember(type) { statusFilterLabels(type) }
-    StatusTabRow(labels, pagerState, modifier) { index -> onSelect(labels[index]) }
+    StatusTabRow(labels, pagerState, modifier, counts) { index -> onSelect(labels[index]) }
 }
 
 // The actual tab strip, split out of StatusFilterTabs so other screens (the
 // friend's list) can reuse the exact same look — scrollable M3 tabs, a full-width
 // divider, and a text-width indicator that follows the pager's live position.
-// Callers own the labels and the pager; onSelect gets the tapped tab's index.
-@Composable fun StatusTabRow(labels: List<String>, pagerState: PagerState, modifier: Modifier = Modifier, onSelect: (Int) -> Unit) {
+// Callers own the labels and the pager; onSelect gets the tapped tab's index. [counts] (same order as
+// [labels], optional) puts a small count pill beside each label.
+@Composable fun StatusTabRow(labels: List<String>, pagerState: PagerState, modifier: Modifier = Modifier, counts: List<Int>? = null, onSelect: (Int) -> Unit) {
     val c = LocalKikoColors.current
     val density = LocalDensity.current
 
@@ -1527,16 +1534,41 @@ fun statusFilterLabels(type: MediaType): List<String> {
                 selectedContentColor = c.primary,
                 unselectedContentColor = c.muted,
                 text = {
-                    Text(
-                        label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1,
+                    // Label + count pill are measured as one unit, so the indicator underlines both.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.onGloballyPositioned { coords ->
                             val width = with(density) { coords.size.width.toDp() }
                             if (textWidths[index] != width) textWidths[index] = width
                         },
-                    )
+                    ) {
+                        Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+                        counts?.getOrNull(index)?.let { count ->
+                            Spacer(Modifier.width(6.dp))
+                            TabCountPill(count, selected)
+                        }
+                    }
                 },
             )
         }
+    }
+}
+// Count pill beside a tab label. M3 "badge" shape language (fully rounded, label-small type) but tonal rather than
+// the red notification badge: it is a quantity, not an alert. Selected = primary container, otherwise the quiet
+// surface container; the colors animate with the pager so they follow a swipe.
+@Composable private fun TabCountPill(count: Int, selected: Boolean) {
+    val c = LocalKikoColors.current
+    val container by androidx.compose.animation.animateColorAsState(if (selected) c.primaryContainer else c.surfaceContainerHigh, label = "tab-count-container")
+    val content by androidx.compose.animation.animateColorAsState(if (selected) c.onPrimaryContainer else c.muted, label = "tab-count-content")
+    Box(
+        Modifier
+            .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)
+            .clip(RoundedCornerShape(50))
+            .background(container)
+            .padding(horizontal = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(count.toString(), color = content, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
     }
 }
 // Icon per status filter
@@ -1696,7 +1728,7 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
                     LinearProgressIndicator(
                         progress = { progressFraction(item.progress, item.total) },
                         modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
-                        color = statusColor(item.status), trackColor = c.surfaceLow, drawStopIndicator = {},
+                        color = progressBarColor(item.listTabStatus()), trackColor = c.surfaceLow, drawStopIndicator = {},
                     )
                 }
             }
@@ -1789,7 +1821,7 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
                     LinearProgressIndicator(
                         progress = { progressFraction(item.progress, item.total) },
                         modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
-                        color = statusColor(item.status), trackColor = c.surfaceContainerHigh, drawStopIndicator = {},
+                        color = progressBarColor(item.listTabStatus()), trackColor = c.surfaceContainerHigh, drawStopIndicator = {},
                     )
                 }
                 if (onIncrement != null) {

@@ -64,6 +64,7 @@ import com.kiko.tracker.data.model.GridColumns
 import com.kiko.tracker.data.model.LocalCompactList
 import com.kiko.tracker.data.model.LocalGridColumns
 import com.kiko.tracker.data.model.MediaType
+import com.kiko.tracker.ui.components.progressBarColor
 import com.kiko.tracker.data.model.WatchStatus
 import com.kiko.tracker.data.model.displayLabel
 import com.kiko.tracker.ui.components.coverElevation
@@ -254,7 +255,9 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
 
     // Same status strip as My List (StatusTabRow in HomeScreen.kt) — driven off
     // a plain pager index instead of a vm-backed filter string.
-    StatusTabRow(labels, pagerState, modifier = Modifier.padding(top = 4.dp)) { index ->
+    // Count pills once the list has loaded (nothing while loading / on error, so no misleading zeros).
+    val tabCounts = remember(entries, tabs) { entries?.let { all -> tabs.map { st -> if (st == null) all.size else all.count { it.status == st } } } }
+    StatusTabRow(labels, pagerState, modifier = Modifier.padding(top = 4.dp), counts = tabCounts) { index ->
         scope.launch { pagerState.animateScrollToPage(index) }
     }
 
@@ -342,12 +345,6 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
         return
     }
 
-    val countRow: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Start) {
-            Text("${filtered.orEmpty().size} titles" + if (loading) " · syncing…" else "", color = c.muted, fontSize = 13.sp)
-        }
-    }
-
     Box(Modifier.fillMaxSize()) {
         AnimatedContent(
             isGrid,
@@ -359,11 +356,10 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
                     state = gridState,
                     columns = vm.gridColumns.cells(),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(11.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { countRow() }
                     if (filtered.isNullOrEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
                     } else {
@@ -374,7 +370,6 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
-                    item { countRow() }
                     if (filtered.isNullOrEmpty()) {
                         item { Text("No titles here.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
                     } else {
@@ -446,7 +441,7 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
             LinearProgressIndicator(
                 progress = { progressFraction(entry.progress, entry.total) },
                 modifier = Modifier.padding(top = if (roomy) 8.dp else 6.dp).fillMaxWidth().height(if (roomy) 5.dp else 4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
-                color = statusColor(entry.status), trackColor = c.surfaceLow, drawStopIndicator = {},
+                color = progressBarColor(entry.status), trackColor = c.surfaceLow, drawStopIndicator = {},
             )
         }
     }
@@ -499,7 +494,7 @@ private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.
                 LinearProgressIndicator(
                     progress = { progressFraction(entry.progress, entry.total) },
                     modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
-                    color = statusColor(entry.status), trackColor = c.surfaceContainerHigh, drawStopIndicator = {},
+                    color = progressBarColor(entry.status), trackColor = c.surfaceContainerHigh, drawStopIndicator = {},
                 )
             }
         }
