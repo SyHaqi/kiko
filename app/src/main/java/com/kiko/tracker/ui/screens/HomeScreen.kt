@@ -1299,9 +1299,10 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                     state = gridState,
                     columns = vm.gridColumns.cells(),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = if (fabMode) 6.dp else 16.dp, bottom = bottomInset),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = if (fabMode) 6.dp else 24.dp, bottom = bottomInset),
                     horizontalArrangement = Arrangement.spacedBy(11.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    // 24dp between tile rows (was 16dp); the top gap under the status tabs matches it.
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
                     if (vm.loading && filtered.isEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) { KikoSectionLoading() }
@@ -1311,7 +1312,9 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                     if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = bottomInset)) {
+                // Each row pads itself 12dp (10dp compact) top and bottom, so rows sit 24dp apart; the same top padding under the
+                // status tabs makes that first gap equal. FAB mode has no tab strip, so no extra gap there.
+                LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = if (fabMode) 0.dp else countRowTopGap(false), bottom = bottomInset)) {
                     if (vm.loading && filtered.isEmpty()) {
                         item { KikoSectionLoading() }
                     } else {
