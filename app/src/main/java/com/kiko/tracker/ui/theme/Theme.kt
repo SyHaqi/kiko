@@ -8,9 +8,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontFamily
 import androidx.core.graphics.ColorUtils
+import com.google.android.material.color.utilities.DynamicColor
+import com.google.android.material.color.utilities.DynamicScheme
+import com.google.android.material.color.utilities.Hct
+import com.google.android.material.color.utilities.MaterialDynamicColors
+import com.google.android.material.color.utilities.SchemeMonochrome
+import com.google.android.material.color.utilities.SchemeNeutral
+import com.google.android.material.color.utilities.SchemeTonalSpot
 import kotlin.math.roundToInt
 import com.kiko.tracker.data.model.ColorSource
 import com.kiko.tracker.data.model.PaletteStyle
@@ -94,129 +101,88 @@ fun seedHue(seed: Color): Float {
     return hsl[0]
 }
 
-// WCAG contrast ratio (1..21) between two opaque colors.
-private fun contrastRatio(a: Color, b: Color): Float {
-    val la = a.luminance(); val lb = b.luminance()
-    return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
-}
-
-// Light palettes only. The accent roles used one fixed lightness for every hue, but how bright a
-// color *looks* varies a lot by hue: at the same lightness blue/purple/red are dark enough for
-// white text, while yellow/green/cyan (a custom color, or Dynamic color from a wallpaper) come out
-// pastel — white-on-primary buttons and primary-colored titles drop to ~2.2:1. This walks the
-// lightness down from [maxLightness] until the color reaches [minContrast] against [against].
-// Hues that already pass (the default blue) come back unchanged.
-private fun accentLightness(hue: Float, saturation: Float, maxLightness: Float, against: Color, minContrast: Float = 4.5f): Float {
-    var l = maxLightness
-    while (l > 0.2f && contrastRatio(hslColor(hue, saturation, l), against) < minContrast) l -= 0.01f
-    return l
-}
-
-/** Generates a full Expressive */
+/**
+ * Generates a real Material 3 palette: seed -> HCT -> tonal palettes -> the standard M3 role/tone
+ * mapping (material-color-utilities, the same engine behind Android's dynamic color). The old
+ * version approximated this with hand-tuned HSL values, which is why the colors looked slightly
+ * "off" next to stock Material 3 apps.
+ */
 fun themedPalette(seed: Color, style: PaletteStyle, dark: Boolean): KikoColors {
-    val hue = seedHue(seed)
-    // Saturation bands per style
-    val (accentSat, containerSat, neutralSat) = when (style) {
-        PaletteStyle.TonalSpot -> Triple(0.52f, 0.35f, 0.06f)
-        PaletteStyle.Neutral -> Triple(0.18f, 0.10f, 0.02f)
-        PaletteStyle.Monochrome -> Triple(0f, 0f, 0f)
+    val hct = Hct.fromInt(seed.toArgb())
+    val scheme: DynamicScheme = when (style) {
+        PaletteStyle.TonalSpot -> SchemeTonalSpot(hct, dark, 0.0)
+        PaletteStyle.Neutral -> SchemeNeutral(hct, dark, 0.0)
+        PaletteStyle.Monochrome -> SchemeMonochrome(hct, dark, 0.0)
     }
-    val secondarySat = accentSat * 0.55f
-    val secondaryContainerSat = containerSat * 0.7f
-    val tertiaryHue = hue + 60f
+    val d = MaterialDynamicColors()
+    fun role(c: DynamicColor) = Color(c.getArgb(scheme))
+    return kikoColorsFromRoles(
+        primary = role(d.primary()), onPrimary = role(d.onPrimary()),
+        primaryContainer = role(d.primaryContainer()), onPrimaryContainer = role(d.onPrimaryContainer()),
+        secondary = role(d.secondary()), onSecondary = role(d.onSecondary()),
+        secondaryContainer = role(d.secondaryContainer()), onSecondaryContainer = role(d.onSecondaryContainer()),
+        tertiary = role(d.tertiary()), onTertiary = role(d.onTertiary()),
+        tertiaryContainer = role(d.tertiaryContainer()), onTertiaryContainer = role(d.onTertiaryContainer()),
+        error = role(d.error()), onError = role(d.onError()),
+        errorContainer = role(d.errorContainer()), onErrorContainer = role(d.onErrorContainer()),
+        background = role(d.background()), onSurface = role(d.onSurface()),
+        surface = role(d.surface()), onSurfaceVariant = role(d.onSurfaceVariant()),
+        surfaceContainerLowest = role(d.surfaceContainerLowest()), surfaceContainerLow = role(d.surfaceContainerLow()),
+        surfaceContainer = role(d.surfaceContainer()), surfaceContainerHigh = role(d.surfaceContainerHigh()),
+        surfaceContainerHighest = role(d.surfaceContainerHighest()),
+        outline = role(d.outline()), outlineVariant = role(d.outlineVariant()),
+        inverseSurface = role(d.inverseSurface()), inverseOnSurface = role(d.inverseOnSurface()),
+        inversePrimary = role(d.inversePrimary()),
+    )
+}
 
-    return if (!dark) run {
-        // Secondary text used to be lightness .45, which is only ~4.1:1 on the tonal rows
-        // (surfaceContainerHigh) and ~3.8:1 on surfaceContainerHighest — under the 4.5:1 that
-        // small text needs. .38 clears it on every surface in the ladder.
-        val mutedColor = hslColor(hue, neutralSat, 0.38f)
-        val onSurfaceVariant = hslColor(hue, neutralSat, 0.32f)
-        val lightBackground = hslColor(hue, neutralSat, 0.985f)
-        val primaryL = accentLightness(hue, accentSat, 0.46f, lightBackground)
-        val secondaryL = accentLightness(hue, secondarySat, 0.40f, lightBackground)
-        val tertiaryL = accentLightness(tertiaryHue, accentSat * 0.8f, 0.42f, lightBackground)
-        KikoColors(
-            ink = hslColor(hue, neutralSat, 0.12f),
-            onPrimary = Color.White,
-            primary = hslColor(hue, accentSat, primaryL),
-            primaryContainer = hslColor(hue, containerSat, 0.88f),
-            onPrimaryContainer = hslColor(hue, accentSat, 0.16f),
-            background = lightBackground,
-            surface = hslColor(hue, neutralSat * 0.6f, 0.995f),
-            surfaceLow = hslColor(hue, neutralSat, 0.95f),
-            muted = mutedColor,
-            lavender = hslColor(hue + 40f, containerSat, 0.93f),
-            warm = hslColor(hue - 150f, containerSat, 0.87f),
-            danger = Color(0xFFB3261E),
-            secondary = hslColor(hue, secondarySat, secondaryL),
-            onSecondary = Color.White,
-            secondaryContainer = hslColor(hue, secondaryContainerSat, 0.90f),
-            onSecondaryContainer = hslColor(hue, secondarySat, 0.16f),
-            tertiary = hslColor(tertiaryHue, accentSat * 0.8f, tertiaryL),
-            onTertiary = Color.White,
-            tertiaryContainer = hslColor(tertiaryHue, containerSat, 0.89f),
-            onTertiaryContainer = hslColor(tertiaryHue, accentSat * 0.8f, 0.16f),
-            surfaceContainerLowest = Color.White,
-            surfaceContainerLow = hslColor(hue, neutralSat, 0.97f),
-            surfaceContainer = hslColor(hue, neutralSat, 0.945f),
-            surfaceContainerHigh = hslColor(hue, neutralSat, 0.915f),
-            surfaceContainerHighest = hslColor(hue, neutralSat, 0.89f),
-            onSurfaceVariant = onSurfaceVariant,
-            outline = hslColor(hue, neutralSat, 0.50f),
-            outlineVariant = hslColor(hue, neutralSat, 0.82f),
-            errorContainer = Color(0xFFF9DEDC),
-            onError = Color.White,
-            onErrorContainer = Color(0xFF410E0B),
-            inverseSurface = hslColor(hue, neutralSat, 0.20f),
-            inverseOnSurface = hslColor(hue, neutralSat, 0.96f),
-            inversePrimary = hslColor(hue, accentSat, 0.78f),
-            scrim = Color.Black,
-            // See below — same
-            // instead of a fixed
-            cardBorder = hslColor(hue, neutralSat, 0.45f).copy(alpha = 0.16f), // tone it always had; not the darker muted
-        )
-    } else run {
-        val mutedColor = hslColor(hue, neutralSat, 0.68f)
-        val onSurfaceVariant = hslColor(hue, neutralSat, 0.78f)
-        KikoColors(
-            ink = hslColor(hue, neutralSat, 0.94f),
-            onPrimary = hslColor(hue, neutralSat, 0.10f),
-            primary = hslColor(hue, accentSat, 0.74f),
-            primaryContainer = hslColor(hue, containerSat, 0.30f),
-            onPrimaryContainer = hslColor(hue, accentSat, 0.90f),
-            background = hslColor(hue, neutralSat, 0.08f),
-            surface = hslColor(hue, neutralSat, 0.13f),
-            surfaceLow = hslColor(hue, neutralSat, 0.17f),
-            muted = mutedColor,
-            lavender = hslColor(hue + 40f, containerSat, 0.18f),
-            warm = hslColor(hue - 150f, containerSat, 0.21f),
-            danger = Color(0xFFFFB4AB),
-            secondary = hslColor(hue, secondarySat, 0.72f),
-            onSecondary = hslColor(hue, neutralSat, 0.12f),
-            secondaryContainer = hslColor(hue, secondaryContainerSat, 0.28f),
-            onSecondaryContainer = hslColor(hue, secondarySat, 0.90f),
-            tertiary = hslColor(tertiaryHue, accentSat * 0.8f, 0.76f),
-            onTertiary = hslColor(tertiaryHue, neutralSat, 0.14f),
-            tertiaryContainer = hslColor(tertiaryHue, containerSat, 0.27f),
-            onTertiaryContainer = hslColor(tertiaryHue, accentSat * 0.8f, 0.90f),
-            surfaceContainerLowest = hslColor(hue, neutralSat, 0.05f),
-            surfaceContainerLow = hslColor(hue, neutralSat, 0.11f),
-            surfaceContainer = hslColor(hue, neutralSat, 0.15f),
-            surfaceContainerHigh = hslColor(hue, neutralSat, 0.20f),
-            surfaceContainerHighest = hslColor(hue, neutralSat, 0.25f),
-            onSurfaceVariant = onSurfaceVariant,
-            outline = hslColor(hue, neutralSat, 0.42f),
-            outlineVariant = hslColor(hue, neutralSat, 0.22f),
-            errorContainer = Color(0xFF8C1D18),
-            onError = Color(0xFF690005),
-            onErrorContainer = Color(0xFFF9DEDC),
-            inverseSurface = hslColor(hue, neutralSat, 0.92f),
-            inverseOnSurface = hslColor(hue, neutralSat, 0.16f),
-            inversePrimary = hslColor(hue, accentSat, 0.42f),
-            scrim = Color.Black,
-            cardBorder = mutedColor.copy(alpha = 0.16f),
-        )
-    }
+/** Maps standard M3 roles onto Kiko's legacy field names so existing screens keep compiling. */
+private fun kikoColorsFromRoles(
+    primary: Color, onPrimary: Color, primaryContainer: Color, onPrimaryContainer: Color,
+    secondary: Color, onSecondary: Color, secondaryContainer: Color, onSecondaryContainer: Color,
+    tertiary: Color, onTertiary: Color, tertiaryContainer: Color, onTertiaryContainer: Color,
+    error: Color, onError: Color, errorContainer: Color, onErrorContainer: Color,
+    background: Color, onSurface: Color, surface: Color, onSurfaceVariant: Color,
+    surfaceContainerLowest: Color, surfaceContainerLow: Color, surfaceContainer: Color,
+    surfaceContainerHigh: Color, surfaceContainerHighest: Color,
+    outline: Color, outlineVariant: Color,
+    inverseSurface: Color, inverseOnSurface: Color, inversePrimary: Color,
+) = KikoColors(
+    ink = onSurface, onPrimary = onPrimary, primary = primary, primaryContainer = primaryContainer,
+    onPrimaryContainer = onPrimaryContainer,
+    background = background, surface = surface,
+    surfaceLow = surfaceContainerHigh,          // pills / progress tracks: M3 "surfaceContainerHigh"
+    muted = onSurfaceVariant,                   // secondary text: M3 "onSurfaceVariant"
+    lavender = tertiaryContainer,               // accent surfaces come from real M3 containers now
+    warm = secondaryContainer,                  // avatar placeholders etc.
+    danger = error,
+    secondary = secondary, onSecondary = onSecondary,
+    secondaryContainer = secondaryContainer, onSecondaryContainer = onSecondaryContainer,
+    tertiary = tertiary, onTertiary = onTertiary,
+    tertiaryContainer = tertiaryContainer, onTertiaryContainer = onTertiaryContainer,
+    surfaceContainerLowest = surfaceContainerLowest, surfaceContainerLow = surfaceContainerLow,
+    surfaceContainer = surfaceContainer, surfaceContainerHigh = surfaceContainerHigh,
+    surfaceContainerHighest = surfaceContainerHighest,
+    onSurfaceVariant = onSurfaceVariant, outline = outline, outlineVariant = outlineVariant,
+    errorContainer = errorContainer, onError = onError, onErrorContainer = onErrorContainer,
+    inverseSurface = inverseSurface, inverseOnSurface = inverseOnSurface, inversePrimary = inversePrimary,
+    scrim = Color.Black,
+    cardBorder = outlineVariant.copy(alpha = 0.5f),
+)
+
+/** Wallpaper (Dynamic) + Tonal Spot: use the system's own M3 scheme as-is, no re-derivation. */
+fun systemDynamicPalette(context: Context, dark: Boolean): KikoColors {
+    val s = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    return kikoColorsFromRoles(
+        s.primary, s.onPrimary, s.primaryContainer, s.onPrimaryContainer,
+        s.secondary, s.onSecondary, s.secondaryContainer, s.onSecondaryContainer,
+        s.tertiary, s.onTertiary, s.tertiaryContainer, s.onTertiaryContainer,
+        s.error, s.onError, s.errorContainer, s.onErrorContainer,
+        s.background, s.onSurface, s.surface, s.onSurfaceVariant,
+        s.surfaceContainerLowest, s.surfaceContainerLow, s.surfaceContainer,
+        s.surfaceContainerHigh, s.surfaceContainerHighest,
+        s.outline, s.outlineVariant, s.inverseSurface, s.inverseOnSurface, s.inversePrimary,
+    )
 }
 
 // The app's default (non-dynamic,

@@ -82,6 +82,9 @@ dependencies {
     implementation("androidx.compose.material3:material3:1.5.0-alpha26")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.foundation:foundation:1.12.1")
+    // Only used for com.google.android.material.color.utilities (HCT + Material 3 tonal palettes) so
+    // the theme is generated exactly the way stock Material 3 / Android dynamic color does it.
+    implementation("com.google.android.material:material:1.12.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
     // Adds animated GIF/WebP decoding to Coil — without this, AsyncImage silently only ever
     // decodes and shows a GIF's first frame instead of playing it (see MainActivity.onCreate,

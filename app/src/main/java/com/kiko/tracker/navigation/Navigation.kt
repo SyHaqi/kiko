@@ -118,6 +118,7 @@ import com.kiko.tracker.ui.theme.LightKiko
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.amoledify
 import com.kiko.tracker.ui.theme.resolveSeedColor
+import com.kiko.tracker.ui.theme.systemDynamicPalette
 import com.kiko.tracker.ui.theme.themedPalette
 import com.kiko.tracker.ui.theme.toMaterialColorScheme
 import com.kiko.tracker.util.AppUpdateChecker
@@ -744,6 +745,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     val c = remember(darkTheme, vm.colorSource, vm.paletteStyle, vm.customColorHex, vm.amoledDark) {
         val base = if (vm.colorSource == ColorSource.AppDefault && vm.paletteStyle == PaletteStyle.TonalSpot) {
             if (darkTheme) DarkKiko else LightKiko
+        } else if (vm.colorSource == ColorSource.Dynamic && vm.paletteStyle == PaletteStyle.TonalSpot && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            systemDynamicPalette(context, darkTheme)
         } else {
             themedPalette(resolveSeedColor(context, vm.colorSource, vm.customColorHex, darkTheme), vm.paletteStyle, darkTheme)
         }
