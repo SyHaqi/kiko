@@ -1559,7 +1559,7 @@ fun statusFilterLabels(type: MediaType): List<String> {
 // Count pill beside a tab label. M3 "badge" shape language (fully rounded, label-small type) but tonal rather than
 // the red notification badge: it is a quantity, not an alert. Selected = primary container, otherwise the quiet
 // surface container; the colors animate with the pager so they follow a swipe.
-@Composable private fun TabCountPill(count: Int, selected: Boolean) {
+@Composable fun TabCountPill(count: Int, selected: Boolean) {
     val c = LocalKikoColors.current
     val container by androidx.compose.animation.animateColorAsState(if (selected) c.primaryContainer else c.surfaceContainerHigh, label = "tab-count-container")
     val content by androidx.compose.animation.animateColorAsState(if (selected) c.onPrimaryContainer else c.muted, label = "tab-count-content")

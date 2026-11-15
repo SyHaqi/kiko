@@ -140,6 +140,13 @@ import kotlinx.coroutines.launch
     }
 }
 
-@Composable fun KikoTabText(label: String, selected: Boolean) {
-    Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+// [count] (optional) adds the same count pill My List's status tabs show, so the indicator underlines label + pill.
+@Composable fun KikoTabText(label: String, selected: Boolean, count: Int? = null) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+        if (count != null) {
+            Spacer(Modifier.width(6.dp))
+            TabCountPill(count, selected)
+        }
+    }
 }

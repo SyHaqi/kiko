@@ -70,6 +70,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.browser.customtabs.CustomTabsIntent
@@ -653,8 +654,10 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     }
 }
 
-// Genre breakdown as ranked, tappable rows: each genre is a rounded track whose tinted fill shows its
-// share relative to the top genre, with a color dot, the name, the count and the % of the list.
+// Genre breakdown as ranked, tappable rows, M3 Expressive style: type carries the hierarchy (the top genre is set
+// larger and bolder with a thicker bar) and each share is a fully rounded, thick bar in the genre's color with a
+// small gap before its tonal track, like the 1.4 progress indicators. Bars are relative to the top genre; the
+// right side reads count, then the genre's % of the list.
 @Composable private fun GenreRankedBars(items: List<MediaItem>, c: KikoColors, onGenreClick: ((String) -> Unit)? = null) {
     val total = items.size
     // Skip junk genre tags (same filter the old chart used)
@@ -662,17 +665,22 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
         .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(6)
     if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
     val top = counts.first().value.coerceAtLeast(1)
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         counts.forEachIndexed { index, (genre, count) ->
             val color = chartColor(c, index)
-            val base = Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh)
-            Box(if (onGenreClick != null) base.kikoClickable(scale = 0.98f) { onGenreClick(genre) } else base) {
-                Box(Modifier.fillMaxWidth(count.toFloat() / top).fillMaxHeight().background(color.copy(alpha = .30f)))
-                Row(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(kikoCircleShape()).background(color))
-                    Text(genre, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 10.dp).weight(1f))
-                    Text(count.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            val lead = index == 0
+            // Never under 4% so a rare genre still shows a visible, rounded stub.
+            val fraction = (count.toFloat() / top).coerceIn(0.04f, 1f)
+            val base = Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(20.dp)))
+            Column((if (onGenreClick != null) base.kikoClickable(scale = 0.98f) { onGenreClick(genre) } else base).padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(genre, color = c.ink, fontWeight = if (lead) FontWeight.Bold else FontWeight.SemiBold, fontSize = if (lead) 16.sp else 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(count.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = if (lead) 16.sp else 14.sp)
                     if (total > 0) Text("${(count * 100f / total).roundToInt()}%", color = c.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp).widthIn(min = 32.dp), textAlign = TextAlign.End)
+                }
+                Row(Modifier.padding(top = 8.dp).fillMaxWidth().height(if (lead) 16.dp else 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.weight(fraction).fillMaxHeight().clip(kikoPillShape()).background(color))
+                    if (fraction < 1f) Box(Modifier.weight(1f - fraction).fillMaxHeight().clip(kikoPillShape()).background(c.surfaceContainerHigh))
                 }
             }
         }
@@ -1287,10 +1295,51 @@ private fun formatCacheBytes(b: Long): String = when {
     )
 }
 
-// Opened by tapping a
-// Starts on the tapped
-@Composable fun ScoreFilterScreen(vm: LibraryViewModel, type: MediaType, initialScore: Int, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
+// Score / Year / Format / Genre breakdown screens. All four share one construction, the same one My List uses
+// for its status strip: a back header with the sort button, scrollable M3 tabs (one per option, "All" first,
+// each with a count pill) over a swipeable pager. The count lives in the tab's pill, so there is no "N titles"
+// row. Genre has too many options for tabs, so it uses a FAB + A-Z chip sheet instead (GenreFilterScreen).
+
+// Back header + sort button shared by the four breakdown screens.
+@Composable private fun FilterScreenHeader(title: String, onBack: () -> Unit, onSort: () -> Unit) {
     val c = LocalKikoColors.current
+    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 0.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
+        Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
+        IconButton(onClick = onSort, modifier = Modifier.headerEdgeEnd()) {
+            Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+// Body of one tab page: the matching titles as a list or grid. Spacing mirrors My List: the gap under the tab line
+// equals the gap between entries (rows pad themselves 12dp/10dp, grid rows are 24dp apart).
+@Composable private fun FilteredTitlesPage(vm: LibraryViewModel, filtered: List<MediaItem>, emptyText: String, onOpenDetail: (MediaItem) -> Unit, bottomPadding: Dp = 24.dp) {
+    val c = LocalKikoColors.current
+    val staggerSeen = rememberStaggerMemory()
+    if (vm.listViewMode == ListViewMode.Grid) {
+        LazyVerticalGrid(
+            columns = vm.gridColumns.cells(),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 24.dp, bottom = bottomPadding),
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
+            if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text(emptyText, color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+        }
+    } else {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = countRowTopGap(false), bottom = bottomPadding)) {
+            itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
+                StaggeredItem(index, staggerSeen) { MyListRow(it, onOpenDetail) }
+            }
+            if (filtered.isEmpty()) item { Text(emptyText, color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
+        }
+    }
+}
+
+// Opened by tapping a bar in the Stats card's score chart. Starts on the tapped score.
+@Composable fun ScoreFilterScreen(vm: LibraryViewModel, type: MediaType, initialScore: Int, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
     BackHandler(onBack = onBack)
     var sortSheetOpen by remember { mutableStateOf(false) }
     val sortCtx = LocalContext.current
@@ -1298,382 +1347,164 @@ private fun formatCacheBytes(b: Long): String = when {
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
     // Tab/page order: All, then 10 down to 1. Swipe left/right to move between scores.
     val scoreOptions = remember { listOf(0) + (10 downTo 1).toList() }
+    val scoreCounts = remember(typeItems) { typeItems.filter { it.myRating > 0 }.groupingBy { it.myRating }.eachCount() }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 0.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Score Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
-            IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.headerEdgeEnd()) {
-                Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
-            }
-        }
+        FilterScreenHeader("Score Distribution", onBack) { sortSheetOpen = true }
         if (sortSheetOpen) ListSortSheet(vm.scoreFilterSort, vm.scoreFilterSortReversed, onDismiss = { sortSheetOpen = false }, heading = "Titles") { sort, reversed -> vm.setScoreFilterSort(sortCtx, sort, reversed) }
         KikoTabPager(
             items = scoreOptions,
             selected = score,
             onSelect = { score = it },
             tab = { s, selected ->
-                if (s == 0) KikoTabText("All", selected)
+                val count = if (s == 0) scoreCounts.values.sum() else scoreCounts[s] ?: 0
+                if (s == 0) KikoTabText("All", selected, count)
                 else Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(12.dp))
                     Text(s.toString(), fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 1, modifier = Modifier.padding(start = 3.dp))
+                    Spacer(Modifier.width(6.dp))
+                    TabCountPill(count, selected)
                 }
             },
         ) { pageScore -> ScoreFilterPage(vm, typeItems, pageScore, onOpenDetail) }
     }
 }
-// One swipeable page of ScoreFilterScreen — the titles count/toggle/sort row plus the list or grid for one score.
 @Composable private fun ScoreFilterPage(vm: LibraryViewModel, typeItems: List<MediaItem>, score: Int, onOpenDetail: (MediaItem) -> Unit) {
-    val c = LocalKikoColors.current
-    val context = LocalContext.current
     val filtered = remember(typeItems, score, vm.scoreFilterSort, vm.scoreFilterSortReversed, vm.titleLanguage) {
         typeItems.filter { it.myRating > 0 && (score == 0 || it.myRating == score) }.sortedWithListSort(vm.scoreFilterSort, vm.titleLanguage, vm.scoreFilterSortReversed)
     }
-    val staggerSeen = rememberStaggerMemory()
-    val isGrid = vm.listViewMode == ListViewMode.Grid
-    val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
-        }
-    }
-    if (isGrid) {
-        LazyVerticalGrid(
-            columns = vm.gridColumns.cells(),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
-            if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles at this score yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-        }
-    } else {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
-            item { header() }
-            itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                StaggeredItem(index, staggerSeen) {
-                    Column {
-                        MyListRow(it, onOpenDetail)
-                    }
-                }
-            }
-            if (filtered.isEmpty()) item { Text("No titles at this score yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-        }
-    }
+    FilteredTitlesPage(vm, filtered, "No titles at this score yet.", onOpenDetail)
 }
-// Opened by tapping a
-// Starts on the tapped
-// appears in the list,
-// ScoreFilterScreen above — same
-// year instead of score
-// isn't limited to rated
+
+// Same tolerant startDate parsing the Year chart uses, so a year tapped there is a tab here.
+private fun filterReleaseYear(item: MediaItem) = item.startDate.take(4).toIntOrNull()?.takeIf { it in 1900..2100 }
+
+// Opened by tapping a bar in the Stats card's year chart. Starts on the tapped year; isn't limited to rated titles.
+// Tabs: All, then every release year newest first, each with its count.
 @Composable fun YearFilterScreen(vm: LibraryViewModel, type: MediaType, initialYear: Int, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
-    val c = LocalKikoColors.current
-    val context = LocalContext.current
     BackHandler(onBack = onBack)
     var sortSheetOpen by remember { mutableStateOf(false) }
     val sortCtx = LocalContext.current
     var year by remember { mutableStateOf(initialYear) }
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
-    // Same tolerant startDate parsing
-    // here line up with
-    fun releaseYear(item: MediaItem) = item.startDate.take(4).toIntOrNull()?.takeIf { it in 1900..2100 }
-    val years = remember(typeItems) { typeItems.mapNotNull(::releaseYear).distinct().sortedDescending() }
-    val filtered = remember(typeItems, year, vm.yearFilterSort, vm.yearFilterSortReversed, vm.titleLanguage) {
-        typeItems.filter { val y = releaseYear(it); y != null && (year == 0 || y == year) }.sortedWithListSort(vm.yearFilterSort, vm.titleLanguage, vm.yearFilterSortReversed)
-    }
-    val staggerSeen = rememberStaggerMemory()
-    val isGrid = vm.listViewMode == ListViewMode.Grid
-    // Year picker moved off
-    // them scrolled out of
-    // GenreFilterScreen below. See YearFilterFab/YearFilterSheet.
-    var yearSheetOpen by remember { mutableStateOf(false) }
-    val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
-        }
-    }
+    val yearCounts = remember(typeItems) { typeItems.mapNotNull(::filterReleaseYear).groupingBy { it }.eachCount() }
+    val yearOptions = remember(yearCounts) { listOf(0) + yearCounts.keys.sortedDescending() }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 0.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Year Distribution", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
-            IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.headerEdgeEnd()) {
-                Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
-            }
-        }
+        FilterScreenHeader("Year Distribution", onBack) { sortSheetOpen = true }
         if (sortSheetOpen) ListSortSheet(vm.yearFilterSort, vm.yearFilterSortReversed, onDismiss = { sortSheetOpen = false }, heading = "Titles") { sort, reversed -> vm.setYearFilterSort(sortCtx, sort, reversed) }
-        Box(Modifier.weight(1f)) {
-            Box(Modifier.fillMaxSize()) {
-                if (isGrid) {
-                    LazyVerticalGrid(
-                        columns = vm.gridColumns.cells(),
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
-                        horizontalArrangement = Arrangement.spacedBy(11.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
-                        if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-                    }
-                } else {
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp)) {
-                        item { header() }
-                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                            StaggeredItem(index, staggerSeen) {
-                                Column {
-                                    MyListRow(it, onOpenDetail)
-                                }
-                            }
-                        }
-                        if (filtered.isEmpty()) item { Text("No titles from this year yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-                    }
-                }
-                YearFilterFab(year, onClick = { yearSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp))
-            }
-        }
-    }
-    if (yearSheetOpen) YearFilterSheet(years, year, onDismiss = { yearSheetOpen = false }) { year = it; yearSheetOpen = false }
-}
-// Year picker FAB —
-// "spell it out, don't
-// Tapping it opens YearFilterSheet
-// count here is unbounded
-
-@Composable fun YearFilterFab(current: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val c = LocalKikoColors.current
-    ExtendedFloatingActionButton(
-        onClick = onClick,
-        containerColor = c.primary,
-        contentColor = c.onPrimary,
-        icon = { Icon(Icons.Rounded.DateRange, contentDescription = null) },
-        text = { Text(if (current == 0) "All Years" else current.toString()) },
-        modifier = modifier,
-    )
-}
-// Year picker sheet —
-// first, wrapped into a
-// every year is reachable
-// AdvancedFilterSheet genre/theme sections (see
-
-@Composable fun YearFilterSheet(years: List<Int>, current: Int, onDismiss: () -> Unit, onSelect: (Int) -> Unit) {
-    val c = LocalKikoColors.current
-    val colors = kikoFilterChipColors()
-    val sheetState = rememberModalBottomSheetState()
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
-            Text("Filter by", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Year", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = current == 0, onClick = { onSelect(0) }, label = { Text("All") }, colors = colors)
-                years.forEach { y -> FilterChip(selected = current == y, onClick = { onSelect(y) }, label = { Text(y.toString()) }, colors = colors) }
-            }
-        }
+        KikoTabPager(
+            items = yearOptions,
+            selected = year,
+            onSelect = { year = it },
+            tab = { y, selected -> KikoTabText(if (y == 0) "All" else y.toString(), selected, if (y == 0) yearCounts.values.sum() else yearCounts[y] ?: 0) },
+        ) { pageYear -> YearFilterPage(vm, typeItems, pageYear, onOpenDetail) }
     }
 }
-// Opened by tapping a
-// Starts on the tapped
-// present in the list,
-// YearFilterScreen above — same
-// string instead of score
+@Composable private fun YearFilterPage(vm: LibraryViewModel, typeItems: List<MediaItem>, year: Int, onOpenDetail: (MediaItem) -> Unit) {
+    val filtered = remember(typeItems, year, vm.yearFilterSort, vm.yearFilterSortReversed, vm.titleLanguage) {
+        typeItems.filter { val y = filterReleaseYear(it); y != null && (year == 0 || y == year) }.sortedWithListSort(vm.yearFilterSort, vm.titleLanguage, vm.yearFilterSortReversed)
+    }
+    FilteredTitlesPage(vm, filtered, "No titles from this year yet.", onOpenDetail)
+}
+
+// Opened by tapping a row in the Stats card's format list. Starts on the tapped format. Tabs: All, then each format alphabetically.
 @Composable fun FormatFilterScreen(vm: LibraryViewModel, type: MediaType, initialFormat: String, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
-    val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
     var sortSheetOpen by remember { mutableStateOf(false) }
     val sortCtx = LocalContext.current
     var format by remember { mutableStateOf(initialFormat) }
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
-    val formats = remember(typeItems) { typeItems.map { it.format }.filter { it.isNotBlank() }.distinct().sorted() }
-    // Tab/page order: All (blank), then each format alphabetically.
-    val formatOptions = remember(formats) { listOf("") + formats }
+    val formatCounts = remember(typeItems) { typeItems.map { it.format }.filter { it.isNotBlank() }.groupingBy { it }.eachCount() }
+    val formatOptions = remember(formatCounts) { listOf("") + formatCounts.keys.sorted() }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 0.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Format Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
-            IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.headerEdgeEnd()) {
-                Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
-            }
-        }
+        FilterScreenHeader("Format Breakdown", onBack) { sortSheetOpen = true }
         if (sortSheetOpen) ListSortSheet(vm.formatFilterSort, vm.formatFilterSortReversed, onDismiss = { sortSheetOpen = false }, heading = "Titles") { sort, reversed -> vm.setFormatFilterSort(sortCtx, sort, reversed) }
         KikoTabPager(
             items = formatOptions,
             selected = format,
             onSelect = { format = it },
-            tab = { f, selected -> KikoTabText(f.ifBlank { "All" }, selected) },
+            tab = { f, selected -> KikoTabText(f.ifBlank { "All" }, selected, if (f.isBlank()) formatCounts.values.sum() else formatCounts[f] ?: 0) },
         ) { pageFormat -> FormatFilterPage(vm, typeItems, pageFormat, onOpenDetail) }
     }
 }
-// One swipeable page of FormatFilterScreen — the titles count/toggle/sort row plus the list or grid for one format.
 @Composable private fun FormatFilterPage(vm: LibraryViewModel, typeItems: List<MediaItem>, format: String, onOpenDetail: (MediaItem) -> Unit) {
-    val c = LocalKikoColors.current
-    val context = LocalContext.current
     val filtered = remember(typeItems, format, vm.formatFilterSort, vm.formatFilterSortReversed, vm.titleLanguage) {
         typeItems.filter { it.format.isNotBlank() && (format.isBlank() || it.format == format) }.sortedWithListSort(vm.formatFilterSort, vm.titleLanguage, vm.formatFilterSortReversed)
     }
-    val staggerSeen = rememberStaggerMemory()
-    val isGrid = vm.listViewMode == ListViewMode.Grid
-    val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
-        }
-    }
-    if (isGrid) {
-        LazyVerticalGrid(
-            columns = vm.gridColumns.cells(),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-            itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
-            if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles of this format yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-        }
-    } else {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp)) {
-            item { header() }
-            itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                StaggeredItem(index, staggerSeen) {
-                    Column {
-                        MyListRow(it, onOpenDetail)
-                    }
-                }
-            }
-            if (filtered.isEmpty()) item { Text("No titles of this format yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-        }
-    }
+    FilteredTitlesPage(vm, filtered, "No titles of this format yet.", onOpenDetail)
 }
-// Opened by tapping a
-// Starts on the tapped
-// present in the list,
-// above — same header/list/grid/sort
+
+// Opened by tapping a genre in the Stats card. Starts on the tapped genre. A FAB shows the current pick and its
+// count and opens GenreFilterSheet (every genre, not just the chart's top 6, grouped A to Z).
 @Composable fun GenreFilterScreen(vm: LibraryViewModel, type: MediaType, initialGenre: String, onBack: () -> Unit, onOpenDetail: (MediaItem) -> Unit) {
-    val c = LocalKikoColors.current
-    val context = LocalContext.current
     BackHandler(onBack = onBack)
     var sortSheetOpen by remember { mutableStateOf(false) }
+    var genreSheetOpen by remember { mutableStateOf(false) }
     val sortCtx = LocalContext.current
     var genre by remember { mutableStateOf(initialGenre) }
     val typeItems = remember(vm.items, type) { vm.items.filter { it.type == type } }
-    // Ranked most → least,
-    // without the chart's top-6
-    val genreCounts = remember(typeItems) { typeItems.flatMap { it.genres }.filter { it.isNotBlank() }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key to it.value } }
-    val filtered = remember(typeItems, genre, vm.genreFilterSort, vm.genreFilterSortReversed, vm.titleLanguage) {
-        typeItems.filter { genre.isBlank() || it.genres.any { g -> g == genre } }.sortedWithListSort(vm.genreFilterSort, vm.titleLanguage, vm.genreFilterSortReversed)
-    }
-    val staggerSeen = rememberStaggerMemory()
-    val isGrid = vm.listViewMode == ListViewMode.Grid
-    // Genre picker moved off
-    // past 30-40 distinct tags,
-    // see GenreFilterFab/GenreFilterSheet below.
-    var genreSheetOpen by remember { mutableStateOf(false) }
-    val header: @Composable () -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(top = countRowTopGap(isGrid)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${filtered.size} title${if (filtered.size == 1) "" else "s"}", color = c.muted, fontSize = 13.sp)
-        }
-    }
+    val genreCounts = remember(typeItems) { typeItems.flatMap { it.genres }.filter { it.isNotBlank() }.groupingBy { it }.eachCount() }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 0.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Genre Breakdown", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
-            IconButton(onClick = { sortSheetOpen = true }, modifier = Modifier.headerEdgeEnd()) {
-                Icon(Icons.Rounded.SwapVert, "Sort", tint = c.ink, modifier = Modifier.size(24.dp))
-            }
-        }
+        FilterScreenHeader("Genre Breakdown", onBack) { sortSheetOpen = true }
         if (sortSheetOpen) ListSortSheet(vm.genreFilterSort, vm.genreFilterSortReversed, onDismiss = { sortSheetOpen = false }, heading = "Titles") { sort, reversed -> vm.setGenreFilterSort(sortCtx, sort, reversed) }
         Box(Modifier.weight(1f)) {
-            Box(Modifier.fillMaxSize()) {
-                if (isGrid) {
-                    LazyVerticalGrid(
-                        columns = vm.gridColumns.cells(),
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp),
-                        horizontalArrangement = Arrangement.spacedBy(11.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        item(span = { GridItemSpan(maxLineSpan) }) { Column { header() } }
-                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, item -> StaggeredItem(index, staggerSeen) { ListGridCard(item, onOpenDetail) } }
-                        if (filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-                    }
-                } else {
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 96.dp)) {
-                        item { header() }
-                        itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                            StaggeredItem(index, staggerSeen) {
-                                Column {
-                                    MyListRow(it, onOpenDetail)
-                                }
-                            }
-                        }
-                        if (filtered.isEmpty()) item { Text("No titles with this genre yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
-                    }
-                }
-                GenreFilterFab(genre, onClick = { genreSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp))
-            }
+            GenreFilterPage(vm, typeItems, genre, onOpenDetail)
+            GenreFilterFab(genre, if (genre.isBlank()) typeItems.size else genreCounts[genre] ?: 0, onClick = { genreSheetOpen = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp))
         }
     }
-    if (genreSheetOpen) GenreFilterSheet(genreCounts, typeItems.size, genre, onDismiss = { genreSheetOpen = false }) { genre = it; genreSheetOpen = false }
+    if (genreSheetOpen) GenreFilterSheet(genreCounts.keys.toList(), genre, onDismiss = { genreSheetOpen = false }) { genre = it; genreSheetOpen = false }
 }
-// Genre picker FAB —
-// StatusFilterFab. Truncates to one
-// doesn't blow up the
 
-@Composable fun GenreFilterFab(current: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+// Genre picker FAB: the current genre ("All Genres" when none) and how many titles it has. Long names ellipsize; the count stays.
+@Composable private fun GenreFilterFab(current: String, count: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
     ExtendedFloatingActionButton(
         onClick = onClick,
         containerColor = c.primary,
         contentColor = c.onPrimary,
         icon = { Icon(Icons.Rounded.Sell, contentDescription = null) },
-        text = { Text(current.ifBlank { "All Genres" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        text = {
+            Row(Modifier.widthIn(max = 240.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(current.ifBlank { "All Genres" }, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text("  ·  $count", maxLines = 1, softWrap = false, fontWeight = FontWeight.Bold)
+            }
+        },
         modifier = modifier,
     )
 }
-// Genre picker sheet —
-// with a proportional bar
-// distribution the chart summarizes
 
-@Composable fun GenreFilterSheet(genres: List<Pair<String, Int>>, total: Int, current: String, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
+// Genre picker sheet: "All", then one section per first letter (A, B ... Z; anything else under #), each a wrapped
+// row of the same filter chips Discover's filters use. Tapping a chip picks it and closes the sheet; tapping the
+// picked one again goes back to All.
+@Composable private fun GenreFilterSheet(genres: List<String>, current: String, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
     val c = LocalKikoColors.current
+    val colors = kikoFilterChipColors()
     val sheetState = rememberModalBottomSheetState()
+    val sections = remember(genres) {
+        genres.sortedBy { it.lowercase() }
+            .groupBy { g -> g.first().uppercaseChar().let { ch -> if (ch.isLetter()) ch else '#' } }
+            .entries.sortedWith(compareBy({ it.key == '#' }, { it.key }))
+    }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
             Text("Filter by", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Genre", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 14.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                GenreFilterBarRow("All", total, total, c.primary, selected = current.isBlank()) { onSelect("") }
-                genres.forEachIndexed { index, (g, count) -> GenreFilterBarRow(g, count, total, chartColor(c, index), selected = current == g) { onSelect(g) } }
+            Text("Genre", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = current.isBlank(), onClick = { onSelect("") }, label = { Text("All") }, colors = colors)
+            }
+            sections.forEach { (letter, list) ->
+                Text(letter.toString(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    list.forEach { g -> FilterChip(selected = current == g, onClick = { onSelect(if (current == g) "" else g) }, label = { Text(g) }, colors = colors) }
+                }
             }
         }
     }
 }
-// One ranked row in
-// library total, colored the
-// color reads the same
-
-@Composable fun GenreFilterBarRow(label: String, count: Int, total: Int, barColor: Color, selected: Boolean, onClick: () -> Unit) {
-    val c = LocalKikoColors.current
-    val fraction = if (total > 0) (count.toFloat() / total).coerceIn(0f, 1f) else 0f
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(kikoCorner(14.dp)))
-            .let { m -> if (selected) m.background(c.surfaceContainerHigh) else m }
-            .kikoClickable(scale = 0.98f, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 14.dp),
-    ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (selected) Icon(Icons.Rounded.Check, contentDescription = null, tint = c.primary, modifier = Modifier.size(16.dp).padding(end = 8.dp))
-                Text(label, color = c.ink, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 14.sp)
-            }
-            Text(count.toString(), color = barColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-        }
-        Spacer(Modifier.height(9.dp))
-        Box(Modifier.fillMaxWidth().height(7.dp).clip(kikoPillShape()).background(c.surfaceLow)) {
-            Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().clip(kikoPillShape()).background(barColor))
-        }
+@Composable private fun GenreFilterPage(vm: LibraryViewModel, typeItems: List<MediaItem>, genre: String, onOpenDetail: (MediaItem) -> Unit) {
+    val filtered = remember(typeItems, genre, vm.genreFilterSort, vm.genreFilterSortReversed, vm.titleLanguage) {
+        typeItems.filter { genre.isBlank() || it.genres.any { g -> g == genre } }.sortedWithListSort(vm.genreFilterSort, vm.titleLanguage, vm.genreFilterSortReversed)
     }
+    FilteredTitlesPage(vm, filtered, "No titles with this genre yet.", onOpenDetail, bottomPadding = 96.dp) // room for the FAB
 }
 
 // App info page
