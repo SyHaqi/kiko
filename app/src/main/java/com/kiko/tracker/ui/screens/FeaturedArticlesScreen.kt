@@ -14,6 +14,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.focus.FocusRequester
@@ -50,6 +51,7 @@ import com.kiko.tracker.data.model.FeaturedTag
 import com.kiko.tracker.ui.components.LinkifiedText
 import com.kiko.tracker.ui.components.Pill
 import com.kiko.tracker.ui.components.SearchField
+import com.kiko.tracker.ui.components.centerChip
 import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
@@ -58,13 +60,16 @@ import com.kiko.tracker.ui.theme.kikoCorner
 import com.kiko.tracker.ui.theme.kikoPillShape
 import com.kiko.tracker.viewmodel.LibraryViewModel
 
-// Full "Featured Articles" browse — single-column list, infinite scroll,
-// backed by LibraryViewModel.loadFeaturedArticlesGrid/loadMoreFeaturedArticlesGrid
-// (MalDetailScrapeApi.fetchFeaturedArticlesPage). Tapping a card opens
-// FeaturedArticleScreen in-app instead of the CustomTabsIntent browser tab
-// Home/Detail used to use. Every item below (including the header, empty
-// state, and loading footer) carries an explicit `key` so LazyColumn can
-// diff/animate reliably and scroll stays smooth as pages load in.
+// Full "Featured Articles" browse — infinite scroll, backed by
+// LibraryViewModel.loadFeaturedArticlesGrid/loadMoreFeaturedArticlesGrid
+// (MalDetailScrapeApi.fetchFeaturedArticlesPage). Tapping an article opens
+// FeaturedArticleScreen in-app.
+//
+// Layout (Material 3 Expressive, kept deliberately quiet): search field, one row of tag chips
+// (single tap filters, no sheet), the newest article as a large rounded "hero" card, then the rest
+// as a grouped list — big outer corners, tight inner corners, a 2dp gap and no divider lines, the
+// same shape language as the Forums board list and Settings. Every item carries an explicit `key`
+// so LazyColumn can diff/animate reliably and scroll stays smooth as pages load in.
 @Composable fun FeaturedArticlesScreen(vm: LibraryViewModel, onBack: () -> Unit, onOpenArticle: (String, String) -> Unit) {
     val c = LocalKikoColors.current
     BackHandler(onBack = onBack)
@@ -74,19 +79,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         initialFirstVisibleItemScrollOffset = vm.featuredArticlesScrollOffset,
     )
     val scope = rememberCoroutineScope()
-    // Persistent search field under the header now (Search & Discover's own
-    // shape) instead of an icon that expands/collapses — text stays local
-    // until submitted, so typing doesn't refetch on every keystroke.
+    // Text stays local until submitted, so typing doesn't refetch on every keystroke.
     var searchQuery by remember { mutableStateOf(vm.featuredArticlesQuery) }
     val searchFocusRequester = remember { FocusRequester() }
-    // Resets just the field's own local state — used when a tag gets
-    // applied from the sheet below, so the two filters never fight over
-    // what's showing in the header (selectFeaturedArticlesTag already
-    // clears the vm's query, this just keeps the UI in sync with it).
-    val collapseSearchUi: () -> Unit = { searchQuery = "" }
-    // Tag-filter sheet — "All" plus every category off
-    // myanimelist.net/featured/tag (Interview, Analysis, Cosplay, ...).
-    var tagSheetOpen by remember { mutableStateOf(false) }
     val showGoToTop by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 600 } }
     // Persist scroll position on ANY exit from this screen — tapping into an
     // article, pressing the header back button, or the system back gesture —
@@ -107,205 +102,178 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             .distinctUntilChanged()
             .collect { (lastVisible, total) -> if (lastVisible != null && total > 0 && lastVisible >= total - 5) vm.loadMoreFeaturedArticlesGrid() }
     }
+    val articles = vm.featuredArticles
+    val hero = articles.firstOrNull()
+    val rest = if (articles.size > 1) articles.subList(1, articles.size) else emptyList()
     Column(Modifier.fillMaxSize()) {
         KikoTopBar(title = "Featured Articles", onBack = onBack, progress = { 1f })
         Box(Modifier.weight(1f)) {
-            Box(Modifier.fillMaxSize()) {
-                KikoPullToRefreshBox(isRefreshing = vm.featuredArticlesLoading && vm.featuredArticles.isNotEmpty(), onRefresh = { vm.loadFeaturedArticlesGrid(force = true) }, modifier = Modifier.fillMaxSize()) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
-                    ) {
-                        item(key = "header") {
-                            // Search bar + tag filter button, same row shape as
-                            // Search & Discover's own SearchField/FilterIconButton
-                            // pair — IntrinsicSize.Min so the tag button matches the
-                            // field's height exactly regardless of platform default.
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(top = 15.dp),
-                            ) {
-                                Box(Modifier.weight(1f)) {
-                                    SearchField(
-                                        value = searchQuery,
-                                        change = { searchQuery = it },
-                                        hint = "Search articles",
-                                        onSearch = { vm.searchFeaturedArticles(searchQuery) },
-                                        onClear = { searchQuery = ""; vm.searchFeaturedArticles("") },
-                                        focusRequester = searchFocusRequester,
-                                    )
+            KikoPullToRefreshBox(isRefreshing = vm.featuredArticlesLoading && articles.isNotEmpty(), onRefresh = { vm.loadFeaturedArticlesGrid(force = true) }, modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
+                ) {
+                    item(key = "header") {
+                        Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                            SearchField(
+                                value = searchQuery,
+                                change = { searchQuery = it },
+                                hint = "Search articles",
+                                onSearch = { vm.searchFeaturedArticles(searchQuery) },
+                                onClear = { searchQuery = ""; vm.searchFeaturedArticles("") },
+                                focusRequester = searchFocusRequester,
+                            )
+                            if (vm.featuredTags.isNotEmpty()) {
+                                val chipState = androidx.compose.foundation.lazy.rememberLazyListState()
+                                LazyRow(state = chipState, horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
+                                    item(key = "tag_all") {
+                                        FilterChip(
+                                            selected = vm.featuredArticlesTagSlug == null,
+                                            onClick = { searchQuery = ""; vm.selectFeaturedArticlesTag(null); scope.centerChip(chipState, 0) },
+                                            label = { Text("All") }, colors = kikoFilterChipColors(),
+                                        )
+                                    }
+                                    itemsIndexed(vm.featuredTags, key = { _, tag -> tag.slug }) { index, tag ->
+                                        FilterChip(
+                                            selected = vm.featuredArticlesTagSlug == tag.slug,
+                                            onClick = { searchQuery = ""; vm.selectFeaturedArticlesTag(tag.slug); scope.centerChip(chipState, index + 1) },
+                                            label = { Text(tag.name) }, colors = kikoFilterChipColors(),
+                                        )
+                                    }
                                 }
-                                if (vm.featuredTags.isNotEmpty()) {
-                                    FeaturedTagFilterButton(
-                                        selectedName = vm.featuredTags.firstOrNull { it.slug == vm.featuredArticlesTagSlug }?.name,
-                                        onClick = { tagSheetOpen = true },
-                                        modifier = Modifier.fillMaxHeight().padding(start = 10.dp),
-                                    )
-                                }
+                            } else {
+                                Spacer(Modifier.height(14.dp))
                             }
-                            Spacer(Modifier.height(18.dp))
                             vm.featuredArticlesError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp)) }
                         }
-                        if (vm.featuredArticlesLoading && vm.featuredArticles.isEmpty()) {
-                            item { KikoSectionLoading() }
-                        } else if (vm.featuredArticles.isEmpty() && vm.featuredArticlesError == null) {
-                            item(key = "empty") { Text("No articles found.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(top = 40.dp), textAlign = TextAlign.Center) }
-                        } else {
-                            itemsIndexed(vm.featuredArticles, key = { _, it -> it.url }) { index, article ->
+                    }
+                    if (vm.featuredArticlesLoading && articles.isEmpty()) {
+                        item(key = "loading") { KikoSectionLoading() }
+                    } else if (articles.isEmpty() && vm.featuredArticlesError == null) {
+                        item(key = "empty") {
+                            Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Rounded.Article, null, tint = c.muted, modifier = Modifier.size(32.dp))
+                                Text("No articles found", color = c.muted, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp))
+                            }
+                        }
+                    } else {
+                        if (hero != null) {
+                            item(key = "hero") { FeaturedArticleHero(hero) { openArticle(hero) } }
+                        }
+                        if (rest.isNotEmpty()) {
+                            item(key = "latest_label") {
+                                Text("Latest", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 10.dp))
+                            }
+                            itemsIndexed(rest, key = { _, it -> it.url }) { index, article ->
                                 StaggeredItem(index) {
-                                    Column {
-                                        FeaturedArticleListRow(article) { openArticle(article) }
-                                        if (index < vm.featuredArticles.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                                    Box(Modifier.padding(bottom = 2.dp)) {
+                                        FeaturedArticleListRow(article, forumGroupShape(index, rest.size)) { openArticle(article) }
                                     }
                                 }
                             }
                         }
-                        if (vm.featuredArticlesLoadingMore) {
-                            item(key = "loading_more") { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 28.dp) } }
-                        }
+                    }
+                    if (vm.featuredArticlesLoadingMore) {
+                        item(key = "loading_more") { Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 28.dp) } }
                     }
                 }
-                if (tagSheetOpen) {
-                    FeaturedTagFilterSheet(
-                        tags = vm.featuredTags,
-                        current = vm.featuredArticlesTagSlug,
-                        onDismiss = { tagSheetOpen = false },
-                        onApply = { picked -> tagSheetOpen = false; collapseSearchUi(); vm.selectFeaturedArticlesTag(picked) },
-                    )
-                }
-                GoToTopButton(
-                    visible = showGoToTop,
-                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
-                )
             }
+            GoToTopButton(
+                visible = showGoToTop,
+                onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 20.dp),
+            )
         }
     }
 }
 
-// Small header button that opens FeaturedTagFilterSheet — shows the
-// selected tag's name once one is applied (truncated), otherwise just
-// "Tags". Sized to match whatever height its caller gives it (the search
-// field's own height, via the parent Row's IntrinsicSize.Min) rather than a
-// fixed height of its own, same "match the field beside it" shape as
-// Search & Discover's FilterIconButton.
-@Composable fun FeaturedTagFilterButton(selectedName: String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+// "by Author · 1.2K views" — shared by the hero card and the list rows.
+@Composable private fun ArticleMetaLine(author: String, views: String, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
-    val active = selectedName != null
-    Row(
-        modifier
-            .clip(RoundedCornerShape(kikoCorner(18.dp)))
-            .background(if (active) c.primary else c.surfaceContainerHigh)
-            .kikoClickable(onClick = onClick)
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Rounded.FilterList, "Filter by tag", tint = if (active) c.onPrimary else c.ink, modifier = Modifier.size(16.dp))
-        Text(
-            selectedName ?: "Tags",
-            color = if (active) c.onPrimary else c.ink,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 6.dp).widthIn(max = 100.dp),
-        )
-    }
-}
-
-// Tag-filter sheet — every category off myanimelist.net/featured/tag
-// (Interview, Analysis, Cosplay, Studios, ...) as single-select chips,
-// staged locally until "Apply" so browsing the sheet doesn't refetch on
-// every tap. Same Reset/Apply footer shape as DiscoverScreen's own
-// AdvancedFilterSheet.
-@Composable fun FeaturedTagFilterSheet(tags: List<FeaturedTag>, current: String?, onDismiss: () -> Unit, onApply: (String?) -> Unit) {
-    val c = LocalKikoColors.current
-    var pending by remember { mutableStateOf(current) }
-    val sheetState = rememberModalBottomSheetState()
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow) {
-        Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
-            Text("Featured Articles", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("Filter by tag", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 5.dp, bottom = 18.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = pending == null, onClick = { pending = null }, label = { Text("All") }, colors = kikoFilterChipColors())
-                tags.forEach { tag -> FilterChip(selected = pending == tag.slug, onClick = { pending = tag.slug }, label = { Text(tag.name) }, colors = kikoFilterChipColors()) }
-            }
-            Row(Modifier.fillMaxWidth().padding(top = 26.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                TextButton(onClick = { pending = null }, modifier = Modifier.weight(1f)) { Text("Reset", color = c.muted, fontWeight = FontWeight.Bold) }
-                Button(
-                    onClick = { onApply(pending) },
-                    colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
-                    modifier = Modifier.weight(2f),
-                ) { Text("Apply", fontWeight = FontWeight.Bold) }
-            }
+    if (author.isBlank() && views.isBlank()) return
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        if (author.isNotBlank()) {
+            Text("by $author", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        }
+        if (views.isNotBlank()) {
+            if (author.isNotBlank()) Text("  ·  ", color = c.muted, fontSize = 12.sp)
+            Icon(Icons.Rounded.Visibility, null, tint = c.muted, modifier = Modifier.size(13.dp))
+            Text(" $views", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
         }
     }
 }
 
-// Single card in the single-column browse list — thumbnail, title, author,
-// and an optional tag pill (Advertorial/Spoiler/Events/...) echoing the one
-// shown on myanimelist.net's own news-unit rows.
-//
-// Row layout with a square-ish thumbnail (not a full-width banner) — MAL's
-// own news-unit list serves these particular images as small, unproxied
-// (no "/r/WxH/" resize path) uploads, so they're genuinely low-resolution
-// source files rather than crops of a bigger master asset. Stretched across
-// the full card width at 180dp tall (the old layout) that low native
-// resolution became obvious — soft, and with Crop's zoom-to-fill, sometimes
-// showing little more than an enlarged corner of the image. Sizing the
-// thumbnail close to how myanimelist.net itself displays these (a modest,
-// roughly-square tile) keeps the same source file from having to stretch
-// nearly as far, so it reads the same way it does on the site.
-// "My List" row shape (no card background, plain row separated by a hairline
-// divider) instead of a Card — but the thumbnail sits as a full-width banner
-// on top rather than a leading square/portrait cover. Fixed wide aspect
-// ratio (16:9, matches the fallback/skeleton box below) instead of sizing
-// off the image's own intrinsic dimensions — leaving height unconstrained
-// let it render as a big square while Coil had no reported size yet, and
-// most of these article thumbnails are wide (banner-shaped) source images
-// to begin with, so a wide box crops very little off them.
-@Composable fun FeaturedArticleListRow(article: FeaturedArticleEntry, onClick: () -> Unit) {
+// Category label (Interview, Analysis, Cosplay...) — plain primary-coloured caps instead of a pill, to keep the lists quiet.
+@Composable private fun ArticleTagLabel(tag: String, modifier: Modifier = Modifier) {
+    if (tag.isBlank()) return
+    val c = LocalKikoColors.current
+    Text(tag.uppercase(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 0.8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
+}
+
+// The newest article as one big card: wide image on top, then label, title, a two-line snippet and meta.
+// Most of these source images are small unproxied uploads, so Size.ORIGINAL keeps Coil from
+// downsampling them any further than they already are.
+@Composable fun FeaturedArticleHero(article: FeaturedArticleEntry, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     Column(
-        Modifier
-            .fillMaxWidth()
-            .kikoClickable(onClick = onClick)
-            .padding(vertical = 16.dp),
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(28.dp)))
+            .background(c.surfaceContainerHigh)
+            .kikoClickable(scale = 0.98f, onClick = onClick),
     ) {
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
-        ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(c.surfaceContainerHighest)) {
             if (article.image.isNotBlank()) {
                 AsyncImage(
-                    // Size.ORIGINAL so Coil decodes at the source's own
-                    // resolution instead of downsampling to a guessed view
-                    // size — there's no quality to give up further on top of
-                    // an already-small source file.
-                    model = ImageRequest.Builder(context).data(article.image).size(Size.ORIGINAL).allowHardware(true).build(),
+                    model = ImageRequest.Builder(context).data(article.image).size(Size.ORIGINAL).allowHardware(true).crossfade(true).build(),
                     contentDescription = article.title,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                     filterQuality = FilterQuality.High,
                 )
             } else {
-                Text(article.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 30.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
+                Icon(Icons.Rounded.Article, null, tint = c.muted, modifier = Modifier.align(Alignment.Center).size(40.dp))
             }
         }
-        Text(article.title, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 23.sp, color = c.ink, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
-        if (article.snippet.isNotBlank()) {
-            Text(article.snippet, color = c.muted, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp)) {
+            ArticleTagLabel(article.tag, Modifier.padding(bottom = 6.dp))
+            Text(article.title, style = MaterialTheme.typography.titleLarge, fontSize = 22.sp, lineHeight = 29.sp, color = c.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            if (article.snippet.isNotBlank()) {
+                Text(article.snippet, color = c.muted, fontSize = 14.sp, lineHeight = 20.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+            }
+            ArticleMetaLine(article.author, article.views, Modifier.padding(top = 12.dp))
         }
-        Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (article.author.isNotBlank()) Text("by ${article.author}", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (article.views.isNotBlank()) {
-                if (article.author.isNotBlank()) Text("  ·  ", color = c.muted, fontSize = 12.sp)
-                Icon(Icons.Rounded.Visibility, null, tint = c.muted, modifier = Modifier.size(12.dp))
-                Text(" ${article.views} views", color = c.muted, fontWeight = FontWeight.Medium, fontSize = 12.sp)
+    }
+}
+
+// One article in the grouped list: text on the left (label, title, meta), a small rounded thumbnail on the right.
+@Composable fun FeaturedArticleListRow(
+    article: FeaturedArticleEntry,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(kikoCorner(20.dp)),
+    onClick: () -> Unit,
+) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    Row(
+        Modifier.fillMaxWidth().clip(shape).background(c.surfaceContainerHigh).kikoClickable(scale = 0.98f, onClick = onClick).padding(16.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(Modifier.weight(1f)) {
+            ArticleTagLabel(article.tag, Modifier.padding(bottom = 4.dp))
+            Text(article.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 22.sp, color = c.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            ArticleMetaLine(article.author, article.views, Modifier.padding(top = 10.dp))
+        }
+        if (article.image.isNotBlank()) {
+            Box(Modifier.padding(start = 14.dp).size(88.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHighest)) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context).data(article.image).crossfade(true).build(),
+                    contentDescription = article.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                )
             }
         }
-        if (article.tag.isNotBlank()) Box(Modifier.padding(top = 8.dp)) { Pill(article.tag, c.primaryContainer, c.onPrimaryContainer) }
     }
 }
 
@@ -364,28 +332,24 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         }
         Box(Modifier.weight(1f)) {
             Box(Modifier.fillMaxSize()) {
-                Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp)) {
-                    Text(content?.title?.ifBlank { title } ?: title, style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 18.dp))
+                // Slightly wider side margins than list screens: this is long-form reading.
+                Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(start = 18.dp, end = 18.dp, bottom = if (showGoToTop) 90.dp else 32.dp)) {
+                    Text(content?.title?.ifBlank { title } ?: title, style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 10.dp))
                     if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.primary)
                     error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
                     content?.let { data ->
-                        if (data.author.isNotBlank() || data.date.isNotBlank() || data.views.isNotBlank()) {
-                            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                if (data.author.isNotBlank()) Text("by ${data.author}", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                                if (data.date.isNotBlank()) Text(" · ${data.date}", color = c.muted, fontSize = 12.sp)
-                                if (data.views.isNotBlank()) {
-                                    Row(Modifier.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Rounded.Visibility, null, tint = c.muted, modifier = Modifier.size(12.dp))
-                                        Text(" ${data.views}", color = c.muted, fontSize = 12.sp)
-                                    }
-                                }
-                            }
-                        }
+                        // "by Author · Nov 3, 2026 · 1.2K views" on one quiet line.
+                        val meta = listOfNotNull(
+                            data.author.takeIf { it.isNotBlank() }?.let { "by $it" },
+                            data.date.takeIf { it.isNotBlank() },
+                            data.views.takeIf { it.isNotBlank() }?.let { "$it views" },
+                        ).joinToString("  ·  ")
+                        if (meta.isNotEmpty()) Text(meta, color = c.muted, fontSize = 13.sp, lineHeight = 18.sp)
                         if (data.tags.isNotEmpty()) {
-                            Row(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                            FlowRow(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 data.tags.forEach { tag ->
-                                    Box(Modifier.padding(end = 6.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 4.dp)) {
-                                        Text(tag, color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    Box(Modifier.clip(kikoPillShape()).background(c.secondaryContainer).padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                        Text(tag, color = c.onSecondaryContainer, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                                     }
                                 }
                             }
@@ -402,10 +366,19 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 }
                             }
                         }
-                        Column(Modifier.fillMaxWidth().padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            data.blocks.forEach { block -> ArticleBlockView(block, c, onOpenProfileLink = onOpenProfileLink) { fullscreenImage = it } }
+                        HorizontalDivider(thickness = 1.dp, color = c.outlineVariant, modifier = Modifier.padding(top = 18.dp))
+                        if (data.body.isNotBlank()) {
+                            // Rich body: same BBCode renderer as forum posts, with reading-sized text and looser spacing.
+                            ForumBody(
+                                data.body, Modifier.padding(top = 20.dp), onOpenProfileLink = onOpenProfileLink,
+                                background = c.background, textSize = 16f, lineHeight = 1.6f, blockSpacing = 18.dp,
+                            )
+                        } else {
+                            Column(Modifier.fillMaxWidth().padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                data.blocks.forEach { block -> ArticleBlockView(block, c, onOpenProfileLink = onOpenProfileLink) { fullscreenImage = it } }
+                            }
                         }
-                        if (data.blocks.isEmpty() && !loading && error == null) {
+                        if (data.blocks.isEmpty() && data.body.isBlank() && !loading && error == null) {
                             Text("Couldn't read this article's content — tap the browser icon above to view it on myanimelist.net.", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 20.dp))
                         }
                     }
@@ -420,16 +393,18 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     }
 }
 
+// Body blocks tuned for reading: 16sp text on a 26sp line, a real heading step, and the same rounded
+// image treatment the forum uses.
 @Composable fun ArticleBlockView(block: ArticleBlock, c: com.kiko.tracker.ui.theme.KikoColors, onOpenProfileLink: (MalProfileLink) -> Unit = {}, onImageTap: (String) -> Unit) {
     when (block) {
-        is ArticleBlock.Heading -> LinkifiedText(block.text, fontWeight = FontWeight.Bold, fontSize = 17.sp, lineHeight = 22.sp, color = c.ink, modifier = Modifier.padding(top = 6.dp), onOpenProfileLink = onOpenProfileLink)
-        is ArticleBlock.Paragraph -> LinkifiedText(block.text, fontSize = 14.sp, lineHeight = 21.sp, color = c.ink, onOpenProfileLink = onOpenProfileLink)
+        is ArticleBlock.Heading -> LinkifiedText(block.text, fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 27.sp, color = c.ink, modifier = Modifier.padding(top = 8.dp), onOpenProfileLink = onOpenProfileLink)
+        is ArticleBlock.Paragraph -> LinkifiedText(block.text, fontSize = 16.sp, lineHeight = 26.sp, color = c.ink, onOpenProfileLink = onOpenProfileLink)
         is ArticleBlock.Image -> ForumImage(block.url, c, onImageTap)
-        is ArticleBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        is ArticleBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             block.items.forEachIndexed { index, item ->
                 Row {
-                    Text(if (block.ordered) "${index + 1}." else "•", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(end = 8.dp).width(18.dp))
-                    LinkifiedText(item, color = c.ink, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.weight(1f), onOpenProfileLink = onOpenProfileLink)
+                    Text(if (block.ordered) "${index + 1}." else "\u2022", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 16.sp, lineHeight = 24.sp, modifier = Modifier.padding(end = 10.dp).widthIn(min = 16.dp))
+                    LinkifiedText(item, color = c.ink, fontSize = 16.sp, lineHeight = 24.sp, modifier = Modifier.weight(1f), onOpenProfileLink = onOpenProfileLink)
                 }
             }
         }

@@ -46,22 +46,9 @@ import java.util.TimeZone
  * rendered HTML and re-emits it as the same bracket-tag string the REST path produces, so every
  * post — scraped or REST — flows through one shared rendering pipeline from here on.
  *
- * htmlToBb is necessarily reverse-engineered off the same single captured page as the rest of
- * this file, so treat its tag coverage as best-effort, not exhaustive:
- *  - [b]/[i]/[u]/[s], [url=...], [img], [list]/[list=1], [quote], and centered blocks are mapped.
- *  - MAL's rendered YouTube embed (<iframe class="movie youtube" src=".../embed/ID">) is emitted
- *    as "[yt]ID[/yt]" — the same tag MAL's REST body carries — so it renders as a tappable
- *    thumbnail instead of vanishing (an iframe has no child nodes, so the generic fallthrough
- *    used to produce nothing). Non-YouTube iframes are still dropped.
- *  - A bare tenor.com/view link (href text == its own URL) is emitted as an unadorned
- *    "[url]...[/url]" rather than "[url=...]...[/url]" specifically so normalizeMalMarkup's
- *    bareTenorLinkRegex still catches it and inlines the actual GIF, same as it already does for
- *    REST-sourced posts.
- *  - Not handled, because no verified sample exists: emoticon/smilie icons (any <img> — including
- *    a tiny smiley — becomes a full [img] block, same visual weight as a real embedded picture),
- *    quote author-attribution headers ("username said:" — only the quoted text itself survives),
- *    and [spoiler] (parseBBCode has no spoiler support at all yet, even on the REST path, so this
- *    just matches existing behavior rather than introducing a new gap).
+ * htmlToBb is reverse-engineered off captured pages, so treat its tag coverage as best-effort: see its own
+ * doc comment for exactly what is mapped (formatting, colour/size, alignment, links, images, YouTube,
+ * lists, code, quotes with authors and spoilers).
  */
 class MalForumScrapeApi {
     private val client = NetworkClient.shared
@@ -111,79 +98,160 @@ class MalForumScrapeApi {
         return sdf.format(Date(epochSeconds * 1000))
     }
 
-    // Block-level tags get a paragraph break after their content so paragraphsFrom's blank-line
+    // Block-level tags get a paragraph break after their content so the renderer's blank-line
     // splitting (BBCodeParser.kt) still separates them the way it would separate two real
-    // BBCode paragraphs. Extra blank lines this produces are harmless — that same function
-    // already trims/filters blank segments.
-    private val blockLevelTags = setOf("div", "p", "tr", "table", "tbody", "td", "section", "h1", "h2", "h3", "h4", "h5", "h6")
+    // BBCode paragraphs. Extra blank lines this produces are harmless — the renderer already
+    // trims/filters blank segments.
+    private val blockLevelTags = setOf("div", "p", "tr", "table", "tbody", "td", "section", "figure", "figcaption", "article", "aside", "h1", "h2", "h3", "h4", "h5", "h6")
+    private val headingTags = setOf("h1", "h2", "h3", "h4", "h5", "h6")
+
+    private val styleColorRegex = Regex("""(?:^|;)color:([^;]+)""")
+    private val styleSizeRegex = Regex("""font-size:(\d+)%""")
+    private val styleWidthRegex = Regex("""(?:^|;)width:(\d+)px""")
+    private val rgbRegex = Regex("""rgba?\((\d+),(\d+),(\d+)""")
+
+    // "rgb(255,0,0)" -> "#FF0000"; named colours and #hex values pass through untouched.
+    private fun cssColorToBb(raw: String): String? {
+        val v = raw.trim().lowercase()
+        if (v.isBlank() || v == "inherit" || v == "initial" || v == "transparent") return null
+        rgbRegex.find(v)?.let { m ->
+            val (r, g, b) = m.destructured
+            return "#%02X%02X%02X".format(r.toInt().coerceIn(0, 255), g.toInt().coerceIn(0, 255), b.toInt().coerceIn(0, 255))
+        }
+        return v
+    }
+
+    // Relative links ("/profile/x", "/anime/1/y") only make sense on myanimelist.net.
+    private fun absoluteHref(raw: String): String {
+        val href = raw.trim()
+        return if (href.startsWith("/") && !href.startsWith("//")) "https://myanimelist.net$href" else href
+    }
 
     // Walks MAL's already-rendered post/signature HTML and re-emits it as the bracket-tag BBCode
-    // string parseBBCode (BBCodeParser.kt) already knows how to read — see this file's class doc
-    // comment for exactly which tags are covered and which known gaps are left unguessed-at.
-    internal fun htmlToBb(root: Element): String {
+    // string parseBBCode (BBCodeParser.kt) reads. Covered: bold / italic / underline / strike
+    // (tags and inline styles), colour and percentage font-size spans, centre / right alignment,
+    // links, images (small ones keep a width hint), YouTube embeds, lists, headings, rules, code
+    // blocks, quotes (with the "Name said:" author) and spoilers.
+    //
+    // Still not handled because no verified sample exists: emoticon-specific markup (a small
+    // image just becomes a small [img]) and polls.
+    // articleMode: used for Featured Article bodies. Headings become larger bold text (instead of just bold)
+    // and image URLs go through mapImage (full-resolution rewrite).
+    internal fun htmlToBb(root: Element, articleMode: Boolean = false, mapImage: (String) -> String = { it }): String {
         val sb = StringBuilder()
 
         fun visit(node: Node) {
             when (node) {
-                is TextNode -> sb.append(node.text())
+                is TextNode -> {
+                    // Jsoup's text() collapses the newline after a <br /> into a space, which would leave
+                    // every line after a line break starting with a stray indent. Drop it like a browser does.
+                    val t = node.text()
+                    sb.append(if (sb.isEmpty() || sb.last() == '\n') t.trimStart() else t)
+                }
                 is Element -> {
                     val tag = node.tagName().lowercase()
                     val style = node.attr("style").replace(" ", "").lowercase()
+                    // --- elements that are fully handled on their own -------------------------
                     when {
-                        tag == "br" -> sb.append("\n")
+                        tag == "br" -> {
+                            while (sb.isNotEmpty() && sb.last() == ' ') sb.setLength(sb.length - 1)
+                            sb.append("\n"); return
+                        }
+                        tag == "hr" -> { sb.append("\n[hr]\n"); return }
+                        // Spoiler buttons, scripts, style blocks: nothing to show.
+                        tag == "input" || tag == "script" || tag == "style" || tag == "button" -> return
                         tag == "iframe" -> {
                             val id = youTubeIdFrom(node.attr("data-src").ifBlank { node.attr("src") })
                             if (id != null) sb.append("\n[yt]").append(id).append("[/yt]\n")
+                            return
                         }
                         tag == "img" -> {
-                            val src = node.attr("data-src").ifBlank { node.attr("src") }.trim()
-                            if (src.isNotBlank()) sb.append("[img]").append(src).append("[/img]")
-                        }
-                        tag == "a" -> {
-                            val href = node.attr("href").trim()
-                            when {
-                                href.isBlank() -> node.childNodes().forEach(::visit)
-                                href.contains("tenor.com/view/", ignoreCase = true) && node.text().trim() == href ->
-                                    sb.append("[url]").append(href).append("[/url]")
-                                else -> {
-                                    sb.append("[url=").append(href).append("]")
-                                    node.childNodes().forEach(::visit)
-                                    sb.append("[/url]")
-                                }
+                            val raw = node.attr("data-src").ifBlank { node.attr("src") }.trim()
+                            val src = mapImage(node.absUrl("data-src").ifBlank { node.absUrl("src") }.ifBlank { raw })
+                            if (src.isNotBlank()) {
+                                val width = node.attr("width").toIntOrNull() ?: styleWidthRegex.find(style)?.groupValues?.get(1)?.toIntOrNull()
+                                if (width != null && width > 0) sb.append("[img=").append(width).append("]") else sb.append("[img]")
+                                sb.append(src).append("[/img]")
                             }
+                            return
                         }
-                        tag == "b" || tag == "strong" || style.contains("font-weight:bold") -> {
-                            sb.append("[b]"); node.childNodes().forEach(::visit); sb.append("[/b]")
+                        tag == "pre" || node.hasClass("codetext") -> {
+                            val code = node.wholeText().trim('\n', '\r')
+                            if (code.isNotBlank()) sb.append("\n[code]").append(code).append("[/code]\n")
+                            return
                         }
-                        tag == "i" || tag == "em" -> {
-                            sb.append("[i]"); node.childNodes().forEach(::visit); sb.append("[/i]")
-                        }
-                        tag == "u" -> {
-                            sb.append("[u]"); node.childNodes().forEach(::visit); sb.append("[/u]")
-                        }
-                        tag == "s" || tag == "strike" || tag == "del" || style.contains("text-decoration:line-through") -> {
-                            sb.append("[s]"); node.childNodes().forEach(::visit); sb.append("[/s]")
+                        node.hasClass("spoiler") -> {
+                            val content = node.selectFirst(".spoiler_content")
+                            val button = node.selectFirst("input.show_button")
+                            val label = button?.let { it.attr("data-showname").ifBlank { it.attr("value") } }
+                                ?.removePrefix("Show ")?.trim().orEmpty()
+                            sb.append("\n[spoiler")
+                            if (label.isNotBlank() && !label.equals("spoiler", ignoreCase = true)) sb.append("=").append(label)
+                            sb.append("]")
+                            (content ?: node).childNodes().forEach(::visit)
+                            sb.append("[/spoiler]\n")
+                            return
                         }
                         tag == "blockquote" || node.hasClass("quotetext") -> {
-                            sb.append("\n[quote]"); node.childNodes().forEach(::visit); sb.append("[/quote]\n")
+                            // MAL puts "<strong>Name said:</strong><br>" at the top of a quote.
+                            val kids = node.childNodes().toMutableList()
+                            var author = ""
+                            val first = kids.firstOrNull { !(it is TextNode && it.isBlank) }
+                            if (first is Element && first.tagName().equals("strong", ignoreCase = true) && first.text().trim().endsWith("said:")) {
+                                author = first.text().trim().removeSuffix("said:").trim()
+                                val idx = kids.indexOf(first)
+                                kids.removeAt(idx)
+                                // the <br> right after the author line
+                                val next = kids.getOrNull(idx)
+                                if (next is Element && next.tagName().equals("br", ignoreCase = true)) kids.removeAt(idx)
+                            }
+                            sb.append("\n[quote")
+                            if (author.isNotBlank()) sb.append("=").append(author)
+                            sb.append("]")
+                            kids.forEach(::visit)
+                            sb.append("[/quote]\n")
+                            return
                         }
-                        tag == "li" -> {
-                            sb.append("[*]"); node.childNodes().forEach(::visit); sb.append("\n")
-                        }
-                        tag == "ol" -> {
-                            sb.append("\n[list=1]\n"); node.childNodes().forEach(::visit); sb.append("[/list]\n")
-                        }
-                        tag == "ul" -> {
-                            sb.append("\n[list]\n"); node.childNodes().forEach(::visit); sb.append("[/list]\n")
-                        }
-                        style.contains("text-align:center") -> {
-                            sb.append("\n[center]"); node.childNodes().forEach(::visit); sb.append("[/center]\n")
-                        }
-                        else -> {
-                            node.childNodes().forEach(::visit)
-                            if (tag in blockLevelTags) sb.append("\n\n")
+                        tag == "a" -> {
+                            val href = absoluteHref(node.attr("href"))
+                            if (href.contains("tenor.com/view/", ignoreCase = true) && node.text().trim() == href) {
+                                // Emitted as an unadorned [url] so normalizeMalMarkup's tenor rule still inlines the GIF.
+                                sb.append("[url]").append(href).append("[/url]")
+                                return
+                            }
                         }
                     }
+                    // --- wrapper elements: open tags, children, close tags --------------------
+                    val opens = ArrayList<String>(4)
+                    val closes = ArrayList<String>(4)
+                    fun wrap(open: String, close: String) { opens += open; closes += close }
+
+                    if (tag == "a") {
+                        val href = absoluteHref(node.attr("href"))
+                        if (href.isNotBlank()) wrap("[url=$href]", "[/url]")
+                    }
+                    if (tag in headingTags && articleMode) wrap("\n[size=${if (tag == "h1" || tag == "h2") 130 else 115}][b]", "[/b][/size]")
+                    if (tag == "figcaption" && articleMode) wrap("[size=88]", "[/size]")
+                    if (tag == "b" || tag == "strong" || (tag in headingTags && !articleMode) || style.contains("font-weight:bold") || style.contains("font-weight:700")) wrap("[b]", "[/b]")
+                    if (tag == "i" || tag == "em" || style.contains("font-style:italic")) wrap("[i]", "[/i]")
+                    if (tag == "u" || style.contains("text-decoration:underline")) wrap("[u]", "[/u]")
+                    if (tag == "s" || tag == "strike" || tag == "del" || style.contains("line-through")) wrap("[s]", "[/s]")
+                    styleColorRegex.find(style)?.groupValues?.get(1)?.let(::cssColorToBb)?.let { wrap("[color=$it]", "[/color]") }
+                    styleSizeRegex.find(style)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it != 100 }?.let { wrap("[size=$it]", "[/size]") }
+                    when {
+                        style.contains("text-align:center") || tag == "center" -> wrap("\n[center]", "[/center]\n")
+                        style.contains("text-align:right") -> wrap("\n[right]", "[/right]\n")
+                    }
+                    when (tag) {
+                        "li" -> wrap("[*]", "\n")
+                        "ol" -> wrap("\n[list=1]\n", "[/list]\n")
+                        "ul" -> wrap("\n[list]\n", "[/list]\n")
+                    }
+
+                    opens.forEach { sb.append(it) }
+                    node.childNodes().forEach(::visit)
+                    for (i in closes.indices.reversed()) sb.append(closes[i])
+                    if (tag in blockLevelTags) sb.append("\n\n")
                 }
                 else -> {}
             }

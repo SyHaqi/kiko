@@ -192,6 +192,9 @@ data class FeaturedArticleContent(
     val views: String = "",
     val tags: List<String> = emptyList(),
     val blocks: List<ArticleBlock> = emptyList(),
+    // The article body as BBCode (same pipeline as forum posts, so bold/italic/links/quotes/embeds survive).
+    // `blocks` stays as the plain-text fallback for when this comes back empty.
+    val body: String = "",
     val links: List<Pair<String, String>> = emptyList(),
 )
 // Characters/staff row entries

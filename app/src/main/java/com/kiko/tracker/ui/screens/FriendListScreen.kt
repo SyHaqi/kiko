@@ -375,7 +375,7 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
                     } else {
                         // Like My List: no wrapper and no per-row animation, each row is just the row.
                         itemsIndexed(filtered, key = { _, it -> it.malId }, contentType = { _, _ -> "row" }) { _, entry ->
-                            FriendListRow(entry, type, c, onClick = { onOpenTitle(entry.malId, type) })
+                            FriendListRow(entry, type, c, showStatus = tabStatus == null, onClick = { onOpenTitle(entry.malId, type) })
                         }
                     }
                 }
@@ -452,7 +452,7 @@ private fun friendSortIcon(sort: FriendListSort): androidx.compose.ui.graphics.v
 // progress bar pinned to the bottom. MAL's scraped list-table data has no format / airing-status field (see
 // MalUserListEntry's doc comment), so unlike MyListRow there is no format line, air timer or +1 button here.
 @Composable
-private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.tracker.ui.theme.KikoColors, onClick: () -> Unit) {
+private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.tracker.ui.theme.KikoColors, showStatus: Boolean = false, onClick: () -> Unit) {
     val compact = LocalCompactList.current
     val coverW = if (compact) 72.dp else 88.dp
     val coverH = if (compact) 108.dp else 132.dp
@@ -473,6 +473,8 @@ private fun FriendListRow(entry: MalUserListEntry, type: MediaType, c: com.kiko.
             } else {
                 Text(entry.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.muted, modifier = Modifier.align(Alignment.Center))
             }
+            // Same corner tag as My List's rows; only on the All tab, where statuses are mixed.
+            if (showStatus) CoverStatusMark(entry.status, Modifier.align(Alignment.TopStart))
         }
         Column(
             Modifier.weight(1f).height(coverH).padding(start = 16.dp),

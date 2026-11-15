@@ -1331,7 +1331,8 @@ private fun formatCacheBytes(b: Long): String = when {
     } else {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = countRowTopGap(false), bottom = bottomPadding)) {
             itemsIndexed(filtered, key = { _, it -> it.id }) { index, it ->
-                StaggeredItem(index, staggerSeen) { MyListRow(it, onOpenDetail) }
+                // Score/year/format/genre pages mix every status, so the cover tag is always on (grid tiles already do this).
+                StaggeredItem(index, staggerSeen) { MyListRow(it, onOpenDetail, showStatus = true) }
             }
             if (filtered.isEmpty()) item { Text(emptyText, color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = TextAlign.Center) }
         }

@@ -780,7 +780,8 @@ class MalDetailScrapeApi {
         val bodyEl = container.selectFirst("div.featured-article-body")
         val blocks = bodyEl?.let(::parseFeaturedArticleBody).orEmpty()
         val links = bodyEl?.let(::parseFeaturedArticleLinks).orEmpty()
-        FeaturedArticleContent(title = title, author = author, date = date, views = views, tags = tags, blocks = blocks, links = links)
+        val body = bodyEl?.let { runCatching { MalForumScrapeApi().htmlToBb(it, articleMode = true, mapImage = ::fullResMalImage) }.getOrNull() }.orEmpty().trim()
+        FeaturedArticleContent(title = title, author = author, date = date, views = views, tags = tags, blocks = blocks, links = links, body = body)
     }
 
     // Host suffix for MAL's own domain — links to MAL's own anime/people/forum
