@@ -60,6 +60,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -349,9 +354,12 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                     } else {
                         itemsIndexed(vm.forumTopics, key = { _, it -> it.id }) { index, topic ->
                             StaggeredItem(index) {
-                                Column {
-                                    if (vm.forumIsNewsBoard) NewsTopicRow(topic) { openTopic(topic) } else ForumTopicRow(topic) { openTopic(topic) }
-                                    if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                                if (vm.forumIsNewsBoard) {
+                                    NewsTopicRow(topic) { openTopic(topic) }
+                                } else {
+                                    Box(Modifier.padding(bottom = if (index < vm.forumTopics.lastIndex) 2.dp else 0.dp)) {
+                                        ForumTopicRow(topic, forumGroupShape(index, vm.forumTopics.size)) { openTopic(topic) }
+                                    }
                                 }
                             }
                         }
@@ -369,64 +377,95 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
         }
     }
 }
-// Forum topic list row
-
-@Composable fun ForumTopicRow(topic: ForumTopic, onClick: () -> Unit) {
-    val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
-        if (topic.author.avatar.isNotBlank()) {
-            AsyncImage(model = topic.author.avatar, contentDescription = topic.author.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(36.dp).clip(kikoCircleShape()).background(c.warm))
-        } else {
-            Box(Modifier.size(36.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                Text(topic.author.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
-            }
-        }
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (topic.isLocked) Icon(Icons.Rounded.Lock, null, tint = c.muted, modifier = Modifier.size(13.dp).padding(end = 4.dp))
-                Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            Text("by ${topic.author.name.ifBlank { "Unknown" }} · ${formatForumDate(topic.createdAt)}", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
-            if (topic.lastPostAuthor.name.isNotBlank()) {
-                Text("Last reply by ${topic.lastPostAuthor.name} · ${formatForumDate(topic.lastPostAt)}", color = c.primary, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 3.dp))
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp)) {
-            Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
-            Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+// Forum topic list row: one tonal card per topic (connected-group corners, see forumGroupShape),
+// avatar, two-line title, "who / when", the latest reply, and the reply count as a pill.
+@Composable private fun TopicAvatar(user: ForumUser, size: androidx.compose.ui.unit.Dp, c: KikoColors) {
+    if (user.avatar.isNotBlank()) {
+        AsyncImage(model = user.avatar, contentDescription = user.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(size).clip(kikoCircleShape()).background(c.warm))
+    } else {
+        Box(Modifier.size(size).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
+            Text(user.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.38f).sp, color = c.ink)
         }
     }
 }
-// News Discussion topic row
 
+@Composable private fun ReplyCountPill(count: Int, c: KikoColors, modifier: Modifier = Modifier) {
+    Row(modifier.clip(kikoPillShape()).background(c.secondaryContainer).padding(horizontal = 9.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.onSecondaryContainer, modifier = Modifier.size(12.dp))
+        Text("$count", color = c.onSecondaryContainer, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+    }
+}
+
+@Composable private fun LastReplyLine(topic: ForumTopic, c: KikoColors, modifier: Modifier = Modifier) {
+    if (topic.lastPostAuthor.name.isBlank()) return
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = c.primary, modifier = Modifier.size(13.dp))
+        Text(
+            "${topic.lastPostAuthor.name} · ${formatForumDate(topic.lastPostAt)}", color = c.primary, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
+        )
+    }
+}
+
+@Composable fun ForumTopicRow(topic: ForumTopic, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(kikoCorner(20.dp)), onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Row(
+        Modifier.fillMaxWidth().clip(shape).background(c.surfaceContainerHigh).kikoClickable(scale = 0.98f, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        TopicAvatar(topic.author, 40.dp, c)
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                if (topic.isLocked) Icon(Icons.Rounded.Lock, "Locked", tint = c.muted, modifier = Modifier.padding(top = 2.dp, end = 5.dp).size(14.dp))
+                Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Text("${topic.author.name.ifBlank { "Unknown" }} · ${formatForumDate(topic.createdAt)}", color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+            LastReplyLine(topic, c, Modifier.padding(top = 6.dp))
+        }
+        ReplyCountPill(topic.postCount, c, Modifier.padding(start = 10.dp))
+    }
+}
+// News Discussion topic row. Flat (no card, no divider: rows are separated by whitespace only) and sized like a
+// My List row (MyListRow in HomeScreen): same cover size (88x132, or 72x108 in compact mode), same row padding,
+// and a text column exactly as tall as the cover: title (up to 3 lines) on top, "by author · date" + reply count
+// on the bottom edge.
 @Composable fun NewsTopicRow(topic: ForumTopic, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().kikoClickable(onClick = onClick).padding(vertical = 14.dp), verticalAlignment = Alignment.Top) {
-        Box(Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+    val compact = com.kiko.tracker.data.model.LocalCompactList.current
+    val coverW = if (compact) 72.dp else 88.dp
+    val coverH = if (compact) 108.dp else 132.dp
+    val rowVPad = if (compact) 10.dp else 12.dp
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(scale = 1f, onClick = onClick).padding(vertical = rowVPad),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(width = coverW, height = coverH).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
             if (topic.imageUrl != null) {
                 AsyncImage(model = topic.imageUrl, contentDescription = topic.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
                 Icon(Icons.Rounded.Newspaper, null, tint = c.muted, modifier = Modifier.size(28.dp))
             }
         }
-        Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (topic.isLocked) Icon(Icons.Rounded.Lock, null, tint = c.muted, modifier = Modifier.size(12.dp).padding(end = 4.dp))
-                Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f).height(coverH).padding(start = 16.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Row(verticalAlignment = Alignment.Top) {
+                if (topic.isLocked) Icon(Icons.Rounded.Lock, "Locked", tint = c.muted, modifier = Modifier.padding(top = 3.dp, end = 4.dp).size(13.dp))
+                Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = c.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
-            Text("by ${topic.author.name.ifBlank { "Unknown" }} · ${formatForumDate(topic.createdAt)}", color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                if (topic.lastPostAuthor.name.isNotBlank()) {
-                    Text("Last reply by ${topic.lastPostAuthor.name} · ${formatForumDate(topic.lastPostAt)}", color = c.primary, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp))
-                } else {
-                    Spacer(Modifier.weight(1f))
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
-                    Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
-                }
+            // Pinned to the cover's bottom edge: "by author · date" and the reply count.
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                NewsNameAndDate("by ", topic.author.name.ifBlank { "Unknown" }, formatForumDate(topic.createdAt), c.muted, FontWeight.Normal, Modifier.weight(1f).padding(end = 8.dp))
+                Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
+                Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 4.dp))
             }
         }
+    }
+}
+
+// "name · date" on one line where only the name shrinks (ellipsis) so the date is never cut off.
+@Composable private fun NewsNameAndDate(prefix: String, name: String, date: String, color: androidx.compose.ui.graphics.Color, weight: FontWeight, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text("$prefix$name", color = color, fontSize = 12.sp, fontWeight = weight, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        Text(" · $date", color = color, fontSize = 12.sp, fontWeight = weight, maxLines = 1, softWrap = false)
     }
 }
 // Single topic posts screen
@@ -708,58 +747,85 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     // ime effect above), like a messaging app.
     Column(Modifier.fillMaxSize()) {
         val titleProgress = rememberTitleProgress(listState)
+        var refreshing by remember(topicId) { mutableStateOf(false) }
         KikoTopBar(title = title, onBack = goBack, progress = { titleProgress.value }) {
             ShareMoreMenu(title = title, shareUrl = "https://myanimelist.net/forum/?topicid=$topicId")
         }
         Box(Modifier.weight(1f)) {
-            LazyColumn(
-                Modifier.fillMaxSize(), state = listState,
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+            KikoPullToRefreshBox(
+                isRefreshing = refreshing,
+                onRefresh = {
+                    if (!loading && !refreshing && !loadingMore && !posting) scope.launch {
+                        refreshing = true
+                        error = null
+                        freshFirstPage()
+                            .onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore }
+                            .onFailure { error = it.message ?: "Could not refresh" }
+                        refreshing = false
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+                onlyWhenPulled = true,
             ) {
-                item {
-                    val starter = posts.firstOrNull()
-                    Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp)) {
-                        Text(title, style = MaterialTheme.typography.headlineSmall, color = c.ink)
-                        if (starter != null && starter.author.name.isNotBlank()) {
-                            Text(
-                                "Started by ${starter.author.name} · ${formatForumDate(starter.createdAt)}",
-                                color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp),
-                            )
-                        }
-                        if (loading || jumping) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), color = c.primary)
-                        if (jumpFailed) Text("Couldn't find that post — it may have been deleted.", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-                        error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
-                        // Distinguishes "still loading" from "this topic really has no posts yet" — brand-new
-                        // topics can briefly come back empty from MAL's read side.
-                        if (!loading && error == null && posts.isEmpty()) {
-                            Column(Modifier.fillMaxWidth().padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Rounded.HourglassEmpty, null, tint = c.muted, modifier = Modifier.size(28.dp))
-                                Text("This topic hasn't finished loading on MAL's end yet", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp))
-                                Text("This can happen for very recently posted topics — try again in a bit.", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
-                                TextButton(onClick = {
-                                    scope.launch {
-                                        loading = true
-                                        freshFirstPage()
-                                            .onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore; error = null }
-                                            .onFailure { error = it.message ?: "Could not load topic" }
-                                        loading = false
-                                    }
-                                }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
+                LazyColumn(
+                    Modifier.fillMaxSize(), state = listState,
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = if (showGoToTop) 90.dp else 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    item {
+                        val starter = posts.firstOrNull()
+                        Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 12.dp)) {
+                            Text(title, style = MaterialTheme.typography.headlineSmall, color = c.ink)
+                            if (starter != null && starter.author.name.isNotBlank()) {
+                                Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    TopicAvatar(starter.author, 26.dp, c)
+                                    Text(starter.author.name, color = c.ink, fontWeight = FontWeight.Medium, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).padding(start = 8.dp))
+                                    Text(" · ${formatForumDate(starter.createdAt)}", color = c.muted, fontSize = 13.sp, maxLines = 1)
+                                }
+                            }
+                            if (posts.isNotEmpty()) {
+                                Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    val shown = if (hasMore) "${posts.size}+ posts" else "${posts.size} ${if (posts.size == 1) "post" else "posts"}"
+                                    Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(14.dp))
+                                    Text(shown, color = c.muted, fontWeight = FontWeight.Medium, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
+                                }
+                            }
+                            if (loading || jumping) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), color = c.primary)
+                            if (jumpFailed) Text("Couldn't find that post — it may have been deleted.", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                            error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                            // Distinguishes "still loading" from "this topic really has no posts yet" — brand-new
+                            // topics can briefly come back empty from MAL's read side.
+                            if (!loading && error == null && posts.isEmpty()) {
+                                Column(Modifier.fillMaxWidth().padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Rounded.HourglassEmpty, null, tint = c.muted, modifier = Modifier.size(28.dp))
+                                    Text("This topic hasn't finished loading on MAL's end yet", color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp))
+                                    Text("This can happen for very recently posted topics — try again in a bit.", color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                                    TextButton(onClick = {
+                                        scope.launch {
+                                            loading = true
+                                            freshFirstPage()
+                                                .onSuccess { posts = it.posts; poll = it.poll; hasMore = it.hasMore; error = null }
+                                                .onFailure { error = it.message ?: "Could not load topic" }
+                                            loading = false
+                                        }
+                                    }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
+                                }
                             }
                         }
+                        poll?.let { ForumPollCard(it, Modifier.padding(top = 6.dp)) }
                     }
-                    poll?.let { ForumPollCard(it, Modifier.padding(top = 6.dp)) }
-                }
-                itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
-                    StaggeredItem(index) {
+                    itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
                         Column {
-                            // Small section label between the opening post and the replies under it.
-                            if (index == 1 && posts.firstOrNull()?.number == 1) {
-                                Text("Replies", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp, top = 8.dp, bottom = 10.dp))
+                            val hasOp = posts.firstOrNull()?.number == 1
+                            val firstReply = if (hasOp) 1 else 0
+                            // Section label between the opening post and the replies under it (same style as Settings group titles).
+                            if (hasOp && index == 1) {
+                                Text("Replies · ${if (hasMore) "${posts.size - 1}+" else "${posts.size - 1}"}", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 10.dp))
                             }
                             ForumPostCard(
                                 post, isOriginalPost = post.number == 1, highlighted = highlightedPostId == post.id,
+                                // The opening post is its own rounded card; replies form one connected group (big outer / tight inner corners).
+                                shape = if (post.number == 1) RoundedCornerShape(28.dp) else forumGroupShape(index - firstReply, posts.size - firstReply),
                                 onOpenProfileLink = onOpenProfileLink,
                                 canReply = connected,
                                 onReply = { target ->
@@ -788,11 +854,11 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                             )
                         }
                     }
-                }
-                if (loadingMore) {
-                    item {
-                        Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
-                            KikoLoadingIndicator(color = c.primary, size = 28.dp)
+                    if (loadingMore) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+                                KikoLoadingIndicator(color = c.primary, size = 28.dp)
+                            }
                         }
                     }
                 }
@@ -980,13 +1046,18 @@ private val FormatSizes = listOf(25, 50, 75, 100, 125, 150, 175, 200).map { "$it
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 10.dp, bottom = 8.dp)) {
             replyingTo?.let { target ->
                 Row(
-                    Modifier.padding(start = 4.dp, bottom = 8.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                    Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.primaryContainer)
+                        .padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = c.onPrimaryContainer, modifier = Modifier.size(14.dp))
-                    Text("Replying to ${target.author.name.ifBlank { "Unknown" }}", color = c.onPrimaryContainer, fontWeight = FontWeight.Medium, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
-                    IconButton(onClick = onCancelReply, modifier = Modifier.padding(start = 2.dp).size(24.dp)) {
-                        Icon(Icons.Rounded.Close, "Cancel reply", tint = c.onPrimaryContainer, modifier = Modifier.size(14.dp))
+                    Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = c.onPrimaryContainer, modifier = Modifier.size(16.dp))
+                    Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                        Text("Replying to ${target.author.name.ifBlank { "Unknown" }}", color = c.onPrimaryContainer, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        val preview = remember(target.id) { plainBodyPreview(target.body, 80) }
+                        if (preview.isNotBlank()) Text(preview, color = c.onPrimaryContainer.copy(alpha = 0.75f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    IconButton(onClick = onCancelReply, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.Close, "Cancel reply", tint = c.onPrimaryContainer, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -1649,13 +1720,13 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
     }
 }
 
-// Small pill button under a post ("Quote", "Reply").
+// Plain text action under a post ("Quote", "Reply"): no background, Reply in the accent color.
 @Composable private fun PostAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tonal: Boolean = false, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    val tint = if (tonal) c.onSecondaryContainer else c.muted
+    val tint = if (tonal) c.primary else c.muted
     Row(
-        Modifier.clip(kikoPillShape()).background(if (tonal) c.secondaryContainer else c.ink.copy(alpha = 0.06f)).kikoClickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+        Modifier.clip(kikoPillShape()).kikoClickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
@@ -1663,37 +1734,54 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
     }
 }
 
-// Single topic post: one rounded card per post — author row, optional "reply to" strip, the
-// formatted body, then Quote / Reply actions. The original post sits on a slightly stronger tone
-// so the thread has a clear starting point.
+// Round icon-only action under a post (copy link).
+@Composable private fun PostIconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onClick: () -> Unit) {
+    val c = LocalKikoColors.current
+    Box(Modifier.size(38.dp).clip(kikoCircleShape()).kikoClickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(icon, description, tint = c.muted, modifier = Modifier.size(19.dp))
+    }
+}
+
+// Posts taller than this (characters of source) fold behind a "Read more" button; the opening post never folds.
+private const val CollapsePostChars = 1600
+
+// Single topic post: one rounded card per post.
+//   header  : avatar, name (+ OP badge), date, post number
+//   strip   : MAL's own "Reply to X" reference, when the post has one
+//   body    : formatted post; very long replies fold behind "Read more"
+//   footer  : copy-link on the left, Quote / Reply on the right (when signed in)
+// Same tonal card as Settings (surfaceContainer). The opening post is its own card; replies are a connected group.
 @Composable fun ForumPostCard(
     post: ForumPost,
     isOriginalPost: Boolean = false,
     highlighted: Boolean = false,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(28.dp),
     onOpenProfileLink: (MalProfileLink) -> Unit = {},
     canReply: Boolean = false,
     onReply: (ForumPost) -> Unit = {},
     onQuote: (ForumPost) -> Unit = {},
 ) {
     val c = LocalKikoColors.current
-    val baseContainer = if (isOriginalPost) c.surfaceContainerHigh else c.surfaceContainerLow
+    val context = LocalContext.current
+    val baseContainer = c.surfaceContainer
     val container by animateColorAsState(if (highlighted) c.primaryContainer else baseContainer, tween(400), label = "postContainer")
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(24.dp))).background(container).padding(16.dp)) {
+    val collapsible = !isOriginalPost && post.body.length > CollapsePostChars
+    var expanded by rememberSaveable(post.id) { mutableStateOf(false) }
+    val folded = collapsible && !expanded
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(shape)
+            .background(container)
+            .animateContentSize(tween(200))
+            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (post.author.avatar.isNotBlank()) {
-                AsyncImage(model = post.author.avatar, contentDescription = post.author.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(42.dp).clip(kikoCircleShape()).background(c.warm))
-            } else {
-                Box(Modifier.size(42.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                    Text(post.author.name.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink)
-                }
-            }
+            TopicAvatar(post.author, 40.dp, c)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(post.author.name.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (isOriginalPost) {
-                        Box(Modifier.padding(start = 8.dp).clip(kikoPillShape()).background(c.primary).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                            Text("OP", color = c.onPrimary, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                        }
+                        Text("OP", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 8.dp))
                     }
                 }
                 Text(formatForumDate(post.createdAt), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
@@ -1707,17 +1795,48 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
             ForumQuoteFrame(c, 0, Modifier.padding(top = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = c.primary, modifier = Modifier.size(14.dp))
-                    Text("Reply to ${post.replyToAuthor}", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
+                    Text("Reply to ${post.replyToAuthor}", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
                 }
                 if (post.replyToBody.isNotBlank()) {
-                    Text(post.replyToBody, color = c.muted, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    Text(post.replyToBody, color = c.muted, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
-        ForumBody(post.body, Modifier.padding(top = 12.dp), onOpenProfileLink = onOpenProfileLink, background = baseContainer)
-        if (canReply) {
-            Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+        Box(
+            Modifier.fillMaxWidth().padding(top = 12.dp).then(
+                if (folded) Modifier.heightIn(max = 340.dp).clipToBounds().drawWithContent {
+                    drawContent()
+                    val fade = 84.dp.toPx()
+                    drawRect(Brush.verticalGradient(listOf(Color.Transparent, container), startY = (size.height - fade).coerceAtLeast(0f), endY = size.height))
+                } else Modifier
+            ),
+        ) {
+            ForumBody(post.body, onOpenProfileLink = onOpenProfileLink, background = baseContainer)
+        }
+        if (collapsible) {
+            Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
+                Row(
+                    Modifier.clip(kikoPillShape()).kikoClickable { expanded = !expanded }.padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(if (expanded) "Show less" else "Read more", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            PostIconAction(Icons.Rounded.Link, "Copy link to post") {
+                val url = "https://myanimelist.net/forum/message/${post.id}?goto=topic"
+                runCatching {
+                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("MAL post link", url))
+                    android.widget.Toast.makeText(context, "Link copied", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            if (canReply) {
                 PostAction(Icons.Rounded.FormatQuote, "Quote") { onQuote(post) }
+                Spacer(Modifier.width(4.dp))
                 PostAction(Icons.AutoMirrored.Rounded.Reply, "Reply", tonal = true) { onReply(post) }
             }
         }
@@ -1728,25 +1847,34 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
 
 @Composable fun ForumPollCard(poll: ForumPoll, modifier: Modifier = Modifier) {
     val c = LocalKikoColors.current
-    val totalVotes = poll.options.sumOf { it.votes }.coerceAtLeast(1)
-    Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Text(poll.question, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
-            Spacer(Modifier.height(10.dp))
-            poll.options.forEach { opt ->
-                val fraction = opt.votes.toFloat() / totalVotes
-                Column(Modifier.padding(bottom = 8.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(opt.text, color = c.ink, fontSize = 13.sp, modifier = Modifier.weight(1f, fill = false))
-                        Text("${opt.votes}", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
-                    }
-                    Box(Modifier.fillMaxWidth().padding(top = 4.dp).height(6.dp).clip(kikoPillShape()).background(c.surfaceLow)) {
-                        Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().clip(kikoPillShape()).background(c.primary))
-                    }
-                }
+    val totalVotes = poll.options.sumOf { it.votes }
+    val topVotes = poll.options.maxOfOrNull { it.votes } ?: 0
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(c.surfaceContainer).padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(32.dp).clip(kikoCircleShape()).background(c.primaryContainer), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.BarChart, null, tint = c.onPrimaryContainer, modifier = Modifier.size(18.dp))
             }
-            if (poll.closed) Text("Poll closed", color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+            Text(poll.question, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink, modifier = Modifier.weight(1f).padding(start = 10.dp))
         }
+        Spacer(Modifier.height(12.dp))
+        poll.options.forEach { opt ->
+            val fraction = if (totalVotes > 0) opt.votes.toFloat() / totalVotes else 0f
+            val leader = opt.votes == topVotes && topVotes > 0
+            Column(Modifier.padding(bottom = 10.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(opt.text, color = c.ink, fontSize = 14.sp, fontWeight = if (leader) FontWeight.SemiBold else FontWeight.Normal, modifier = Modifier.weight(1f))
+                    Text("${(fraction * 100).toInt()}%", color = if (leader) c.primary else c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
+                }
+                Box(Modifier.fillMaxWidth().padding(top = 5.dp).height(8.dp).clip(kikoPillShape()).background(c.ink.copy(alpha = 0.08f))) {
+                    Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight().clip(kikoPillShape()).background(if (leader) c.primary else c.primary.copy(alpha = 0.4f)))
+                }
+                Text("${opt.votes} ${if (opt.votes == 1) "vote" else "votes"}", color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
+            }
+        }
+        Text(
+            "$totalVotes total ${if (totalVotes == 1) "vote" else "votes"}${if (poll.closed) " · Poll closed" else ""}",
+            color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+        )
     }
 }
 // Strips a post's BBCode source down to a short plain-text preview, for the "Reply to X" hint
