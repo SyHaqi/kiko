@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import com.kiko.tracker.ui.screens.BbToken
 import com.kiko.tracker.ui.screens.ForumBlock
+import com.kiko.tracker.ui.screens.ForumFactRow
 
 // ---------------------------------------------------------------------------
 // BBCode -> ForumBlock pipeline
@@ -343,13 +344,45 @@ private class BbWalker(private val linkColor: Color, private val background: Col
                 runRanges += start until length
             }
         }
+        fun stylesIn(from: Int, toInclusive: Int): List<BbStyle> = runs.indices
+            .filter { i -> runs[i].text.isNotBlank() && runRanges[i].first <= toInclusive && runRanges[i].last >= from }
+            .map { runs[it].style }
+
         for (range in splitParagraphRanges(annotated.text)) {
-            val styles = runs.indices
-                .filter { i -> runs[i].text.isNotBlank() && runRanges[i].first <= range.last && runRanges[i].last >= range.first }
-                .map { runs[it].style }
+            val styles = stylesIn(range.first, range.last)
             val align = styles.firstOrNull()?.align ?: TextAlign.Start
             val scale = styles.maxOfOrNull { it.scale } ?: 1f
-            out += ForumBlock.Paragraph(annotated.subSequence(range.first, range.last + 1), align = align, scale = scale)
+            val paraText = annotated.text.substring(range.first, range.last + 1)
+            val whole = annotated.subSequence(range.first, range.last + 1)
+
+            // Centred / enlarged text is deliberate layout by the author: leave it exactly as written.
+            if (align != TextAlign.Start || scale > 1.05f) {
+                out += ForumBlock.Paragraph(whole, align = align, scale = scale)
+                continue
+            }
+
+            // A short, fully bold line on its own is a section heading.
+            val singleLine = '\n' !in paraText
+            if (singleLine && paraText.length <= 40 && paraText.last() !in ".!?,;" &&
+                styles.isNotEmpty() && styles.all { it.bold && it.href == null }
+            ) {
+                out += ForumBlock.Heading(whole)
+                continue
+            }
+
+            // Recreate MAL's structure: "Label: value" groups, titled sections, short-line lists.
+            for (seg in segmentLines(paraText)) {
+                val base = range.first
+                fun slice(r: IntRange) = annotated.subSequence(base + r.first, base + r.last + 1)
+                when (seg) {
+                    is LineSegment.Prose -> out += ForumBlock.Paragraph(slice(seg.range), align = align, scale = scale)
+                    is LineSegment.Lines -> out += ForumBlock.LineList(seg.items.map(::slice))
+                    is LineSegment.Facts -> out += ForumBlock.FactList(
+                        title = seg.title?.let { paraText.substring(it.first, it.last + 1) },
+                        rows = seg.rows.map { ForumFactRow(label = paraText.substring(it.label.first, it.label.last + 1), value = slice(it.value)) },
+                    )
+                }
+            }
         }
         runs.clear()
     }
@@ -460,7 +493,7 @@ private class BbWalker(private val linkColor: Color, private val background: Col
 
 // Convert stray HTML fragments
 
-val brTagRegex = Regex("""<br\s*/?>""", RegexOption.IGNORE_CASE)
+val brTagRegex = Regex("""<br\s*/?>[ \t]*(?:\r?\n)?""", RegexOption.IGNORE_CASE)
 
 val htmlEntityRegex = Regex("""&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z]+);""")
 

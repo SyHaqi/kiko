@@ -1134,7 +1134,17 @@ sealed class ForumBlock {
     // YouTube embed ([yt]ID[/yt], or MAL's <iframe class="movie youtube">) — drawn as a tappable
     // thumbnail that opens the video in the YouTube app / browser (see ForumVideo).
     data class VideoBlock(val videoId: String) : ForumBlock()
+    // A short, fully bold line standing on its own: a section heading inside a post.
+    data class Heading(val text: AnnotatedString) : ForumBlock()
+    // "Label: value" lines (staff / cast / theme-song credits ...), optionally titled by the line above
+    // them ("Staff"). Drawn as a tonal card with a label column and a value column so a wrapped value
+    // can never be mistaken for a new entry.
+    data class FactList(val title: String?, val rows: List<ForumFactRow>) : ForumBlock()
+    // Several short hard-broken lines with no labels (cast names, a tracklist): spaced apart as
+    // separate entries rather than run together as one paragraph.
+    data class LineList(val lines: List<AnnotatedString>) : ForumBlock()
 }
+data class ForumFactRow(val label: String, val value: AnnotatedString)
 sealed class BbToken {
     data class Text(val text: String) : BbToken()
     data class Open(val name: String, val attr: String?) : BbToken()
@@ -1379,7 +1389,7 @@ sealed class BbToken {
         Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(blockSpacing)) {
             blocks.forEach { block ->
                 // Headings (a [size] bigger than body text) get extra room above so they bind to what follows.
-                val isHeading = block is ForumBlock.Paragraph && block.scale > 1.1f
+                val isHeading = (block is ForumBlock.Paragraph && block.scale > 1.1f) || block is ForumBlock.Heading
                 Box(if (isHeading) Modifier.padding(top = 6.dp) else Modifier) {
                     ForumBlockView(block, c, uriHandler, onOpenProfileLink = onOpenProfileLink) { fullscreenImage = it }
                 }
@@ -1391,19 +1401,70 @@ sealed class BbToken {
 internal data class ForumTypography(val size: Float = 15f, val lineHeight: Float = 1.45f)
 internal val LocalForumTypography = androidx.compose.runtime.compositionLocalOf { ForumTypography() }
 
-// A run of short hard-broken lines (a cast list, credits, "Label: value" rows) reads as a list, but a
-// wrapped line looks identical to a new item. Indenting wrapped continuation lines makes each item
-// distinct without adding bullets the author didn't write.
-private fun withHangingIndent(text: AnnotatedString): AnnotatedString {
-    val lines = text.text.split('\n')
-    if (lines.size < 3 || lines.any { it.length > 160 }) return text
+// Shared rich-text renderer: tappable [url] links (profile links open in-app) on top of ClickableText.
+@Composable private fun ForumRichText(
+    text: AnnotatedString, style: TextStyle, uriHandler: androidx.compose.ui.platform.UriHandler,
+    onOpenProfileLink: (MalProfileLink) -> Unit, modifier: Modifier = Modifier,
+) {
+    ClickableText(
+        text = text, style = style, modifier = modifier,
+        onClick = { offset -> text.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { openForumLink(it.item, uriHandler, onOpenProfileLink) } },
+    )
+}
+
+// MAL's red "NEW" legend (credits that changed in this announcement) becomes a small tonal badge.
+private val NewBadgeRegex = Regex("""\bNEW\b""")
+private fun withNewBadges(text: AnnotatedString, bg: Color, fg: Color): AnnotatedString {
+    val hits = NewBadgeRegex.findAll(text.text).toList()
+    if (hits.isEmpty()) return text
     return buildAnnotatedString {
         append(text)
-        var start = 0
-        lines.forEachIndexed { i, line ->
-            val end = if (i < lines.lastIndex) start + line.length + 1 else start + line.length
-            if (end > start) addStyle(ParagraphStyle(textIndent = TextIndent(restLine = 14.sp)), start, end)
-            start = end
+        hits.forEach { m ->
+            addStyle(
+                androidx.compose.ui.text.SpanStyle(
+                    background = bg, color = fg, fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp, letterSpacing = 0.6.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Normal,
+                ),
+                m.range.first, m.range.last + 1,
+            )
+        }
+    }
+}
+
+// "Staff" / "Cast" style credits: tonal rounded card, optional title, label | value rows.
+@Composable private fun ForumFactList(
+    block: ForumBlock.FactList, c: KikoColors, uriHandler: androidx.compose.ui.platform.UriHandler,
+    inQuote: Boolean, onOpenProfileLink: (MalProfileLink) -> Unit,
+) {
+    val typo = LocalForumTypography.current
+    val body = if (inQuote) typo.size - 1f else typo.size
+    val labelSize = body - 2f
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(kikoCorner(20.dp)))
+            .background(c.ink.copy(alpha = 0.05f))
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp),
+    ) {
+        if (!block.title.isNullOrBlank()) {
+            Text(
+                block.title, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 0.4.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
+        block.rows.forEachIndexed { index, row ->
+            if (index > 0) HorizontalDivider(thickness = 0.5.dp, color = c.outlineVariant.copy(alpha = 0.45f))
+            Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(
+                    row.label, color = c.muted, fontWeight = FontWeight.Medium, fontSize = labelSize.sp,
+                    lineHeight = (labelSize * typo.lineHeight).sp, modifier = Modifier.weight(0.36f),
+                )
+                val value = remember(row.value, c.errorContainer, c.onErrorContainer) { withNewBadges(row.value, c.errorContainer, c.onErrorContainer) }
+                ForumRichText(
+                    value,
+                    TextStyle(color = if (inQuote) c.muted else c.ink, fontSize = body.sp, lineHeight = (body * typo.lineHeight).sp),
+                    uriHandler, onOpenProfileLink, Modifier.weight(0.64f),
+                )
+            }
         }
     }
 }
@@ -1495,9 +1556,8 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
             val inQuote = quoteDepth > 0
             val typo = LocalForumTypography.current
             val base = if (inQuote) typo.size - 1f else typo.size
-            val shown = remember(block.text, block.align) { if (block.align == TextAlign.Start) withHangingIndent(block.text) else block.text }
             ClickableText(
-                text = shown,
+                text = block.text,
                 style = TextStyle(
                     color = if (inQuote) c.muted else c.ink, fontSize = base.sp,
                     // Line height follows the biggest [size] in the paragraph so large text doesn't overlap.
@@ -1533,6 +1593,31 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
             }
         }
         is ForumBlock.VideoBlock -> ForumVideo(block.videoId, c)
+        is ForumBlock.Heading -> {
+            val typo = LocalForumTypography.current
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.width(4.dp).height(18.dp).clip(kikoPillShape()).background(c.primary))
+                ForumRichText(
+                    block.text,
+                    TextStyle(color = c.ink, fontSize = (typo.size + 1f).sp, fontWeight = FontWeight.Bold, lineHeight = ((typo.size + 1f) * typo.lineHeight).sp),
+                    uriHandler, onOpenProfileLink, Modifier.padding(start = 10.dp),
+                )
+            }
+        }
+        is ForumBlock.FactList -> ForumFactList(block, c, uriHandler, quoteDepth > 0, onOpenProfileLink)
+        is ForumBlock.LineList -> {
+            val typo = LocalForumTypography.current
+            val base = if (quoteDepth > 0) typo.size - 1f else typo.size
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                block.lines.forEach { line ->
+                    ForumRichText(
+                        line,
+                        TextStyle(color = if (quoteDepth > 0) c.muted else c.ink, fontSize = base.sp, lineHeight = (base * typo.lineHeight).sp),
+                        uriHandler, onOpenProfileLink, Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
         is ForumBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             block.items.forEachIndexed { index, item ->
                 Row {
