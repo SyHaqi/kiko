@@ -489,17 +489,20 @@ class MalApi(private val context: Context) {
         // makes MAL's API noticeably
         // at once keeps this
         val thumbnailGate = Semaphore(4)
-        val withCovers = if (!withThumbnails) items else items.map { topic ->
-            async {
-                if (topic.isLocked) topic
-                else thumbnailGate.withPermit {
-                    runCatching { forumTopic(topic.id, limit = 1) }.getOrNull()
-                        ?.posts?.firstOrNull()?.body
-                        ?.let { firstImageUrl(it) }
-                        ?.let { topic.copy(imageUrl = it) } ?: topic
-                }
-            }
-        }.awaitAll()
+        // One topic's thumbnail = the first image of its opening post. The REST read can fail (rate limit,
+        // timeout) or come back with no posts for fresh topics (see MalForumScrapeApi's doc comment), and that used
+        // to leave the row without a cover even though the image loads fine once the topic is opened. So when REST
+        // gives nothing usable, fall back to the website page the topic screen itself reads. A post that was read
+        // fine but simply has no image keeps no cover and costs no second request.
+        suspend fun withThumbnail(topic: ForumTopic): ForumTopic {
+            if (topic.isLocked) return topic
+            val firstBody = thumbnailGate.withPermit { runCatching { forumTopic(topic.id, limit = 1) }.getOrNull() }
+                ?.posts?.firstOrNull()?.body
+                ?: thumbnailGate.withPermit { runCatching { MalForumScrapeApi().topic(topic.id) }.getOrNull() }
+                    ?.posts?.firstOrNull()?.body
+            return firstBody?.let { firstImageUrl(it) }?.let { topic.copy(imageUrl = it) } ?: topic
+        }
+        val withCovers = if (!withThumbnails) items else items.map { topic -> async { withThumbnail(topic) } }.awaitAll()
         ForumTopicsPage(withCovers, json.optJSONObject("paging")?.has("next") == true)
     }
 

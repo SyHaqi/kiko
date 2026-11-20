@@ -355,7 +355,10 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                         itemsIndexed(vm.forumTopics, key = { _, it -> it.id }) { index, topic ->
                             StaggeredItem(index) {
                                 if (vm.forumIsNewsBoard) {
-                                    NewsTopicRow(topic) { openTopic(topic) }
+                                    Column {
+                                        NewsTopicRow(topic) { openTopic(topic) }
+                                        if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                                    }
                                 } else {
                                     Box(Modifier.padding(bottom = if (index < vm.forumTopics.lastIndex) 2.dp else 0.dp)) {
                                         ForumTopicRow(topic, forumGroupShape(index, vm.forumTopics.size)) { openTopic(topic) }
@@ -425,10 +428,10 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
         ReplyCountPill(topic.postCount, c, Modifier.padding(start = 10.dp))
     }
 }
-// News Discussion topic row. Flat (no card, no divider: rows are separated by whitespace only) and sized like a
-// My List row (MyListRow in HomeScreen): same cover size (88x132, or 72x108 in compact mode), same row padding,
-// and a text column exactly as tall as the cover: title (up to 3 lines) on top, "by author · date" + reply count
-// on the bottom edge.
+// News Discussion topic row, Google News style: the title on top and "by author · 3 hours ago" at the bottom-left with
+// the reply count at the bottom-right. The cover
+// stays on the left, sized like a My List row (88x132, or 72x108 in compact mode) with the same row padding; the text
+// column is exactly as tall as the cover. Rows are separated by a thin divider (drawn by the list, see ForumTopicsScreen).
 @Composable fun NewsTopicRow(topic: ForumTopic, onClick: () -> Unit) {
     val c = LocalKikoColors.current
     val compact = com.kiko.tracker.data.model.LocalCompactList.current
@@ -451,9 +454,9 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                 if (topic.isLocked) Icon(Icons.Rounded.Lock, "Locked", tint = c.muted, modifier = Modifier.padding(top = 3.dp, end = 4.dp).size(13.dp))
                 Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = c.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
-            // Pinned to the cover's bottom edge: "by author · date" and the reply count.
+            // Pinned to the cover's bottom edge: "by author · age" and the reply count.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                NewsNameAndDate("by ", topic.author.name.ifBlank { "Unknown" }, formatForumDate(topic.createdAt), c.muted, FontWeight.Normal, Modifier.weight(1f).padding(end = 8.dp))
+                NewsNameAndDate("by ", topic.author.name.ifBlank { "Unknown" }, formatNewsAge(topic.createdAt), c.muted, Modifier.weight(1f).padding(end = 8.dp))
                 Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
                 Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 4.dp))
             }
@@ -461,11 +464,25 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     }
 }
 
-// "name · date" on one line where only the name shrinks (ellipsis) so the date is never cut off.
-@Composable private fun NewsNameAndDate(prefix: String, name: String, date: String, color: androidx.compose.ui.graphics.Color, weight: FontWeight, modifier: Modifier = Modifier) {
+// "name · age" on one line where only the name shrinks (ellipsis) so the age is never cut off.
+@Composable private fun NewsNameAndDate(prefix: String, name: String, date: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text("$prefix$name", color = color, fontSize = 12.sp, fontWeight = weight, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        Text(" · $date", color = color, fontSize = 12.sp, fontWeight = weight, maxLines = 1, softWrap = false)
+        Text("$prefix$name", color = color, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        Text(" · $date", color = color, fontSize = 12.sp, maxLines = 1, softWrap = false)
+    }
+}
+
+// "5 min ago" / "3 hours ago" / "2 days ago", falling back to the plain date after a week.
+private fun formatNewsAge(raw: String): String {
+    if (raw.isBlank()) return ""
+    val posted = runCatching { java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US).parse(raw)?.time }.getOrNull() ?: return formatForumDate(raw)
+    val minutes = ((System.currentTimeMillis() - posted) / 60_000L).coerceAtLeast(0L)
+    return when {
+        minutes < 1 -> "Just now"
+        minutes < 60 -> "$minutes min ago"
+        minutes < 60 * 24 -> (minutes / 60).let { "$it ${if (it == 1L) "hour" else "hours"} ago" }
+        minutes < 60 * 24 * 7 -> (minutes / (60 * 24)).let { "$it ${if (it == 1L) "day" else "days"} ago" }
+        else -> formatForumDate(raw)
     }
 }
 // Single topic posts screen
