@@ -359,7 +359,6 @@ private var detailStatusBarOwners = 0
     // fadeIn/slideIn every time a
     // in/out of the LazyRow's
     val charactersSeen = rememberStaggerMemory()
-    val voiceActorsSeen = rememberStaggerMemory()
     val reviewsSeen = rememberStaggerMemory()
     val relatedSeen = rememberStaggerMemory()
     val recommendedSeen = rememberStaggerMemory()
@@ -806,18 +805,28 @@ private var detailStatusBarOwners = 0
                                         // the header, poster, and
                                         // (often mid-scroll). Same reasoning
                                         //
-                                        // Characters and their Japanese voice actors share one
-                                        // "Characters & Voice Actors" header — a VA row is just
-                                        // that same cast's dub credits, not a separate topic —
-                                        // but stay two separate keyed blocks/LazyRows below it
-                                        // since they load and fail independently.
+                                        // Characters (and, for anime, their Japanese voice actors)
+                                        // share one header and one scrolling row.
                                         key("characters") {
                                             if (characters.isNotEmpty()) {
-                                                SectionTitle("Characters & Voice Actors", "", {})
+                                                SectionTitle(if (item.type == MediaType.Anime) "Characters & Voice Actors" else "Characters", "", {})
+                                                // One shared row: each column is the character with its Japanese
+                                                // voice actor underneath, so both scroll together. A VA who voices
+                                                // several characters repeats under each; anime characters with no
+                                                // VA get an N/A card in the same style. Manga has no VAs, so no
+                                                // second card there.
+                                                val showVa = item.type == MediaType.Anime
                                                 LazyRow(state = charactersListState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                                     itemsIndexed(characters, key = { _, it -> it.malId }) { i, ch ->
                                                         StaggeredItem(i, charactersSeen) {
-                                                            CharacterCard(ch, loading = castLoadingId == ch.malId, onClick = { actions.onOpenCharacter(ch.malId) })
+                                                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                                CharacterCard(ch, loading = castLoadingId == ch.malId, onClick = { actions.onOpenCharacter(ch.malId) })
+                                                                if (showVa) {
+                                                                    val va = ch.japaneseVoiceActor
+                                                                    if (va != null) VoiceActorCard(va, "Voice actor", onClick = { actions.onOpenPerson(va.malId) })
+                                                                    else PersonCard("", "?", "N/A", "Voice actor", onClick = null)
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -826,7 +835,7 @@ private var detailStatusBarOwners = 0
                                                 // listed) — surface it
                                                 // that's the difference between
                                                 // this" (e.g. a network-level
-                                                SectionTitle("Characters & Voice Actors", "", {})
+                                                SectionTitle(if (item.type == MediaType.Anime) "Characters & Voice Actors" else "Characters", "", {})
                                                 Row(
                                                     Modifier
                                                         .fillMaxWidth()
@@ -838,22 +847,6 @@ private var detailStatusBarOwners = 0
                                                 ) {
                                                     Icon(Icons.Rounded.Refresh, null, tint = c.muted, modifier = Modifier.size(16.dp))
                                                     Text("Couldn't load cast — tap to retry", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
-                                                }
-                                            }
-                                        }
-
-                                        // Japanese cast only, one
-                                        // (e.g. a role recast
-                                        key("voiceActors") {
-                                            val japaneseVoiceActors = characters.mapNotNull { ch -> ch.japaneseVoiceActor?.let { it to ch.name } }
-                                            if (japaneseVoiceActors.isNotEmpty()) {
-                                                // Small gap under the characters row above,
-                                                // rather than SectionTitle's full 32dp — this
-                                                // row reads as a second group within the same
-                                                // section, not a new section of its own.
-                                                Spacer(Modifier.height(14.dp))
-                                                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                                    itemsIndexed(japaneseVoiceActors, key = { _, (va, charName) -> "${va.malId}-$charName" }) { i, (va, charName) -> StaggeredItem(i, voiceActorsSeen) { VoiceActorCard(va, charName, onClick = { actions.onOpenPerson(va.malId) }) } }
                                                 }
                                             }
                                         }

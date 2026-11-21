@@ -435,7 +435,7 @@ class MalDetailScrapeApi {
     // dub language). Only the
     // fetchCharacters — since the
     private fun parseCharacters(doc: Document): List<CharacterEntry> =
-        doc.select("table.js-anime-character-table").mapNotNull { table ->
+        doc.select("table.js-anime-character-table, table.js-manga-character-table").mapNotNull { table ->
             val cells = table.selectFirst("tr")?.children() ?: return@mapNotNull null
             val imageCell = cells.getOrNull(0) ?: return@mapNotNull null
             val infoCell = cells.getOrNull(1) ?: return@mapNotNull null
