@@ -119,9 +119,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     // screen (via "See all"
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.weight(1f).headerTitleStart())
+            // One line always: no wrapping (the extra 8dp gaps between the header buttons are gone to make room).
+            Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
             // Search stands alone now. "Saved Stacks" and "Open in
             // browser" moved into a 3-dot overflow menu instead of
             // sharing a boxed pair with Search — same pattern as the
@@ -235,7 +236,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-            Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, modifier = Modifier.headerTitleStart())
+            Text("Interest Stacks", style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, softWrap = false, modifier = Modifier.headerTitleStart())
         }
         Column(Modifier.padding(horizontal = 14.dp)) {
             SearchField(value = vm.stacksBrowseQuery, change = { vm.updateStacksBrowseQuery(it) }, hint = "Search stacks", onSearch = { vm.searchStacksBrowse() })
@@ -302,7 +303,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     val c = LocalKikoColors.current
     if (covers.isEmpty()) {
         Box(modifier.background(c.primaryContainer), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Layers, null, tint = c.primary, modifier = Modifier.size(26.dp))
+            Icon(Icons.Rounded.Layers, null, tint = c.onPrimaryContainer, modifier = Modifier.size(26.dp))
         }
     } else {
         Row(modifier) {
@@ -320,7 +321,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     Box(modifier.clip(RoundedCornerShape(kikoCorner(14.dp)))) {
         if (covers.isEmpty()) {
             Box(Modifier.fillMaxSize().background(c.primaryContainer), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Layers, null, tint = c.primary, modifier = Modifier.size(22.dp))
+                Icon(Icons.Rounded.Layers, null, tint = c.onPrimaryContainer, modifier = Modifier.size(22.dp))
             }
         } else {
             Row(Modifier.fillMaxSize()) {
@@ -371,8 +372,8 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
         Modifier.height(20.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.Layers, null, tint = c.accent, modifier = Modifier.size(11.dp))
-        Text(restacks.toString(), color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 4.dp))
+        Icon(Icons.Rounded.Layers, null, tint = c.onPrimaryContainer, modifier = Modifier.size(11.dp))
+        Text(restacks.toString(), color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 4.dp))
     }
 }
 // Featured stacks-homepage card —

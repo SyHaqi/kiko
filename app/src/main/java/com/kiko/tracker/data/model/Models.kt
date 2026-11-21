@@ -54,6 +54,8 @@ data class MediaItem(
     val id: String = UUID.randomUUID().toString(),
     val title: String, val type: MediaType, val status: WatchStatus,
     val progress: Int = 0, val total: Int = 0,
+    // Manga only: volumes read (MAL num_volumes_read)
+    val volumesRead: Int = 0,
     // User's own tracking info
     val myRating: Int = 0, val watchStartDate: String = "", val watchEndDate: String = "",
     // Comma-separated tags, synced to

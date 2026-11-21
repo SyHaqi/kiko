@@ -223,7 +223,6 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
             }
         }
         if (sortSheetOpen) SortSheet(if (type == MediaType.Anime) "Anime List" else "Manga List", FriendListSort.entries, sort, { it.label }, { friendSortIcon(it) }, onDismiss = { sortSheetOpen = false }, reversed = sortReversed, onToggleDirection = { sortReversed = !sortReversed }) { sort = it; sortReversed = false }
-        if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.accent)
 
         // Keyed on username/type: switching to a different friend (or
         // switching anime/manga) should land back on "All" rather than

@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.selection.selectable
@@ -356,7 +357,7 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
 // saving vertical space while
 // any small option set
 // every "tap the big
-@Composable fun <T> SwitcherHeader(current: T, options: List<T>, labelFor: (T) -> String, onSelect: (T) -> Unit, horizontalPadding: Dp = 20.dp, switchDescription: String = "Switch section", minHeight: Dp = KikoHeader.Height, verticalPadding: Dp = 12.dp, action: @Composable () -> Unit = {}) {
+@Composable fun <T> SwitcherHeader(current: T, options: List<T>, labelFor: (T) -> String, onSelect: (T) -> Unit, horizontalPadding: Dp = 20.dp, switchDescription: String = "Switch section", minHeight: Dp = KikoHeader.Height, verticalPadding: Dp = 12.dp, touchHighlight: Boolean = true, action: @Composable () -> Unit = {}) {
     val c = LocalKikoColors.current
     val density = LocalDensity.current
     var expanded by remember { mutableStateOf(false) }
@@ -370,7 +371,11 @@ fun WatchStatus.badgeIcon(): ImageVector = when (this) {
                 Modifier
                     .onGloballyPositioned { anchorWidthPx = it.size.width }
                     .clip(RoundedCornerShape(kikoCorner(4.dp)))
-                    .kikoClickable { expanded = true }
+                    // touchHighlight = false (My List): no ripple and no press-shrink on the title, it just opens the menu.
+                    .then(
+                        if (touchHighlight) Modifier.kikoClickable { expanded = true }
+                        else Modifier.clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) { expanded = true }
+                    )
                     .padding(start = 0.dp, top = 0.dp, end = 6.dp, bottom = 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -761,7 +766,7 @@ fun statusColor(label: String): Color = when {
         if (picture.isNotBlank()) {
             AsyncImage(model = picture, contentDescription = "Profile picture", contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(size).clip(avatarShape).background(c.warm).then(posMod).then(tapMod))
         } else {
-            Box(Modifier.size(size).clip(avatarShape).background(c.warm).then(posMod).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.44f).sp, color = c.ink) }
+            Box(Modifier.size(size).clip(avatarShape).background(c.warm).then(posMod).then(tapMod), contentAlignment = Alignment.Center) { Text(name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.44f).sp, color = c.onSecondaryContainer) }
         }
         // Small dot signaling an
         // app update is ready.

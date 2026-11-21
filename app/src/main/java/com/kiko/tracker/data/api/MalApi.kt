@@ -578,6 +578,7 @@ class MalApi(private val context: Context) {
         val fields = buildMap {
             put("status", status)
             put(progressField, item.progress.toString())
+            if (item.type == MediaType.Manga) put("num_volumes_read", item.volumesRead.toString())
             put("score", item.myRating.toString())
             // Always send, even blank
             // is how MAL clears
@@ -763,6 +764,7 @@ class MalApi(private val context: Context) {
             type = if (kind == "anime") MediaType.Anime else MediaType.Manga,
             status = status,
             progress = if (kind == "anime") s.optInt("num_episodes_watched") else s.optInt("num_chapters_read"),
+            volumesRead = if (kind == "anime") 0 else s.optInt("num_volumes_read"),
             total = if (kind == "anime") n.optInt("num_episodes") else n.optInt("num_chapters"),
             genre = genresList.firstOrNull() ?: "",
             genres = genresList,

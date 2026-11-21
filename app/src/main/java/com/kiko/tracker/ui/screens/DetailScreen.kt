@@ -119,6 +119,7 @@ import com.kiko.tracker.ui.components.kikoFilterChipColors
 import com.kiko.tracker.ui.components.statusColor
 import com.kiko.tracker.ui.components.badgeIcon
 import com.kiko.tracker.ui.components.rememberBelowAnchorTooltipPositionProvider
+import com.kiko.tracker.ui.theme.KikoColors
 import com.kiko.tracker.ui.theme.LocalKikoColors
 import com.kiko.tracker.ui.theme.StaggeredItem
 import com.kiko.tracker.ui.theme.kikoCircleShape
@@ -1454,7 +1455,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                 AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(30.dp).clip(kikoCircleShape()).background(c.warm))
             } else {
                 Box(Modifier.size(30.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                    Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.ink)
+                    Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.onSecondaryContainer)
                 }
             }
             Text(entry.username, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 9.dp))
@@ -1503,6 +1504,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
     val c = LocalKikoColors.current
     var status by remember { mutableStateOf(item.status) }
     var progress by remember { mutableStateOf(item.progress) }
+    var volumesRead by remember { mutableStateOf(item.volumesRead) }
     var rating by remember { mutableStateOf(item.myRating) }
     var startDate by remember { mutableStateOf(item.watchStartDate) }
     var endDate by remember { mutableStateOf(item.watchEndDate) }
@@ -1557,7 +1559,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { if (item.inUserList) confirmDelete = true else notInListNotice = true }, colors = ButtonDefaults.textButtonColors(contentColor = c.danger)) { Text("Delete") }
                 Button(
-                    onClick = { onSave(item.copy(status = status, progress = progress, myRating = rating, watchStartDate = startDate, watchEndDate = endDate, isRewatching = rewatching, timesRewatched = timesRewatched, rewatchValue = rewatchValue, priority = priority, notes = notes, comments = comments)) },
+                    onClick = { onSave(item.copy(status = status, progress = progress, volumesRead = volumesRead, myRating = rating, watchStartDate = startDate, watchEndDate = endDate, isRewatching = rewatching, timesRewatched = timesRewatched, rewatchValue = rewatchValue, priority = priority, notes = notes, comments = comments)) },
                     colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary),
                 ) { Text("Save change") }
             }
@@ -1599,6 +1601,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                                     status = s
                                     // Auto-fill progress to the
                                     if (s == WatchStatus.Completed && item.total > 0) progress = item.total
+                                    if (s == WatchStatus.Completed && item.type == MediaType.Manga && item.volumes > 0) volumesRead = item.volumes
                                     // Auto-fill finish date to today when marking Completed, unless one is already set.
                                     if (s == WatchStatus.Completed && endDate.isBlank()) {
                                         endDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
@@ -1641,6 +1644,20 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                 IconButton(onClick = { if (item.total <= 0 || progress < item.total) progress++ }) { Icon(Icons.Rounded.Add, "Increase", tint = c.primary) }
             }
 
+            // Manga only: volumes read, same stepper as chapters.
+            if (item.type == MediaType.Manga) {
+                Text("Volume", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh).padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    IconButton(onClick = { if (volumesRead > 0) volumesRead-- }) { Icon(Icons.Rounded.Remove, "Decrease volume", tint = c.primary) }
+                    Text(if (item.volumes > 0) "$volumesRead/${item.volumes}" else volumesRead.toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.ink)
+                    IconButton(onClick = { if (item.volumes <= 0 || volumesRead < item.volumes) volumesRead++ }) { Icon(Icons.Rounded.Add, "Increase volume", tint = c.primary) }
+                }
+            }
+
             Text("Your rating", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
             Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                 Slider(
@@ -1654,9 +1671,15 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                 // Star matches the app's
                 // just recolored to this
                 // instead of the MAL-score
-                Box(Modifier.padding(start = 14.dp).size(38.dp), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Star, contentDescription = null, tint = c.primaryContainer, modifier = Modifier.fillMaxSize())
-                    Text(if (rating == 0) "–" else rating.toString(), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = c.primary)
+                // The number is deliberately larger than the star behind it: the star is only a soft tonal
+                // backdrop (smaller than the digits' footprint), so the value stays readable in every theme.
+                Box(Modifier.padding(start = 10.dp).size(52.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.Star, contentDescription = null, tint = c.primaryContainer, modifier = Modifier.size(34.dp))
+                    Text(
+                        if (rating == 0) "–" else rating.toString(),
+                        fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = c.ink,
+                        maxLines = 1, softWrap = false,
+                    )
                 }
             }
 
@@ -1726,27 +1749,35 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
             }
 
             Text("Tags", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
-            OutlinedTextField(
+            TextField(
                 value = notes, onValueChange = { notes = it },
                 placeholder = { Text("Comma separated, e.g. comfort watch, rewatch", color = c.muted) },
                 minLines = 3, maxLines = 6,
                 shape = RoundedCornerShape(kikoCorner(16.dp)),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                colors = kikoEditFieldColors(c),
                 modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
             )
 
             Text("Notes", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink, modifier = Modifier.padding(top = 20.dp))
-            OutlinedTextField(
+            TextField(
                 value = comments, onValueChange = { comments = it },
                 placeholder = { Text("Write a note about this entry", color = c.muted) },
                 minLines = 3, maxLines = 6,
                 shape = RoundedCornerShape(kikoCorner(16.dp)),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                colors = kikoEditFieldColors(c),
                 modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
             )
         }
     }
 }
+// Same look as the other boxes in the edit sheet: tonal surfaceContainerHigh, 16dp corners, no outline.
+@Composable private fun kikoEditFieldColors(c: KikoColors) = TextFieldDefaults.colors(
+    focusedContainerColor = c.surfaceContainerHigh, unfocusedContainerColor = c.surfaceContainerHigh, disabledContainerColor = c.surfaceContainerHigh,
+    focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, errorIndicatorColor = Color.Transparent,
+    focusedTextColor = c.ink, unfocusedTextColor = c.ink, cursorColor = c.primary,
+    focusedPlaceholderColor = c.muted, unfocusedPlaceholderColor = c.muted,
+)
+
 // Tappable date picker field
 
 @Composable fun DateField(modifier: Modifier = Modifier, label: String, value: String, onPick: (String) -> Unit) {
@@ -1759,14 +1790,12 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(if (value.isBlank()) "Not set" else formatUserDate(value), color = if (value.isBlank()) c.muted else c.ink, fontWeight = FontWeight.Medium, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 6.dp))
+            Text(if (value.isBlank()) "Not set" else formatUserDate(value), color = if (value.isBlank()) c.muted else c.ink, fontWeight = FontWeight.Medium, fontSize = 13.sp, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f).padding(end = 6.dp))
             // Only offer clearing once
             // a date has actually
             if (value.isNotBlank()) {
-                IconButton(onClick = { onPick("") }, modifier = Modifier.size(20.dp)) { Icon(Icons.Rounded.Close, "Clear $label", tint = c.muted, modifier = Modifier.size(16.dp)) }
-                Spacer(Modifier.width(6.dp))
+                IconButton(onClick = { onPick("") }, modifier = Modifier.size(22.dp)) { Icon(Icons.Rounded.Close, "Clear $label", tint = c.muted, modifier = Modifier.size(16.dp)) }
             }
-            Icon(Icons.Rounded.DateRange, null, tint = c.muted, modifier = Modifier.size(18.dp))
         }
     }
     if (showPicker) {

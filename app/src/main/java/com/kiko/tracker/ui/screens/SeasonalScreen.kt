@@ -182,8 +182,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 itemsIndexed(dayItems, key = { _, it -> it.first.id }) { index, (item, _, time) ->
                     StaggeredItem(index) {
                         Column {
-                            ScheduleRow(item, time, onOpenDetail, myStatus = vm.trackedStatus(item))
-                            if (index < dayItems.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                            // The time is shown once per slot: titles airing at the same minute share it.
+                            val showTime = index == 0 || dayItems[index - 1].third != time
+                            ScheduleRow(item, time, onOpenDetail, myStatus = vm.trackedStatus(item), showTime = showTime)
+                            if (index < dayItems.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant, modifier = Modifier.padding(start = 76.dp))
                         }
                     }
                 }
@@ -193,37 +195,41 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 }
 // Schedule screen row
 
-@Composable fun ScheduleRow(item: MediaItem, time: java.time.LocalTime, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null) {
+@Composable fun ScheduleRow(item: MediaItem, time: java.time.LocalTime, onOpenDetail: (MediaItem) -> Unit, myStatus: WatchStatus? = null, showTime: Boolean = true) {
     val c = LocalKikoColors.current
     val is24Hour = systemIs24Hour()
+    // Timeline layout: a fixed time column on the left (the time reads first, like a TV guide), then the cover,
+    // then title / format / status. The list draws a line between rows, inset to start at the cover.
     Row(
         Modifier
             .fillMaxWidth()
-            .kikoClickable { onOpenDetail(item) }
+            .kikoClickable(scale = 1f) { onOpenDetail(item) }
             .padding(vertical = 14.dp),
         verticalAlignment = Alignment.Top,
     ) {
+        Box(Modifier.width(64.dp).padding(top = 2.dp)) {
+            if (showTime) {
+                Column {
+                    val label = localizedTimeLabel(time, is24Hour)
+                    // "9:30 PM" -> big "9:30" over small "PM"; 24-hour times have no suffix.
+                    val parts = label.split(" ", limit = 2)
+                    Text(parts[0], color = c.primary, fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 1, softWrap = false)
+                    if (parts.size > 1) Text(parts[1], color = c.muted, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                }
+            }
+        }
         // overrideStatus: same live O(1)
         // also comes from the
-        Cover(item, Modifier.size(width = 84.dp, height = 118.dp), showStatus = true, overrideStatus = myStatus)
-        Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
-            Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Cover(item, Modifier.size(width = 76.dp, height = 108.dp), showStatus = true, overrideStatus = myStatus)
+        Column(Modifier.weight(1f).padding(start = 14.dp, end = 4.dp)) {
+            Text(item.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text("${formatLabel(item)} · ${item.genre}", color = c.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
-            Row(Modifier.padding(top = 9.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Row(
-                    Modifier.clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.Schedule, null, tint = c.primary, modifier = Modifier.size(12.dp))
-                    Text(localizedTimeLabel(time, is24Hour), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 5.dp))
-                }
-                // Extra pill for titles that haven't premiered yet.
-                item.upcomingLabel()?.let { label ->
-                    Text(
-                        label, color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1,
-                        modifier = Modifier.clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.surfaceContainerHigh).padding(horizontal = 9.dp, vertical = 5.dp),
-                    )
-                }
+            // Extra pill for titles that haven't premiered yet.
+            item.upcomingLabel()?.let { label ->
+                Text(
+                    label, color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1,
+                    modifier = Modifier.padding(top = 9.dp).clip(RoundedCornerShape(kikoCorner(10.dp))).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 5.dp),
+                )
             }
         }
     }

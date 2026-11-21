@@ -81,7 +81,7 @@ import com.kiko.tracker.util.openInBrowser
                     } else {
                         Box(Modifier.size(88.dp).clip(RoundedCornerShape(kikoCorner(24.dp))).background(c.primaryContainer))
                     }
-                    Text("Kiko", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.padding(top = 14.dp))
+                    Text("Kiko", style = MaterialTheme.typography.headlineSmall, color = c.onPrimaryContainer, modifier = Modifier.padding(top = 14.dp))
                     Text("Version ${BuildConfig.VERSION_NAME}", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                 }
                 Spacer(Modifier.height(28.dp))

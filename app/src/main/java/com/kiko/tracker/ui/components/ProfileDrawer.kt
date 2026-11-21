@@ -81,7 +81,7 @@ import com.kiko.tracker.ui.theme.kikoClickable
                     AsyncImage(model = profile.picture, contentDescription = profile.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(58.dp).clip(kikoCircleShape()).background(c.warm))
                 } else {
                     Box(Modifier.size(58.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                        Text(profile?.name?.take(1)?.uppercase()?.ifBlank { "M" } ?: "M", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = c.ink)
+                        Text(profile?.name?.take(1)?.uppercase()?.ifBlank { "M" } ?: "M", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = c.onSecondaryContainer)
                     }
                 }
                 Column(Modifier.weight(1f).padding(start = 16.dp)) {

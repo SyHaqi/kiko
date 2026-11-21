@@ -222,7 +222,7 @@ import com.kiko.tracker.ui.theme.kikoPillShape
                 AsyncImage(model = entry.userImage, contentDescription = entry.username, contentScale = ContentScale.Crop, modifier = Modifier.size(34.dp).clip(kikoCircleShape()).background(c.warm))
             } else {
                 Box(Modifier.size(34.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                    Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.ink)
+                    Text(entry.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.onSecondaryContainer)
                 }
             }
             Column(Modifier.weight(1f).padding(start = 10.dp, end = 8.dp)) {

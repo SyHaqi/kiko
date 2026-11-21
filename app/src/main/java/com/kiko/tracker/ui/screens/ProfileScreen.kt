@@ -50,6 +50,7 @@ import com.kiko.tracker.data.model.AirTimerPrefs
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.Logout as LogoutOutlined
 import androidx.compose.material3.*
@@ -391,7 +392,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                             )
                         } else {
                             Box(Modifier.size(80.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                                Text(profile.name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 26.sp, color = c.ink)
+                                Text(profile.name.take(1).uppercase().ifBlank { "M" }, fontWeight = FontWeight.Bold, fontSize = 26.sp, color = c.onSecondaryContainer)
                             }
                         }
                         Column(Modifier.padding(start = 16.dp).weight(1f)) {
@@ -546,15 +547,14 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                                         SummaryRow("Total Entries", formatExact(profile?.animeTotalEntries ?: 0), c)
                                         SummaryRow("Rewatched", formatExact(animeItems.sumOf { it.timesRewatched }), c)
                                         SummaryRow("Episodes", formatExact(profile?.animeEpisodesWatched ?: 0), c)
-                                        // Bottom-right of the card — lines up under
-                                        // "Episodes", to the right of "Plan to Watch".
-                                        if (!isOwnProfile) SeeFriendListButton(c, onClick = { onOpenFriendList(MediaType.Anime) })
                                     }
                                 }
+                                // Bottom-right of the stats section, right above the genre breakdown.
+                                if (!isOwnProfile) SeeFriendListButton(c, onClick = { onOpenFriendList(MediaType.Anime) })
                                 if (animeItems.isNotEmpty()) {
                                     Spacer(Modifier.height(24.dp))
                                     Text("Genre breakdown", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
-                                    GenreRankedBars(animeItems, c, onGenreClick = { onGenreClick(MediaType.Anime, it) })
+                                    GenreColumnChart(animeItems, c, onGenreClick = { onGenreClick(MediaType.Anime, it) })
                                     Spacer(Modifier.height(24.dp))
                                     Text("Score distribution", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
                                     ScoreDistributionChart(animeItems, c, onScoreClick = { onScoreClick(MediaType.Anime, it) })
@@ -591,15 +591,14 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                                         SummaryRow("Total Entries", formatExact(mangaTotalDisplay), c)
                                         SummaryRow("Reread", formatExact(mangaRereadDisplay), c)
                                         SummaryRow("Chapters", formatExact(mangaChaptersDisplay), c)
-                                        // Bottom-right of the card — lines up under
-                                        // "Chapters", to the right of "Plan to Read".
-                                        if (!isOwnProfile) SeeFriendListButton(c, onClick = { onOpenFriendList(MediaType.Manga) })
                                     }
                                 }
+                                // Bottom-right of the stats section, right above the genre breakdown.
+                                if (!isOwnProfile) SeeFriendListButton(c, onClick = { onOpenFriendList(MediaType.Manga) })
                                 if (mangaItems.isNotEmpty()) {
                                     Spacer(Modifier.height(24.dp))
                                     Text("Genre breakdown", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
-                                    GenreRankedBars(mangaItems, c, onGenreClick = { onGenreClick(MediaType.Manga, it) })
+                                    GenreColumnChart(mangaItems, c, onGenreClick = { onGenreClick(MediaType.Manga, it) })
                                     Spacer(Modifier.height(24.dp))
                                     Text("Score distribution", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = c.ink, modifier = Modifier.padding(bottom = 12.dp))
                                     ScoreDistributionChart(mangaItems, c, onScoreClick = { onScoreClick(MediaType.Manga, it) })
@@ -645,7 +644,7 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
                         .background(c.lavender)
                         .padding(24.dp),
                 ) {
-                    Text("Connect MyAnimeList", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = c.ink)
+                    Text("Connect MyAnimeList", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = c.onTertiaryContainer)
                     Text("Sign in with your MyAnimeList account to bring in your real list.", color = c.muted, modifier = Modifier.padding(top = 8.dp, bottom = 18.dp))
                     Button(onClick = onConnect, shape = RoundedCornerShape(kikoCorner(16.dp)), colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) { Text("Sign in with MyAnimeList") }
                 }
@@ -654,34 +653,48 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
     }
 }
 
-// Genre breakdown as ranked, tappable rows, M3 Expressive style: type carries the hierarchy (the top genre is set
-// larger and bolder with a thicker bar) and each share is a fully rounded, thick bar in the genre's color with a
-// small gap before its tonal track, like the 1.4 progress indicators. Bars are relative to the top genre; the
-// right side reads count, then the genre's % of the list.
-@Composable private fun GenreRankedBars(items: List<MediaItem>, c: KikoColors, onGenreClick: ((String) -> Unit)? = null) {
+// Genre breakdown as a column chart (bars grow up the y axis), M3 Expressive style: every genre gets one wide,
+// fully rounded column in its own colour sitting in a tonal track of the same height, so even a small genre reads
+// as a share of the biggest one. The count sits on top, the genre name (up to two lines) and its % of the list
+// underneath. Columns are relative to the top genre, grow in with a springy animation, and are tappable.
+@Composable private fun GenreColumnChart(items: List<MediaItem>, c: KikoColors, onGenreClick: ((String) -> Unit)? = null) {
     val total = items.size
     // Skip junk genre tags (same filter the old chart used)
     val counts = items.flatMap { it.genres }.filter { it.isNotBlank() && it.trim().split(" ").size <= 3 && it.length <= 24 }
         .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(6)
     if (counts.isEmpty()) { Text("Not enough data yet.", color = c.muted, fontSize = 12.sp); return }
     val top = counts.first().value.coerceAtLeast(1)
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    val trackHeight = 150.dp
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Top) {
         counts.forEachIndexed { index, (genre, count) ->
             val color = chartColor(c, index)
-            val lead = index == 0
-            // Never under 4% so a rare genre still shows a visible, rounded stub.
-            val fraction = (count.toFloat() / top).coerceIn(0.04f, 1f)
-            val base = Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(20.dp)))
-            Column((if (onGenreClick != null) base.kikoClickable(scale = 0.98f) { onGenreClick(genre) } else base).padding(horizontal = 12.dp, vertical = 8.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(genre, color = c.ink, fontWeight = if (lead) FontWeight.Bold else FontWeight.SemiBold, fontSize = if (lead) 16.sp else 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Text(count.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = if (lead) 16.sp else 14.sp)
-                    if (total > 0) Text("${(count * 100f / total).roundToInt()}%", color = c.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp).widthIn(min = 32.dp), textAlign = TextAlign.End)
+            // Never under 6% so a rare genre still shows a visible, rounded stub.
+            val fraction = (count.toFloat() / top).coerceIn(0.06f, 1f)
+            val animated by androidx.compose.animation.core.animateFloatAsState(
+                if (shown) fraction else 0f,
+                androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 220f),
+                label = "genre-col",
+            )
+            val base = Modifier.weight(1f).clip(RoundedCornerShape(kikoCorner(16.dp)))
+            Column(
+                (if (onGenreClick != null) base.kikoClickable(scale = 0.96f) { onGenreClick(genre) } else base).padding(vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(count.toString(), color = c.ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Box(
+                    Modifier.padding(top = 6.dp).fillMaxWidth().height(trackHeight).clip(RoundedCornerShape(kikoCorner(14.dp))).background(c.surfaceContainerHigh),
+                    contentAlignment = Alignment.BottomCenter,
+                ) {
+                    Box(Modifier.fillMaxWidth().fillMaxHeight(animated.coerceIn(0f, 1f)).clip(RoundedCornerShape(kikoCorner(14.dp))).background(color))
                 }
-                Row(Modifier.padding(top = 8.dp).fillMaxWidth().height(if (lead) 16.dp else 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Box(Modifier.weight(fraction).fillMaxHeight().clip(kikoPillShape()).background(color))
-                    if (fraction < 1f) Box(Modifier.weight(1f - fraction).fillMaxHeight().clip(kikoPillShape()).background(c.surfaceContainerHigh))
-                }
+                Text(
+                    genre, color = c.ink, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, lineHeight = 13.sp,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp).heightIn(min = 26.dp),
+                )
+                if (total > 0) Text("${(count * 100f / total).roundToInt()}%", color = c.onSurfaceVariant, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
             }
         }
     }
@@ -709,17 +722,19 @@ data class DetailPill(val icon: androidx.compose.ui.graphics.vector.ImageVector,
 // tapping each StatusLegendRow (Watching/Completed/…) with one button per
 // tab that opens that type's full list (all statuses) in FriendListScreen.
 @Composable private fun SeeFriendListButton(c: KikoColors, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.End) {
+    Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.End) {
         Row(
             Modifier
-                .clip(RoundedCornerShape(kikoCorner(12.dp)))
-                .background(c.surfaceContainerHigh)
+                .height(40.dp)
+                .clip(kikoPillShape())
+                .background(c.primaryContainer)
                 .kikoClickable(onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 7.dp),
+                .padding(start = 16.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("See List", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Icon(Icons.Rounded.ChevronRight, null, tint = c.primary, modifier = Modifier.size(16.dp))
+            Icon(Icons.AutoMirrored.Rounded.ListAlt, null, tint = c.onPrimaryContainer, modifier = Modifier.size(18.dp))
+            Text("See list", color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
+            Icon(Icons.Rounded.ChevronRight, null, tint = c.onPrimaryContainer, modifier = Modifier.padding(start = 2.dp).size(18.dp))
         }
     }
 }

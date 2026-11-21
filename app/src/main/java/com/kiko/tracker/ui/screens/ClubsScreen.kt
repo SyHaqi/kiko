@@ -155,10 +155,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
             if (loading && visibleClubs.isEmpty()) {
                 item { KikoSectionLoading() }
             } else {
-                // Tonal rows like the Forums board list: no divider lines — each club is its own
-                // surface with big outer / tight inner corners and a 2dp gap between rows.
+                // Rows are separated by whitespace only (no tonal background, no divider lines).
                 itemsIndexed(visibleClubs, key = { _, club -> club.id }) { index, club ->
-                    StaggeredItem(index, modifier = Modifier.padding(top = if (index == 0) 0.dp else 2.dp)) {
+                    StaggeredItem(index, modifier = Modifier.padding(top = if (index == 0) 0.dp else 6.dp)) {
                         ClubRow(club, forumGroupShape(index, visibleClubs.size)) { openClub(club) }
                     }
                 }
@@ -188,12 +187,12 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 // single truncated line.
 @Composable fun ClubRow(club: MalClub, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(kikoCorner(20.dp)), onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    Row(Modifier.fillMaxWidth().clip(shape).background(c.surfaceContainerHigh).kikoClickable(scale = 0.98f, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clip(shape).kikoClickable(scale = 0.98f, onClick = onClick).padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         if (club.image.isNotBlank()) {
             AsyncImage(model = club.image, contentDescription = club.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.warm))
         } else {
             Box(Modifier.size(width = 84.dp, height = 118.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.primaryContainer), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Groups, null, tint = c.primary, modifier = Modifier.size(30.dp))
+                Icon(Icons.Rounded.Groups, null, tint = c.onPrimaryContainer, modifier = Modifier.size(30.dp))
             }
         }
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 6.dp)) {
@@ -374,7 +373,7 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
                                 AsyncImage(model = post.avatar, contentDescription = post.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(38.dp).clip(kikoCircleShape()).background(c.warm))
                             } else {
                                 Box(Modifier.size(38.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                                    Text(post.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+                                    Text(post.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.onSecondaryContainer)
                                 }
                             }
                             Column(Modifier.weight(1f).padding(start = 12.dp)) {
@@ -404,7 +403,7 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
                 club.staff.forEachIndexed { index, staff ->
                     Row(Modifier.fillMaxWidth().kikoClickable(enabled = staff.url.isNotBlank()) { onOpenBrowser(staff.url) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(38.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                            Text(staff.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+                            Text(staff.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.onSecondaryContainer)
                         }
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {
                             Text(staff.username.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink)
@@ -450,7 +449,7 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
                                     AsyncImage(model = member.image, contentDescription = member.username, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(38.dp).clip(kikoCircleShape()).background(c.warm))
                                 } else {
                                     Box(Modifier.size(38.dp).clip(kikoCircleShape()).background(c.warm), contentAlignment = Alignment.Center) {
-                                        Text(member.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink)
+                                        Text(member.username.take(1).uppercase().ifBlank { "?" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.onSecondaryContainer)
                                     }
                                 }
                                 Text(member.username.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.ink, modifier = Modifier.weight(1f).padding(start = 12.dp))

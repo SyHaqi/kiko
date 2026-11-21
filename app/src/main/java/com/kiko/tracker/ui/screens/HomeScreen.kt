@@ -678,8 +678,8 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
                         Modifier.padding(top = 8.dp).clip(kikoPillShape()).background(c.primaryContainer).padding(horizontal = 9.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Rounded.Visibility, null, tint = c.accent, modifier = Modifier.size(11.dp))
-                        Text(article.views, color = c.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                        Icon(Icons.Rounded.Visibility, null, tint = c.onPrimaryContainer, modifier = Modifier.size(11.dp))
+                        Text(article.views, color = c.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
             }
@@ -871,6 +871,16 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
 }
 
 
+// Progress bar for list rows: glides to the new value (e.g. after tapping +1) instead of snapping.
+@Composable private fun AnimatedProgressBar(item: MediaItem, modifier: Modifier, color: Color, trackColor: Color) {
+    val fraction by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = progressFraction(item.progress, item.total),
+        animationSpec = tween(durationMillis = 420, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "listProgress",
+    )
+    LinearProgressIndicator(progress = { fraction }, modifier = modifier, color = color, trackColor = trackColor, drawStopIndicator = {})
+}
+
 @Composable fun ListScreen(vm: LibraryViewModel, onOpenDetail: (MediaItem) -> Unit, onIncrement: (MediaItem) -> Unit, onEdit: (MediaItem) -> Unit = {}, selectedItem: MediaItem? = null) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
@@ -955,6 +965,7 @@ fun listSortIcon(sort: ListSort): ImageVector = when (sort) {
                         onSelect = { vm.selectListTypeTab(context, it) },
                         horizontalPadding = 14.dp,
                         switchDescription = "Switch between Anime and Manga",
+                        touchHighlight = false,
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             // Search, sort and avatar each get the same 43dp slot, so the three are evenly spaced
@@ -1223,6 +1234,16 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
         initialFirstVisibleItemIndex = if (restoreScroll) vm.listScrollIndex else 0,
         initialFirstVisibleItemScrollOffset = if (restoreScroll) vm.listScrollOffset else 0,
     )
+    // Changing the sort (field or direction) always jumps back to the top of the list.
+    var lastSortKey by remember { mutableStateOf(vm.listSort to vm.listSortReversed) }
+    LaunchedEffect(vm.listSort, vm.listSortReversed) {
+        val key = vm.listSort to vm.listSortReversed
+        if (key != lastSortKey) {
+            lastSortKey = key
+            listState.scrollToItem(0)
+            gridState.scrollToItem(0)
+        }
+    }
     // Decode the covers of the rows just below the viewport ahead of time (active page, list layout), so a
     // row arriving on screen already has its cover in Coil's memory cache instead of decoding mid-scroll.
     if (restoreScroll && !isGrid) {
@@ -1398,10 +1419,10 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
         val counterBlock: @Composable (Modifier) -> Unit = { blockModifier ->
             Column(blockModifier) {
                 Text(gridCounterLabel(item), color = c.muted, fontSize = if (roomy) 12.sp else 10.sp, lineHeight = if (roomy) 16.sp else 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                LinearProgressIndicator(
-                    progress = { progressFraction(item.progress, item.total) },
+                AnimatedProgressBar(
+                    item = item,
                     modifier = Modifier.padding(top = if (roomy) 8.dp else 6.dp).fillMaxWidth().height(if (roomy) 5.dp else 4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
-                    color = progressBarColor(item.listTabStatus()), trackColor = c.surfaceLow, drawStopIndicator = {},
+                    color = progressBarColor(item.listTabStatus()), trackColor = c.surfaceLow,
                 )
             }
         }
@@ -1728,10 +1749,10 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
                     Text(progressLabel(item), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1)
                     // Always drawn, even when the total is unknown (e.g. a not-yet-aired
                     // "Plan to Watch" title): the track just stays empty until a total exists.
-                    LinearProgressIndicator(
-                        progress = { progressFraction(item.progress, item.total) },
+                    AnimatedProgressBar(
+                        item = item,
                         modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(kikoCorner(4.dp))),
-                        color = progressBarColor(item.listTabStatus()), trackColor = c.surfaceLow, drawStopIndicator = {},
+                        color = progressBarColor(item.listTabStatus()), trackColor = c.surfaceLow,
                     )
                 }
             }
@@ -1821,10 +1842,10 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
                 Column(Modifier.weight(1f)) {
                     Text(progressLabel(item), color = c.muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.fillMaxWidth())
                     // Flat, thicker, round-capped bar (no wave). Always drawn; the track stays empty until a total exists.
-                    LinearProgressIndicator(
-                        progress = { progressFraction(item.progress, item.total) },
+                    AnimatedProgressBar(
+                        item = item,
                         modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
-                        color = progressBarColor(item.listTabStatus()), trackColor = c.surfaceContainerHigh, drawStopIndicator = {},
+                        color = progressBarColor(item.listTabStatus()), trackColor = c.surfaceContainerHigh,
                     )
                 }
                 if (onIncrement != null) {

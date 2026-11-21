@@ -207,24 +207,36 @@ fun parseHexColor(hex: String): Color? {
     return try { Color(0xFF000000 or cleaned.toLong(16)) } catch (e: Exception) { null }
 }
 
-// True-black variant for AMOLED
-// black so OLED pixels
-// Also gives buttons/cards/dividers a
-// separators, so they stay
-// blending into it. Pure
-// the ~0x12 dark background),
-// light/dark themes' 0.16f to
-fun amoledify(colors: KikoColors): KikoColors = colors.copy(
-    background = Color.Black,
-    surface = Color(0xFF000000),
-    surfaceLow = Color(0xFF0A0A0A),
-    surfaceContainerLowest = Color.Black,
-    surfaceContainerLow = Color(0xFF080808),
-    surfaceContainer = Color(0xFF0C0C0C),
-    surfaceContainerHigh = Color(0xFF121212),
-    surfaceContainerHighest = Color(0xFF181818),
-    cardBorder = colors.muted.copy(alpha = .32f),
-)
+// True-black variant for AMOLED. The background stays pure black so OLED pixels switch off, but every
+// layer above it is now TINTED with the accent (primary) instead of neutral gray, so the OLED theme
+// reads as the same palette as normal dark mode, just deeper: the surface ladder carries a few percent
+// of the accent hue, the accent containers are pulled darker so they sit on black instead of glowing,
+// and borders / dividers pick up the accent too.
+private fun oledTint(accent: Color, amount: Float): Color = androidx.compose.ui.graphics.lerp(Color.Black, accent, amount)
+private fun oledContainer(c: Color): Color = androidx.compose.ui.graphics.lerp(Color.Black, c, 0.62f)
+
+fun amoledify(colors: KikoColors): KikoColors {
+    val a = colors.primary
+    val secondaryContainer = oledContainer(colors.secondaryContainer)
+    return colors.copy(
+        background = Color.Black,
+        surface = Color.Black,
+        // Steps are big enough that a tonal row clearly separates from the pure-black page (the first version was too dark).
+        surfaceLow = oledTint(a, 0.17f),
+        surfaceContainerLowest = Color.Black,
+        surfaceContainerLow = oledTint(a, 0.08f),
+        surfaceContainer = oledTint(a, 0.12f),
+        surfaceContainerHigh = oledTint(a, 0.17f),
+        surfaceContainerHighest = oledTint(a, 0.22f),
+        primaryContainer = oledContainer(colors.primaryContainer),
+        secondaryContainer = secondaryContainer,
+        tertiaryContainer = oledContainer(colors.tertiaryContainer),
+        lavender = oledContainer(colors.tertiaryContainer),
+        warm = secondaryContainer,
+        outlineVariant = androidx.compose.ui.graphics.lerp(colors.outlineVariant, a, 0.22f),
+        cardBorder = a.copy(alpha = .30f),
+    )
+}
 
 /** Builds a real androidx.compose.material3.ColorScheme */
 fun KikoColors.toMaterialColorScheme(dark: Boolean): ColorScheme {

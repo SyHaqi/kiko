@@ -222,7 +222,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                                 FriendAvatar(url = avatarHint, modifier = Modifier.size(64.dp).clip(kikoCircleShape()).background(c.warm))
                                 Spacer(Modifier.height(16.dp))
                             }
-                            KikoLoadingIndicator(color = c.primary)
+                            KikoLoadingIndicator(color = c.onSecondaryContainer)
                         }
                         state.error != null && state.profile == null -> Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(state.error, color = c.muted, fontSize = 13.sp)
