@@ -75,6 +75,10 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
@@ -271,8 +275,7 @@ private fun forumBoardIcon(board: ForumBoard) = when (board.id) {
 }
 
 // Same corner pattern as Settings' groups (settingsGroupShape in ProfileScreen): 28dp outer, 4dp inner.
-fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape {
-    val outer = 28.dp
+fun forumGroupShape(index: Int, count: Int, outer: androidx.compose.ui.unit.Dp = 28.dp): androidx.compose.ui.graphics.Shape {
     val inner = 4.dp
     if (count == 1) return RoundedCornerShape(outer)
     return when (index) {
@@ -354,19 +357,14 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
                     if (vm.forumTopicsLoading && vm.forumTopics.isEmpty()) {
                         item { KikoSectionLoading() }
                     } else {
+                        // Tonal grouped rows (same family as the board list and Settings): big outer corners on the first /
+                        // last row, tight ones between, a 2dp gap instead of divider lines. Slightly smaller outer radius than
+                        // the board list so a long feed reads calmer.
                         itemsIndexed(vm.forumTopics, key = { _, it -> it.id }) { index, topic ->
-                            StaggeredItem(index) {
-                                if (vm.forumIsNewsBoard) {
-                                    Column {
-                                        NewsTopicRow(topic) { openTopic(topic) }
-                                        if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
-                                    }
-                                } else {
-                                    Column {
-                                        ForumTopicRow(topic) { openTopic(topic) }
-                                        if (index < vm.forumTopics.lastIndex) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
-                                    }
-                                }
+                            StaggeredItem(index, modifier = Modifier.padding(bottom = if (index < vm.forumTopics.lastIndex) 2.dp else 0.dp)) {
+                                val shape = forumGroupShape(index, vm.forumTopics.size, outer = TopicGroupOuterCorner)
+                                if (vm.forumIsNewsBoard) NewsTopicRow(topic, shape) { openTopic(topic) }
+                                else ForumTopicRow(topic, shape) { openTopic(topic) }
                             }
                         }
                     }
@@ -383,8 +381,9 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
         }
     }
 }
-// Forum topic list row: no card background; rows are separated by a line (drawn by the list),
-// avatar, two-line title, "who / when", the latest reply, and the reply count as a pill.
+// Forum topic rows are tonal rows of one grouped list (the list passes forumGroupShape): avatar, two-line title,
+// "who / when", the latest reply, and the reply count as an inset chip on the right.
+private val TopicGroupOuterCorner = 22.dp
 @Composable private fun TopicAvatar(user: ForumUser, size: androidx.compose.ui.unit.Dp, c: KikoColors) {
     if (user.avatar.isNotBlank()) {
         AsyncImage(model = user.avatar, contentDescription = user.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(size).clip(kikoCircleShape()).background(c.warm))
@@ -395,10 +394,12 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     }
 }
 
+// Reply count chip. Filled with the page colour, so on a tonal row it reads as a small inset: darker than the row in
+// dark / AMOLED, lighter in light mode, and always visible (a secondaryContainer chip vanishes on light tonal rows).
 @Composable private fun ReplyCountPill(count: Int, c: KikoColors, modifier: Modifier = Modifier) {
-    Row(modifier.clip(kikoPillShape()).background(c.secondaryContainer).padding(horizontal = 9.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.onSecondaryContainer, modifier = Modifier.size(12.dp))
-        Text("$count", color = c.onSecondaryContainer, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+    Row(modifier.clip(kikoPillShape()).background(c.background).padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(12.dp))
+        Text("$count", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 4.dp))
     }
 }
 
@@ -416,10 +417,11 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
 @Composable fun ForumTopicRow(topic: ForumTopic, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(kikoCorner(20.dp)), onClick: () -> Unit) {
     val c = LocalKikoColors.current
     Row(
-        Modifier.fillMaxWidth().clip(shape).kikoClickable(scale = 1f, onClick = onClick).padding(horizontal = 4.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.Top,
+        Modifier.fillMaxWidth().clip(shape).background(c.surfaceContainerHigh).kikoClickable(scale = 0.98f, onClick = onClick)
+            .padding(start = 14.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        TopicAvatar(topic.author, 40.dp, c)
+        TopicAvatar(topic.author, 44.dp, c)
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 if (topic.isLocked) Icon(Icons.Rounded.Lock, "Locked", tint = c.muted, modifier = Modifier.padding(top = 2.dp, end = 5.dp).size(14.dp))
@@ -428,42 +430,44 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
             Text("${topic.author.name.ifBlank { "Unknown" }} · ${formatForumDate(topic.createdAt)}", color = c.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
             LastReplyLine(topic, c, Modifier.padding(top = 6.dp))
         }
-        // Plain icon + count (no pill): the rows are split by lines, so nothing else on them is boxed.
-        Row(Modifier.padding(start = 10.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
-            Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 4.dp))
-        }
+        ReplyCountPill(topic.postCount, c, Modifier.padding(start = 10.dp))
     }
 }
-// News Discussion topic row, Google News style: the title on top and "by author · 3 hours ago" at the bottom-left with
-// the reply count at the bottom-right. The cover
-// stays on the left, sized like a My List row (88x132, or 72x108 in compact mode) with the same row padding; the text
-// column is exactly as tall as the cover. Rows are separated by a thin divider (drawn by the list, see ForumTopicsScreen).
-@Composable fun NewsTopicRow(topic: ForumTopic, onClick: () -> Unit) {
+
+// News Discussion row, built for a tonal list rather than a cover-beside-text list: a tall rounded-square cover (a poster
+// shape, so key visuals keep most of their area), and next to it MAL's labels ("New Anime, Adapts Manga") over the full,
+// un-truncated title, with "age · replies" pinned to the bottom-right, level with the cover's bottom edge. Nothing else,
+// so a long feed stays calm. The cover shrinks a little in compact-list mode, like the other lists.
+@Composable fun NewsTopicRow(topic: ForumTopic, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(kikoCorner(20.dp)), onClick: () -> Unit) {
     val c = LocalKikoColors.current
     val compact = com.kiko.tracker.data.model.LocalCompactList.current
     val coverW = if (compact) 72.dp else 88.dp
-    val coverH = if (compact) 108.dp else 132.dp
-    val rowVPad = if (compact) 10.dp else 12.dp
+    val coverH = if (compact) 88.dp else 104.dp
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(scale = 1f, onClick = onClick).padding(vertical = rowVPad),
-        verticalAlignment = Alignment.CenterVertically,
+        Modifier.fillMaxWidth().clip(shape).background(c.surfaceContainerHigh).kikoClickable(scale = 0.98f, onClick = onClick)
+            .padding(start = 12.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        Box(Modifier.size(width = coverW, height = coverH).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(width = coverW, height = coverH).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHighest), contentAlignment = Alignment.Center) {
             if (topic.imageUrl != null) {
                 AsyncImage(model = topic.imageUrl, contentDescription = topic.title, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             } else {
                 Icon(Icons.Rounded.Newspaper, null, tint = c.muted, modifier = Modifier.size(28.dp))
             }
         }
-        Column(Modifier.weight(1f).height(coverH).padding(start = 16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Row(verticalAlignment = Alignment.Top) {
-                if (topic.isLocked) Icon(Icons.Rounded.Lock, "Locked", tint = c.muted, modifier = Modifier.padding(top = 3.dp, end = 4.dp).size(13.dp))
-                Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = c.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        // At least as tall as the cover; any extra height goes between the title block and the meta line, which
+        // keeps the meta line on the cover's bottom edge for short titles and just below a long title otherwise.
+        Column(Modifier.weight(1f).heightIn(min = coverH).padding(start = 12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Column {
+                if (topic.tags.isNotEmpty()) NewsTagLine(topic.tags, c, Modifier.padding(bottom = 3.dp))
+                Row(verticalAlignment = Alignment.Top) {
+                    if (topic.isLocked) Icon(Icons.Rounded.Lock, "Locked", tint = c.muted, modifier = Modifier.padding(top = 3.dp, end = 4.dp).size(13.dp))
+                    // Full title on purpose: no maxLines, so a long headline wraps instead of being cut.
+                    Text(topic.title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, color = c.ink)
+                }
             }
-            // Pinned to the cover's bottom edge: "by author · age" and the reply count.
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                NewsNameAndDate("by ", topic.author.name.ifBlank { "Unknown" }, formatNewsAge(topic.createdAt), c.muted, Modifier.weight(1f).padding(end = 8.dp))
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                Text("${formatNewsAge(topic.createdAt)} · ", color = c.muted, fontSize = 12.sp, maxLines = 1, softWrap = false)
                 Icon(Icons.Rounded.ChatBubbleOutline, null, tint = c.muted, modifier = Modifier.size(13.dp))
                 Text("${topic.postCount}", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 4.dp))
             }
@@ -471,12 +475,18 @@ fun forumGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape 
     }
 }
 
-// "name · age" on one line where only the name shrinks (ellipsis) so the age is never cut off.
-@Composable private fun NewsNameAndDate(prefix: String, name: String, date: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text("$prefix$name", color = color, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        Text(" · $date", color = color, fontSize = 12.sp, maxLines = 1, softWrap = false)
+// MAL-style tag line: bold coloured labels separated by muted commas. Each kind of tag has its own hue (known tags are
+// fixed, anything new gets a stable hue from its name), tuned separately for light and dark so they stay readable.
+@Composable private fun NewsTagLine(tags: List<String>, c: KikoColors, modifier: Modifier = Modifier) {
+    val dark = c.background.luminance() < 0.5f
+    val text = buildAnnotatedString {
+        tags.forEachIndexed { i, slug ->
+            if (i > 0) withStyle(SpanStyle(color = c.muted)) { append(", ") }
+            val color = newsTagColor(slug, c, dark)
+            withStyle(SpanStyle(color = color, fontWeight = FontWeight.Bold)) { append(com.kiko.tracker.data.api.MalNewsTagApi.label(slug)) }
+        }
     }
+    Text(text, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = modifier)
 }
 
 // "5 min ago" / "3 hours ago" / "2 days ago", falling back to the plain date after a week.
@@ -835,14 +845,21 @@ private fun formatNewsAge(raw: String): String {
                                 }
                             }
                         }
-                        poll?.let { ForumPollCard(it, Modifier.padding(top = 6.dp)) }
+                        poll?.let { ForumPollCard(it, Modifier.padding(top = 6.dp, bottom = 12.dp)) }
                     }
+                    // Tonal layout: the opening post is one card; the replies are one grouped list of tonal rows (big outer
+                    // corners on the first / last reply, tight ones between, a 2dp gap) under a "Replies" label. The header
+                    // is item 0 and posts follow it, so the item indices used for scrolling / jumping are unchanged.
+                    val opCount = if (posts.firstOrNull()?.number == 1) 1 else 0
                     itemsIndexed(posts, key = { _, p -> p.id }) { index, post ->
-                        Column {
-                            // One consistent separator: a line between every post (OP -> first reply -> next reply ...).
-                            if (index > 0) HorizontalDivider(thickness = 1.dp, color = c.outlineVariant)
+                        val isOp = index < opCount
+                        Column(Modifier.padding(bottom = if (index < posts.lastIndex && !isOp) 2.dp else 0.dp)) {
+                            if (index == opCount && opCount == 1) {
+                                Text("Replies", color = c.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 10.dp))
+                            }
                             ForumPostCard(
-                                post, isOriginalPost = post.number == 1, highlighted = highlightedPostId == post.id,
+                                post, isOriginalPost = isOp, highlighted = highlightedPostId == post.id,
+                                shape = if (isOp) RoundedCornerShape(kikoCorner(22.dp)) else forumGroupShape(index - opCount, posts.size - opCount, outer = TopicGroupOuterCorner),
                                 onOpenProfileLink = onOpenProfileLink,
                                 canReply = connected,
                                 onReply = { target ->
@@ -1046,16 +1063,19 @@ private val FormatSizes = listOf(25, 50, 75, 100, 125, 150, 175, 200).map { "$it
     }
     var showTools by remember { mutableStateOf(false) }
     var previewing by remember { mutableStateOf(false) }
-    // Minimalist bar: sits on the page surface, separated from the thread by a hairline, and holds one
-    // outlined pill (format toggle · field · send). The outline lights up in the accent colour while typing.
+    // Tonal bar: sits on the page surface (no divider line) and holds one tonal pill (format toggle · field · send), with the
+    // "replying to" strip and the preview as tonal panels above it. A thin accent outline appears on the pill while typing.
     Surface(
         color = c.surface,
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(Modifier.fillMaxWidth()) {
-            HorizontalDivider(thickness = 1.dp, color = c.outlineVariant.copy(alpha = 0.6f))
             if (!connected) {
-                Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(RoundedCornerShape(kikoCorner(22.dp))).background(c.surfaceContainerHigh)
+                        .padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Icon(Icons.Rounded.Forum, null, tint = c.muted, modifier = Modifier.size(20.dp))
                     Text("Connect your MAL account to reply", color = c.muted, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(start = 12.dp))
                     FilledTonalButton(onClick = onConnect) { Text("Connect") }
@@ -1067,8 +1087,12 @@ private val FormatSizes = listOf(25, 50, 75, 100, 125, 150, 175, 200).map { "$it
                 AnimatedVisibility(visible = replyingTo != null) {
                     val target = replyingTo
                     if (target != null) {
-                        Row(Modifier.fillMaxWidth().padding(start = 6.dp, bottom = 10.dp).height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.fillMaxHeight().width(3.dp).clip(RoundedCornerShape(2.dp)).background(c.primary))
+                        Row(
+                            Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(kikoCorner(18.dp))).background(c.surfaceContainerHigh)
+                                .padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = c.primary, modifier = Modifier.size(16.dp))
                             Column(Modifier.weight(1f).padding(start = 10.dp)) {
                                 Text("Replying to ${target.author.name.ifBlank { "Unknown" }}", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 val preview = remember(target.id) { plainBodyPreview(target.body, 80) }
@@ -1083,11 +1107,13 @@ private val FormatSizes = listOf(25, 50, 75, 100, 125, 150, 175, 200).map { "$it
                 error?.let { Text(it, color = c.danger, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)) }
                 AnimatedVisibility(visible = showTools && previewing && draft.text.isNotBlank()) {
                     Box(
-                        Modifier.fillMaxWidth().padding(bottom = 10.dp).heightIn(max = 240.dp).clip(RoundedCornerShape(kikoCorner(20.dp)))
-                            .border(1.dp, c.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(kikoCorner(20.dp)))
-                            .verticalScroll(rememberScrollState()).padding(14.dp),
+                        Modifier.fillMaxWidth().padding(bottom = 8.dp).heightIn(max = 240.dp).clip(RoundedCornerShape(kikoCorner(22.dp)))
+                            .background(c.surfaceContainerHigh)
+                            .verticalScroll(rememberScrollState()).padding(16.dp),
                     ) {
-                        ForumBody(draft.text, background = c.surface)
+                        androidx.compose.runtime.CompositionLocalProvider(LocalForumTonal provides true) {
+                            ForumBody(draft.text, background = c.surfaceContainerHigh)
+                        }
                     }
                 }
                 AnimatedVisibility(visible = showTools) {
@@ -1095,13 +1121,13 @@ private val FormatSizes = listOf(25, 50, 75, 100, 125, 150, 175, 200).map { "$it
                 }
                 val canSend = !posting && draft.text.isNotBlank()
                 var focused by remember { mutableStateOf(false) }
-                val outline by animateColorAsState(if (focused) c.primary else c.outlineVariant, tween(200), label = "composerOutline")
+                val outline by animateColorAsState(if (focused) c.primary else Color.Transparent, tween(200), label = "composerOutline")
                 val sendContainer by animateColorAsState(if (canSend) c.primary else Color.Transparent, tween(200), label = "sendContainer")
                 val pillShape = RoundedCornerShape(kikoCorner(26.dp))
                 // Compose pill: the field grows from one line up to six (then scrolls). Both side buttons are 40dp and
                 // bottom-aligned so they stay put as the field gets taller.
                 Row(
-                    Modifier.fillMaxWidth().clip(pillShape).border(if (focused) 1.5.dp else 1.dp, outline, pillShape).padding(horizontal = 4.dp, vertical = 4.dp),
+                    Modifier.fillMaxWidth().clip(pillShape).background(c.surfaceContainerHigh).border(1.5.dp, outline, pillShape).padding(horizontal = 4.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.Bottom,
                 ) {
                     FormatButton(Icons.Rounded.TextFormat, if (showTools) "Hide formatting" else "Show formatting", active = showTools) {
@@ -1492,14 +1518,34 @@ sealed class BbToken {
 internal data class ForumTypography(val size: Float = 15f, val lineHeight: Float = 1.45f)
 internal val LocalForumTypography = androidx.compose.runtime.compositionLocalOf { ForumTypography() }
 
-// Shared rich-text renderer: tappable [url] links (profile links open in-app) on top of ClickableText.
+// Shared rich-text renderer: tappable [url] links (profile links open in-app), and inline [spoiler] text that stays censored
+// (a solid bar the text colour hides in) until tapped; tap again to hide it.
 @Composable private fun ForumRichText(
     text: AnnotatedString, style: TextStyle, uriHandler: androidx.compose.ui.platform.UriHandler,
     onOpenProfileLink: (MalProfileLink) -> Unit, modifier: Modifier = Modifier,
-) {
+) = ForumSpoilerText(text, style, modifier) { url -> openForumLink(url, uriHandler, onOpenProfileLink) }
+
+@Composable private fun ForumSpoilerText(text: AnnotatedString, style: TextStyle, modifier: Modifier = Modifier, onUrl: (String) -> Unit) {
+    val c = LocalKikoColors.current
+    val spoilers = remember(text) { text.getStringAnnotations("SPOILER", 0, text.length) }
+    var revealed by remember(text) { mutableStateOf(emptySet<String>()) }
+    val bar = c.ink.copy(alpha = 0.35f).compositeOver(c.surfaceContainerHigh)
+    val shown = if (spoilers.isEmpty()) text else remember(text, revealed, bar, c.ink) {
+        buildAnnotatedString {
+            append(text)
+            spoilers.forEach { a ->
+                if (a.item in revealed) addStyle(androidx.compose.ui.text.SpanStyle(background = c.ink.copy(alpha = 0.10f)), a.start, a.end)
+                else addStyle(androidx.compose.ui.text.SpanStyle(color = bar, background = bar), a.start, a.end)
+            }
+        }
+    }
     ClickableText(
-        text = text, style = style, modifier = modifier,
-        onClick = { offset -> text.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { openForumLink(it.item, uriHandler, onOpenProfileLink) } },
+        text = shown, style = style, modifier = modifier,
+        onClick = { offset ->
+            val hit = if (spoilers.isEmpty()) null else text.getStringAnnotations("SPOILER", offset, offset).firstOrNull()
+            if (hit != null) revealed = if (hit.item in revealed) revealed - hit.item else revealed + hit.item
+            else text.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { onUrl(it.item) }
+        },
     )
 }
 
@@ -1522,7 +1568,8 @@ private fun withNewBadges(text: AnnotatedString, bg: Color, fg: Color): Annotate
     }
 }
 
-// "Staff" / "Cast" style credits: tonal rounded card, optional title, label | value rows.
+// "Staff" / "Cast" style credits. Normally a tinted card with divider lines; inside a tonal row (LocalForumTonal) it is a
+// primary title over a small grouped list of inset rows (big outer corners, tight inner ones, 2dp gaps) - label | value.
 @Composable private fun ForumFactList(
     block: ForumBlock.FactList, c: KikoColors, uriHandler: androidx.compose.ui.platform.UriHandler,
     inQuote: Boolean, onOpenProfileLink: (MalProfileLink) -> Unit,
@@ -1530,6 +1577,39 @@ private fun withNewBadges(text: AnnotatedString, bg: Color, fg: Color): Annotate
     val typo = LocalForumTypography.current
     val body = if (inQuote) typo.size - 1f else typo.size
     val labelSize = body - 2f
+    val tonal = LocalForumTonal.current
+    @Composable fun RowScope.Cells(row: ForumFactRow) {
+        Text(
+            row.label, color = c.muted, fontWeight = FontWeight.Medium, fontSize = labelSize.sp,
+            lineHeight = (labelSize * typo.lineHeight).sp, modifier = Modifier.weight(0.36f),
+        )
+        val value = remember(row.value, c.errorContainer, c.onErrorContainer) { withNewBadges(row.value, c.errorContainer, c.onErrorContainer) }
+        ForumRichText(
+            value,
+            TextStyle(color = if (inQuote) c.muted else c.ink, fontSize = body.sp, lineHeight = (body * typo.lineHeight).sp),
+            uriHandler, onOpenProfileLink, Modifier.weight(0.64f),
+        )
+    }
+    if (tonal) {
+        Column(Modifier.fillMaxWidth()) {
+            if (!block.title.isNullOrBlank()) {
+                Text(
+                    block.title, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 0.4.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                block.rows.forEachIndexed { index, row ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(forumGroupShape(index, block.rows.size, outer = 16.dp)).background(c.inset())
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) { Cells(row) }
+                }
+            }
+        }
+        return
+    }
     Column(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(kikoCorner(20.dp)))
@@ -1544,18 +1624,7 @@ private fun withNewBadges(text: AnnotatedString, bg: Color, fg: Color): Annotate
         }
         block.rows.forEachIndexed { index, row ->
             if (index > 0) HorizontalDivider(thickness = 0.5.dp, color = c.outlineVariant.copy(alpha = 0.45f))
-            Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(
-                    row.label, color = c.muted, fontWeight = FontWeight.Medium, fontSize = labelSize.sp,
-                    lineHeight = (labelSize * typo.lineHeight).sp, modifier = Modifier.weight(0.36f),
-                )
-                val value = remember(row.value, c.errorContainer, c.onErrorContainer) { withNewBadges(row.value, c.errorContainer, c.onErrorContainer) }
-                ForumRichText(
-                    value,
-                    TextStyle(color = if (inQuote) c.muted else c.ink, fontSize = body.sp, lineHeight = (body * typo.lineHeight).sp),
-                    uriHandler, onOpenProfileLink, Modifier.weight(0.64f),
-                )
-            }
+            Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) { Cells(row) }
         }
     }
 }
@@ -1593,16 +1662,26 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
     }
 }
 
+// True inside the topic screen's tonal rows (posts, poll, composer preview). The shared BBCode renderer then draws quotes, credit
+// lists and spoilers as inset panels (the page colour, darker than the row in dark / AMOLED and lighter in light mode) instead
+// of ink / accent washes, so they read on a tonal row. Everywhere else (club pages, profile, articles) it stays false and
+// nothing changes.
+internal val LocalForumTonal = androidx.compose.runtime.compositionLocalOf { false }
+private fun KikoColors.inset(alpha: Float = 0.6f): Color = background.copy(alpha = alpha)
+
 // Shared "quoted text" container: tinted rounded surface with an accent bar on the left. Tinting
 // with the primary colour (instead of a fixed surface tone) keeps it readable on any card colour.
 // The bar is drawn rather than measured, because a quote can hold images (SubcomposeLayout), which
 // can't answer the intrinsic-size queries a Row + fillMaxHeight bar would need.
 @Composable fun ForumQuoteFrame(c: KikoColors, depth: Int = 0, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     val bar = c.primary.copy(alpha = 0.55f)
+    val tonal = LocalForumTonal.current
+    // Tonal rows: the first quote is inset; a quote inside it steps back out to the row's own tone, and so on.
+    val fill = if (!tonal) c.primary.copy(alpha = if (depth == 0) 0.08f else 0.12f) else if (depth % 2 == 0) c.inset() else c.surfaceContainerHigh
     Column(
         modifier.fillMaxWidth()
             .clip(RoundedCornerShape(kikoCorner(16.dp)))
-            .background(c.primary.copy(alpha = if (depth == 0) 0.08f else 0.12f))
+            .background(fill)
             .drawBehind { drawRect(bar, size = androidx.compose.ui.geometry.Size(4.dp.toPx(), size.height)) }
             .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -1615,7 +1694,7 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
     onOpenProfileLink: (MalProfileLink) -> Unit, onImageTap: (String) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.ink.copy(alpha = 0.06f))) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(16.dp))).background(if (LocalForumTonal.current) c.inset() else c.ink.copy(alpha = 0.06f))) {
         Row(
             Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1647,7 +1726,7 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
             val inQuote = quoteDepth > 0
             val typo = LocalForumTypography.current
             val base = if (inQuote) typo.size - 1f else typo.size
-            ClickableText(
+            ForumSpoilerText(
                 text = block.text,
                 style = TextStyle(
                     color = if (inQuote) c.muted else c.ink, fontSize = base.sp,
@@ -1656,8 +1735,7 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
                     textAlign = block.align,
                 ),
                 modifier = Modifier.fillMaxWidth(),
-                onClick = { offset -> block.text.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { openForumLink(it.item, uriHandler, onOpenProfileLink) } },
-            )
+            ) { url -> openForumLink(url, uriHandler, onOpenProfileLink) }
         }
         is ForumBlock.ImageBlock -> {
             val hint = block.widthDp?.dp
@@ -1740,13 +1818,15 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
     }
 }
 
-// Plain text action under a post ("Quote", "Reply"): no background, Reply in the accent color.
+// Footer action under a post: a small pill. "Reply" (tonal = true) is filled with the primary container; "More" is an inset
+// chip in the page colour, so the pair reads as two quiet buttons on a tonal row.
 @Composable private fun PostAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tonal: Boolean = false, onClick: () -> Unit) {
     val c = LocalKikoColors.current
-    val tint = if (tonal) c.primary else c.muted
+    val fill = if (tonal) c.primaryContainer else c.background
+    val tint = if (tonal) c.onPrimaryContainer else c.muted
     Row(
-        Modifier.clip(kikoPillShape()).kikoClickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+        Modifier.clip(kikoPillShape()).background(fill).kikoClickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
@@ -1765,18 +1845,20 @@ private fun listMarker(block: ForumBlock.ListBlock, index: Int): String {
 // Posts taller than this (characters of source) fold behind a "Read more" button; the opening post never folds.
 private const val CollapsePostChars = 1600
 
-// Single topic post: one rounded card per post.
-//   header  : avatar, name (+ OP badge), date, post number
-//   strip   : MAL's own "Reply to X" reference, when the post has one
-//   body    : formatted post; very long replies fold behind "Read more"
-//   footer  : "More" (Quote / Copy link menu) + Reply, right-aligned (Reply is the right-most; only More when signed out)
-// Minimalist: no card / tonal background. Posts sit directly on the page; the opening post and the replies
-// are split by a line (drawn by the list), and the replies are separated from each other by whitespace only.
-// The background is only used to flash a post that was jumped to from a notification.
+// Single topic post, as a tonal row.
+//   opening post : one tonal card (no header: author and date already sit under the topic title)
+//   replies      : rows of one grouped tonal list - the screen passes forumGroupShape(...) as [shape]
+//   header       : avatar, name, date, and the post number as a small inset chip
+//   strip        : MAL's own "Reply to X" reference, as an inset quote panel
+//   body         : formatted post; very long replies fold behind "Read more"
+//   footer       : "More" (Quote / Copy link) and Reply as pills, right-aligned
+// Quotes, credit lists and spoilers inside the body are drawn as inset panels (LocalForumTonal). A post jumped to from a
+// notification flashes the primary container for a moment.
 @Composable fun ForumPostCard(
     post: ForumPost,
     isOriginalPost: Boolean = false,
     highlighted: Boolean = false,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(kikoCorner(22.dp)),
     onOpenProfileLink: (MalProfileLink) -> Unit = {},
     canReply: Boolean = false,
     onReply: (ForumPost) -> Unit = {},
@@ -1784,102 +1866,106 @@ private const val CollapsePostChars = 1600
 ) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
-    val baseContainer = c.surface
+    val baseContainer = c.surfaceContainerHigh
     val container by animateColorAsState(if (highlighted) c.primaryContainer else baseContainer, tween(400), label = "postContainer")
     val collapsible = !isOriginalPost && post.body.length > CollapsePostChars
     var expanded by rememberSaveable(post.id) { mutableStateOf(false) }
     val folded = collapsible && !expanded
-    Column(
-        Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(kikoCorner(20.dp)))
-            .background(container)
-            .animateContentSize(tween(200))
-            .padding(start = 8.dp, end = 8.dp, top = if (isOriginalPost) 4.dp else 14.dp, bottom = 14.dp),
-    ) {
-        // The opening post has no header: its author and date already sit under the topic title.
-        if (!isOriginalPost) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TopicAvatar(post.author, 40.dp, c)
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text(post.author.name.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(formatForumDate(post.createdAt), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
-                }
-                if (post.number > 0) {
-                    Text("#${post.number}", color = c.muted, fontWeight = FontWeight.Medium, fontSize = 12.sp)
-                }
-            }
-        }
-        // "Reply to X" hint — MAL's own parent-post reference, drawn with the same quote frame as an inline [quote].
-        if (post.replyToAuthor.isNotBlank()) {
-            ForumQuoteFrame(c, 0, Modifier.padding(top = 12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = c.primary, modifier = Modifier.size(14.dp))
-                    Text("Reply to ${post.replyToAuthor}", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
-                }
-                if (post.replyToBody.isNotBlank()) {
-                    Text(post.replyToBody, color = c.muted, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
-        Box(
-            Modifier.fillMaxWidth().padding(top = if (isOriginalPost) 0.dp else 12.dp).then(
-                if (folded) Modifier.heightIn(max = 340.dp).clipToBounds().drawWithContent {
-                    drawContent()
-                    val fade = 84.dp.toPx()
-                    drawRect(Brush.verticalGradient(listOf(Color.Transparent, container), startY = (size.height - fade).coerceAtLeast(0f), endY = size.height))
-                } else Modifier
-            ),
+    androidx.compose.runtime.CompositionLocalProvider(LocalForumTonal provides true) {
+        Column(
+            Modifier.fillMaxWidth()
+                .clip(shape)
+                .background(container)
+                .animateContentSize(tween(200))
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 12.dp),
         ) {
-            ForumBody(post.body, onOpenProfileLink = onOpenProfileLink, background = baseContainer)
-        }
-        if (collapsible) {
-            Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
-                Row(
-                    Modifier.clip(kikoPillShape()).kikoClickable { expanded = !expanded }.padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(if (expanded) "Show less" else "Read more", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.padding(start = 4.dp).size(18.dp))
-                }
-            }
-        }
-        // Footer: "More" (… icon, opens Quote / Copy link) sits just left of the right-most Reply button.
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.weight(1f))
-            var menuOpen by remember { mutableStateOf(false) }
-            Box {
-                PostAction(Icons.Rounded.MoreHoriz, "More") { menuOpen = true }
-                KikoDropdownMenu(
-                    expanded = menuOpen,
-                    onDismissRequest = { menuOpen = false },
-                    containerColor = c.surfaceContainerHigh,
-                    modifier = Modifier.widthIn(min = 170.dp),
-                ) {
-                    if (canReply) {
-                        DropdownMenuItem(
-                            text = { Text("Quote", fontWeight = FontWeight.SemiBold, color = c.ink) },
-                            leadingIcon = { Icon(Icons.Rounded.FormatQuote, null, tint = c.muted) },
-                            onClick = { menuOpen = false; onQuote(post) },
+            if (!isOriginalPost) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TopicAvatar(post.author, 38.dp, c)
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text(post.author.name.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(formatForumDate(post.createdAt), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
+                    }
+                    if (post.number > 0) {
+                        Text(
+                            "#${post.number}", color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, softWrap = false,
+                            modifier = Modifier.padding(start = 8.dp).clip(kikoPillShape()).background(c.background).padding(horizontal = 9.dp, vertical = 4.dp),
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text("Copy link", fontWeight = FontWeight.SemiBold, color = c.ink) },
-                        leadingIcon = { Icon(Icons.Rounded.Link, null, tint = c.muted) },
-                        onClick = {
-                            menuOpen = false
-                            val url = "https://myanimelist.net/forum/message/${post.id}?goto=topic"
-                            runCatching {
-                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                cm.setPrimaryClip(android.content.ClipData.newPlainText("MAL post link", url))
-                                android.widget.Toast.makeText(context, "Link copied", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                    )
                 }
             }
-            if (canReply) {
-                Spacer(Modifier.width(4.dp))
-                PostAction(Icons.AutoMirrored.Rounded.Reply, "Reply", tonal = true) { onReply(post) }
+            // "Reply to X" hint - MAL's own parent-post reference, drawn with the same quote frame as an inline [quote].
+            if (post.replyToAuthor.isNotBlank()) {
+                ForumQuoteFrame(c, 0, Modifier.padding(top = if (isOriginalPost) 0.dp else 12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = c.primary, modifier = Modifier.size(14.dp))
+                        Text("Reply to ${post.replyToAuthor}", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
+                    }
+                    if (post.replyToBody.isNotBlank()) {
+                        Text(post.replyToBody, color = c.muted, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+            Box(
+                Modifier.fillMaxWidth().padding(top = if (isOriginalPost && post.replyToAuthor.isBlank()) 0.dp else 12.dp).then(
+                    if (folded) Modifier.heightIn(max = 340.dp).clipToBounds().drawWithContent {
+                        drawContent()
+                        val fade = 84.dp.toPx()
+                        drawRect(Brush.verticalGradient(listOf(Color.Transparent, container), startY = (size.height - fade).coerceAtLeast(0f), endY = size.height))
+                    } else Modifier
+                ),
+            ) {
+                ForumBody(post.body, onOpenProfileLink = onOpenProfileLink, background = baseContainer)
+            }
+            if (collapsible) {
+                Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
+                    Row(
+                        Modifier.clip(kikoPillShape()).kikoClickable { expanded = !expanded }.padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(if (expanded) "Show less" else "Read more", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+                    }
+                }
+            }
+            // Footer: "More" (opens Quote / Copy link) sits just left of the right-most Reply button.
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
+                var menuOpen by remember { mutableStateOf(false) }
+                Box {
+                    PostAction(Icons.Rounded.MoreHoriz, "More") { menuOpen = true }
+                    KikoDropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                        containerColor = c.surfaceContainerHigh,
+                        modifier = Modifier.widthIn(min = 170.dp),
+                    ) {
+                        if (canReply) {
+                            DropdownMenuItem(
+                                text = { Text("Quote", fontWeight = FontWeight.SemiBold, color = c.ink) },
+                                leadingIcon = { Icon(Icons.Rounded.FormatQuote, null, tint = c.muted) },
+                                onClick = { menuOpen = false; onQuote(post) },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Copy link", fontWeight = FontWeight.SemiBold, color = c.ink) },
+                            leadingIcon = { Icon(Icons.Rounded.Link, null, tint = c.muted) },
+                            onClick = {
+                                menuOpen = false
+                                val url = "https://myanimelist.net/forum/message/${post.id}?goto=topic"
+                                runCatching {
+                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    cm.setPrimaryClip(android.content.ClipData.newPlainText("MAL post link", url))
+                                    android.widget.Toast.makeText(context, "Link copied", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                        )
+                    }
+                }
+                if (canReply) {
+                    Spacer(Modifier.width(8.dp))
+                    PostAction(Icons.AutoMirrored.Rounded.Reply, "Reply", tonal = true) { onReply(post) }
+                }
             }
         }
     }
@@ -1891,7 +1977,7 @@ private const val CollapsePostChars = 1600
     val c = LocalKikoColors.current
     val totalVotes = poll.options.sumOf { it.votes }
     val topVotes = poll.options.maxOfOrNull { it.votes } ?: 0
-    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(c.surfaceContainer).padding(16.dp)) {
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(22.dp))).background(c.surfaceContainerHigh).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(32.dp).clip(kikoCircleShape()).background(c.primaryContainer), contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.BarChart, null, tint = c.onPrimaryContainer, modifier = Modifier.size(18.dp))
@@ -1907,7 +1993,7 @@ private const val CollapsePostChars = 1600
                     Text(opt.text, color = c.ink, fontSize = 14.sp, fontWeight = if (leader) FontWeight.SemiBold else FontWeight.Normal, modifier = Modifier.weight(1f))
                     Text("${(fraction * 100).toInt()}%", color = if (leader) c.primary else c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
                 }
-                Box(Modifier.fillMaxWidth().padding(top = 5.dp).height(8.dp).clip(kikoPillShape()).background(c.ink.copy(alpha = 0.08f))) {
+                Box(Modifier.fillMaxWidth().padding(top = 5.dp).height(8.dp).clip(kikoPillShape()).background(c.background)) {
                     Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight().clip(kikoPillShape()).background(if (leader) c.primary else c.primary.copy(alpha = 0.4f)))
                 }
                 Text("${opt.votes} ${if (opt.votes == 1) "vote" else "votes"}", color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
@@ -1945,3 +2031,29 @@ fun formatForumDate(raw: String): String {
 }
 
 // Profile section
+
+// (dark-mode shade, light-mode shade) per hue.
+private val NewsTagRed = Color(0xFFFF8A80) to Color(0xFFC62828)
+private val NewsTagAmber = Color(0xFFFFB74D) to Color(0xFF9A5B00)
+private val NewsTagBlue = Color(0xFF90CAF9) to Color(0xFF1565C0)
+private val NewsTagGreen = Color(0xFF81C784) to Color(0xFF2E7D32)
+private val NewsTagPink = Color(0xFFF48FB1) to Color(0xFFAD1457)
+private val NewsTagPurple = Color(0xFFB39DDB) to Color(0xFF5E35B1)
+private val NewsTagTeal = Color(0xFF4DB6AC) to Color(0xFF00796B)
+private val NewsTagCyan = Color(0xFF4DD0E1) to Color(0xFF00838F)
+private val NewsTagPalette = listOf(NewsTagRed, NewsTagAmber, NewsTagBlue, NewsTagGreen, NewsTagPink, NewsTagPurple, NewsTagTeal, NewsTagCyan)
+
+private fun newsTagColor(slug: String, c: KikoColors, dark: Boolean): Color {
+    val pair = when {
+        slug == "new_anime" || slug.startsWith("new_") -> NewsTagRed
+        slug.startsWith("adapts") -> NewsTagAmber
+        slug == "more_info" -> NewsTagBlue
+        slug == "preview" -> NewsTagGreen
+        slug == "op_ed" -> NewsTagPink
+        slug.endsWith("_end") -> NewsTagPurple
+        Regex("^(winter|spring|summer|fall)_\\d{4}$").matches(slug) -> NewsTagTeal
+        slug == "light_novels" -> NewsTagCyan
+        else -> NewsTagPalette[(slug.hashCode() and Int.MAX_VALUE) % NewsTagPalette.size]
+    }
+    return if (dark) pair.first else pair.second
+}

@@ -130,6 +130,8 @@ data class ForumTopic(
     val id: Int, val title: String, val createdAt: String, val author: ForumUser,
     val postCount: Int, val lastPostAt: String, val lastPostAuthor: ForumUser, val isLocked: Boolean = false,
     val imageUrl: String? = null,
+    // MAL news labels as slugs ("new_anime", "adapts_manga"); only filled for the News Discussion board.
+    val tags: List<String> = emptyList(),
 )
 
 // One topic listing page
@@ -502,8 +504,13 @@ class MalApi(private val context: Context) {
                     ?.posts?.firstOrNull()?.body
             return firstBody?.let { firstImageUrl(it) }?.let { topic.copy(imageUrl = it) } ?: topic
         }
+        // News board only: the tag labels come from the website's news listing, fetched alongside the covers. Failure
+        // just leaves a row without tags. Deeper pages of the topic list need deeper news pages.
+        val tagsDeferred = if (withThumbnails) async { runCatching { MalNewsTagApi.tagsFor(items.map { it.id }, pages = 5 + offset / 25 * 2) }.getOrDefault(emptyMap()) } else null
         val withCovers = if (!withThumbnails) items else items.map { topic -> async { withThumbnail(topic) } }.awaitAll()
-        ForumTopicsPage(withCovers, json.optJSONObject("paging")?.has("next") == true)
+        val tagMap = tagsDeferred?.await().orEmpty()
+        val tagged = if (tagMap.isEmpty()) withCovers else withCovers.map { t -> tagMap[t.id]?.let { t.copy(tags = it) } ?: t }
+        ForumTopicsPage(tagged, json.optJSONObject("paging")?.has("next") == true)
     }
 
     // Topic posts and poll

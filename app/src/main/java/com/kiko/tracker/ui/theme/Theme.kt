@@ -207,27 +207,32 @@ fun parseHexColor(hex: String): Color? {
     return try { Color(0xFF000000 or cleaned.toLong(16)) } catch (e: Exception) { null }
 }
 
-// True-black variant for AMOLED. The background stays pure black so OLED pixels switch off, but every
-// layer above it is now TINTED with the accent (primary) instead of neutral gray, so the OLED theme
-// reads as the same palette as normal dark mode, just deeper: the surface ladder carries a few percent
-// of the accent hue, the accent containers are pulled darker so they sit on black instead of glowing,
-// and borders / dividers pick up the accent too.
-private fun oledTint(accent: Color, amount: Float): Color = androidx.compose.ui.graphics.lerp(Color.Black, accent, amount)
+// True-black variant for AMOLED. The page stays pure black so OLED pixels switch off, but every layer above it
+// is the normal dark-mode surface ladder pulled a little darker (not re-derived from the accent), so tonal rows
+// stay clearly visible on black and still carry the palette's own tint.
+//
+// NOTE: the surface steps are mixed in plain sRGB on purpose. Compose's `lerp(Color, Color, f)` blends in Oklab,
+// where a fraction of the way towards a light accent is a tiny fraction of its *lightness*; the old
+// `lerp(Black, accent, 0.12f)` landed on RGB(2,3,5), which is black to the eye, so tonal rows vanished.
+private const val AMOLED_SURFACE_SCALE = 0.85f   // 1.0 = same as normal dark mode; lower = darker rows
+
+private fun oledSurface(c: Color): Color =
+    Color(red = c.red * AMOLED_SURFACE_SCALE, green = c.green * AMOLED_SURFACE_SCALE, blue = c.blue * AMOLED_SURFACE_SCALE, alpha = 1f)
 private fun oledContainer(c: Color): Color = androidx.compose.ui.graphics.lerp(Color.Black, c, 0.62f)
 
 fun amoledify(colors: KikoColors): KikoColors {
     val a = colors.primary
     val secondaryContainer = oledContainer(colors.secondaryContainer)
+    val high = oledSurface(colors.surfaceContainerHigh)
     return colors.copy(
         background = Color.Black,
         surface = Color.Black,
-        // Steps are big enough that a tonal row clearly separates from the pure-black page (the first version was too dark).
-        surfaceLow = oledTint(a, 0.17f),
+        surfaceLow = high,
         surfaceContainerLowest = Color.Black,
-        surfaceContainerLow = oledTint(a, 0.08f),
-        surfaceContainer = oledTint(a, 0.12f),
-        surfaceContainerHigh = oledTint(a, 0.17f),
-        surfaceContainerHighest = oledTint(a, 0.22f),
+        surfaceContainerLow = oledSurface(colors.surfaceContainerLow),
+        surfaceContainer = oledSurface(colors.surfaceContainer),
+        surfaceContainerHigh = high,
+        surfaceContainerHighest = oledSurface(colors.surfaceContainerHighest),
         primaryContainer = oledContainer(colors.primaryContainer),
         secondaryContainer = secondaryContainer,
         tertiaryContainer = oledContainer(colors.tertiaryContainer),

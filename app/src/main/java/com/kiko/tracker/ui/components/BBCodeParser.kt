@@ -189,6 +189,8 @@ private data class BbStyle(
     val href: String? = null,
     val mono: Boolean = false,
     val align: TextAlign = TextAlign.Start,
+    // Id of the inline [spoiler] this text sits in (0 = none); the renderer censors it until tapped.
+    val spoiler: Int = 0,
 )
 
 private class BbRun(val text: String, val style: BbStyle)
@@ -280,6 +282,11 @@ private fun imgWidthHint(attr: String?): Int? {
     return null
 }
 
+private val InlineSpoilerTags = setOf("b", "i", "u", "s", "color", "size", "font", "sup", "sub", "url")
+private fun isInlineOnly(nodes: List<BbNode>): Boolean = nodes.all { n ->
+    n is BbNode.Text || (n is BbNode.Tag && n.name in InlineSpoilerTags && isInlineOnly(n.children))
+}
+
 private val ParagraphBreak = Regex("""\n(?:[ \t]*\n)+""")
 
 // Trimmed ranges of each blank-line-separated paragraph in `s`.
@@ -306,6 +313,7 @@ private fun splitParagraphRanges(s: String): List<IntRange> {
 // ---------------------------------------------------------------------------
 
 private class BbWalker(private val linkColor: Color, private val background: Color) {
+    private var spoilerSeq = 0
 
     fun blocksFrom(nodes: List<BbNode>, style: BbStyle = BbStyle()): List<ForumBlock> {
         val out = ArrayList<ForumBlock>()
@@ -341,6 +349,7 @@ private class BbWalker(private val linkColor: Color, private val background: Col
                 )
                 withStyle(span) { append(r.text) }
                 if (href != null) addStringAnnotation("URL", href, start, length)
+                if (st.spoiler != 0) addStringAnnotation("SPOILER", st.spoiler.toString(), start, length)
                 runRanges += start until length
             }
         }
@@ -456,6 +465,12 @@ private class BbWalker(private val linkColor: Color, private val background: Col
                 if (inner.isNotEmpty()) out += ForumBlock.Quote(inner, quoteAuthor(node.attr))
             }
             "spoiler" -> {
+                // A plain [spoiler]text[/spoiler] (no label, only text formatting inside) stays in the paragraph as censored
+                // text that opens on tap. A labelled one, or one holding images / quotes / lists, is still a collapsible block.
+                if (node.attr.isNullOrBlank() && isInlineOnly(node.children)) {
+                    walk(node.children, st.copy(spoiler = ++spoilerSeq), out, runs)
+                    return
+                }
                 flush(out, runs)
                 val inner = blocksFrom(node.children, st)
                 if (inner.isNotEmpty()) out += ForumBlock.Spoiler(node.attr?.trim('"', '\'')?.trim().orEmpty(), inner)

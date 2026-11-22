@@ -185,11 +185,17 @@ class MalForumScrapeApi {
                             val button = node.selectFirst("input.show_button")
                             val label = button?.let { it.attr("data-showname").ifBlank { it.attr("value") } }
                                 ?.removePrefix("Show ")?.trim().orEmpty()
-                            sb.append("\n[spoiler")
-                            if (label.isNotBlank() && !label.equals("spoiler", ignoreCase = true)) sb.append("=").append(label)
+                            val body = content ?: node
+                            val labelled = label.isNotBlank() && !label.equals("spoiler", ignoreCase = true)
+                            // Plain text inside an unlabelled spoiler is an inline spoiler: keep it in the sentence it was
+                            // written in (no forced line breaks). Anything else stays its own block.
+                            val blockSel = "div, blockquote, ul, ol, img, iframe, table, pre, .spoiler"
+                            val inline = !labelled && body.children().none { it.tagName() in setOf("div", "blockquote", "ul", "ol", "img", "iframe", "table", "pre") || it.select(blockSel).isNotEmpty() }
+                            sb.append(if (inline) "[spoiler" else "\n[spoiler")
+                            if (labelled) sb.append("=").append(label)
                             sb.append("]")
-                            (content ?: node).childNodes().forEach(::visit)
-                            sb.append("[/spoiler]\n")
+                            body.childNodes().forEach(::visit)
+                            sb.append(if (inline) "[/spoiler]" else "[/spoiler]\n")
                             return
                         }
                         tag == "blockquote" || node.hasClass("quotetext") -> {
