@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoErrorState
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
@@ -339,7 +340,8 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
     var posts by remember(clubId) { mutableStateOf<List<ClubPost>>(emptyList()) }
     var loading by remember(clubId) { mutableStateOf(true) }
     var error by remember(clubId) { mutableStateOf<String?>(null) }
-    LaunchedEffect(clubId) {
+    var reloadKey by remember(clubId) { mutableStateOf(0) }
+    LaunchedEffect(clubId, reloadKey) {
         loading = true; error = null
         runCatching { api.fetchCouch(clubId) }
             .onSuccess { posts = it.items }
@@ -356,7 +358,7 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
         Text("COUCH", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
         when {
             loading -> Box(Modifier.fillMaxWidth().padding(top = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 30.dp) }
-            error != null -> Text(error!!, color = c.danger, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 10.dp), textAlign = TextAlign.Center)
+            error != null -> KikoErrorState(error!!, onRetry = { reloadKey++ })
             posts.isEmpty() -> {
                 Text("Couldn't find any Couch posts here — the layout may not have matched what we expected.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp))
                 Button(onClick = onOpenBrowser, enabled = club.url.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary)) {
@@ -428,7 +430,8 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
     var loading by remember(clubId) { mutableStateOf(true) }
     var loadingMore by remember(clubId) { mutableStateOf(false) }
     var error by remember(clubId) { mutableStateOf<String?>(null) }
-    LaunchedEffect(clubId) {
+    var reloadKey by remember(clubId) { mutableStateOf(0) }
+    LaunchedEffect(clubId, reloadKey) {
         loading = true; error = null
         runCatching { api.fetchMembers(clubId, 1) }
             .onSuccess { members = it.items; hasMore = it.hasMore; page = 1 }
@@ -438,7 +441,7 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
     Column {
         when {
             loading -> KikoSectionLoading()
-            error != null -> Text(error!!, color = c.danger, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
+            error != null -> KikoErrorState(error!!, onRetry = { reloadKey++ })
             members.isEmpty() -> Text("No members listed for this club.", color = c.muted, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 30.dp), textAlign = TextAlign.Center)
             else -> {
                 Card(shape = RoundedCornerShape(kikoCorner(20.dp)), colors = CardDefaults.cardColors(containerColor = c.surfaceContainer), modifier = Modifier.fillMaxWidth()) {

@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoErrorState
 import com.kiko.tracker.ui.components.KikoDropdownMenu
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
@@ -224,10 +225,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             }
                             KikoLoadingIndicator(color = c.onSecondaryContainer)
                         }
-                        state.error != null && state.profile == null -> Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 60.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(state.error, color = c.muted, fontSize = 13.sp)
-                            TextButton(onClick = { vm.loadFriendProfile(context, username, force = true) }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
-                        }
+                        state.error != null && state.profile == null -> KikoErrorState(state.error, onRetry = { vm.loadFriendProfile(context, username, force = true) })
                         state.profile != null -> {
                             val header = state.profile.header
                             // MAL prints these plain (Last Online/Gender/Birthday/Joined)

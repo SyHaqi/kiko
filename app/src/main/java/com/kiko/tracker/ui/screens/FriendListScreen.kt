@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoErrorState
 import com.kiko.tracker.ui.components.KikoDropdownMenu
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
@@ -333,10 +334,7 @@ private fun friendGridCounterLabel(entry: MalUserListEntry, type: MediaType): St
     }
 
     if (error != null && entries == null) {
-        Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(error, color = c.muted, fontSize = 13.sp)
-            TextButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
-        }
+        KikoErrorState(error, onRetry = onRetry)
         return
     }
     if (loading && entries == null) {

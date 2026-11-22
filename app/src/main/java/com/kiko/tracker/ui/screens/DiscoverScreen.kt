@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoErrorState
 import com.kiko.tracker.ui.components.KikoDropdownMenu
 import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
@@ -368,7 +369,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 }
                 vm.discoverBrowseError?.let { error ->
                     item {
-                        Text(error, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
+                        KikoErrorState(error, onRetry = { vm.loadDiscoverBrowse(context, force = true) })
                     }
                 }
             }
@@ -554,23 +555,23 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     when (vm.discoverTypeFilter) {
                         "Characters" -> {
                             if (vm.characterSearching && vm.characterResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
-                            vm.characterError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                            vm.characterError?.takeIf { !vm.characterSearching }?.let { KikoErrorState(it, onRetry = { vm.runCharacterSearch(vm.discoverQuery) }) }
                         }
                         "People" -> {
                             if (vm.personSearching && vm.personResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
-                            vm.personError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                            vm.personError?.takeIf { !vm.personSearching }?.let { KikoErrorState(it, onRetry = { vm.runPersonSearch(vm.discoverQuery) }) }
                         }
                         "Companies" -> {
                             if (vm.companySearching && vm.companyResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
-                            vm.companyError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                            vm.companyError?.takeIf { !vm.companySearching }?.let { KikoErrorState(it, onRetry = { vm.runCompanySearch(vm.discoverQuery) }) }
                         }
                         "Users" -> {
                             if (vm.userSearching && vm.userResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
-                            vm.userError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                            vm.userError?.takeIf { !vm.userSearching }?.let { KikoErrorState(it, onRetry = { vm.runUserSearch(vm.discoverQuery) }) }
                         }
                         "Anime", "Manga" -> {
                             if (vm.discoverSearching && vm.visibleDiscoverResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), color = c.primary)
-                            vm.discoverError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                            vm.discoverError?.takeIf { !vm.discoverSearching }?.let { KikoErrorState(it, onRetry = { vm.runDiscoverSearch(context, vm.discoverQuery, vm.discoverTypeFilter) }) }
                         }
                         else -> {}
                     }

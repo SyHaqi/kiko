@@ -1049,3 +1049,73 @@ fun BoxScope.KikoDropdownMenu(
         )
     }
 }
+
+
+// Shared "something failed" state: icon, a short human title, a calm explanation and a pill Retry that re-runs
+// the load. Replaces the bare red error strings (a timeout used to show just the raw message and no way out).
+// [message] is the raw error text; it is mapped to a friendly title/body, and shown as-is only when unrecognised.
+// Pass onRetry = null for errors a retry can't fix (e.g. "sign in first") to hide the button.
+@Composable
+fun KikoErrorState(
+    message: String,
+    onRetry: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    fillHeight: Boolean = false,
+) {
+    val c = LocalKikoColors.current
+    val m = message.lowercase()
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
+    val title: String
+    val body: String
+    when {
+        m.startsWith("type at least") -> {
+            icon = Icons.Rounded.Search; title = "Keep typing"; body = message
+        }
+        m.startsWith("sign in") || "expired" in m || "401" in m || "403" in m -> {
+            icon = Icons.Rounded.Lock; title = "Sign-in needed"; body = message
+        }
+        "timeout" in m || "timed out" in m -> {
+            icon = Icons.Rounded.HourglassEmpty; title = "Request timed out"
+            body = "MyAnimeList took too long to answer. Check your connection and try again."
+        }
+        "unable to resolve" in m || "unknownhost" in m || "network" in m || "failed to connect" in m || "connect" in m && "refused" !in m || "offline" in m || "unreachable" in m || "software caused" in m -> {
+            icon = Icons.Rounded.WifiOff; title = "No connection"
+            body = "Couldn't reach MyAnimeList. Check your internet and try again."
+        }
+        "429" in m || "too many" in m || "rate" in m && "limit" in m -> {
+            icon = Icons.Rounded.Speed; title = "Slow down a little"
+            body = "MyAnimeList is rate limiting requests right now. Give it a moment, then retry."
+        }
+        "500" in m || "502" in m || "503" in m || "504" in m || "server" in m -> {
+            icon = Icons.Rounded.CloudOff; title = "MyAnimeList is having trouble"
+            body = "The server didn't respond properly. This usually clears up shortly."
+        }
+        else -> {
+            icon = Icons.Rounded.ErrorOutline; title = "Something went wrong"; body = message
+        }
+    }
+    Column(
+        modifier = modifier.fillMaxWidth().then(if (fillHeight) Modifier.fillMaxHeight() else Modifier.padding(vertical = 40.dp)).padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.size(72.dp).clip(kikoCircleShape()).background(c.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = c.danger, modifier = Modifier.size(34.dp))
+        }
+        Text(title, color = c.ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 18.dp))
+        Text(body, color = c.muted, fontSize = 14.sp, lineHeight = 20.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+        if (onRetry != null && !m.startsWith("sign in") && !m.startsWith("type at least")) {
+            Button(
+                onClick = onRetry,
+                shape = kikoPillShape(),
+                colors = ButtonDefaults.buttonColors(containerColor = c.primaryContainer, contentColor = c.onPrimaryContainer),
+                contentPadding = PaddingValues(start = 18.dp, end = 22.dp, top = 10.dp, bottom = 10.dp),
+                modifier = Modifier.padding(top = 20.dp),
+            ) {
+                Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Retry", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            }
+        }
+    }
+}

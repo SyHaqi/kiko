@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoErrorState
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.headerEdgeStart
@@ -139,10 +140,7 @@ import kotlinx.coroutines.launch
 
         when {
             loading && friends == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { KikoLoadingIndicator(modifier = Modifier.padding(top = 40.dp), color = c.primary) }
-            error != null -> Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(error!!, color = c.muted, fontSize = 13.sp)
-                TextButton(onClick = { load() }, modifier = Modifier.padding(top = 8.dp)) { Text("Retry") }
-            }
+            error != null -> KikoErrorState(error!!, onRetry = { load() })
             else -> FriendsList(friends.orEmpty(), c, onOpenFriend)
         }
     }

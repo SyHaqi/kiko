@@ -179,6 +179,8 @@ class LibraryViewModel : ViewModel() {
     var profileDrawerOpen by mutableStateOf(false)
     var profileMenuAnchor by mutableStateOf<Rect?>(null)
     var signedIn by mutableStateOf(false); var loading by mutableStateOf(false); var error by mutableStateOf<String?>(null)
+    // Why the last MAL list load failed; My List shows it as a full-page error with Retry instead of a dialog.
+    var libraryError by mutableStateOf<String?>(null)
     // Whether the initial signed-in
     // itself defaults to false
     // and genuinely signed out"
@@ -1731,7 +1733,8 @@ class LibraryViewModel : ViewModel() {
     fun load(context: Context) {
         val api = MalApi(context); signedIn = api.signedIn; authChecked = true; if (!signedIn) return
         loading = true
-        viewModelScope.launch { runCatching { api.library() }.onSuccess { items = it; backfillLibraryThemes(); prefetchAiring(it) }.onFailure { error = it.message ?: "Could not load your MAL list" }; loading = false }
+        libraryError = null
+        viewModelScope.launch { runCatching { api.library() }.onSuccess { items = it; backfillLibraryThemes(); prefetchAiring(it) }.onFailure { if (items.isEmpty()) libraryError = it.message ?: "Could not load your MAL list" else error = it.message ?: "Could not load your MAL list" }; loading = false }
         loadProfile(context)
     }
     // MalApi.fetchList (the official MAL
@@ -1793,6 +1796,7 @@ class LibraryViewModel : ViewModel() {
         if ((discoverBrowseLoaded && !force) || discoverBrowseLoading || !api.signedIn) return
         discoverBrowseLoaded = true
         discoverBrowseLoading = true
+        discoverBrowseError = null
         viewModelScope.launch {
             // These two endpoints don't
             // them one after another

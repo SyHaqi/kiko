@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoErrorState
 import com.kiko.tracker.ui.components.KikoDropdownMenu
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoSectionLoading
@@ -94,7 +95,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         // used to sit here moved into the header's filter sheet).
                         Spacer(Modifier.height(12.dp))
                         if (vm.rankingLoading && vm.visibleRankingResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), color = c.primary)
-                        vm.rankingError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                        vm.rankingError?.takeIf { !vm.rankingLoading }?.let { KikoErrorState(it, onRetry = { vm.loadRanking(context, vm.rankingType, vm.rankingSort) }) }
                     }
                     if (vm.rankingLoading && vm.visibleRankingResults.isEmpty()) {
                         item { KikoSectionLoading() }

@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoErrorState
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
@@ -145,7 +146,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                             } else {
                                 Spacer(Modifier.height(14.dp))
                             }
-                            vm.featuredArticlesError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp)) }
+                            vm.featuredArticlesError?.takeIf { !vm.featuredArticlesLoading }?.let { KikoErrorState(it, onRetry = { vm.loadFeaturedArticlesGrid(force = true) }) }
                         }
                     }
                     if (vm.featuredArticlesLoading && articles.isEmpty()) {
@@ -288,7 +289,8 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
     var content by remember(url) { mutableStateOf<FeaturedArticleContent?>(null) }
     var loading by remember(url) { mutableStateOf(true) }
     var error by remember(url) { mutableStateOf<String?>(null) }
-    LaunchedEffect(url) {
+    var reloadKey by remember(url) { mutableStateOf(0) }
+    LaunchedEffect(url, reloadKey) {
         loading = true
         error = null
         runCatching { MalDetailScrapeApi().fetchFeaturedArticle(url) }
@@ -336,7 +338,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 Column(Modifier.fillMaxSize().verticalScroll(scrollState).padding(start = 18.dp, end = 18.dp, bottom = if (showGoToTop) 90.dp else 32.dp)) {
                     Text(content?.title?.ifBlank { title } ?: title, style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 10.dp))
                     if (loading) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), color = c.primary)
-                    error?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp)) }
+                    error?.takeIf { !loading }?.let { KikoErrorState(it, onRetry = { reloadKey++ }) }
                     content?.let { data ->
                         // "by Author · Nov 3, 2026 · 1.2K views" on one quiet line.
                         val meta = listOfNotNull(

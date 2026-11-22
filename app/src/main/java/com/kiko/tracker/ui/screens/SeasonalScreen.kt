@@ -2,6 +2,7 @@
 
 package com.kiko.tracker.ui.screens
 
+import com.kiko.tracker.ui.components.KikoErrorState
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
@@ -114,7 +115,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                         color = c.muted, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp),
                     )
                     if (vm.seasonalLoading && vm.visibleSeasonalResults.isNotEmpty()) KikoLoadingRow(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), color = c.primary)
-                    vm.seasonalError?.let { Text(it, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) }
+                    vm.seasonalError?.takeIf { !vm.seasonalLoading }?.let { KikoErrorState(it, onRetry = { vm.loadSeasonal(context) }) }
                     Spacer(Modifier.height(14.dp))
                 }
             }

@@ -37,6 +37,7 @@ import androidx.compose.material3.carousel.CarouselDefaults
 import androidx.compose.material3.carousel.CarouselItemScope
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
+import com.kiko.tracker.ui.components.KikoErrorState
 import com.kiko.tracker.ui.components.KikoDropdownMenu
 import com.kiko.tracker.ui.components.KikoSectionLoading
 import com.kiko.tracker.ui.components.KikoPullToRefreshBox
@@ -1330,7 +1331,11 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                     } else {
                         items(filtered, key = { it.id }, contentType = { "grid" }) { item -> ListGridCard(item, openItem, onIncrementHeld, onLongPress = onEdit, showStatus = statusLabel == "All" || fabMode, vm = vm) }
                     }
-                    if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                    if (!vm.loading && filtered.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                        val libErr = vm.libraryError
+                        if (libErr != null) KikoErrorState(libErr, onRetry = { vm.load(context) })
+                        else Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
                 }
             } else {
                 // Each row pads itself 12dp (10dp compact) top and bottom, so rows sit 24dp apart; the same top padding under the
@@ -1344,7 +1349,11 @@ private fun statusMenuIcon(label: String): androidx.compose.ui.graphics.vector.I
                             MyListRow(it, openItem, onIncrementHeld, onLongPress = onEdit, vm = vm, showStatus = fabMode || statusLabel == "All")
                         }
                     }
-                    if (!vm.loading && filtered.isEmpty()) item { Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                    if (!vm.loading && filtered.isEmpty()) item {
+                        val libErr = vm.libraryError
+                        if (libErr != null) KikoErrorState(libErr, onRetry = { vm.load(context) })
+                        else Text("No titles here yet.", color = c.muted, modifier = Modifier.fillMaxWidth().padding(36.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
                 }
             }
         }
