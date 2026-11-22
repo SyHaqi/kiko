@@ -1799,7 +1799,8 @@ private val IncrementPillSize = DpSize(34.dp, 34.dp)
     // Currently airing: the air timer ("Ep. 14 airs in 2d 3h" / "airs on Sat, 9:30 PM") always takes the format's place
     // on the meta line. Not yet aired: "Not Yet Aired" does. Everything else shows the format.
     val timer = remember(item, confirmed, is24Hour, countdownStyle, upcoming, isAiring, item.progress, item.status) {
-        if (isAiring) item.airTimerLabel(confirmed, is24Hour) ?: item.behindLabel(confirmed) else upcoming
+        // Behind on a title they're watching -> "N episodes behind" takes the timer's place (same order as the grid tile and ListRow).
+        if (isAiring) item.behindLabel(confirmed) ?: item.airTimerLabel(confirmed, is24Hour) else upcoming
     }
     Row(
         modifier

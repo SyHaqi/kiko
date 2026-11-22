@@ -1668,17 +1668,14 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
                     colors = SliderDefaults.colors(thumbColor = c.primary, activeTrackColor = c.primary, inactiveTrackColor = c.surfaceLow),
                     modifier = Modifier.weight(1f),
                 )
-                // Star matches the app's
-                // just recolored to this
-                // instead of the MAL-score
-                // The number is deliberately larger than the star behind it: the star is only a soft tonal
-                // backdrop (smaller than the digits' footprint), so the value stays readable in every theme.
-                Box(Modifier.padding(start = 10.dp).size(52.dp), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Star, contentDescription = null, tint = c.primaryContainer, modifier = Modifier.size(34.dp))
+                // The number sits inside a big primary-container star (same star as the rest of the app, recolored to
+                // the theme). The star's visual centre is a touch below its box centre, so the digit is nudged down.
+                Box(Modifier.padding(start = 8.dp).size(68.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.Star, contentDescription = null, tint = c.primaryContainer, modifier = Modifier.size(68.dp))
                     Text(
                         if (rating == 0) "–" else rating.toString(),
-                        fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = c.ink,
-                        maxLines = 1, softWrap = false,
+                        fontWeight = FontWeight.ExtraBold, fontSize = if (rating == 10) 19.sp else 24.sp, color = c.onPrimaryContainer,
+                        maxLines = 1, softWrap = false, modifier = Modifier.offset(y = 2.dp),
                     )
                 }
             }
@@ -1771,7 +1768,7 @@ fun parseMalProfileLink(url: String): MalProfileLink? {
     }
 }
 // Same look as the other boxes in the edit sheet: tonal surfaceContainerHigh, 16dp corners, no outline.
-@Composable private fun kikoEditFieldColors(c: KikoColors) = TextFieldDefaults.colors(
+@Composable internal fun kikoEditFieldColors(c: KikoColors) = TextFieldDefaults.colors(
     focusedContainerColor = c.surfaceContainerHigh, unfocusedContainerColor = c.surfaceContainerHigh, disabledContainerColor = c.surfaceContainerHigh,
     focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, errorIndicatorColor = Color.Transparent,
     focusedTextColor = c.ink, unfocusedTextColor = c.ink, cursorColor = c.primary,

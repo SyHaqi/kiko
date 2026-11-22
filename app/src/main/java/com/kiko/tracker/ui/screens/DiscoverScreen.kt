@@ -970,10 +970,10 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 val creatorLabel = when (type) { "Anime" -> "Studio"; "Manga" -> "Author"; else -> "Studio / Author" }
                 val creatorHint = when (type) { "Anime" -> "e.g. Madhouse"; "Manga" -> "e.g. Eiichiro Oda"; else -> "e.g. Madhouse or Eiichiro Oda" }
                 Text(creatorLabel, color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
-                OutlinedTextField(
+                TextField(
                     value = creator, onValueChange = { creator = it }, placeholder = { Text(creatorHint, color = c.muted) }, singleLine = true,
-                    shape = RoundedCornerShape(kikoCorner(14.dp)),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                    shape = RoundedCornerShape(kikoCorner(16.dp)),
+                    colors = kikoEditFieldColors(c),
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -987,11 +987,11 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                 Row(Modifier.fillMaxWidth().padding(top = 22.dp)) {
                     Column(Modifier.weight(1f)) {
                         Text("Year", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(bottom = 9.dp))
-                        OutlinedTextField(
+                        TextField(
                             value = year, onValueChange = { year = it.filter(Char::isDigit).take(4) }, placeholder = { Text("e.g. 2023", color = c.muted) }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            shape = RoundedCornerShape(kikoCorner(14.dp)),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink),
+                            shape = RoundedCornerShape(kikoCorner(16.dp)),
+                            colors = kikoEditFieldColors(c),
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -1341,9 +1341,9 @@ private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies",
     var ageHigh by remember { mutableStateOf(current.ageHigh?.toString() ?: "") }
     var gender by remember { mutableStateOf(current.gender) }
     val genderOptions = listOf("", "Male", "Female", "Non-Binary")
-    // Same text-box look as the Anime/Manga sheet (rounded, primary outline when focused, surface fill).
-    val fieldShape = RoundedCornerShape(kikoCorner(14.dp))
-    val fieldColors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.primary, unfocusedBorderColor = c.outline, unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, focusedTextColor = c.ink, unfocusedTextColor = c.ink)
+    // Same text-box look as the edit sheet and the Anime/Manga sheet: tonal fill, no outline.
+    val fieldShape = RoundedCornerShape(kikoCorner(16.dp))
+    val fieldColors = kikoEditFieldColors(c)
     val sheetState = rememberModalBottomSheetState()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = c.surfaceContainerLow, contentWindowInsets = { WindowInsets(0, 0, 0, 0) }) {
         Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 28.dp).imePadding()) {
@@ -1364,7 +1364,7 @@ private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies",
 
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
                 Text("Location", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 18.dp, bottom = 9.dp))
-                OutlinedTextField(
+                TextField(
                     value = location, onValueChange = { location = it },
                     placeholder = { Text("e.g. California", color = c.muted) },
                     singleLine = true,
@@ -1374,7 +1374,7 @@ private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies",
 
                 Text("Age", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
+                    TextField(
                         value = ageLow, onValueChange = { ageLow = it.filter(Char::isDigit).take(3) },
                         placeholder = { Text("Min", color = c.muted) },
                         singleLine = true,
@@ -1383,7 +1383,7 @@ private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies",
                         modifier = Modifier.weight(1f),
                     )
                     Text("to", color = c.muted, fontSize = 13.sp)
-                    OutlinedTextField(
+                    TextField(
                         value = ageHigh, onValueChange = { ageHigh = it.filter(Char::isDigit).take(3) },
                         placeholder = { Text("Max", color = c.muted) },
                         singleLine = true,
