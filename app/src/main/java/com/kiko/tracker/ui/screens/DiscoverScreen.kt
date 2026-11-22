@@ -1169,6 +1169,9 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
 private val DiscoverTypePillsHeight = 50.dp
 private val DiscoverTypePillsInset = 14.dp // = the results list's own side padding, so pills line up with the cards
 
+// Set by the navigation host: opens the Magazines page (manga only) from the Discover type pills.
+val LocalOpenMagazines = androidx.compose.runtime.staticCompositionLocalOf<(() -> Unit)?> { null }
+
 // Everything Discover can search, in display order.
 private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies", "People", "Users")
 
@@ -1185,6 +1188,8 @@ private val DISCOVER_TYPES = listOf("Anime", "Manga", "Characters", "Companies",
         DISCOVER_TYPES.forEach { option ->
             DiscoverTypeTab(option, selected = option == current, onClick = { if (option != current) onSelect(option) })
         }
+        // Magazines aren't a search type: the pill opens the manga magazine browser as its own page.
+        LocalOpenMagazines.current?.let { open -> DiscoverTypeTab("Magazines", selected = false, onClick = open) }
     }
 }
 

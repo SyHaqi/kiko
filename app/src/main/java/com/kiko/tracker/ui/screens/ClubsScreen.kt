@@ -142,7 +142,7 @@ import com.kiko.tracker.viewmodel.LibraryViewModel
                     hint = "Find clubs…",
                     horizontalPadding = 0.dp,
                     edgeBleed = 14.dp,
-                    switchDescription = "Switch between Forums and Clubs",
+                    switchDescription = "Switch between Forums, Clubs, Reviews and Blogs",
                 ) { Avatar(vm.malProfile?.picture.orEmpty(), vm.malProfile?.name.orEmpty(), showUpdateBadge = vm.updateInfo != null, size = 33.dp, circle = true) { rect -> vm.profileDrawerOpen = true; vm.profileMenuAnchor = rect } }
                 if (vm.signedIn) {
                     // Same section title as the Forums board list: primary, bold 14sp, 20dp in from the edge.

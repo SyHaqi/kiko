@@ -372,7 +372,7 @@ class MalDetailScrapeApi {
     // negative, index-derived fallback can
     // never collide with a
     // genuine one.
-    private fun parseReviews(doc: Document): List<ReviewEntry> =
+    internal fun parseReviews(doc: Document): List<ReviewEntry> =
         doc.select("div.review-element").mapIndexedNotNull { index, el ->
             val textDiv = el.selectFirst("div.text") ?: return@mapIndexedNotNull null
             val text = textWithLineBreaks(textDiv)

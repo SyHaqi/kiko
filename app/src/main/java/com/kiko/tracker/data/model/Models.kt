@@ -288,7 +288,7 @@ fun MediaItem.listTabStatus(): WatchStatus =
 enum class Destination(val label: String, val icon: ImageVector) { Home("Home", Icons.Rounded.Home), List("My list", Icons.Rounded.List), Discover("Discover", Icons.Rounded.Search), Seasonal("Seasonal", Icons.Rounded.DateRange), Community("Hub", Icons.Rounded.Groups) }
 
 // Sub-tab within the combined
-enum class CommunityTab(val label: String) { Forums("Forums"), Clubs("Clubs") }
+enum class CommunityTab(val label: String) { Forums("Forums"), Clubs("Clubs"), Reviews("Reviews"), Blogs("Blogs") }
 
 enum class ThemeMode(val label: String) { System("System"), Light("Light"), Dark("Dark") }
 
