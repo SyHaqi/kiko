@@ -9,6 +9,12 @@ import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.KikoLoadingRow
 import com.kiko.tracker.util.openInBrowser
 import android.net.Uri
+import android.widget.Toast
+import com.kiko.tracker.data.api.ClubMembership
+import com.kiko.tracker.data.api.MalSessionCookie
+import com.kiko.tracker.data.api.MalSessionExpired
+import com.kiko.tracker.data.api.MalSocialApi
+import com.kiko.tracker.ui.theme.kikoPillShape
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -28,6 +34,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import com.kiko.tracker.ui.components.KikoPullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -243,6 +250,30 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
     val c = LocalKikoColors.current
     val context = LocalContext.current
     val api = remember { ClubsApi() }
+    val scope = rememberCoroutineScope()
+    // Join / leave / comment need the website session; the buttons only appear for a connected account.
+    val signedIn = remember { MalSessionCookie(context).has() }
+    var membership by remember(club.id) { mutableStateOf<ClubMembership?>(null) }
+    var membershipBusy by remember { mutableStateOf(false) }
+    var confirmLeave by remember { mutableStateOf(false) }
+    var couchReload by remember(club.id) { mutableIntStateOf(0) }
+    LaunchedEffect(club.id) {
+        if (signedIn) runCatching { MalSocialApi(context).clubMembership(club.id) }.onSuccess { membership = it }
+    }
+    fun runMembership(join: Boolean) {
+        if (membershipBusy) return
+        membershipBusy = true
+        scope.launch {
+            val social = MalSocialApi(context)
+            runCatching { if (join) social.joinClub(club.id) else social.leaveClub(club.id) }
+                .onSuccess { Toast.makeText(context, it, Toast.LENGTH_SHORT).show(); runCatching { social.clubMembership(club.id) }.onSuccess { m -> membership = m }; couchReload++ }
+                .onFailure {
+                    if (it is kotlinx.coroutines.CancellationException) throw it
+                    Toast.makeText(context, if (it is MalSessionExpired) "Your MAL login expired. Reconnect from Profile and try again." else it.message ?: "That didn't work", Toast.LENGTH_LONG).show()
+                }
+            membershipBusy = false
+        }
+    }
     var full by remember(club.id) { mutableStateOf(club) }
     var loading by remember(club.id) { mutableStateOf(true) }
     LaunchedEffect(club.id) {
@@ -301,6 +332,25 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
                         if (full.category.isNotBlank()) Pill(full.category, c.surfaceLow, c.muted)
                         if (full.access.isNotBlank()) Pill(full.access, c.surfaceLow, c.muted)
                     }
+                    membership?.let { m ->
+                        if (m.joined || m.canJoin) {
+                            Row(Modifier.padding(top = 14.dp)) {
+                                if (m.joined) {
+                                    FilledTonalButton(onClick = { confirmLeave = true }, enabled = !membershipBusy, shape = kikoPillShape(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)) {
+                                        Icon(Icons.Rounded.Check, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Joined", fontWeight = FontWeight.Medium)
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = { runMembership(true) }, enabled = !membershipBusy, shape = kikoPillShape(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary), contentPadding = PaddingValues(horizontal = 22.dp, vertical = 10.dp),
+                                    ) {
+                                        if (membershipBusy) KikoLoadingIndicator(color = c.onPrimary, size = 18.dp)
+                                        else { Icon(Icons.Rounded.Add, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Join club", fontWeight = FontWeight.Medium) }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     // Segmented tab switcher, matching
                     Row(Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(kikoCorner(16.dp))).background(c.surfaceContainerHigh).padding(4.dp)) {
                         ClubTab.entries.forEach { t ->
@@ -316,12 +366,21 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
             item {
                 AnimatedContent(tab, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "club-tab", modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp)) { t ->
                     when (t) {
-                        ClubTab.Couch -> ClubCouchSection(club.id, full, onOpenBrowser = { context.openInBrowser(full.url) }, onOpenProfileLink = onOpenProfileLink)
+                        ClubTab.Couch -> ClubCouchSection(club.id, full, canComment = membership?.canComment == true, externalReload = couchReload, onOpenBrowser = { context.openInBrowser(full.url) }, onOpenProfileLink = onOpenProfileLink)
                         ClubTab.Cabinet -> ClubCabinetSection(full, loading, onOpenBrowser = { context.openInBrowser(it) })
                         ClubTab.Members -> ClubMembersSection(club.id, onOpenBrowser = { context.openInBrowser(it) })
                     }
                 }
             }
+        }
+        if (confirmLeave) {
+            AlertDialog(
+                onDismissRequest = { confirmLeave = false }, containerColor = c.surfaceContainerHigh,
+                title = { Text("Leave this club?", color = c.ink) },
+                text = { Text("You'll leave ${full.name.ifBlank { "the club" }} on MyAnimeList.", color = c.muted, fontSize = 14.sp) },
+                confirmButton = { TextButton(onClick = { confirmLeave = false; runMembership(false) }) { Text("Leave", color = c.danger) } },
+                dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Stay", color = c.muted) } },
+            )
         }
         ClubTopBar(
             title = full.name.ifBlank { "Club" },
@@ -334,14 +393,14 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
 }
 
 // Couch = the club's
-@Composable private fun ClubCouchSection(clubId: Int, club: MalClub, onOpenBrowser: () -> Unit, onOpenProfileLink: (MalProfileLink) -> Unit = {}) {
+@Composable private fun ClubCouchSection(clubId: Int, club: MalClub, canComment: Boolean, externalReload: Int, onOpenBrowser: () -> Unit, onOpenProfileLink: (MalProfileLink) -> Unit = {}) {
     val c = LocalKikoColors.current
     val api = remember { ClubsApi() }
     var posts by remember(clubId) { mutableStateOf<List<ClubPost>>(emptyList()) }
     var loading by remember(clubId) { mutableStateOf(true) }
     var error by remember(clubId) { mutableStateOf<String?>(null) }
     var reloadKey by remember(clubId) { mutableStateOf(0) }
-    LaunchedEffect(clubId, reloadKey) {
+    LaunchedEffect(clubId, reloadKey, externalReload) {
         loading = true; error = null
         runCatching { api.fetchCouch(clubId) }
             .onSuccess { posts = it.items }
@@ -356,6 +415,7 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
             Spacer(Modifier.height(18.dp))
         }
         Text("COUCH", color = c.muted, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 10.dp))
+        if (canComment) ClubCommentBox(clubId, onPosted = { reloadKey++ })
         when {
             loading -> Box(Modifier.fillMaxWidth().padding(top = 20.dp), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 30.dp) }
             error != null -> KikoErrorState(error!!, onRetry = { reloadKey++ })
@@ -485,5 +545,35 @@ private fun ClubTopBar(title: String, url: String, onBack: () -> Unit, progress:
                 .onFailure { hasMore = false }
             loadingMore = false
         }
+    }
+}
+// Comment box at the top of the Couch for club members. Posts to MAL, then the Couch reloads.
+@Composable private fun ClubCommentBox(clubId: Int, onPosted: () -> Unit) {
+    val c = LocalKikoColors.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var text by rememberSaveable(clubId) { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(bottom = 14.dp).clip(RoundedCornerShape(kikoCorner(20.dp))).background(c.surfaceContainerHigh).padding(12.dp)) {
+        TextField(
+            value = text, onValueChange = { text = it }, minLines = 2, maxLines = 6, placeholder = { Text("Say something to the club") },
+            shape = RoundedCornerShape(kikoCorner(14.dp)), colors = settingsFieldColors(c), modifier = Modifier.fillMaxWidth(),
+        )
+        Button(
+            onClick = {
+                busy = true
+                scope.launch {
+                    runCatching { MalSocialApi(context).postClubComment(clubId, text.trim()) }
+                        .onSuccess { text = ""; Toast.makeText(context, "Comment posted", Toast.LENGTH_SHORT).show(); busy = false; onPosted() }
+                        .onFailure {
+                            if (it is kotlinx.coroutines.CancellationException) throw it
+                            Toast.makeText(context, if (it is MalSessionExpired) "Your MAL login expired. Reconnect from Profile and try again." else it.message ?: "That didn't work", Toast.LENGTH_LONG).show()
+                            busy = false
+                        }
+                }
+            },
+            enabled = !busy && text.isNotBlank(), shape = kikoPillShape(), modifier = Modifier.align(Alignment.End).padding(top = 8.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = c.primary, contentColor = c.onPrimary), contentPadding = PaddingValues(horizontal = 22.dp, vertical = 10.dp),
+        ) { if (busy) KikoLoadingIndicator(color = c.onPrimary, size = 18.dp) else Text("Post", fontWeight = FontWeight.Medium) }
     }
 }

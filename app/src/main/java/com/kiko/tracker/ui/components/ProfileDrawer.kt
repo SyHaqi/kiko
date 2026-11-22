@@ -12,8 +12,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Mail
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Login
+import androidx.compose.material.icons.rounded.ManageAccounts
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Settings
@@ -48,6 +50,9 @@ import com.kiko.tracker.ui.theme.kikoClickable
     onOpenHistory: (() -> Unit)? = null,
     onOpenFriends: (() -> Unit)? = null,
     onOpenNotifications: (() -> Unit)? = null,
+    onOpenMalAccount: (() -> Unit)? = null,
+    onOpenMessages: (() -> Unit)? = null,
+    messagesUnread: Int = 0,
     notificationsUnread: Int = 0,
     onOpenAbout: (() -> Unit)? = null,
     onSignIn: (() -> Unit)? = null,
@@ -114,12 +119,18 @@ import com.kiko.tracker.ui.theme.kikoClickable
                 if (onOpenHistory != null) add(Triple(Icons.Rounded.History, "History", onOpenHistory))
                 if (connected && onOpenFriends != null) add(Triple(Icons.Rounded.People, "Friends", onOpenFriends))
                 if (connected && onOpenNotifications != null) add(Triple(Icons.Rounded.Notifications, "Notifications", onOpenNotifications))
+                if (connected && onOpenMessages != null) add(Triple(Icons.Rounded.Mail, "Messages", onOpenMessages))
+                if (connected && onOpenMalAccount != null) add(Triple(Icons.Rounded.ManageAccounts, "Manage your MAL account", onOpenMalAccount))
             }
             if (pages.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     pages.forEachIndexed { i, (icon, label, action) ->
                         // Unread count rides on the Notifications row as a subtitle.
-                        val unread = if (label == "Notifications" && notificationsUnread > 0) "$notificationsUnread new" else null
+                        val unread = when {
+                            label == "Notifications" && notificationsUnread > 0 -> "$notificationsUnread new"
+                            label == "Messages" && messagesUnread > 0 -> "$messagesUnread new"
+                            else -> null
+                        }
                         MenuRow(icon, label, shape = groupShape(i, pages.size), subtitle = unread) { action() }
                     }
                 }

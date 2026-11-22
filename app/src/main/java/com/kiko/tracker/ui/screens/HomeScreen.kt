@@ -550,8 +550,10 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
 
 @Composable fun SectionTitle(title: String, action: String, click: () -> Unit, icon: ImageVector = Icons.Rounded.ArrowForward) {
     val c = LocalKikoColors.current
+    // With an action the whole header row is the tap target, not just the small arrow pill.
     Row(
-        Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 10.dp),
+        Modifier.padding(top = 32.dp, bottom = 10.dp).fillMaxWidth()
+            .then(if (action.isNotBlank()) Modifier.clip(RoundedCornerShape(kikoCorner(14.dp))).kikoClickable(scale = 0.985f, onClick = click) else Modifier),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = c.ink)
@@ -569,8 +571,7 @@ private fun genreIcon(genre: String): ImageVector = when (genre.lowercase()) {
                 Modifier
                     .size(width = 28.dp, height = 32.dp) // same size/shape as the "+1" pill
                     .clip(kikoPillShape())
-                    .background(c.surfaceContainerHigh)
-                    .kikoClickable(onClick = click),
+                    .background(c.surfaceContainerHigh),
                 contentAlignment = Alignment.Center,
             ) { Icon(icon, action, tint = c.ink, modifier = Modifier.size(17.dp)) }
         }

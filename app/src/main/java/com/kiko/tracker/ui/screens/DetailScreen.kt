@@ -188,6 +188,8 @@ data class DetailScreenActions(
     val onOpenReviewList: (MediaItem) -> Unit = {},
     // Opens the Write a Review editor (TopScreen.WriteReview) for this title.
     val onWriteReview: (MediaItem) -> Unit = {},
+    // "Recommend a similar title" (posts to MAL). Null hides the row, e.g. when not signed in.
+    val onRecommend: ((MediaItem) -> Unit)? = null,
     // "See more" on the Related row: opens the Related graph page (TopScreen.RelationGraph).
     val onOpenRelationGraph: (MediaItem) -> Unit = {},
     val onGenreClick: (String) -> Unit = {},
@@ -324,6 +326,17 @@ private var detailStatusBarOwners = 0
             val kind = if (r.malType == "manga") "manga" else "anime"
             if (r.titleEnglish.isBlank()) recEnglish[kind to r.malId]?.let { r.copy(titleEnglish = it) } ?: r else r
         }
+    }
+    // "See more" on the Recommended row opens the full list, which is also where "Recommend a similar title" lives.
+    var recommendedSheet by remember(item.id) { mutableStateOf(false) }
+    val canRecommend = actions.onRecommend != null && myListStatus.containsKey(item.id.toIntOrNull() to item.type)
+    if (recommendedSheet) {
+        RecommendedListSheet(
+            title = item.title, entries = shownRecommended, myListStatus = myListStatus,
+            onRecommend = if (canRecommend) ({ recommendedSheet = false; actions.onRecommend?.invoke(item) }) else null,
+            onOpen = { recommendedSheet = false; actions.onOpenRecommended(it) },
+            onDismiss = { recommendedSheet = false },
+        )
     }
     // Status distribution loads async
     var statusDistribution by remember(item.id) { mutableStateOf(cachedSnapshot?.statusDistribution) }
@@ -871,9 +884,9 @@ private var detailStatusBarOwners = 0
                                         }
 
                                         // Recommendations from MAL endpoint
-                                        if (shownRecommended.isNotEmpty()) {
-                                            SectionTitle("Recommended", "", {})
-                                            LazyRow(state = recommendedListState, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                                        if (shownRecommended.isNotEmpty() || canRecommend) {
+                                            SectionTitle("Recommended", "See more", { recommendedSheet = true })
+                                            if (shownRecommended.isNotEmpty()) LazyRow(state = recommendedListState, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                                                 // Keyed by malId +
                                                 // ids are numbered independently
                                                 // anime and an unrelated

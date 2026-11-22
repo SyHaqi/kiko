@@ -86,6 +86,9 @@ import com.kiko.tracker.ui.screens.FriendListScreen
 import com.kiko.tracker.ui.screens.ForumTopicScreen
 import com.kiko.tracker.ui.screens.GenreFilterScreen
 import com.kiko.tracker.ui.screens.HistoryScreen
+import com.kiko.tracker.ui.screens.MalAccountScreen
+import com.kiko.tracker.ui.screens.MalMessagesScreen
+import com.kiko.tracker.data.api.MalSocialApi
 import com.kiko.tracker.ui.screens.NotificationsScreen
 import com.kiko.tracker.ui.screens.HomeScreen
 import com.kiko.tracker.ui.screens.ListScreen
@@ -100,6 +103,7 @@ import com.kiko.tracker.ui.screens.ReviewListScreen
 import com.kiko.tracker.ui.screens.ReviewScreen
 import com.kiko.tracker.ui.screens.RelationPipelineScreen
 import com.kiko.tracker.ui.screens.WriteReviewScreen
+import com.kiko.tracker.ui.screens.RecommendSheet
 import com.kiko.tracker.ui.screens.ScheduleScreen
 import com.kiko.tracker.ui.screens.ScoreFilterScreen
 import com.kiko.tracker.ui.screens.ScoreStatsSheet
@@ -219,6 +223,9 @@ sealed class TopScreen {
     object SettingsPage : TopScreen()
     // Avatar account sheet; pages it opens stack on top of it
     object AccountSheet : TopScreen()
+    // "Manage your MAL account": MAL profile/notification/forum/list settings, opened from the avatar sheet
+    object MalAccount : TopScreen()
+    object Messages : TopScreen()
     // Titles at one score,
     data class ScoreFilter(val type: MediaType, val score: Int) : TopScreen()
     // Titles released in one
@@ -288,6 +295,8 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.FriendListStatus -> "friendListStatus:$username:$type:$status"
     TopScreen.SettingsPage -> "settingsPage"
     TopScreen.AccountSheet -> "accountSheet"
+    TopScreen.MalAccount -> "malAccount"
+    TopScreen.Messages -> "messages"
     is TopScreen.ScoreFilter -> "scoreFilter:$type:$score"
     is TopScreen.YearFilter -> "yearFilter:$type:$year"
     is TopScreen.FormatFilter -> "formatFilter:$type:$format"
@@ -302,7 +311,7 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.Tab -> "tab:$destination"
 }
 
-fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.MediaStacks || this is TopScreen.ReviewList || this is TopScreen.WriteReview || this is TopScreen.RelationGraph || this is TopScreen.StacksSaved || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.MalFriendsFavorites || this is TopScreen.FriendProfile || this is TopScreen.FriendFriendsFavorites || this is TopScreen.FriendListStatus || this is TopScreen.SettingsPage || this is TopScreen.AccountSheet || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage || this is TopScreen.CompanyPage || this is TopScreen.FeaturedArticles || this is TopScreen.FeaturedArticle || this is TopScreen.History || this is TopScreen.Notifications
+fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.MediaStacks || this is TopScreen.ReviewList || this is TopScreen.WriteReview || this is TopScreen.RelationGraph || this is TopScreen.StacksSaved || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.MalFriendsFavorites || this is TopScreen.FriendProfile || this is TopScreen.FriendFriendsFavorites || this is TopScreen.FriendListStatus || this is TopScreen.SettingsPage || this is TopScreen.AccountSheet || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage || this is TopScreen.CompanyPage || this is TopScreen.FeaturedArticles || this is TopScreen.FeaturedArticle || this is TopScreen.History || this is TopScreen.Notifications || this is TopScreen.MalAccount || this is TopScreen.Messages
 
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}, openNotifications: Boolean = false, onNotificationsHandled: () -> Unit = {}) {
@@ -562,6 +571,13 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // it's a single per-user page with no id to carry.
     var historyOpen by remember { mutableStateOf(false) }
     var notificationsOpen by remember { mutableStateOf(false) }
+    var malAccountOpen by remember { mutableStateOf(false) }
+    var messagesOpen by remember { mutableStateOf(false) }
+    // New (unread) private messages, shown on the avatar menu's Messages row. Refreshed whenever the menu opens.
+    var messagesUnread by remember { mutableIntStateOf(0) }
+    LaunchedEffect(vm.signedIn, vm.profileDrawerOpen) {
+        if (vm.signedIn && vm.profileDrawerOpen) runCatching { MalSocialApi(context).unreadMessages() }.onSuccess { messagesUnread = it }
+    }
     // Kept here (not inside the screen) so the tab survives opening a notification's page; reset to All each time the inbox closes.
     var notificationsTab by rememberSaveable { mutableStateOf(NotificationCategory.All) }
     LaunchedEffect(notificationsOpen) { if (!notificationsOpen) notificationsTab = NotificationCategory.All }
@@ -649,6 +665,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var reviewListOpen by remember { mutableStateOf<MediaItem?>(null) }
     // Write a Review editor (TopScreen.WriteReview) — an overlay like reviewListOpen.
     var writeReviewOpen by remember { mutableStateOf<MediaItem?>(null) }
+    // "Recommend a similar title" sheet, opened from a title page.
+    var recommendFor by remember { mutableStateOf<MediaItem?>(null) }
     // Related graph page (TopScreen.RelationGraph) — an overlay like reviewListOpen.
     var relationGraphOpen by remember { mutableStateOf<MediaItem?>(null) }
     // "See more" on Detail's Recent Forum Discussion row — same
@@ -692,7 +710,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         clubDetailOpen = null
         mediaStacksOpen = null; reviewListOpen = null; writeReviewOpen = null; relationGraphOpen = null
         rankingOpen = false; recommendationsOpen = false; scheduleOpen = false
-        featuredArticlesOpen = false; featuredArticleOpen = null; historyOpen = false; notificationsOpen = false
+        featuredArticlesOpen = false; featuredArticleOpen = null; historyOpen = false; notificationsOpen = false; malAccountOpen = false; messagesOpen = false
         forumTopicOpen = null; aboutOpen = false; reviewOpen = null
         vm.profileDrawerOpen = false
         profileStatsOpen = false; malFriendsFavoritesOpen = false; friendProfileStack = emptyList(); vm.clearFriendProfileCache(); friendFriendsFavoritesOpen = null; friendListStatusOpen = null; settingsPageOpen = false; scoreFilterOpen = null; yearFilterOpen = null; formatFilterOpen = null
@@ -711,7 +729,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         clubDetailOpen = null
         mediaStacksOpen = null; reviewListOpen = null; writeReviewOpen = null; relationGraphOpen = null
         rankingOpen = false; recommendationsOpen = false; scheduleOpen = false
-        featuredArticlesOpen = false; featuredArticleOpen = null; historyOpen = false; notificationsOpen = false
+        featuredArticlesOpen = false; featuredArticleOpen = null; historyOpen = false; notificationsOpen = false; malAccountOpen = false; messagesOpen = false
         forumTopicOpen = null; aboutOpen = false; reviewOpen = null
         vm.profileDrawerOpen = false
         profileStatsOpen = false; malFriendsFavoritesOpen = false; friendProfileStack = emptyList(); vm.clearFriendProfileCache(); friendFriendsFavoritesOpen = null; friendListStatusOpen = null; settingsPageOpen = false; scoreFilterOpen = null; yearFilterOpen = null; formatFilterOpen = null
@@ -726,7 +744,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Prefer live item copy
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && writeReviewOpen == null && relationGraphOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !notificationsOpen && !vm.profileDrawerOpen && (vm.destination != com.kiko.tracker.data.model.StartTabPrefs.tab || discoverReturnItem != null)) {
+    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && writeReviewOpen == null && relationGraphOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !notificationsOpen && !malAccountOpen && !messagesOpen && !vm.profileDrawerOpen && (vm.destination != com.kiko.tracker.data.model.StartTabPrefs.tab || discoverReturnItem != null)) {
         val returnItem = discoverReturnItem
         if (returnItem != null && vm.destination == Destination.Discover) {
             discoverReturnItem = null
@@ -755,7 +773,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Top-level destinations are only present at the root of the hierarchy.
     // Calculating this once also lets the app switch between a navigation bar
     // and rail without every detail route owning a slightly different shell.
-    val showNavigation = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && writeReviewOpen == null && relationGraphOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !notificationsOpen && !vm.profileDrawerOpen
+    val showNavigation = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && writeReviewOpen == null && relationGraphOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !notificationsOpen && !malAccountOpen && !messagesOpen && !vm.profileDrawerOpen
     val selectDestination: (Destination) -> Unit = {
         discoverReturnItem = null
         discoverReturnDestination = null
@@ -868,6 +886,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 clubDetailOpen != null -> TopScreen.ClubDetail(clubDetailOpen!!)
                                 historyOpen -> TopScreen.History
                                 notificationsOpen -> TopScreen.Notifications
+                                malAccountOpen -> TopScreen.MalAccount
+                                messagesOpen -> TopScreen.Messages
                                 rankingOpen -> TopScreen.Ranking
                                 recommendationsOpen -> TopScreen.Recommendations
                                 scheduleOpen -> TopScreen.Schedule(scheduleInitialDay)
@@ -945,6 +965,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                                 onOpenReview = { rev -> reviewOpen = rev to screen.item.title },
                                                 onOpenReviewList = { reviewListOpen = it },
                                                 onWriteReview = { writeReviewOpen = it },
+                                                onRecommend = if (vm.signedIn) { { recommendFor = it } } else null,
                                                 onOpenRelationGraph = { relationGraphOpen = it },
                                                 onOpenForumDiscussionList = { forumDiscussionListOpen = it },
                                                 onLeaveScroll = { index, offset -> vm.saveDetailScroll(screen.item.id, screen.item.type, index, offset) },
@@ -1164,6 +1185,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             onSignOut = onSignOut,
                                             onBack = { settingsPageOpen = false },
                                         )
+                                        TopScreen.Messages -> MalMessagesScreen(onBack = { messagesOpen = false })
+                                        TopScreen.MalAccount -> MalAccountScreen(avatarUrl = vm.malProfile?.picture, onBack = { malAccountOpen = false }, onPictureChanged = { vm.loadProfile(context) })
                                         TopScreen.AccountSheet -> AccountSheet(
                                             connected = vm.signedIn, profile = vm.malProfile,
                                             onClose = { vm.profileDrawerOpen = false; vm.profileMenuAnchor = null },
@@ -1172,6 +1195,9 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                             onOpenHistory = { historyOpen = true },
                                             onOpenFriends = { malFriendsFavoritesOpen = true },
                                             onOpenNotifications = { notificationsOpen = true },
+                                            onOpenMalAccount = { malAccountOpen = true },
+                                            onOpenMessages = { messagesOpen = true },
+                                            messagesUnread = messagesUnread,
                                             notificationsUnread = vm.notificationsUnread,
                                             onOpenAbout = { aboutOpen = true },
                                             onSignIn = onSignIn,
@@ -1221,6 +1247,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
             }
             // Keep sheets inside theme
             editorItem?.let { EditSheet(it, onDismiss = { editor = null }, onSave = { vm.saveLive(context, it); editor = null }, onDelete = { vm.deleteLive(context, it); editor = null; if (selectedItem?.id == it.id && selectedItem?.type == it.type) { vm.clearDetailCache(); selectedItem = null; detailStack = emptyList() } }) }
+            recommendFor?.let { src -> RecommendSheet(source = src, library = vm.items, onDismiss = { recommendFor = null }) }
             scoreStatsOpen?.let { item -> ScoreStatsSheet(item = item, onDismiss = { scoreStatsOpen = null }, onLoad = { onFound, onDone -> vm.loadScoreStats(item, onFound, onDone) }) }
             // Only render while no forum topic is open on top of it (forumTopicOpen == null) — see
             // forumDiscussionListOpen's own declaration comment.
