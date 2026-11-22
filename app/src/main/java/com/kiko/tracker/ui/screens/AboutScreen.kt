@@ -59,6 +59,7 @@ import com.kiko.tracker.util.openInBrowser
 @Composable fun AboutScreen(
     onBack: () -> Unit,
     updateInfo: AppUpdateInfo?, updateChecking: Boolean, updateUpToDate: Boolean, onCheckForUpdate: () -> Unit,
+    onOpenChangelog: () -> Unit = {},
 ) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
@@ -108,6 +109,15 @@ import com.kiko.tracker.util.openInBrowser
                     trailingContent = { if (updateChecking) KikoLoadingIndicator(color = c.primary, size = 24.dp) else Icon(Icons.Rounded.ChevronRight, null, tint = c.muted) },
                     colors = ListItemDefaults.colors(containerColor = c.surfaceContainer),
                     modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(enabled = !updateChecking, onClick = onCheckForUpdate),
+                )
+                Spacer(Modifier.height(8.dp))
+                ListItem(
+                    headlineContent = { Text("What's new", fontWeight = FontWeight.Bold, color = c.ink) },
+                    supportingContent = { Text("Release notes and changelog", color = c.muted) },
+                    leadingContent = { Icon(Icons.Rounded.NewReleases, null, tint = c.primary) },
+                    trailingContent = { Icon(Icons.Rounded.ChevronRight, null, tint = c.muted) },
+                    colors = ListItemDefaults.colors(containerColor = c.surfaceContainer),
+                    modifier = Modifier.clip(RoundedCornerShape(kikoCorner(16.dp))).kikoClickable(onClick = onOpenChangelog),
                 )
                 Spacer(Modifier.height(28.dp))
                 // Community links row
@@ -426,4 +436,4 @@ val StatusOnHoldColor = Color(0xFFE7B715)
 
 val StatusDroppedColor = Color(0xFFA12F31)
 
-val StatusPlanColor = Color(0xFF8F8F8F)
+val StatusPlanColor = Color(0xFF8F8F8F)

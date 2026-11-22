@@ -27,6 +27,16 @@ data class AppUpdateInfo(
     val apkSizeBytes: Long,
 )
 
+// One published GitHub release, for the changelog page
+data class ReleaseNote(
+    val tag: String,
+    val title: String,
+    val body: String,
+    val publishedAt: String,
+    val htmlUrl: String,
+    val prerelease: Boolean,
+)
+
 // Compare version numbers
 private fun parseVersion(raw: String): List<Int> =
     raw.removePrefix("v").substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }
@@ -106,6 +116,32 @@ class AppUpdateChecker(private val context: Context) {
         }
     } }
 
+    // Every published release, newest first (changelog page)
+    suspend fun fetchReleases(): Result<List<ReleaseNote>> = withContext(Dispatchers.IO) { runCatching {
+        val request = Request.Builder().url("https://api.github.com/repos/$UPDATE_REPO/releases?per_page=30")
+            .header("Accept", "application/vnd.github+json").build()
+        client.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("GitHub returned HTTP ${resp.code}")
+            val arr = org.json.JSONArray(resp.body?.string().orEmpty())
+            val out = ArrayList<ReleaseNote>()
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                if (o.optBoolean("draft")) continue
+                val tag = o.optString("tag_name").ifBlank { o.optString("name") }
+                if (tag.isBlank()) continue
+                out.add(ReleaseNote(
+                    tag = tag,
+                    title = o.optString("name").takeIf { it.isNotBlank() && it != tag } ?: "",
+                    body = o.optString("body").trim(),
+                    publishedAt = o.optString("published_at").take(10),
+                    htmlUrl = o.optString("html_url"),
+                    prerelease = o.optBoolean("prerelease"),
+                ))
+            }
+            out
+        }
+    } }
+
     // Download APK with progress
     suspend fun downloadApk(info: AppUpdateInfo, onProgress: (Float) -> Unit): Result<File> = withContext(Dispatchers.IO) { runCatching {
         val target = File(context.cacheDir, "kiko-update.apk")
@@ -157,4 +193,4 @@ class AppUpdateChecker(private val context: Context) {
         val target = File(context.cacheDir, "kiko-update.apk")
         if (target.exists()) target.delete()
     }
-}
+}

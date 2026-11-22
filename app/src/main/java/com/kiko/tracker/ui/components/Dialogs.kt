@@ -40,50 +40,6 @@ import com.kiko.tracker.ui.theme.kikoPillShape
 import com.kiko.tracker.ui.theme.parseHexColor
 import com.kiko.tracker.util.AppUpdateInfo
 
-@Composable fun UpdateDialog(
-    info: AppUpdateInfo, downloadProgress: Float?, needsInstallPermission: Boolean, error: String?,
-    onDownload: () -> Unit, onOpenInstallSettings: () -> Unit, onSkip: () -> Unit, onDismiss: () -> Unit,
-) {
-    val c = LocalKikoColors.current
-    val downloading = downloadProgress != null
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = c.surfaceContainerHigh,
-        title = { Text("Kiko ${info.version} is available", color = c.ink) },
-        text = {
-            Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
-                if (needsInstallPermission) {
-                    Text("Kiko needs permission to install updates. Allow it from Settings, then try again.", color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
-                } else if (error != null) {
-                    Text(error, color = c.danger, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
-                }
-                if (downloading) {
-                    val progress = downloadProgress ?: 0f
-                    Text("Downloading update…", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
-                    LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().clip(kikoPillShape()), color = c.primary, trackColor = c.surfaceLow)
-                    Text("${(progress * 100).toInt()}%", color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-                } else {
-                    Text(info.notes.ifBlank { "No release notes provided." }, color = c.muted, fontSize = 13.sp)
-                }
-            }
-        },
-        confirmButton = {
-            when {
-                needsInstallPermission -> TextButton(onClick = onOpenInstallSettings, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text("Open settings") }
-                else -> TextButton(onClick = onDownload, enabled = !downloading, colors = ButtonDefaults.textButtonColors(contentColor = c.primary)) { Text(if (downloading) "Downloading…" else "Update now") }
-            }
-        },
-        dismissButton = {
-            if (!downloading) {
-                Row {
-                    TextButton(onClick = onSkip, colors = ButtonDefaults.textButtonColors(contentColor = c.muted)) { Text("Skip") }
-                    TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = c.muted)) { Text("Later") }
-                }
-            }
-        },
-    )
-}
-
 // Themed replacement for the
 // through here so it
 // or a stray line
@@ -250,4 +206,4 @@ import com.kiko.tracker.util.AppUpdateInfo
         description = { when (it) { TitleLanguage.Romaji -> "e.g. Sousou no Frieren"; TitleLanguage.English -> "e.g. Frieren: Beyond Journey's End" } },
         onSelect = onSelect, onDismiss = onDismiss,
     )
-}
+}

@@ -68,8 +68,8 @@ import com.kiko.tracker.ui.components.ErrorDialog
 import com.kiko.tracker.ui.components.PaletteStyleDialog
 import com.kiko.tracker.ui.components.ThemeDialog
 import com.kiko.tracker.ui.components.TitleLanguageDialog
-import com.kiko.tracker.ui.components.UpdateDialog
 import com.kiko.tracker.ui.screens.AboutScreen
+import com.kiko.tracker.ui.screens.ChangelogScreen
 import com.kiko.tracker.ui.screens.BlogComposeScreen
 import com.kiko.tracker.ui.screens.BlogReaderScreen
 import com.kiko.tracker.ui.screens.BrowseCache
@@ -183,6 +183,8 @@ sealed class TopScreen {
     data class Topic(val topicId: Int, val title: String) : TopScreen()
     // App info page
     object About : TopScreen()
+    // What's new / update page
+    object Changelog : TopScreen()
     // Full review readout
     data class Review(val review: ReviewEntry, val itemTitle: String) : TopScreen()
     // Reviews page in webview
@@ -288,6 +290,7 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.Schedule -> "schedule"
     is TopScreen.Topic -> "topic:$topicId"
     TopScreen.About -> "about"
+    TopScreen.Changelog -> "changelog"
     is TopScreen.Review -> "review:${review.malId}"
     TopScreen.StacksHome -> "stacksHome"
     is TopScreen.StacksBrowse -> "stacksBrowse"
@@ -325,7 +328,7 @@ fun TopScreen.navKey(): Any = when (this) {
     is TopScreen.Tab -> "tab:$destination"
 }
 
-fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.MediaStacks || this is TopScreen.ReviewList || this is TopScreen.WriteReview || this is TopScreen.RelationGraph || this is TopScreen.StacksSaved || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.MalFriendsFavorites || this is TopScreen.FriendProfile || this is TopScreen.FriendFriendsFavorites || this is TopScreen.FriendListStatus || this is TopScreen.SettingsPage || this is TopScreen.AccountSheet || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage || this is TopScreen.CompanyPage || this is TopScreen.FeaturedArticles || this is TopScreen.FeaturedArticle || this is TopScreen.History || this is TopScreen.Notifications || this is TopScreen.MalAccount || this is TopScreen.Messages || this is TopScreen.Episodes || this is TopScreen.BlogReader || this is TopScreen.BlogCompose || this is TopScreen.Magazines
+fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranking || this is TopScreen.Recommendations || this is TopScreen.Schedule || this is TopScreen.Topic || this is TopScreen.About || this is TopScreen.Changelog || this is TopScreen.Review || this is TopScreen.StacksHome || this is TopScreen.StacksBrowse || this is TopScreen.StackDetail || this is TopScreen.MediaStacks || this is TopScreen.ReviewList || this is TopScreen.WriteReview || this is TopScreen.RelationGraph || this is TopScreen.StacksSaved || this is TopScreen.ClubDetail || this is TopScreen.ProfileStats || this is TopScreen.MalFriendsFavorites || this is TopScreen.FriendProfile || this is TopScreen.FriendFriendsFavorites || this is TopScreen.FriendListStatus || this is TopScreen.SettingsPage || this is TopScreen.AccountSheet || this is TopScreen.ScoreFilter || this is TopScreen.YearFilter || this is TopScreen.FormatFilter || this is TopScreen.GenreFilter || this is TopScreen.CharacterPage || this is TopScreen.PersonPage || this is TopScreen.CompanyPage || this is TopScreen.FeaturedArticles || this is TopScreen.FeaturedArticle || this is TopScreen.History || this is TopScreen.Notifications || this is TopScreen.MalAccount || this is TopScreen.Messages || this is TopScreen.Episodes || this is TopScreen.BlogReader || this is TopScreen.BlogCompose || this is TopScreen.Magazines
 
 
 @Composable fun KikoApp(vm: LibraryViewModel = viewModel(), onSignIn: () -> Unit = {}, onSignOut: () -> Unit = {}, malLink: Uri? = null, onMalLinkHandled: () -> Unit = {}, openNotifications: Boolean = false, onNotificationsHandled: () -> Unit = {}) {
@@ -735,7 +738,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         mediaStacksOpen = null; reviewListOpen = null; writeReviewOpen = null; relationGraphOpen = null
         rankingOpen = false; recommendationsOpen = false; scheduleOpen = false
         featuredArticlesOpen = false; featuredArticleOpen = null; historyOpen = false; notificationsOpen = false; malAccountOpen = false; messagesOpen = false
-        blogOpen = null; blogComposeOpen = null; magazinesOpen = false; magazineSelected = null; episodesOpen = null
+        blogOpen = null; blogComposeOpen = null; magazinesOpen = false; magazineSelected = null; episodesOpen = null; vm.updateDialogOpen = false
         forumTopicOpen = null; aboutOpen = false; reviewOpen = null
         vm.profileDrawerOpen = false
         profileStatsOpen = false; malFriendsFavoritesOpen = false; friendProfileStack = emptyList(); vm.clearFriendProfileCache(); friendFriendsFavoritesOpen = null; friendListStatusOpen = null; settingsPageOpen = false; scoreFilterOpen = null; yearFilterOpen = null; formatFilterOpen = null
@@ -755,7 +758,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
         mediaStacksOpen = null; reviewListOpen = null; writeReviewOpen = null; relationGraphOpen = null
         rankingOpen = false; recommendationsOpen = false; scheduleOpen = false
         featuredArticlesOpen = false; featuredArticleOpen = null; historyOpen = false; notificationsOpen = false; malAccountOpen = false; messagesOpen = false
-        blogOpen = null; blogComposeOpen = null; magazinesOpen = false; magazineSelected = null; episodesOpen = null
+        blogOpen = null; blogComposeOpen = null; magazinesOpen = false; magazineSelected = null; episodesOpen = null; vm.updateDialogOpen = false
         forumTopicOpen = null; aboutOpen = false; reviewOpen = null
         vm.profileDrawerOpen = false
         profileStatsOpen = false; malFriendsFavoritesOpen = false; friendProfileStack = emptyList(); vm.clearFriendProfileCache(); friendFriendsFavoritesOpen = null; friendListStatusOpen = null; settingsPageOpen = false; scoreFilterOpen = null; yearFilterOpen = null; formatFilterOpen = null
@@ -770,7 +773,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Prefer live item copy
     val detailItem = selectedItem?.let { sel -> vm.items.find { it.id == sel.id && it.type == sel.type } ?: sel }
     // Back press returns home
-    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && writeReviewOpen == null && relationGraphOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !notificationsOpen && !malAccountOpen && !messagesOpen && blogOpen == null && blogComposeOpen == null && !magazinesOpen && episodesOpen == null && !vm.profileDrawerOpen && (vm.destination != com.kiko.tracker.data.model.StartTabPrefs.tab || discoverReturnItem != null)) {
+    BackHandler(enabled = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && writeReviewOpen == null && relationGraphOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !notificationsOpen && !malAccountOpen && !messagesOpen && blogOpen == null && blogComposeOpen == null && !magazinesOpen && episodesOpen == null && !vm.updateDialogOpen && !vm.profileDrawerOpen && (vm.destination != com.kiko.tracker.data.model.StartTabPrefs.tab || discoverReturnItem != null)) {
         val returnItem = discoverReturnItem
         if (returnItem != null && vm.destination == Destination.Discover) {
             discoverReturnItem = null
@@ -799,7 +802,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     // Top-level destinations are only present at the root of the hierarchy.
     // Calculating this once also lets the app switch between a navigation bar
     // and rail without every detail route owning a slightly different shell.
-    val showNavigation = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && writeReviewOpen == null && relationGraphOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !notificationsOpen && !malAccountOpen && !messagesOpen && blogOpen == null && blogComposeOpen == null && !magazinesOpen && episodesOpen == null && !vm.profileDrawerOpen
+    val showNavigation = detailItem == null && characterDetailOpenId == null && personDetailOpenId == null && companyDetailOpenId == null && !rankingOpen && !recommendationsOpen && !scheduleOpen && forumTopicOpen == null && !aboutOpen && reviewOpen == null && !stacksHomeOpen && stacksBrowseKind == null && stackDetailOpen == null && mediaStacksOpen == null && reviewListOpen == null && writeReviewOpen == null && relationGraphOpen == null && !stacksSavedOpen && clubDetailOpen == null && !profileStatsOpen && !malFriendsFavoritesOpen && friendProfileStack.isEmpty() && friendFriendsFavoritesOpen == null && friendListStatusOpen == null && !settingsPageOpen && scoreFilterOpen == null && yearFilterOpen == null && formatFilterOpen == null && genreFilterOpen == null && !featuredArticlesOpen && featuredArticleOpen == null && !historyOpen && !notificationsOpen && !malAccountOpen && !messagesOpen && blogOpen == null && blogComposeOpen == null && !magazinesOpen && episodesOpen == null && !vm.updateDialogOpen && !vm.profileDrawerOpen
     val selectDestination: (Destination) -> Unit = {
         discoverReturnItem = null
         discoverReturnDestination = null
@@ -875,6 +878,7 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                 featuredArticleOpen?.let { add("article:${it.first}" to TopScreen.FeaturedArticle(it.first, it.second)) }
                                 forumTopicOpen?.let { add("topic:${it.first}" to TopScreen.Topic(it.first, it.second)) }
                                 episodesOpen?.let { add("episodes:${it.first}" to TopScreen.Episodes(it.first, it.second)) }
+                                if (vm.updateDialogOpen) add("changelog" to TopScreen.Changelog)
                                 mediaStacksOpen?.let { add("mediaStacks" to TopScreen.MediaStacks(it)) }
                                 reviewListOpen?.let { add("reviewList" to TopScreen.ReviewList(it)) }
                                 writeReviewOpen?.let { add("writeReview" to TopScreen.WriteReview(it)) }
@@ -1115,10 +1119,21 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
                                         TopScreen.Recommendations -> RecommendationsScreen(vm, onBack = { recommendationsOpen = false }, onOpenDetail = ::openDetail, onEdit = { editor = it }, selectedItem = editor)
                                         is TopScreen.Schedule -> ScheduleScreen(vm, initialDay = screen.initialDay, onBack = { scheduleOpen = false }, onOpenDetail = ::openDetail)
                                         is TopScreen.Topic -> ForumTopicScreen(vm, topicId = screen.topicId, title = screen.title, jumpToPostId = forumTopicJump?.takeIf { it.first == screen.topicId }?.second, onBack = { forumTopicOpen = null }, onOpenCharacter = { malId -> openCharacter(malId, castOnTop = true) }, onOpenPerson = { malId -> openPerson(malId, castOnTop = true) }, onOpenCompany = { malId -> openCompany(malId, castOnTop = true) })
+                                        TopScreen.Changelog -> ChangelogScreen(
+                                            updateInfo = vm.updateInfo,
+                                            downloadProgress = vm.updateDownloadProgress,
+                                            needsInstallPermission = vm.updateNeedsInstallPermission,
+                                            error = vm.updateError,
+                                            onDownload = { vm.downloadAndInstallUpdate(context) },
+                                            onOpenInstallSettings = { vm.updateNeedsInstallPermission = false; context.startActivity(AppUpdateChecker(context).installPermissionSettingsIntent()) },
+                                            onSkip = { vm.skipUpdate(context) },
+                                            onBack = { vm.updateDialogOpen = false; vm.updateNeedsInstallPermission = false; vm.updateError = null },
+                                        )
                                         TopScreen.About -> AboutScreen(
                                             onBack = { aboutOpen = false },
                                             updateInfo = vm.updateInfo, updateChecking = vm.updateChecking, updateUpToDate = vm.updateUpToDateMessage,
                                             onCheckForUpdate = { if (vm.updateInfo != null) vm.updateDialogOpen = true else vm.checkForUpdate(context, manual = true) },
+                                            onOpenChangelog = { vm.updateDialogOpen = true },
                                         )
                                         is TopScreen.Review -> ReviewScreen(screen.review, screen.itemTitle, onBack = { reviewOpen = null })
                                         // Leaving Stacks Home always
@@ -1311,20 +1326,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
             if (colorSourceOpen) ColorSourceDialog(vm.colorSource, vm.customColorHex, onDismiss = { colorSourceOpen = false }, onSelect = { vm.setColorSource(context, it) }, onCustomHexChange = { vm.setCustomColor(context, it) })
             if (paletteStyleOpen) PaletteStyleDialog(vm.paletteStyle, onDismiss = { paletteStyleOpen = false }, onSelect = { vm.setPaletteStyle(context, it); paletteStyleOpen = false })
             if (titleLangOpen) TitleLanguageDialog(vm.titleLanguage, onDismiss = { titleLangOpen = false }, onSelect = { vm.setTitleLanguage(context, it); titleLangOpen = false })
-            if (vm.updateDialogOpen) vm.updateInfo?.let { info ->
-                UpdateDialog(
-                    info = info,
-                    downloadProgress = vm.updateDownloadProgress,
-                    needsInstallPermission = vm.updateNeedsInstallPermission,
-                    error = vm.updateError,
-                    onDownload = { vm.downloadAndInstallUpdate(context) },
-                    onOpenInstallSettings = { vm.updateNeedsInstallPermission = false; context.startActivity(AppUpdateChecker(context).installPermissionSettingsIntent()) },
-                    onSkip = { vm.skipUpdate(context) },
-                    onDismiss = { vm.updateDialogOpen = false; vm.updateNeedsInstallPermission = false; vm.updateError = null },
-                )
-            }
         }
     }
 }
 
-// Shared pieces section
+// Shared pieces section
