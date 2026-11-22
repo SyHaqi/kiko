@@ -39,6 +39,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +61,7 @@ import com.kiko.tracker.ui.components.KikoErrorState
 import com.kiko.tracker.ui.components.KikoHeader
 import com.kiko.tracker.ui.components.KikoLoadingIndicator
 import com.kiko.tracker.ui.components.kikoFilterChipColors
+import com.kiko.tracker.ui.components.HeaderTitleSubtitle
 import com.kiko.tracker.ui.components.headerEdgeStart
 import com.kiko.tracker.ui.components.headerTitleStart
 import com.kiko.tracker.ui.theme.LocalKikoColors
@@ -85,13 +87,14 @@ private fun settingsPageIcon(page: MalSettingsPage): ImageVector = when (page) {
 }
 
 /** "Manage your MAL account": a list of the account-settings pages; the editable ones open as forms in the app. */
-@Composable fun MalAccountScreen(avatarUrl: String?, onBack: () -> Unit, onPictureChanged: () -> Unit = {}) {
+@Composable fun MalAccountScreen(avatarUrl: String?, onBack: () -> Unit, onPictureChanged: () -> Unit = {}, onListChanged: () -> Unit = {}) {
     val c = LocalKikoColors.current
     val context = LocalContext.current
     var page by remember { mutableStateOf<MalSettingsPage?>(null) }
     var pictureOpen by remember { mutableStateOf(false) }
     var recsOpen by remember { mutableStateOf(false) }
-    BackHandler { if (page != null) page = null else if (pictureOpen) pictureOpen = false else if (recsOpen) recsOpen = false else onBack() }
+    var listDataOpen by remember { mutableStateOf(false) }
+    BackHandler { if (page != null) page = null else if (pictureOpen) pictureOpen = false else if (recsOpen) recsOpen = false else if (listDataOpen) listDataOpen = false else onBack() }
     val open = page
     if (open != null) {
         MalSettingsFormScreen(open, onBack = { page = null })
@@ -99,6 +102,10 @@ private fun settingsPageIcon(page: MalSettingsPage): ImageVector = when (page) {
     }
     if (recsOpen) {
         MalMyRecommendationsScreen(onBack = { recsOpen = false })
+        return
+    }
+    if (listDataOpen) {
+        MalListDataScreen(onBack = { listDataOpen = false }, onListChanged = onListChanged)
         return
     }
     if (pictureOpen) {
@@ -115,30 +122,61 @@ private fun settingsPageIcon(page: MalSettingsPage): ImageVector = when (page) {
             GroupLabel("Edit here")
             val pages = MalSettingsPage.values().toList()
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                NavRow(Icons.Rounded.Image, "Profile picture", "Change or remove your avatar", forumGroupShape(0, pages.size + 1, 22.dp)) { pictureOpen = true }
+                NavRow(Icons.Rounded.Image, "Profile picture", "Change or remove your avatar", forumGroupShape(0, pages.size + 1)) { pictureOpen = true }
                 pages.forEachIndexed { i, p ->
-                    NavRow(settingsPageIcon(p), p.title, p.subtitle, forumGroupShape(i + 1, pages.size + 1, 22.dp)) { page = p }
+                    NavRow(settingsPageIcon(p), p.title, p.subtitle, forumGroupShape(i + 1, pages.size + 1)) { page = p }
                 }
             }
             GroupLabel("Your activity")
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                NavRow(Icons.Rounded.ThumbUp, "Your recommendations", "Edit or remove titles you've recommended", forumGroupShape(0, 1, 22.dp)) { recsOpen = true }
+                NavRow(Icons.Rounded.ThumbUp, "Your recommendations", "Edit or remove titles you've recommended", forumGroupShape(0, 2)) { recsOpen = true }
+                NavRow(Icons.Rounded.SwapVert, "Import & export", "Back up or restore your list as XML", forumGroupShape(1, 2)) { listDataOpen = true }
             }
             GroupLabel("Open on MyAnimeList")
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 MalWebLinks.forEachIndexed { i, l ->
-                    NavRow(l.icon, l.title, l.subtitle, forumGroupShape(i, MalWebLinks.size, 22.dp), trailing = Icons.Rounded.OpenInNew) { context.openInBrowser(l.url) }
+                    NavRow(l.icon, l.title, l.subtitle, forumGroupShape(i, MalWebLinks.size), trailing = Icons.Rounded.OpenInNew) { context.openInBrowser(l.url) }
                 }
             }
         }
     }
 }
 
-@Composable internal fun MalAccountHeader(title: String, onBack: () -> Unit) {
+/** Back-button header used by every MAL-account page. Pass [subtitle] for the two-line form (page name, then the item it is about). */
+@Composable internal fun MalAccountHeader(title: String, onBack: () -> Unit, subtitle: String = "", trailing: @Composable RowScope.() -> Unit = {}) {
     val c = LocalKikoColors.current
     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
-        Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
+        if (subtitle.isNotBlank()) HeaderTitleSubtitle(title, subtitle, Modifier.weight(1f))
+        else Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
+        trailing()
+    }
+}
+
+/**
+ * Back header with a search icon on the right, the way My List and Forums do it: tapping the icon swaps the title for the
+ * Play Store-style search bar (back arrow closes it again). The list below filters live as you type.
+ */
+@Composable internal fun MalSearchHeader(title: String, onBack: () -> Unit, query: String, onQueryChange: (String) -> Unit, hint: String, subtitle: String = "") {
+    val c = LocalKikoColors.current
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    if (!expanded) {
+        MalAccountHeader(title, onBack, subtitle) {
+            Box(Modifier.size(43.dp).clip(com.kiko.tracker.ui.theme.kikoCircleShape()).kikoClickable { expanded = true }, contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Search, hint, tint = c.ink, modifier = Modifier.size(24.dp))
+            }
+        }
+    } else {
+        val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+        val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        BackHandler { expanded = false; onQueryChange("") }
+        LaunchedEffect(Unit) { focus.requestFocus(); keyboard?.show() }
+        Box(Modifier.fillMaxWidth().height(KikoHeader.Height), contentAlignment = Alignment.Center) {
+            com.kiko.tracker.ui.components.SearchTopBar(
+                value = query, onValueChange = onQueryChange, hint = hint, onSearch = { keyboard?.hide() },
+                onBack = { expanded = false; onQueryChange("") }, focusRequester = focus, showDivider = false, onClear = { onQueryChange("") },
+            )
+        }
     }
 }
 
@@ -344,7 +382,7 @@ private fun prepareAvatar(context: Context, uri: Uri): PickedImage? {
                         } else Spacer(Modifier.height(10.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             section.rows.forEachIndexed { i, row ->
-                                SettingsRowCard(row, forumGroupShape(i, section.rows.size, 22.dp), edits)
+                                SettingsRowCard(row, forumGroupShape(i, section.rows.size), edits)
                             }
                         }
                     }

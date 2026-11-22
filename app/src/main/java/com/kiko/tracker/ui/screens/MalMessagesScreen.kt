@@ -103,7 +103,7 @@ private fun messageError(t: Throwable): String =
                     Text(if (sent) "No sent messages" else "Your inbox is empty", color = c.ink, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 12.dp))
                     Text("Tap New message to write one on MyAnimeList.", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                 }
-                else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp).padding(top = 14.dp, bottom = 96.dp)) {
+                else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp).padding(top = 12.dp, bottom = 96.dp)) {
                     Text("$total ${if (total == 1) "message" else "messages"}", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp, bottom = 8.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         items.forEachIndexed { i, m -> MessageRow(m, sent, forumGroupShape(i, items.size, 22.dp)) { open = m } }
@@ -126,9 +126,10 @@ private fun messageError(t: Throwable): String =
                 }
             }
             ExtendedFloatingActionButton(
-                onClick = { newMessage = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-                containerColor = c.primary, contentColor = c.onPrimary, shape = RoundedCornerShape(kikoCorner(20.dp)),
-            ) { Icon(Icons.Rounded.Edit, null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("New message", fontWeight = FontWeight.Medium) }
+                onClick = { newMessage = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
+                containerColor = c.primary, contentColor = c.onPrimary,
+                icon = { Icon(Icons.Rounded.Edit, null) }, text = { Text("New message", fontWeight = FontWeight.Bold) },
+            )
         }
     }
 

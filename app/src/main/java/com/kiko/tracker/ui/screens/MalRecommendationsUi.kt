@@ -231,7 +231,7 @@ private fun friendlyError(t: Throwable): String =
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        items.forEachIndexed { i, e -> NavRow(Icons.Rounded.ThumbUp, e.title, e.meta, forumGroupShape(i, items.size, 22.dp)) { onOpen(e) } }
+        items.forEachIndexed { i, e -> NavRow(Icons.Rounded.ThumbUp, e.title, e.meta, forumGroupShape(i, items.size)) { onOpen(e) } }
     }
 }
 

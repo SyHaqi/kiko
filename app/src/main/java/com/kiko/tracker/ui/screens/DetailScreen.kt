@@ -190,6 +190,8 @@ data class DetailScreenActions(
     val onWriteReview: (MediaItem) -> Unit = {},
     // "Recommend a similar title" (posts to MAL). Null hides the row, e.g. when not signed in.
     val onRecommend: ((MediaItem) -> Unit)? = null,
+    // Anime only: opens the episode list (air dates, ratings, discussion threads).
+    val onOpenEpisodes: ((MediaItem) -> Unit)? = null,
     // "See more" on the Related row: opens the Related graph page (TopScreen.RelationGraph).
     val onOpenRelationGraph: (MediaItem) -> Unit = {},
     val onGenreClick: (String) -> Unit = {},
@@ -707,6 +709,24 @@ private var detailStatusBarOwners = 0
                                         // Trailers — PV thumbnails from MAL's /video page, styled like the
                                         // forum [yt] embeds (ForumVideo): thumbnail + play button, tap opens
                                         // the video on YouTube. Sits right under Links, above Details.
+                                        key("episodes") {
+                                            if (item.type == MediaType.Anime && actions.onOpenEpisodes != null && item.id.toIntOrNull() != null) {
+                                                SectionTitle("Episodes", "", {})
+                                                Row(
+                                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(kikoCorner(22.dp))).background(c.surfaceContainerHigh)
+                                                        .kikoClickable(scale = 0.98f) { actions.onOpenEpisodes.invoke(item) }.padding(horizontal = 18.dp, vertical = 14.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                ) {
+                                                    Icon(Icons.Rounded.Movie, null, tint = c.primary, modifier = Modifier.size(22.dp))
+                                                    Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                                                        Text(if (item.total > 0) "${item.total} episodes" else "Episode list", color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                                                        Text("Air dates, ratings and discussions", color = c.muted, fontSize = 12.sp)
+                                                    }
+                                                    Icon(Icons.Rounded.ChevronRight, null, tint = c.muted)
+                                                }
+                                            }
+                                        }
+
                                         key("trailers") {
                                             if (trailers.isNotEmpty()) {
                                                 SectionTitle("Trailers", "", {})
