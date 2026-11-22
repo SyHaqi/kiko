@@ -60,7 +60,17 @@ class MalForumScrapeApi {
         val totalReplies = doc.selectFirst("input#totalReplies")?.attr("value")?.toIntOrNull() ?: 0
         // +1 for the original post, which isn't counted in totalReplies.
         val hasMore = posts.size < totalReplies + 1
-        ForumTopicDetail(title = title, posts = posts, poll = null, hasMore = hasMore)
+        ForumTopicDetail(title = title, posts = posts, poll = null, hasMore = hasMore, locked = isLockedPage(doc))
+    }
+
+    // MAL swaps the reply box for a "locked" notice on locked topics. Looked for outside the posts themselves so a post that
+    // merely says "this topic is locked" can't trip it.
+    private fun isLockedPage(doc: org.jsoup.nodes.Document): Boolean {
+        val copy = doc.clone()
+        copy.select("div.forum-topic-message").remove()
+        if (copy.select("[class*=locked], i.fa-lock, .icon-lock").isNotEmpty()) return true
+        val text = copy.body().text().lowercase()
+        return "this topic is locked" in text || "topic has been locked" in text || "this topic is closed" in text
     }
 
     private fun parsePost(el: Element): ForumPost? {

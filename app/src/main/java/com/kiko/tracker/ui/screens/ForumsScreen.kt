@@ -520,6 +520,9 @@ private fun formatNewsAge(raw: String): String {
     var loadingMore by remember(topicId) { mutableStateOf(false) }
     var hasMore by remember(topicId) { mutableStateOf(false) }
     var error by remember(topicId) { mutableStateOf<String?>(null) }
+    // Locked topics can't be replied to. Known up front when the topic was opened from a list (the list carries it),
+    // and picked up from the page itself otherwise (e.g. opened from a notification).
+    var locked by remember(topicId) { mutableStateOf(vm.forumTopics.any { it.id == topicId && it.isLocked }) }
     // Replying needs the website session cookie (MalSessionCookie) — the
     // official API this screen otherwise reads from is GET-only for forums,
     // see MalForumReplyApi's doc comment. Same connect-then-retry shape as
@@ -549,8 +552,10 @@ private fun formatNewsAge(raw: String): String {
     // MAL's page markup degrades to the old, reliable behavior rather than breaking the screen.
     suspend fun freshFirstPage(): Result<ForumTopicDetail> {
         val scraped = runCatching { MalForumScrapeApi().topic(topicId) }
-        if (scraped.isSuccess && scraped.getOrNull()?.posts?.isNotEmpty() == true) return scraped
-        return runCatching { MalApi(context).forumTopic(topicId) }
+        val result = if (scraped.isSuccess && scraped.getOrNull()?.posts?.isNotEmpty() == true) scraped
+        else runCatching { MalApi(context).forumTopic(topicId) }
+        if (result.getOrNull()?.locked == true) locked = true
+        return result
     }
     // Background reconciliation only, run after the optimistic insert in sendReply() below —
     // NOT what makes the user's own reply appear (that's instant, from client-known data). This
@@ -872,7 +877,7 @@ private fun formatNewsAge(raw: String): String {
                                 post, isOriginalPost = isOp, highlighted = highlightedPostId == post.id,
                                 shape = if (isOp) RoundedCornerShape(kikoCorner(22.dp)) else forumGroupShape(index - opCount, posts.size - opCount, outer = TopicGroupOuterCorner),
                                 onOpenProfileLink = onOpenProfileLink,
-                                canReply = connected,
+                                canReply = connected && !locked,
                                 onReply = { target ->
                                     replyingTo = target
                                     // Prefill the compose box with "@name " so the reply is
@@ -920,6 +925,7 @@ private fun formatNewsAge(raw: String): String {
         if (!loading && posts.isNotEmpty()) {
             ForumReplyBar(
                 modifier = Modifier.consumeWindowInsets(WindowInsets.navigationBars).imePadding(),
+                locked = locked,
                 connected = connected,
                 draft = draft,
                 onDraftChange = { draft = it },
@@ -1051,6 +1057,7 @@ private val FormatSizes = listOf(25, 50, 75, 100, 125, 150, 175, 200).map { "$it
 
 @Composable fun ForumReplyBar(
     modifier: Modifier = Modifier,
+    locked: Boolean = false,
     connected: Boolean,
     draft: TextFieldValue,
     onDraftChange: (TextFieldValue) -> Unit,
@@ -1081,6 +1088,20 @@ private val FormatSizes = listOf(25, 50, 75, 100, 125, 150, 175, 200).map { "$it
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(Modifier.fillMaxWidth()) {
+            if (locked) {
+                // Same pill as the composer, but inert: a hint where the field is and a greyed lock where Send is.
+                val lockedShape = RoundedCornerShape(kikoCorner(26.dp))
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).clip(lockedShape).background(c.surfaceContainerHigh).padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("This topic is locked", color = c.muted, fontSize = 15.sp, lineHeight = 20.sp, modifier = Modifier.weight(1f).padding(start = 18.dp, top = 10.dp, bottom = 10.dp))
+                    Box(Modifier.size(40.dp).clip(kikoCircleShape()), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Lock, "Locked", tint = c.muted.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+                    }
+                }
+                return@Surface
+            }
             if (!connected) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(RoundedCornerShape(kikoCorner(22.dp))).background(c.surfaceContainerHigh)
@@ -1554,8 +1575,15 @@ internal val LocalForumTypography = androidx.compose.runtime.compositionLocalOf 
         text = shown, style = style, modifier = modifier,
         onClick = { offset ->
             val hit = if (spoilers.isEmpty()) null else text.getStringAnnotations("SPOILER", offset, offset).firstOrNull()
-            if (hit != null) revealed = if (hit.item in revealed) revealed - hit.item else revealed + hit.item
-            else text.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { onUrl(it.item) }
+            val url = text.getStringAnnotations("URL", offset, offset).firstOrNull()
+            when {
+                // A hidden spoiler: the first tap only reveals it (even if the text is a link).
+                hit != null && hit.item !in revealed -> revealed = revealed + hit.item
+                // Revealed: a link inside it opens like any other link.
+                url != null -> onUrl(url.item)
+                // Revealed plain text: tapping hides it again.
+                hit != null -> revealed = revealed - hit.item
+            }
         },
     )
 }
@@ -1883,102 +1911,102 @@ private const val CollapsePostChars = 1600
     var expanded by rememberSaveable(post.id) { mutableStateOf(false) }
     val folded = collapsible && !expanded
     androidx.compose.runtime.CompositionLocalProvider(LocalForumTonal provides true) {
-    Column(
-        Modifier.fillMaxWidth()
-            .clip(shape)
-            .background(container)
-            .animateContentSize(tween(200))
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 12.dp),
-    ) {
-        if (!isOriginalPost) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TopicAvatar(post.author, 38.dp, c)
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text(post.author.name.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(formatForumDate(post.createdAt), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
-                }
-                if (post.number > 0) {
-                    Text(
-                        "#${post.number}", color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, softWrap = false,
-                        modifier = Modifier.padding(start = 8.dp).clip(kikoPillShape()).background(c.background).padding(horizontal = 9.dp, vertical = 4.dp),
-                    )
-                }
-            }
-        }
-        // "Reply to X" hint - MAL's own parent-post reference, drawn with the same quote frame as an inline [quote].
-        if (post.replyToAuthor.isNotBlank()) {
-            ForumQuoteFrame(c, 0, Modifier.padding(top = if (isOriginalPost) 0.dp else 12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = c.primary, modifier = Modifier.size(14.dp))
-                    Text("Reply to ${post.replyToAuthor}", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
-                }
-                if (post.replyToBody.isNotBlank()) {
-                    Text(post.replyToBody, color = c.muted, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
-        Box(
-            Modifier.fillMaxWidth().padding(top = if (isOriginalPost && post.replyToAuthor.isBlank()) 0.dp else 12.dp).then(
-                if (folded) Modifier.heightIn(max = 340.dp).clipToBounds().drawWithContent {
-                    drawContent()
-                    val fade = 84.dp.toPx()
-                    drawRect(Brush.verticalGradient(listOf(Color.Transparent, container), startY = (size.height - fade).coerceAtLeast(0f), endY = size.height))
-                } else Modifier
-            ),
+        Column(
+            Modifier.fillMaxWidth()
+                .clip(shape)
+                .background(container)
+                .animateContentSize(tween(200))
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 12.dp),
         ) {
-            ForumBody(post.body, onOpenProfileLink = onOpenProfileLink, background = baseContainer)
-        }
-        if (collapsible) {
-            Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
-                Row(
-                    Modifier.clip(kikoPillShape()).kikoClickable { expanded = !expanded }.padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(if (expanded) "Show less" else "Read more", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.padding(start = 4.dp).size(18.dp))
-                }
-            }
-        }
-        // Footer: "More" (opens Quote / Copy link) sits just left of the right-most Reply button.
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.weight(1f))
-            var menuOpen by remember { mutableStateOf(false) }
-            Box {
-                PostAction(Icons.Rounded.MoreHoriz, "More") { menuOpen = true }
-                KikoDropdownMenu(
-                    expanded = menuOpen,
-                    onDismissRequest = { menuOpen = false },
-                    containerColor = c.surfaceContainerHigh,
-                    modifier = Modifier.widthIn(min = 170.dp),
-                ) {
-                    if (canReply) {
-                        DropdownMenuItem(
-                            text = { Text("Quote", fontWeight = FontWeight.SemiBold, color = c.ink) },
-                            leadingIcon = { Icon(Icons.Rounded.FormatQuote, null, tint = c.muted) },
-                            onClick = { menuOpen = false; onQuote(post) },
+            if (!isOriginalPost) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TopicAvatar(post.author, 38.dp, c)
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text(post.author.name.ifBlank { "Unknown" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(formatForumDate(post.createdAt), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
+                    }
+                    if (post.number > 0) {
+                        Text(
+                            "#${post.number}", color = c.muted, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1, softWrap = false,
+                            modifier = Modifier.padding(start = 8.dp).clip(kikoPillShape()).background(c.background).padding(horizontal = 9.dp, vertical = 4.dp),
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text("Copy link", fontWeight = FontWeight.SemiBold, color = c.ink) },
-                        leadingIcon = { Icon(Icons.Rounded.Link, null, tint = c.muted) },
-                        onClick = {
-                            menuOpen = false
-                            val url = "https://myanimelist.net/forum/message/${post.id}?goto=topic"
-                            runCatching {
-                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                cm.setPrimaryClip(android.content.ClipData.newPlainText("MAL post link", url))
-                                android.widget.Toast.makeText(context, "Link copied", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                    )
                 }
             }
-            if (canReply) {
-                Spacer(Modifier.width(8.dp))
-                PostAction(Icons.AutoMirrored.Rounded.Reply, "Reply", tonal = true) { onReply(post) }
+            // "Reply to X" hint - MAL's own parent-post reference, drawn with the same quote frame as an inline [quote].
+            if (post.replyToAuthor.isNotBlank()) {
+                ForumQuoteFrame(c, 0, Modifier.padding(top = if (isOriginalPost) 0.dp else 12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.AutoMirrored.Rounded.Reply, null, tint = c.primary, modifier = Modifier.size(14.dp))
+                        Text("Reply to ${post.replyToAuthor}", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
+                    }
+                    if (post.replyToBody.isNotBlank()) {
+                        Text(post.replyToBody, color = c.muted, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+            Box(
+                Modifier.fillMaxWidth().padding(top = if (isOriginalPost && post.replyToAuthor.isBlank()) 0.dp else 12.dp).then(
+                    if (folded) Modifier.heightIn(max = 340.dp).clipToBounds().drawWithContent {
+                        drawContent()
+                        val fade = 84.dp.toPx()
+                        drawRect(Brush.verticalGradient(listOf(Color.Transparent, container), startY = (size.height - fade).coerceAtLeast(0f), endY = size.height))
+                    } else Modifier
+                ),
+            ) {
+                ForumBody(post.body, onOpenProfileLink = onOpenProfileLink, background = baseContainer)
+            }
+            if (collapsible) {
+                Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
+                    Row(
+                        Modifier.clip(kikoPillShape()).kikoClickable { expanded = !expanded }.padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(if (expanded) "Show less" else "Read more", color = c.primary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+                    }
+                }
+            }
+            // Footer: "More" (opens Quote / Copy link) sits just left of the right-most Reply button.
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
+                var menuOpen by remember { mutableStateOf(false) }
+                Box {
+                    PostAction(Icons.Rounded.MoreHoriz, "More") { menuOpen = true }
+                    KikoDropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                        containerColor = c.surfaceContainerHigh,
+                        modifier = Modifier.widthIn(min = 170.dp),
+                    ) {
+                        if (canReply) {
+                            DropdownMenuItem(
+                                text = { Text("Quote", fontWeight = FontWeight.SemiBold, color = c.ink) },
+                                leadingIcon = { Icon(Icons.Rounded.FormatQuote, null, tint = c.muted) },
+                                onClick = { menuOpen = false; onQuote(post) },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Copy link", fontWeight = FontWeight.SemiBold, color = c.ink) },
+                            leadingIcon = { Icon(Icons.Rounded.Link, null, tint = c.muted) },
+                            onClick = {
+                                menuOpen = false
+                                val url = "https://myanimelist.net/forum/message/${post.id}?goto=topic"
+                                runCatching {
+                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    cm.setPrimaryClip(android.content.ClipData.newPlainText("MAL post link", url))
+                                    android.widget.Toast.makeText(context, "Link copied", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                        )
+                    }
+                }
+                if (canReply) {
+                    Spacer(Modifier.width(8.dp))
+                    PostAction(Icons.AutoMirrored.Rounded.Reply, "Reply", tonal = true) { onReply(post) }
+                }
             }
         }
-    }
     }
 }
 
@@ -2041,7 +2069,8 @@ fun formatForumDate(raw: String): String {
     } catch (e: Exception) { raw.take(10) }
 }
 
-// Profile section
+// Profile section
+
 // (dark-mode shade, light-mode shade) per hue.
 private val NewsTagRed = Color(0xFFFF8A80) to Color(0xFFC62828)
 private val NewsTagAmber = Color(0xFFFFB74D) to Color(0xFF9A5B00)

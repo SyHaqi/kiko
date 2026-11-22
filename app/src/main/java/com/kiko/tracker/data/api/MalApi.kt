@@ -148,7 +148,7 @@ data class ForumPollOption(val text: String, val votes: Int)
 data class ForumPoll(val question: String, val closed: Boolean, val options: List<ForumPollOption>)
 
 // Topic posts and poll
-data class ForumTopicDetail(val title: String, val posts: List<ForumPost>, val poll: ForumPoll?, val hasMore: Boolean)
+data class ForumTopicDetail(val title: String, val posts: List<ForumPost>, val poll: ForumPoll?, val hasMore: Boolean, val locked: Boolean = false)
 
 // Home snapshot card
 data class NewsSnapshot(val topicId: Int, val title: String, val imageUrl: String)
@@ -529,7 +529,7 @@ class MalApi(private val context: Context) {
             val opts = optsArr?.let { a -> (0 until a.length()).map { i -> a.getJSONObject(i).let { o -> ForumPollOption(o.optString("text"), o.optInt("votes")) } } } ?: emptyList()
             ForumPoll(question = it.optString("question"), closed = it.optBoolean("closed"), options = opts)
         }
-        ForumTopicDetail(title = data.optString("title"), posts = posts, poll = poll, hasMore = json.optJSONObject("paging")?.has("next") == true)
+        ForumTopicDetail(title = data.optString("title"), posts = posts, poll = poll, hasMore = json.optJSONObject("paging")?.has("next") == true, locked = data.optBoolean("is_locked"))
     }
 
     // Latest news snapshots
