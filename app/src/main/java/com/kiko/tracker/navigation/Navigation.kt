@@ -72,6 +72,7 @@ import com.kiko.tracker.ui.components.UpdateDialog
 import com.kiko.tracker.ui.screens.AboutScreen
 import com.kiko.tracker.ui.screens.BlogComposeScreen
 import com.kiko.tracker.ui.screens.BlogReaderScreen
+import com.kiko.tracker.ui.screens.BrowseCache
 import com.kiko.tracker.ui.screens.LocalOpenMagazines
 import com.kiko.tracker.ui.screens.MagazinesScreen
 import com.kiko.tracker.ui.screens.MalEpisodesScreen
@@ -586,6 +587,8 @@ fun TopScreen.isFullPage() = this is TopScreen.Detail || this is TopScreen.Ranki
     var notificationsOpen by remember { mutableStateOf(false) }
     var malAccountOpen by remember { mutableStateOf(false) }
     var messagesOpen by remember { mutableStateOf(false) }
+    // The cached Reviews / Blogs / Messages / Episodes / Magazines lists belong to one account.
+    LaunchedEffect(vm.signedIn) { BrowseCache.clear() }
     // Anime episode list (MAL id to title), opened from the detail page.
     var episodesOpen by remember { mutableStateOf<Pair<Int, String>?>(null) }
     // Community > Blogs reader / composer (0 = new entry) and Discover > Magazines (with the magazine being browsed, kept here so it survives opening a title).

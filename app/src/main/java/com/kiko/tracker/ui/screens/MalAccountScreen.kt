@@ -148,7 +148,7 @@ private fun settingsPageIcon(page: MalSettingsPage): ImageVector = when (page) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(top = KikoHeader.BackTop, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack, modifier = Modifier.headerEdgeStart()) { Icon(Icons.Rounded.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(24.dp)) }
         if (subtitle.isNotBlank()) HeaderTitleSubtitle(title, subtitle, Modifier.weight(1f))
-        else Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
+        else Text(title, style = MaterialTheme.typography.titleLarge, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).headerTitleStart())
         trailing()
     }
 }
@@ -159,7 +159,7 @@ private fun settingsPageIcon(page: MalSettingsPage): ImageVector = when (page) {
  */
 @Composable internal fun MalSearchHeader(title: String, onBack: () -> Unit, query: String, onQueryChange: (String) -> Unit, hint: String, subtitle: String = "") {
     val c = LocalKikoColors.current
-    var expanded by rememberSaveable { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(query.isNotBlank()) }
     if (!expanded) {
         MalAccountHeader(title, onBack, subtitle) {
             Box(Modifier.size(43.dp).clip(com.kiko.tracker.ui.theme.kikoCircleShape()).kikoClickable { expanded = true }, contentAlignment = Alignment.Center) {

@@ -51,11 +51,14 @@ private fun messageError(t: Throwable): String =
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val api = remember { MalSocialApi(context) }
-    var sent by remember { mutableStateOf(false) }
-    var items by remember { mutableStateOf<List<MalMessage>>(emptyList()) }
-    var total by remember { mutableIntStateOf(0) }
-    var hasMore by remember { mutableStateOf(false) }
-    var loading by remember { mutableStateOf(true) }
+    var sent by remember { mutableStateOf(BrowseCache.messagesSent) }
+    val cache = BrowseCache.messages.getValue(sent)
+    var items by remember(sent) { mutableStateOf(cache.items) }
+    var total by remember(sent) { mutableIntStateOf(cache.extra) }
+    var hasMore by remember(sent) { mutableStateOf(cache.hasMore) }
+    var loading by remember(sent) { mutableStateOf(!cache.loaded) }
+    val scroll = rememberScrollState(cache.index)
+    DisposableEffect(sent) { onDispose { cache.index = scroll.value } }
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var reloadKey by remember { mutableIntStateOf(0) }
@@ -63,9 +66,12 @@ private fun messageError(t: Throwable): String =
     var newMessage by remember { mutableStateOf(false) }
 
     LaunchedEffect(sent, reloadKey) {
+        BrowseCache.messagesSent = sent
+        // Coming back to a list that's already loaded shows it as it was; reloadKey is bumped after reading or deleting a message.
+        if (cache.loaded && reloadKey == 0) return@LaunchedEffect
         loading = true; error = null
         runCatching { api.messages(sent) }
-            .onSuccess { items = it.items; total = it.total; hasMore = it.hasMore }
+            .onSuccess { items = it.items; total = it.total; hasMore = it.hasMore; cache.items = it.items; cache.extra = it.total; cache.hasMore = it.hasMore; cache.loaded = true }
             .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; error = messageError(it); items = emptyList() }
         loading = false
     }
@@ -100,10 +106,10 @@ private fun messageError(t: Throwable): String =
                 error != null -> KikoErrorState(error!!, onRetry = { reloadKey++ })
                 items.isEmpty() -> Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Rounded.MailOutline, null, tint = c.muted, modifier = Modifier.size(44.dp))
-                    Text(if (sent) "No sent messages" else "Your inbox is empty", color = c.ink, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 12.dp))
-                    Text("Tap New message to write one on MyAnimeList.", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                    Text(if (sent) "No sent messages" else "Your inbox is empty", color = c.ink, fontSize = 16.sp, fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 12.dp))
+                    Text("Tap New message to write one on MyAnimeList.", color = c.muted, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
                 }
-                else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp).padding(top = 12.dp, bottom = 96.dp)) {
+                else -> Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 14.dp).padding(top = 12.dp, bottom = 96.dp)) {
                     Text("$total ${if (total == 1) "message" else "messages"}", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp, bottom = 8.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         items.forEachIndexed { i, m -> MessageRow(m, sent, forumGroupShape(i, items.size, 22.dp)) { open = m } }
@@ -115,7 +121,7 @@ private fun messageError(t: Throwable): String =
                                 loadingMore = true
                                 scope.launch {
                                     runCatching { api.messages(sent, items.size) }
-                                        .onSuccess { items = items + it.items; hasMore = it.hasMore }
+                                        .onSuccess { items = items + it.items; hasMore = it.hasMore; cache.items = items; cache.hasMore = hasMore }
                                         .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; Toast.makeText(context, messageError(it), Toast.LENGTH_SHORT).show() }
                                     loadingMore = false
                                 }

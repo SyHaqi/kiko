@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -114,25 +115,27 @@ private fun browseError(t: Throwable): String =
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val api = remember { MalBrowseApi(ctx) }
-    var manga by rememberSaveable { mutableStateOf(false) }
-    var items by remember { mutableStateOf<List<SiteReview>>(emptyList()) }
-    var page by remember { mutableIntStateOf(1) }
-    var hasMore by remember { mutableStateOf(false) }
-    var loading by remember { mutableStateOf(true) }
+    var manga by remember { mutableStateOf(BrowseCache.reviewsManga) }
+    val cache = BrowseCache.reviews.getValue(manga)
+    var items by remember(manga) { mutableStateOf(cache.items) }
+    var page by remember(manga) { mutableIntStateOf(cache.page) }
+    var hasMore by remember(manga) { mutableStateOf(cache.hasMore) }
+    var loading by remember(manga) { mutableStateOf(!cache.loaded) }
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    val listState = rememberLazyListState()
+    val listState = remember(manga) { LazyListState(cache.index, cache.offset) }
+    DisposableEffect(manga) { onDispose { cache.index = listState.firstVisibleItemIndex; cache.offset = listState.firstVisibleItemScrollOffset } }
 
     fun load() {
         scope.launch {
             loading = true; error = null
             runCatching { api.reviews(manga, 1) }
-                .onSuccess { items = it; page = 1; hasMore = it.isNotEmpty() }
+                .onSuccess { items = it; page = 1; hasMore = it.isNotEmpty(); cache.items = it; cache.page = 1; cache.hasMore = hasMore; cache.loaded = true }
                 .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; error = browseError(it); items = emptyList(); hasMore = false }
             loading = false
         }
     }
-    LaunchedEffect(manga) { items = emptyList(); load() }
+    LaunchedEffect(manga) { BrowseCache.reviewsManga = manga; if (!cache.loaded) load() }
 
     Column(Modifier.fillMaxSize()) {
         CommunityHeader(vm)
@@ -152,7 +155,7 @@ private fun browseError(t: Throwable): String =
                             loadingMore = true
                             scope.launch {
                                 runCatching { api.reviews(manga, page + 1) }
-                                    .onSuccess { more -> page += 1; hasMore = more.isNotEmpty(); items = (items + more).distinctBy { it.review.url.ifBlank { it.review.username + it.title } } }
+                                    .onSuccess { more -> page += 1; hasMore = more.isNotEmpty(); items = (items + more).distinctBy { it.review.url.ifBlank { it.review.username + it.title } }; cache.items = items; cache.page = page; cache.hasMore = hasMore }
                                     .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; error = null; hasMore = false }
                                 loadingMore = false
                             }
@@ -196,22 +199,27 @@ private fun browseError(t: Throwable): String =
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val api = remember { MalBrowseApi(ctx) }
-    var mine by rememberSaveable { mutableStateOf(false) }
-    var items by remember { mutableStateOf<List<BlogRef>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+    var mine by remember { mutableStateOf(BrowseCache.blogsMine && vm.signedIn) }
+    val cache = BrowseCache.blogs.getValue(mine)
+    // A list fetched before the last publish / edit / delete (a different reloadKey) is stale and gets fetched again.
+    val fresh = cache.loaded && cache.extra == reloadKey
+    var items by remember(mine) { mutableStateOf(cache.items) }
+    var loading by remember(mine) { mutableStateOf(!fresh) }
     var error by remember { mutableStateOf<String?>(null) }
     val myName = vm.malProfile?.name.orEmpty()
+    val listState = remember(mine) { LazyListState(cache.index, cache.offset) }
+    DisposableEffect(mine) { onDispose { cache.index = listState.firstVisibleItemIndex; cache.offset = listState.firstVisibleItemScrollOffset } }
 
     fun load() {
         scope.launch {
             loading = true; error = null
             runCatching { if (mine && myName.isNotBlank()) api.userBlog(myName) else api.blogFeed() }
-                .onSuccess { items = it }
+                .onSuccess { items = it; cache.items = it; cache.loaded = true; cache.extra = reloadKey }
                 .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; error = browseError(it); items = emptyList() }
             loading = false
         }
     }
-    LaunchedEffect(mine, reloadKey) { load() }
+    LaunchedEffect(mine, reloadKey) { BrowseCache.blogsMine = mine; if (!fresh) load() }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -222,7 +230,7 @@ private fun browseError(t: Throwable): String =
                     loading && items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 36.dp) }
                     error != null -> KikoErrorState(error!!, onRetry = { load() })
                     items.isEmpty() -> EmptyNote(Icons.Rounded.EditNote, if (mine) "You haven't written any entries" else "No blog entries found", if (mine) "Tap Write to publish your first one." else "Pull down to try again.")
-                    else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    else -> LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         itemsIndexed(items, key = { _, b -> b.id }) { index, b ->
                             StaggeredItem(index) { BlogRow(b, showAuthor = !mine, shape = forumGroupShape(index, items.size, 22.dp)) { onOpenBlog(b.id) } }
                         }
@@ -460,7 +468,9 @@ private fun browseError(t: Throwable): String =
     var all by remember { mutableStateOf(MagazineCache.list) }
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
-    var query by rememberSaveable { mutableStateOf("") }
+    var query by remember { mutableStateOf(BrowseCache.magazineQuery) }
+    val listState = rememberLazyListState(BrowseCache.magazineIndex, BrowseCache.magazineOffset)
+    DisposableEffect(Unit) { onDispose { BrowseCache.magazineIndex = listState.firstVisibleItemIndex; BrowseCache.magazineOffset = listState.firstVisibleItemScrollOffset } }
     LaunchedEffect(reload) {
         if (all.isNotEmpty() && reload == 0) return@LaunchedEffect
         error = null
@@ -469,12 +479,12 @@ private fun browseError(t: Throwable): String =
     val shown = remember(all, query) { all.filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }.sortedBy { it.name.lowercase() } }
     val groups = remember(shown) { shown.groupBy { it.name.firstOrNull()?.uppercaseChar()?.takeIf { ch -> ch.isLetter() } ?: '#' }.toSortedMap() }
     Column(Modifier.fillMaxSize()) {
-        MalSearchHeader("Magazines", onBack, query, { query = it }, hint = "Search magazines", subtitle = if (all.isNotEmpty()) "${formatExact(all.size)} manga magazines" else "")
+        MalSearchHeader("Magazines", onBack, query, { query = it; BrowseCache.magazineQuery = it }, hint = "Search magazines", subtitle = if (all.isNotEmpty()) "${formatExact(all.size)} manga magazines" else "")
         when {
             error != null && all.isEmpty() -> KikoErrorState(error!!, onRetry = { reload++ })
             all.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 36.dp) }
             shown.isEmpty() -> EmptyNote(Icons.Rounded.SearchOff, "No magazines match", "Try a shorter name.")
-            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 0.dp, bottom = 28.dp)) {
+            else -> LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 0.dp, bottom = 28.dp)) {
                 groups.forEach { (letter, mags) ->
                     item(key = "h$letter") { Text(letter.toString(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(start = 6.dp, top = 18.dp, bottom = 8.dp)) }
                     itemsIndexed(mags, key = { _, m -> m.id }) { i, m ->
@@ -501,17 +511,21 @@ private object MagazineCache { var list: List<MagazineRef> = emptyList() }
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val api = remember { MalBrowseApi(ctx) }
-    var items by remember(mag.id) { mutableStateOf<List<MagazineTitle>>(emptyList()) }
-    var page by remember(mag.id) { mutableIntStateOf(1) }
-    var hasMore by remember(mag.id) { mutableStateOf(false) }
-    var loading by remember(mag.id) { mutableStateOf(true) }
+    val cache = BrowseCache.magazineTitlesFor(mag.id)
+    var items by remember(mag.id) { mutableStateOf(cache.items) }
+    var page by remember(mag.id) { mutableIntStateOf(cache.page) }
+    var hasMore by remember(mag.id) { mutableStateOf(cache.hasMore) }
+    var loading by remember(mag.id) { mutableStateOf(!cache.loaded) }
+    val listState = remember(mag.id) { LazyListState(cache.index, cache.offset) }
+    DisposableEffect(mag.id) { onDispose { cache.index = listState.firstVisibleItemIndex; cache.offset = listState.firstVisibleItemScrollOffset } }
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember(mag.id) { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     LaunchedEffect(mag.id, reload) {
+        if (cache.loaded && reload == 0) return@LaunchedEffect
         loading = true; error = null
         runCatching { api.magazineTitles(mag, 1) }
-            .onSuccess { items = it; page = 1; hasMore = it.size >= 100 }
+            .onSuccess { items = it; page = 1; hasMore = it.size >= 100; cache.items = it; cache.page = 1; cache.hasMore = hasMore; cache.loaded = true }
             .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; error = browseError(it) }
         loading = false
     }
@@ -521,7 +535,7 @@ private object MagazineCache { var list: List<MagazineRef> = emptyList() }
             loading && items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { KikoLoadingIndicator(color = c.primary, size = 36.dp) }
             error != null -> KikoErrorState(error!!, onRetry = { reload++ })
             items.isEmpty() -> EmptyNote(Icons.Rounded.MenuBook, "Nothing listed", "MAL has no manga for this magazine yet.")
-            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            else -> LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 itemsIndexed(items, key = { _, t -> t.id }) { i, t -> StaggeredItem(i) { MagazineTitleRow(t, forumGroupShape(i, items.size, 22.dp)) { onOpenTitle(t) } } }
                 if (hasMore) item {
                     LoadMoreButton(loadingMore) {
@@ -529,7 +543,7 @@ private object MagazineCache { var list: List<MagazineRef> = emptyList() }
                         loadingMore = true
                         scope.launch {
                             runCatching { api.magazineTitles(mag, page + 1) }
-                                .onSuccess { more -> val fresh = more.filter { m -> items.none { it.id == m.id } }; page += 1; hasMore = more.size >= 100 && fresh.isNotEmpty(); items = items + fresh }
+                                .onSuccess { more -> val fresh = more.filter { m -> items.none { it.id == m.id } }; page += 1; hasMore = more.size >= 100 && fresh.isNotEmpty(); items = items + fresh; cache.items = items; cache.page = page; cache.hasMore = hasMore }
                                 .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; hasMore = false }
                             loadingMore = false
                         }

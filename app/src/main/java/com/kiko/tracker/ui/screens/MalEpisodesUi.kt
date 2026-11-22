@@ -43,18 +43,22 @@ import kotlinx.coroutines.launch
     val c = LocalKikoColors.current
     val scope = rememberCoroutineScope()
     val api = remember { MalEpisodesApi() }
-    var items by remember(malId) { mutableStateOf<List<EpisodeEntry>>(emptyList()) }
-    var hasMore by remember(malId) { mutableStateOf(false) }
-    var loading by remember(malId) { mutableStateOf(true) }
+    val cache = BrowseCache.episodesFor(malId)
+    var items by remember(malId) { mutableStateOf(cache.items) }
+    var hasMore by remember(malId) { mutableStateOf(cache.hasMore) }
+    var loading by remember(malId) { mutableStateOf(!cache.loaded) }
+    val listState = remember(malId) { androidx.compose.foundation.lazy.LazyListState(cache.index, cache.offset) }
+    DisposableEffect(malId) { onDispose { cache.index = listState.firstVisibleItemIndex; cache.offset = listState.firstVisibleItemScrollOffset } }
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember(malId) { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     var open by remember { mutableStateOf<EpisodeEntry?>(null) }
     BackHandler(onBack = onBack)
     LaunchedEffect(malId, reload) {
+        if (cache.loaded && reload == 0) return@LaunchedEffect
         loading = true; error = null
         runCatching { api.episodes(malId, title, 0) }
-            .onSuccess { items = it.items; hasMore = it.hasMore }
+            .onSuccess { items = it.items; hasMore = it.hasMore; cache.items = it.items; cache.hasMore = it.hasMore; cache.loaded = true }
             .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; error = it.message ?: "Couldn't load the episode list" }
         loading = false
     }
@@ -68,7 +72,7 @@ import kotlinx.coroutines.launch
                 Text("No episodes listed yet", color = c.ink, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 12.dp))
                 Text(title, color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            else -> LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 itemsIndexed(items, key = { _, e -> e.number }) { i, e ->
                     StaggeredItem(i) { EpisodeRow(e, forumGroupShape(i, items.size, 22.dp), onOpenTopic = { onOpenTopic(e.topicId, "$title - Episode ${e.number} Discussion") }) { open = e } }
                 }
@@ -79,7 +83,7 @@ import kotlinx.coroutines.launch
                             loadingMore = true
                             scope.launch {
                                 runCatching { api.episodes(malId, title, items.size) }
-                                    .onSuccess { more -> val fresh = more.items.filter { m -> items.none { it.number == m.number } }; items = items + fresh; hasMore = more.hasMore && fresh.isNotEmpty() }
+                                    .onSuccess { more -> val fresh = more.items.filter { m -> items.none { it.number == m.number } }; items = items + fresh; hasMore = more.hasMore && fresh.isNotEmpty(); cache.items = items; cache.hasMore = hasMore }
                                     .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; hasMore = false }
                                 loadingMore = false
                             }
